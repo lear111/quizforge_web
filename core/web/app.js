@@ -434,11 +434,19 @@ async function activateReady(key){
     await showQuestion(pane,qid,{payload,collection:descriptor});
   }
 }
-async function closeTab(key){const pane=tabs.get(key);if(!await allowDiscardEditor(pane))return;await flushPane(pane);pane.closed=true;clearTimeout(pane.inkTimer);pane.sizeObserver.disconnect();pane.worldObserver.disconnect();disposeEditorSession(pane);disposeScoreSummary(pane);pane.plugin?.destroy();pane.whiteboard?.destroy();pane.node.remove();tabs.delete(key);questionsCache.deleteCollection(`${pane.key}:`);for(const prefix of unusedPagePrefixes(pane,tabs.values()))pagesCache.deleteCollection(prefix);if(activeKey===key){activeKey=null;await activateReady([...tabs.keys()].at(-1)||null);}else updateChrome();}
+async function closeTab(key){
+  const pane=tabs.get(key);if(!pane||!await allowDiscardEditor(pane))return;
+  await flushPane(pane);
+  pane.closed=true;clearTimeout(pane.inkTimer);pane.sizeObserver.disconnect();pane.worldObserver.disconnect();disposeEditorSession(pane);disposeScoreSummary(pane);pane.plugin?.destroy();pane.whiteboard?.destroy();pane.node.remove();tabs.delete(key);
+  questionsCache.deleteCollection(`${pane.key}:`);for(const prefix of unusedPagePrefixes(pane,tabs.values()))pagesCache.deleteCollection(prefix);
+  // A suspended tab can close without activation, so update its DOM here too.
+  renderTabs();
+  if(activeKey===key){activeKey=null;await activateReady([...tabs.keys()].at(-1)||null);}else updateChrome();
+}
 function renderTabs(){const root=$('#tabs');root.replaceChildren();for(const pane of tabs.values()){
   const tab=el('div','tab');tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(pane.key===activeKey));tab.tabIndex=pane.key===activeKey?0:-1;
-  const name=el('span','tab-name',pane.collection.title);const close=el('button','tab-close','×');close.setAttribute('aria-label',`关闭 ${pane.collection.title}`);
-  tab.append(name,close);tab.addEventListener('click',event=>{if(event.target!==close)transitionTo(async()=>{await flushPane(active());await activateReady(pane.key);});});tab.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();transitionTo(async()=>{await flushPane(active());await activateReady(pane.key);});}});
+  const name=el('span','tab-name',pane.collection.title);const close=el('button','tab-close','×');close.type='button';close.setAttribute('aria-label',`关闭 ${pane.collection.title}`);
+  tab.append(name,close);tab.addEventListener('click',event=>{if(!close.contains(event.target))transitionTo(async()=>{await flushPane(active());await activateReady(pane.key);});});tab.addEventListener('keydown',event=>{if(event.target===tab&&(event.key==='Enter'||event.key===' ')){event.preventDefault();transitionTo(async()=>{await flushPane(active());await activateReady(pane.key);});}});
   close.addEventListener('click',event=>{event.stopPropagation();transitionTo(()=>closeTab(pane.key));});root.append(tab);
 }}
 function renderLibrary(){
@@ -452,20 +460,18 @@ function renderLibrary(){
   $('#catalog-count').textContent=`${catalog.banks.length} 本题库 · ${catalog.extensions.length} 个拓展`;
 }
 function renderOutline(){
-  const pane=active(),root=$('#outline-list');root.replaceChildren();const rows=visibleQuestions(pane),qid=visibleQuestionId(pane);$('#outline-count').textContent=rows.length;
+  const pane=active(),root=$('#outline-list');root.replaceChildren();const rows=visibleQuestions(pane),qid=visibleQuestionId(pane);
   const roundScores=new Map(pane?.summaryShown?(pane.scoreSummary?.questions||[]).map(question=>[question.id,question]):[]);
-  let submitted=0,score=0,total=0;
   for(const group of consecutiveQuestionGroups(rows,pane?.view==='history'?pane.historyView.extension:pane?.collection.extension)){
     const section=el('section','outline-group'),matrix=el('div','outline-matrix');section.append(el('h2','outline-group-title',group.name),matrix);root.append(section);
     for(const {question:row,number}of group.items){
     const state=stateFor(pane,row.id);let status=roundScores.has(row.id)&&!roundScores.get(row.id).submitted?'unanswered':state.status;
-    if(status==='submitted'){submitted++;score+=Number(state.result?.score)||0;total+=Number(state.result?.maxScore)||0;status=state.result?.gradingStatus==='pending'?'pending-review':state.result?.correct?'correct':'incorrect';}
+    if(status==='submitted')status=state.result?.gradingStatus==='pending'?'pending-review':state.result?.correct?'correct':'incorrect';
     const button=el('button',`outline-item ${status}${row.id===qid?' active':''}`,String(number));button.dataset.questionId=row.id;button.setAttribute('aria-current',row.id===qid?'true':'false');button.setAttribute('aria-label',`第 ${number} 题：${row.title}`);button.title=`第 ${number} 题 · ${row.title}`;
     button.addEventListener('click',()=>transitionTo(async()=>{await navigateQuestion(pane,row.id);closeDrawers();}));matrix.append(button);
     }
   }
   if(hasScoreSummary(pane)){const button=el('button',`outline-score-summary${pane.summaryShown?' active':''}`,'分值汇总');button.addEventListener('click',()=>transitionTo(async()=>{await showScoreSummary(pane);closeDrawers();}));root.append(button);}
-  const summary=$('#outline-summary');summary.replaceChildren();if(pane){const scoreValue=pane.view==='history'?pane.historyEntry?.summary:pane.summaryShown?pane.scoreSummary:null;summary.append(el('strong','',`${scoreValue?.submittedCount??submitted} / ${rows.length}`),el('span','',`${pane.view==='history'?'本轮历史 · ':''}已提交${scoreValue?' · 得分 '+scoreValue.score+' / '+scoreValue.maxScore:submitted?' · 得分 '+score+' / '+total:''}`));}else summary.append(el('span','','打开题库后查看题目'));
 }
 function updateChrome(){
   draftFullscreen.sync();

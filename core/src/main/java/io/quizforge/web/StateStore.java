@@ -238,35 +238,80 @@ final class StateStore {
         return Json.object().put("deleted", historyId);
     }
     synchronized void recover() { recoverEdits(); }
-    /** Explicit compatible upgrade: old version state/history remain untouched. */
+    /** Explicit compatible upgrade: exact old state survives separately or in a backup. */
     synchronized void upgradeShortAnswer(Library.Collection previous, Library.EditPlan plan) throws IOException {
+        EditorDraftStore drafts = new EditorDraftStore(directory.getParent());
+        for (Library.Question question : previous.questions()) {
+            if (ShortAnswerUpgrade.eligible(previous.extensionFor(question)) && drafts.get(previous.id(), question.id()).path("changed").asBoolean())
+                throw new ApiException(409, "UPGRADE_EDITOR_DRAFT_PENDING", "Save or cancel the pending short-answer edit before upgrading; the editor draft is preserved");
+        }
         ObjectNode old = load(previous); Library.Collection replacement = plan.collection();
-        Path target = file(replacement);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) throw new ApiException(409, "UPGRADE_STATE_EXISTS", "Target version already has saved practice; preserve both versions instead of overwriting");
-        ObjectNode next = Json.object().put("schemaVersion", 1).put("collection", replacement.stateKey()).put("extensionFingerprint", replacement.extensionFingerprint());
-        next.put("upgradedFrom", previous.stateKey()); ObjectNode questions = next.putObject("questions");
+        Path source = file(previous), target = file(replacement); boolean sameState = source.equals(target);
+        if (!sameState && Files.exists(target, LinkOption.NOFOLLOW_LINKS)) throw new ApiException(409, "UPGRADE_STATE_EXISTS", "Target version already has saved practice; preserve both versions instead of overwriting");
+        if (sameState && !old.path("extensionFingerprint").asText().equals(previous.extensionFingerprint()))
+            throw new ApiException(409, "UPGRADE_STATE_EXISTS", "Mixed bank already has saved state for different extension bindings; preserve it instead of overwriting");
+        ObjectNode next = sameState ? old.deepCopy() : Json.object().put("schemaVersion", 1).put("collection", replacement.stateKey());
+        next.put("extensionFingerprint", replacement.extensionFingerprint()).put("upgradedFrom", previous.stateKey());
+        next.remove(java.util.List.of("editReceipts", "finishReceipts"));
+        ObjectNode questions = next.putObject("questions");
         ObjectNode oldSummary = summaryRound(old, previous);
         boolean completed = oldSummary != null && oldSummary.has("finishedAt");
         var states = new java.util.ArrayList<ObjectNode>(); boolean submitted = false;
         for (Library.Question question : replacement.questions()) {
-            ObjectNode state = questionState(old, previous, previous.question(question.id())).deepCopy();
+            Library.Question previousQuestion = previous.question(question.id());
+            ObjectNode state = questionState(old, previous, previousQuestion).deepCopy();
+            boolean changed = !question.fingerprint().equals(previousQuestion.fingerprint());
             // Completed history stays frozen; saved answers become drafts for a new practice round.
             if (completed) state = unsubmittedState(state);
-            if (state.path("revision").asLong() == Long.MAX_VALUE) throw new ApiException(409, "REVISION_LIMIT", "Saved revision cannot be upgraded");
-            state.put("revision", state.path("revision").asLong() + 1).put("fingerprint", question.fingerprint());
-            state.set("receipts", Json.MAPPER.createArrayNode()); state.remove("aiTaskId");
-            if (!state.path("answer").isNull()) {
+            if (changed || completed) {
+                if (state.path("revision").asLong() == Long.MAX_VALUE) throw new ApiException(409, "REVISION_LIMIT", "Saved revision cannot be upgraded");
+                state.put("revision", state.path("revision").asLong() + 1).put("fingerprint", question.fingerprint());
+                state.set("receipts", Json.MAPPER.createArrayNode()); state.remove("aiTaskId");
+            }
+            if (changed && !state.path("answer").isNull()) {
                 ObjectNode input = Json.object().put("op", "validateAnswer"); input.set("data", question.data()); input.set("answer", state.path("answer"));
                 rules.run(replacement.extensionFor(question), input);
             }
             states.add(state); questions.set(question.id(), state); submitted |= state.path("status").asText().equals("submitted");
         }
+        if (sameState) interruptRound(next, "extension-upgraded");
         if (submitted) {
             ObjectNode round = freezeRound(replacement, next, states); round.put("upgradedFrom", previous.stateKey());
-            next.putArray("historyRounds").add(round);
+            ArrayNode rounds = next.has("historyRounds") ? (ArrayNode) next.get("historyRounds") : next.putArray("historyRounds"); rounds.add(round);
         }
-        // A bank + new-version state use the existing durable recovery transaction.
-        byte[] bytes = stateBytes(next); edits.commit(plan, target, bytes); remember(replacement, next, bytes.length);
+        // Mixed bindings keep their existing state key. Back up its exact bytes before
+        // the same durable bank/state transaction changes either live file.
+        byte[] bytes = stateBytes(next);
+        if (sameState) {
+            byte[] expectedBytes = stateBytes(old);
+            byte[] sourceBytes = Files.exists(source, LinkOption.NOFOLLOW_LINKS) ? Files.readAllBytes(source) : expectedBytes;
+            // Normalize Jackson's in-memory numeric node types through JSON before
+            // comparison; a saved revision/decimal score may deserialize differently.
+            if (!Json.MAPPER.readTree(expectedBytes).equals(Json.MAPPER.readTree(sourceBytes))) throw new ApiException(409, "UPGRADE_STATE_CHANGED", "Saved practice changed before upgrade; preserve it and restart before trying again");
+            backupUpgrade(plan, sourceBytes);
+        }
+        edits.commit(plan, target, bytes); remember(replacement, next, bytes.length);
+    }
+    private void backupUpgrade(Library.EditPlan plan, byte[] beforeState) throws IOException {
+        byte[] bankBytes = plan.before(); String key;
+        try { MessageDigest digest = MessageDigest.getInstance("SHA-256"); digest.update(bankBytes); digest.update(beforeState); key = HexFormat.of().formatHex(digest.digest()); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        Path parent = directory.resolve("upgrade-backups"), backup = parent.resolve(key);
+        for (Path path : List.of(parent, backup)) {
+            if (Files.isSymbolicLink(path) || (Files.exists(path, LinkOption.NOFOLLOW_LINKS) && !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))) throw new IOException("Unsafe upgrade backup directory");
+            Files.createDirectories(path);
+        }
+        saveUpgradeBackup(backup.resolve("bank.json"), bankBytes); saveUpgradeBackup(backup.resolve("state.json"), beforeState);
+    }
+    private static void saveUpgradeBackup(Path path, byte[] bytes) throws IOException {
+        if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path) || Files.size(path) != bytes.length || !MessageDigest.isEqual(Files.readAllBytes(path), bytes))
+                throw new ApiException(409, "UPGRADE_BACKUP_EXISTS", "An existing upgrade backup differs; preserve it instead of overwriting");
+            return;
+        }
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(bytes); while (buffer.hasRemaining()) channel.write(buffer); channel.force(true);
+        }
     }
     synchronized ObjectNode act(Library.Collection collection, Library.Question question, JsonNode action) {
         return act(collection, question, action, null);

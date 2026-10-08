@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {validateDocument,fromEditorDocument} from '../shared/richtext/1.1.1/src/document.js';
-const read=file=>readFileSync(new URL(`../shared/richtext/1.1.1/${file}`,import.meta.url),'utf8');
+import {validateDocument,fromEditorDocument} from '../shared/richtext/1.1.2/src/document.js';
+const read=file=>readFileSync(new URL(`../shared/richtext/1.1.2/${file}`,import.meta.url),'utf8');
 const light=read('richtext.js'),heavy=read('richtext-editor.js'),css=read('richtext.css');
 const plain=value=>JSON.parse(JSON.stringify(value)),tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 const paragraph=text=>({type:'paragraph',content:[{type:'text',text}]}),doc=text=>({type:'doc',content:[paragraph(text)]});
@@ -25,12 +25,14 @@ test('new document schema accepts legacy content and rejects unsafe style/resour
   assert.deepEqual(fromEditorDocument({type:'doc',content:[{type:'paragraph',attrs:{textAlign:null,lineHeight:null},content:[{type:'text',text:'粘贴',marks:[{type:'textStyle',attrs:{color:'rgb(18, 52, 86)',fontFamily:'"Georgia"',fontSize:'12px',evil:'ignored'}}]}]}]}),{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'粘贴',marks:[{type:'textStyle',attrs:{color:'#123456',fontFamily:'Georgia',fontSize:'12px'}}]}]}]});
 });
 test('readonly renderer handles table, styles, math and sized images without creating editors',async t=>{
-  const f=fixture(t);assert.equal(f.api.version,'1.1.1');const rendered=f.api.render(f.view,rich);await rendered.ready;assert.equal(f.loads(),0);assert.equal(f.view.querySelectorAll('math').length,2);assert.equal(f.view.querySelector('h2').style.textAlign,'center');assert.equal(f.view.querySelector('h2').style.lineHeight,'1.5');assert.equal(f.view.querySelector('span[style]').style.fontSize,'24px');assert.equal(f.view.querySelector('th').colSpan,2);assert.equal(f.view.querySelector('img').style.width,'320px');assert.equal(f.view.querySelector('img').style.marginRight,'0px');assert.equal(f.view.querySelector('iframe'),null);rendered.destroy();
+  const f=fixture(t);assert.equal(f.api.version,'1.1.2');const rendered=f.api.render(f.view,rich);await rendered.ready;assert.equal(f.loads(),0);assert.equal(f.view.querySelectorAll('math').length,2);assert.equal(f.view.querySelector('h2').style.textAlign,'center');assert.equal(f.view.querySelector('h2').style.lineHeight,'1.5');assert.equal(f.view.querySelector('span[style]').style.fontSize,'24px');assert.equal(f.view.querySelector('th').colSpan,2);assert.equal(f.view.querySelector('img').style.width,'320px');assert.equal(f.view.querySelector('img').style.marginRight,'0px');assert.equal(f.view.querySelector('iframe'),null);rendered.destroy();
 });
 test('actual editor preserves all versioned nodes and attributes through save and advanced toggle',async t=>{
   const calls=[],f=fixture(t,{setExpanded:async value=>calls.push(plain(value))}),editor=f.api.createEditor(f.field,{doc:rich});await editor.ready;await editor.flush();assert.deepEqual(plain(editor.getDocument()),rich);
   const editable=f.field.querySelector('.tiptap'),inlineWidth=645.333374;editable.getBoundingClientRect=()=>({width:inlineWidth});await editor.setAdvanced(true);assert.equal(editor.isAdvanced(),true);assert.equal(f.field.querySelector('.tiptap'),editable);assert.equal(parseFloat(editable.style.width),inlineWidth);assert.deepEqual(calls[0],{expanded:true,contentWidth:inlineWidth-32});assert.equal(f.field.querySelector('.qfrt-ribbon').hidden,false);
-  await editor.setAdvanced(false);assert.equal(f.field.querySelector('.tiptap'),editable);assert.equal(editable.style.width,'');assert.deepEqual(plain(editor.getDocument()),rich);assert.equal(calls.length,2);editor.destroy();
+  assert.equal(f.field.querySelector('.qfrt-width-hint'),null);
+  const toolbar=f.field.querySelector('.qfrt-toolbar');assert.equal(f.dom.window.getComputedStyle(toolbar.querySelector('button[aria-label="粗体"]')).display,'none');assert.notEqual(f.dom.window.getComputedStyle(toolbar.querySelector('.qfrt-advanced-toggle')).display,'none');
+  await editor.setAdvanced(false);assert.equal(f.field.querySelector('.tiptap'),editable);assert.equal(editable.style.width,'');assert.deepEqual(plain(editor.getDocument()),rich);assert.equal(calls.length,2);assert.notEqual(f.dom.window.getComputedStyle(toolbar.querySelector('button[aria-label="粗体"]')).display,'none');editor.destroy();
 });
 test('leaving advanced editing waits for uploads and keeps resulting document in the same instance',async t=>{
   const pending=deferred(),calls=[],f=fixture(t,{put:()=>pending.promise,setExpanded:async value=>calls.push(plain(value))}),editor=f.api.createEditor(f.field,{doc:doc('答案'),contentWidth:500});await editor.ready;await editor.setAdvanced(true);f.paste();let closed=false;const closing=editor.setAdvanced(false).then(()=>{closed=true;});await tick();assert.equal(closed,false);assert.equal(calls.length,1);pending.resolve({id:'c'.repeat(64)});await closing;assert.equal(calls[1].expanded,false);assert.equal(editor.getDocument().content.some(value=>value.type==='image'&&value.attrs.assetId==='c'.repeat(64)),true);editor.destroy();
@@ -64,4 +66,73 @@ test('dialog confirmation uses button clicks without native form submission and 
   confirm.click();assert.equal(f.field.querySelector('dialog'),dialog);latex.value='x^2';const newline=new f.dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});latex.dispatchEvent(newline);assert.equal(newline.defaultPrevented,false);assert.equal(f.field.querySelector('dialog'),dialog);
   confirm.click();assert.equal(f.field.querySelector('dialog'),null);assert.equal(nativeSubmits,0);await editor.flush();assert.equal(editor.getDocument().content.some(node=>node.content?.some(value=>value.type==='inlineMath'&&value.attrs.latex==='x^2')),true);
   f.field.querySelector('button[aria-label="插入表格"]').click();const tableDialog=f.field.querySelector('dialog'),inputs=tableDialog.querySelectorAll('input');inputs[0].value='0';tableDialog.querySelector('.qfrt-dialog-actions button:last-child').click();assert.equal(f.field.querySelector('dialog'),tableDialog);inputs[0].value='2';inputs[1].value='2';const enter=new f.dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});inputs[1].dispatchEvent(enter);assert.equal(enter.defaultPrevented,true);assert.equal(f.field.querySelector('dialog'),null);await editor.flush();const table=editor.getDocument().content.find(node=>node.type==='table');assert.equal(table.content.length,2);assert.equal(table.content[0].content.length,2);editor.destroy();
+});
+
+const ribbonButton=(f,label)=>f.field.querySelector(`.qfrt-ribbon button[aria-label="${label}"]`);
+function pointer(f,target,type,{x=0,y=0,id=1,kind='mouse'}={}){
+  const event=new f.dom.window.Event(type,{bubbles:true,cancelable:true});
+  Object.defineProperties(event,{clientX:{value:x},clientY:{value:y},pointerId:{value:id},pointerType:{value:kind},button:{value:0}});
+  target.dispatchEvent(event);return event;
+}
+
+test('Chinese italic and bold marks remain visible despite host disabling font synthesis',async t=>{
+  const f=fixture(t);f.dom.window.document.querySelector('main').style.fontSynthesis='none';const editor=f.api.createEditor(f.field,{doc:doc('中文斜体测试')});await editor.ready;await editor.setAdvanced(true);
+  ribbonButton(f,'全选').click();ribbonButton(f,'斜体').click();ribbonButton(f,'粗体').click();await editor.flush();
+  const value=plain(editor.getDocument());assert.ok(value.content[0].content[0].marks.some(mark=>mark.type==='italic'));assert.ok(value.content[0].content[0].marks.some(mark=>mark.type==='bold'));
+  const rendered=f.api.render(f.view,value);await rendered.ready;assert.equal(f.dom.window.getComputedStyle(f.field.querySelector('.qfrt-document')).fontSynthesis,'weight style');assert.equal(f.dom.window.getComputedStyle(f.view.querySelector('.qfrt-document')).fontSynthesis,'weight style');assert.equal(f.dom.window.getComputedStyle(f.view.querySelector('em')).fontStyle,'italic');assert.equal(f.dom.window.getComputedStyle(f.field.querySelector('em')).fontStyle,'italic');editor.destroy();rendered.destroy();
+});
+
+test('font menus and color pickers retain the selected text after control focus',async t=>{
+  const f=fixture(t),editor=f.api.createEditor(f.field,{doc:doc('选区格式')});await editor.ready;await editor.setAdvanced(true);ribbonButton(f,'全选').click();
+  const font=f.field.querySelector('select[aria-label="字体"]');pointer(f,font,'pointerdown');font.focus();font.value='Georgia';font.dispatchEvent(new f.dom.window.Event('change'));
+  const size=f.field.querySelector('select[aria-label="字号"]');pointer(f,size,'pointerdown');size.focus();size.value='20px';size.dispatchEvent(new f.dom.window.Event('change'));
+  const tint=f.field.querySelector('input[aria-label="高亮颜色"]');pointer(f,tint,'pointerdown');tint.focus();tint.value='#ff9900';tint.dispatchEvent(new f.dom.window.Event('input'));await editor.flush();
+  const marks=plain(editor.getDocument()).content[0].content[0].marks;assert.deepEqual(marks.find(mark=>mark.type==='textStyle').attrs,{fontFamily:'Georgia',fontSize:'20px'});assert.deepEqual(marks.find(mark=>mark.type==='highlight').attrs,{color:'#ff9900'});editor.destroy();
+});
+
+test('advanced image button synchronously opens its file input and persists a chosen image',async t=>{
+  const pending=deferred(),f=fixture(t,{put:()=>pending.promise}),editor=f.api.createEditor(f.field,{doc:doc('选中的题干')});await editor.ready;await editor.setAdvanced(true);ribbonButton(f,'全选').click();
+  const input=f.field.querySelector('.qfrt-ribbon input[type=file]');let clicked=false;input.click=()=>{clicked=true;};ribbonButton(f,'插入图片').click();assert.equal(clicked,true);assert.equal(input.hidden,false);assert.equal(f.dom.window.getComputedStyle(input).position,'absolute');
+  Object.defineProperty(input,'files',{value:[new f.dom.window.File(['image'],'diagram.png',{type:'image/png'})]});input.dispatchEvent(new f.dom.window.Event('change'));assert.equal(editor.isUploading(),true);
+  // Changing the live selection while the chooser/upload is open must not change insertion target.
+  const range=f.dom.window.document.createRange();range.setStart(f.field.querySelector('.tiptap p').firstChild,0);range.collapse(true);f.dom.window.getSelection().removeAllRanges();f.dom.window.getSelection().addRange(range);f.dom.window.document.dispatchEvent(new f.dom.window.Event('selectionchange'));await tick();
+  pending.resolve({id:'e'.repeat(64)});await editor.flush();const value=plain(editor.getDocument());assert.equal(value.content.some(node=>node.type==='image'&&node.attrs.assetId==='e'.repeat(64)),true);assert.equal(JSON.stringify(value).includes('选中的题干'),false);assert.equal(JSON.stringify(value).includes('blob:'),false);editor.destroy();
+});
+
+test('selected images resize proportionally by mouse and touch, persist width, and undo once',async t=>{
+  const f=fixture(t),changes=[],value={type:'doc',content:[{type:'image',attrs:{assetId:'b'.repeat(64),width:320,alt:'图片'}},paragraph('保留文字')]},editor=f.api.createEditor(f.field,{doc:value,onChange:doc=>changes.push(plain(doc))});await editor.ready;await editor.setAdvanced(true);
+  const image=f.field.querySelector('img');image.getBoundingClientRect=()=>({width:parseFloat(image.style.width)||320,height:(parseFloat(image.style.width)||320)/2});image.click();const handle=f.field.querySelector('.qfrt-image-handle-se');assert.equal(f.dom.window.getComputedStyle(handle).display,'block');
+  pointer(f,handle,'pointerdown',{x:100,y:100});pointer(f,f.dom.window.document,'pointermove',{x:140,y:120});assert.equal(changes.length,0);assert.equal(image.style.width,'360px');pointer(f,f.dom.window.document,'pointerup',{x:140,y:120});await editor.flush();assert.equal(editor.getDocument().content[0].attrs.width,360);assert.equal(changes.length,1);
+  const rendered=f.api.render(f.view,editor.getDocument());await rendered.ready;assert.equal(f.view.querySelector('img').style.width,image.style.width);ribbonButton(f,'撤销').click();assert.equal(editor.getDocument().content[0].attrs.width,320);ribbonButton(f,'重做').click();assert.equal(editor.getDocument().content[0].attrs.width,360);
+  pointer(f,handle,'pointerdown',{x:10,y:10,id:2,kind:'touch'});pointer(f,f.dom.window.document,'pointermove',{x:10,y:30,id:2,kind:'touch'});pointer(f,f.dom.window.document,'pointerup',{x:10,y:30,id:2,kind:'touch'});assert.equal(editor.getDocument().content[0].attrs.width,400);assert.equal(validateDocument(plain(editor.getDocument())),true);editor.destroy();rendered.destroy();
+});
+
+test('cancelled or destroyed image drags do not persist widths or leak into the next editor',async t=>{
+  const f=fixture(t),value={type:'doc',content:[{type:'image',attrs:{assetId:'b'.repeat(64),width:200}}]},editor=f.api.createEditor(f.field,{doc:value});await editor.ready;
+  const image=f.field.querySelector('img');image.getBoundingClientRect=()=>({width:200,height:100});image.click();const handle=f.field.querySelector('.qfrt-image-handle-se');pointer(f,handle,'pointerdown');pointer(f,f.dom.window.document,'pointermove',{x:100});pointer(f,f.dom.window.document,'pointercancel');assert.equal(editor.getDocument().content[0].attrs.width,200);assert.equal(image.style.width,'200px');
+  pointer(f,handle,'pointerdown');pointer(f,f.dom.window.document,'pointermove',{x:100});f.dom.window.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.equal(editor.getDocument().content[0].attrs.width,200);
+  pointer(f,handle,'pointerdown');editor.destroy();const next=f.api.createEditor(f.field,{doc:doc('新字段')});await next.ready;pointer(f,f.dom.window.document,'pointermove',{x:100});pointer(f,f.dom.window.document,'pointerup',{x:100});assert.deepEqual(plain(next.getDocument()),doc('新字段'));next.destroy();
+});
+
+test('concurrent image upload success cannot erase another upload failure',async t=>{
+  const first=deferred(),second=deferred();let n=0;const f=fixture(t,{put:()=>n++===0?first.promise:second.promise}),editor=f.api.createEditor(f.field,{doc:doc('并发上传')});await editor.ready;f.paste();f.paste();await tick();first.reject(new Error('第一张写入失败'));await tick();second.resolve({id:'c'.repeat(64)});await assert.rejects(editor.flush(),/第一张写入失败/);assert.equal(f.field.querySelector('.qfrt-message').hidden,false);assert.match(f.field.querySelector('.qfrt-message').textContent,/第一张写入失败/);editor.destroy();
+});
+
+test('advanced paragraph, link and table tools operate on real Tiptap selections',async t=>{
+  const f=fixture(t),editor=f.api.createEditor(f.field,{doc:doc('工具验收')});await editor.ready;await editor.setAdvanced(true);
+  for(const [label,mark] of [['斜体','italic'],['下划线','underline'],['删除线','strike'],['下标','subscript'],['上标','superscript'],['行内代码','code']]){
+    editor.setDocument(doc('选中文本'));ribbonButton(f,'全选').click();ribbonButton(f,label).click();assert.ok(editor.getDocument().content[0].content[0].marks.some(value=>value.type===mark),label);
+  }
+  editor.setDocument(doc('段落'));ribbonButton(f,'居中对齐').click();assert.equal(editor.getDocument().content[0].attrs.textAlign,'center');ribbonButton(f,'右对齐').click();assert.equal(editor.getDocument().content[0].attrs.textAlign,'right');ribbonButton(f,'两端对齐').click();assert.equal(editor.getDocument().content[0].attrs.textAlign,'justify');
+  editor.setDocument(doc('链接文本'));ribbonButton(f,'全选').click();ribbonButton(f,'插入或修改链接').click();f.field.querySelector('dialog input').value='https://example.com/';f.field.querySelector('dialog .qfrt-dialog-actions button:last-child').click();assert.equal(editor.getDocument().content[0].content[0].marks.find(mark=>mark.type==='link').attrs.href,'https://example.com/');ribbonButton(f,'移除链接').click();assert.equal(editor.getDocument().content[0].content[0].marks,undefined);
+  editor.setDocument(doc('表格前文'));ribbonButton(f,'插入表格').click();const inputs=f.field.querySelectorAll('dialog input');inputs[0].value='2';inputs[1].value='2';f.field.querySelector('dialog .qfrt-dialog-actions button:last-child').click();
+  // Confirmation must keep the new table selection, so its next command acts inside the table.
+  ribbonButton(f,'下方插入行').click();ribbonButton(f,'右侧插入列').click();let table=editor.getDocument().content.find(node=>node.type==='table');assert.equal(table.content.length,3);assert.equal(table.content[0].content.length,3);ribbonButton(f,'删除行').click();ribbonButton(f,'删除列').click();table=editor.getDocument().content.find(node=>node.type==='table');assert.equal(table.content.length,2);assert.equal(table.content[0].content.length,2);ribbonButton(f,'切换表头行').click();ribbonButton(f,'删除表格').click();assert.equal(editor.getDocument().content.some(node=>node.type==='table'),false);ribbonButton(f,'撤销').click();assert.equal(editor.getDocument().content.some(node=>node.type==='table'),true);await editor.flush();assert.equal(validateDocument(plain(editor.getDocument())),true);editor.destroy();
+});
+
+test('published 1.1.1 remains independently loadable for frozen history',async t=>{
+  const dom=new JSDOM('<!doctype html><main></main>',{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'});t.after(()=>dom.window.close());dom.window.eval(readFileSync(new URL('../shared/richtext/1.1.1/richtext.js',import.meta.url),'utf8'));assert.equal(dom.window.QFRichText.version,'1.1.1');
+  const view=dom.window.QFRichText.render(dom.window.document.querySelector('main'),doc('历史正文'));await view.ready;assert.equal(dom.window.document.querySelector('p').textContent,'历史正文');view.destroy();
+  dom.window.QFRichText.configure({resources:{get:async()=>({url:'blob:legacy'})},async loadEditor(){dom.window.eval(readFileSync(new URL('../shared/richtext/1.1.1/richtext-editor.js',import.meta.url),'utf8'));}});
+  const editor=dom.window.QFRichText.createEditor(dom.window.document.querySelector('main'),{doc:rich});await editor.ready;await editor.flush();assert.deepEqual(plain(editor.getDocument()),rich);editor.destroy();
 });

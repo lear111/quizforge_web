@@ -1,0 +1,20 @@
+{
+  "id": "quizforge.short-answer",
+  "version": "1.2.2",
+  "name": "简答题",
+  "requiresApi": {"major": 1, "minMinor": 0, "capabilities": ["practice", "editor", "editor-drafts", "score", "manual-review", "ai-grading", "resources", "richtext", "lifecycle"]},
+  "description": "题干与答案支持基础及完整富文本编辑，表格、公式、图片和 AI 评分建议。",
+  "dependencies": [
+    {
+      "id": "quizforge.richtext",
+      "version": "1.1.2"
+    }
+  ],
+  "entry": "practice.html",
+  "script": "practice-ai.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples.json"
+}

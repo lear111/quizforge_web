@@ -187,17 +187,23 @@ final class Library {
         } catch (IOException e) { throw new ApiException(503, "BANK_UNAVAILABLE", "Bank cannot be prepared for editing"); }
     }
     synchronized EditPlan prepareShortAnswerUpgrade(Collection current) throws IOException {
-        if (!current.kind().equals("bank") || current.extension() == null || !current.extension().id().equals("quizforge.short-answer") || !java.util.Set.of("1.0.0", "1.1.0", "1.2.0").contains(current.extension().version()))
-            throw ApiException.bad("Only short-answer 1.0.0, 1.1.0 or 1.2.0 banks can use this upgrade");
+        if (!current.kind().equals("bank") || current.extensions().stream().noneMatch(ShortAnswerUpgrade::eligible))
+            throw ApiException.bad("Only installed short-answer 1.0.0, 1.1.0, 1.2.0 or 1.2.1 questions can use this upgrade");
         Collection latest = collection("bank", current.id());
         if (!latest.equals(current)) throw new ApiException(409, "CONTENT_CONFLICT", "Bank changed before upgrade");
         Extension target = shortAnswerUpgradeTarget();
         Path path = bankPaths.get(current.id()); byte[] before = Files.readAllBytes(path);
         ObjectNode raw = (ObjectNode) Json.MAPPER.readTree(before);
         if (!parseCollection(raw, "bank", current.extension(), current.id(), null).equals(current)) throw new ApiException(409, "CONTENT_CONFLICT", "Bank changed while reading upgrade source");
-        ((ObjectNode) raw.path("extension")).put("version", target.version());
-        if (!current.extension().version().equals("1.2.0")) {
-            for (JsonNode question : raw.path("questions")) {
+        JsonNode defaultReference = raw.get("extension");
+        if (defaultReference != null && defaultReference.path("id").asText().equals("quizforge.short-answer")
+                && java.util.Set.of("1.0.0", "1.1.0", "1.2.0", "1.2.1").contains(defaultReference.path("version").asText()))
+            ((ObjectNode) defaultReference).put("version", target.version());
+        for (JsonNode question : raw.path("questions")) {
+            Extension previous = current.extensionFor(current.question(question.path("id").asText()));
+            if (!ShortAnswerUpgrade.eligible(previous)) continue;
+            if (question.has("extension")) ((ObjectNode) question.path("extension")).put("version", target.version());
+            if (java.util.Set.of("1.0.0", "1.1.0").contains(previous.version())) {
                 String title = question.path("title").asText().trim();
                 ObjectNode stem = (ObjectNode) question.path("data").path("stem");
                 ArrayNode content = (ArrayNode) stem.path("content");
@@ -209,16 +215,18 @@ final class Library {
                 }
             }
         }
-        Collection replacement = parseCollection(raw, "bank", target, current.id(), null);
-        return new EditPlan(path, before, Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(raw), replacement, null);
+        Collection replacement = parseCollection(raw, "bank", current.extension() == null ? null : target, current.id(), null);
+        byte[] after = Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(raw);
+        if (after.length > 8 * 1024 * 1024) throw new ApiException(413, "BANK_SIZE_LIMIT", "Bank exceeds the size limit");
+        return new EditPlan(path, before, after, replacement, null);
     }
     private Extension shortAnswerUpgradeTarget() {
         for (JsonNode row : catalog.path("extensions")) {
-            if (row.path("id").asText().equals("quizforge.short-answer") && row.path("version").asText().equals("1.2.1") && row.has("error"))
-                throw new ApiException(row.path("errorStatus").asInt(422), row.path("errorCode").asText("INVALID_EXTENSION"), "Short-answer upgrade target 1.2.1 is unavailable: " + row.path("error").asText());
+            if (row.path("id").asText().equals("quizforge.short-answer") && row.path("version").asText().equals(ShortAnswerUpgrade.TARGET_VERSION) && row.has("error"))
+                throw new ApiException(row.path("errorStatus").asInt(422), row.path("errorCode").asText("INVALID_EXTENSION"), "Short-answer upgrade target " + ShortAnswerUpgrade.TARGET_VERSION + " is unavailable: " + row.path("error").asText());
         }
-        Extension target = extensions.get("quizforge.short-answer@1.2.1");
-        if (target == null) throw new ApiException(422, "MISSING_EXTENSION", "Advanced short-answer 1.2.1 is not installed");
+        Extension target = extensions.get("quizforge.short-answer@" + ShortAnswerUpgrade.TARGET_VERSION);
+        if (target == null) throw new ApiException(422, "MISSING_EXTENSION", "Advanced short-answer " + ShortAnswerUpgrade.TARGET_VERSION + " is not installed");
         return target;
     }
     private static String nodeText(JsonNode node) {
