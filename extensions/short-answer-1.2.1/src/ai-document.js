@@ -1,4 +1,4 @@
-import {validateDocument} from '../../../shared/richtext/1.1.1/src/document.js';
+import {validateDocument} from '../../../core/shared/richtext/1.1.1/src/document.js';
 
 /** Pure protocol conversion: formatting becomes readable text, images stay hash references. */
 export function toAiBlocks(doc){

@@ -14,7 +14,7 @@
 
 公共富文本组件的构建产物已包含在目录中，运行时不需要联网加载编辑器。可使用 `-Rebuild` 强制重建、`-SkipBuild` 跳过源码更新检查（JAR 缺失仍会构建）、`-NoBrowser` 不打开网页。已具备运行依赖和最新 JAR 时不需要 Maven；首次安装或重建仍需要对应工具。不同副本的数据目录互相独立；直接调用 Java 命令时请自行保证同一目录只启动一个服务。
 
-启动脚本会将简答 1.0.0／1.1.0／1.2.0 题库升级至 1.2.1，保留题库／题目 ID、富文本、图片和笔迹；1.0.0／1.1.0 的旧题名合入题干开头，1.2.0 的题干直接保留。进行中的答案与评分带入新版，旧历史保留；已完成轮次的答案作为新一轮草稿恢复。升级前请停止原服务，同一目录只运行一个服务。新版本已有状态或旧数据不兼容时不会覆盖。核心源码分工与升级细节见 [核心源码说明](docs/CORE_SOURCE.md)。
+启动脚本会将简答 1.0.0／1.1.0／1.2.0 题库升级至 1.2.1，保留题库／题目 ID、富文本、图片和笔迹；1.0.0／1.1.0 的旧题名合入题干开头，1.2.0 的题干直接保留。进行中的答案与评分带入新版，旧历史保留；已完成轮次的答案作为新一轮草稿恢复。升级前请停止原服务，同一目录只运行一个服务。新版本已有状态或旧数据不兼容时不会覆盖。核心源码分工与升级细节见 [核心源码说明](core/docs/CORE_SOURCE.md)。
 
 推荐在电脑本机网页左下角点击齿轮“设置”，开启“局域网连接”，设置至少 8 个字符的连接密码并保存。设置中会显示平板访问地址，默认局域网端口是 `8788`；本机入口继续使用 `8787`。开关、端口和密码校验摘要保存到 `.state/network-settings.json`，重启后恢复。密码留空表示保留原密码；修改密码或关闭连接会使现有局域网登录失效。平板连接同一网络，打开设置中显示的地址并输入密码即可。
 
@@ -56,6 +56,10 @@
 
 ```text
 quizforge_web/
+  README.md              产品说明与入口
+  Start-QuizForge-Web.cmd 启动入口
+  skills/
+    quizforge-bank-builder/  可交给 Agent 的题库制作技能整包
   question-banks/         单选、目录式简答与 AI 简答示例题库
     short-answer-demo/   bank.json 与 assets/
   extensions/
@@ -64,12 +68,24 @@ quizforge_web/
     short-answer-1.1.0/  AI 辅助评分简答拓展，保留旧版兼容历史
     short-answer-1.2.0/  两级富文本编辑与统一题干，保留旧版
     short-answer-1.2.1/  当前简答版本，引用独立发布的富文本 1.1.1
-  shared/richtext/        带版本的公共富文本组件与编辑器分包
   .state/                当前作答、白板、历史、请求回执、编辑草稿、资源及恢复资料，请勿手动覆盖
-  web/                   浏览器宿主与白板
-  server/                通用 JS 规则执行器
-  src/                   Java 后端和接口测试
+  core/                  应用核心代码、构建与开发资料
+    web/                 浏览器宿主与白板
+    server/              通用 JS 规则执行器
+    shared/richtext/     带版本的公共富文本组件与编辑器分包
+    src/                 Java 后端和接口测试
+    scripts/             构建与启动辅助脚本
+    test/                Node.js 测试
+    docs/                核心源码与 Agent 工作流说明
+    IMPLEMENTATION_CONTRACT.md
+    pom.xml
+    package.json
+    package-lock.json
+    node_modules/        本地 Node.js 依赖
+    target/              Java 构建产物与临时验证资料
 ```
+
+题库、拓展、技能、启动入口和本说明保持在产品根目录。核心开发与构建在 `core/` 中进行；服务的 `--root` 和技能校验器的 `--project` 都指向外层产品根目录。
 
 题库格式为新协议，不是 V2 `.qbank` ZIP 文件。支持根目录 JSON 文件，以及包含 `bank.json` 和 `assets/` 的题库目录。每本题库声明稳定的 `id`、`title` 和 `questions`。旧文件的根级 `extension: {id,version}` 继续作为所有题目的默认拓展；新题库可省略根级 `extension`，在每道题中声明 `{id,title,extension:{id,version},data}`，也可用题目级声明覆盖默认拓展。所有引用必须指向已安装的精确版本。题目 `data`、答案、Schema、公开投影和评分由各自拓展拥有；Java 与宿主不包含具体题型分支。可复制示例 JSON 或整个题库目录修改题目，保持引用的拓展 ID／版本匹配。添加或修改后点击左侧“刷新目录”，当前标签读取更新内容，其他已打开标签在下次激活时更新。相同 ID 的数据文件不会被静默覆盖，冲突条目会显示错误。
 
@@ -79,7 +95,7 @@ quizforge_web/
 
 已经练习过的题目会绑定内容签名。直接在目录文件中修改其题干、选项、答案等数据时，应给新题库使用新的 ID；修改拓展规则、Schema 或练习页面时，应发布新的版本号。否则后端会拒绝沿用旧状态并保留原文件。直接只改标题或题目顺序仍可继续原练习。应用内“编辑本题”通过受控接口同步更新题库和状态签名，可以保留题库 ID，行为见下文。
 
-拓展目录必须有 `manifest.json`，声明 ID、版本、名称、页面 HTML/JS/CSS、规则、题目／答案 Schema 和样例文件；可用 `dependencies` 声明公共组件版本。页面调用 `QF.page.register / QF.save / QF.requestAction`，富文本通过 `QF.content` 使用；规则使用 `QF.defineType`。使用现有协议的新增题型只添加拓展与题库数据，不改 Java 或宿主 UI。详见 [实现契约](IMPLEMENTATION_CONTRACT.md) 与 [后端说明](server/README.md)。
+拓展目录必须有 `manifest.json`，声明 ID、版本、名称、页面 HTML/JS/CSS、规则、题目／答案 Schema 和样例文件；可用 `dependencies` 声明公共组件版本。页面调用 `QF.page.register / QF.save / QF.requestAction`，富文本通过 `QF.content` 使用；规则使用 `QF.defineType`。使用现有协议的新增题型只添加拓展与题库数据，不改 Java 或宿主 UI。详见 [实现契约](core/IMPLEMENTATION_CONTRACT.md) 与 [后端说明](core/server/README.md)。
 
 拓展可提供 `getScore(data,state) -> {score,maxScore}`，负责自己的判分与分值输出；待评分结果的 `score` 为 `null`，已评分结果为合法数值。人工评分由拓展的 `review(data,answer,review)` 校验并产生结果，Java 通过通用接口汇总，分值卡由宿主设计。`GET .../summary` 读取本轮分值，`POST .../finish` 确认完成，有待评分提交时拒绝完成。现有单选 1.0.0 由规则执行器从已提交结果／未提交公开投影适配分值，不修改原判分协议。
 
@@ -124,7 +140,7 @@ question-banks/一本题库/
 
 富文本采用结构化 JSON（`formatVersion:1`），支持段落、标题、粗体、斜体、下划线、列表、引用、代码和图片；图片节点仅保存 `attrs.assetId`。单张 PNG/JPEG/WebP/GIF 最大 4 MiB，当前页已加载图片合计最大 16 MiB。题库和拓展样例资源导入 `.state/resources/` 持久区；作答图片也进入该区。编辑目录题库时将题目引用的资源补入题库 `assets/`，便于搬运。资源按内容哈希保存且不可覆盖；本版不自动删除资源，移动题库或删除历史不会误删其他历史依赖。
 
-公共组件按版本保存在 `shared/richtext/`，当前简答 1.2.1 引用 `dependencies:[{id:"quizforge.richtext",version:"1.1.1"}]`，旧版本保持原样。只读渲染和完整 Tiptap 编辑器分包，编辑时才加载重包；各拓展不复制组件。组件首次使用后固定到 `.state/sdk/`，已有版本优先使用经过校验的固定快照，源文件变化不会覆盖快照；新改动必须发布新版本才能生效。当前构建入口为 `npm run build:richtext-advanced` 和 `npm run build:short-answer-advanced`，源码位于组件版本目录的 `src/`；不要重建已经发布的版本。
+公共组件按版本保存在 `core/shared/richtext/`，当前简答 1.2.1 引用 `dependencies:[{id:"quizforge.richtext",version:"1.1.1"}]`，旧版本保持原样。只读渲染和完整 Tiptap 编辑器分包，编辑时才加载重包；各拓展不复制组件。组件首次使用后固定到 `.state/sdk/`，已有版本优先使用经过校验的固定快照，源文件变化不会覆盖快照；新改动必须发布新版本才能生效。当前构建入口为在 `core/` 中执行 `npm run build:richtext-advanced` 和 `npm run build:short-answer-advanced`，源码位于组件版本目录的 `src/`；不要重建已经发布的版本。
 
 内联富文本保留基础工具，右上角“展开高级编辑”打开完整工具窗口。字体、字号、颜色、高亮、上下标、段落对齐／行距、链接、公式、表格行列／合并拆分和图片宽度等工具集中显示；“返回基础编辑”回到题卡。展开与返回保留同一编辑器和撤销记录。高级正文宽度取自内联正文，题干编辑与练习共用相同卡片宽度和排版。公式以 LaTeX 保存、MathML 渲染；表格、公式和图片仍是结构化文档，AI 转换保留其内容语义。高级模式不会额外开启题型 iframe。
 
@@ -138,7 +154,7 @@ question-banks/一本题库/
 
 可将 [quizforge-bank-builder 技能文件夹](skills/quizforge-bank-builder/) 交给其他 Agent，从 Word、PDF、图片或文本材料生成题库。技能先分析题目并匹配已安装拓展；缺少题型时申请新建，三个 UI 状态经用户确认后才实现功能，始终限制在现有拓展接口内。附有混合题库示例、格式/API 参考和只读校验脚本。
 
-使用方式与提示词见 [Agent 题库制作流程](docs/AGENT_BANK_WORKFLOW.md)。校验需要项目现有 Node.js 24 和依赖；请提供整个技能文件夹、材料、项目路径及输出位置。
+使用方式与提示词见 [Agent 题库制作流程](core/docs/AGENT_BANK_WORKFLOW.md)。校验需要项目现有 Node.js 24 和 `core/node_modules` 依赖；请提供整个技能文件夹、材料、产品根目录及输出位置。校验器的 `--project` 指向包含 `core/`、`extensions/` 和 `question-banks/` 的外层目录。
 
 ## AI 辅助评分
 
@@ -157,10 +173,12 @@ question-banks/一本题库/
 ## 验证
 
 ```powershell
+Push-Location .\core
 npm ci --no-audit --no-fund
 npm test
 mvn.cmd test
 mvn.cmd -DskipTests package
+Pop-Location
 ```
 
-Java 测试使用临时题库、拓展和状态目录，覆盖实际 HTTP、评分、答案隐藏、版本／并发冲突、请求去重、保存重启恢复、历史快照冻结、删除题库后的历史读取、编辑校验与回执重放、仅修改题目的状态重置、编辑事务恢复、异常文件和执行器终止；不读写 V2 或用户生产数据。浏览器联调及截图见 `target/verification/`（如已生成）。
+以上命令从产品根目录进入 `core/` 后运行。Java 测试使用临时题库、拓展和状态目录，覆盖实际 HTTP、评分、答案隐藏、版本／并发冲突、请求去重、保存重启恢复、历史快照冻结、删除题库后的历史读取、编辑校验与回执重放、仅修改题目的状态重置、编辑事务恢复、异常文件和执行器终止；不读写 V2 或用户生产数据。浏览器联调及截图见 `core/target/verification/`（如已生成）。

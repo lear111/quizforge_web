@@ -8,6 +8,7 @@
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
+$coreRoot = Join-Path $projectRoot 'core'
 $previousLocation = Get-Location
 $launcherMutex = $null
 $ownsMutex = $false
@@ -34,7 +35,7 @@ function Open-ExistingQuizForge($running) {
   Write-Host "QuizForge 已在运行，复用当前服务：$existingUrl" -ForegroundColor Green
   if ($running.Port -ne $Port) { Write-Host '如需更换端口，请先关闭原来的启动窗口。' }
   if (-not $NoBrowser) {
-    & (Join-Path $projectRoot 'scripts/Open-QuizForge-WhenReady.ps1') -Port $running.Port -LauncherPid $PID -AllowLogin
+    & (Join-Path $coreRoot 'scripts/Open-QuizForge-WhenReady.ps1') -Port $running.Port -LauncherPid $PID -AllowLogin
   }
 }
 
@@ -47,11 +48,11 @@ function Test-PortInUse {
 }
 
 function Test-DependenciesReady {
-  $sourceLock = Join-Path $projectRoot 'package-lock.json'
-  $installedLock = Join-Path $projectRoot 'node_modules/.package-lock.json'
+  $sourceLock = Join-Path $coreRoot 'package-lock.json'
+  $installedLock = Join-Path $coreRoot 'node_modules/.package-lock.json'
   if (-not (Test-Path -LiteralPath $installedLock)) { return $false }
   foreach ($name in @('ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string')) {
-    if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "node_modules/$name/package.json"))) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $coreRoot "node_modules/$name/package.json"))) { return $false }
   }
   # npm locks contain an empty property name, unsupported by Windows PowerShell's JSON reader.
   $checkLock = @'
@@ -77,7 +78,7 @@ try {
 try {
   if ($Port -lt 1 -or $Port -gt 65535) { throw '端口必须在 1 到 65535 之间。' }
   if ($SkipBuild -and $Rebuild) { throw '-SkipBuild 和 -Rebuild 不能同时使用。' }
-  Set-Location -LiteralPath $projectRoot
+  Set-Location -LiteralPath $coreRoot
 
   # Keep the lock for the lifetime of this foreground launcher, before Java can recover state.
   $hasher = [Security.Cryptography.SHA256]::Create()
@@ -110,12 +111,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Node 依赖安装失败，请检查网络和上方错误后重新双击启动。' }
   }
 
-  $jarPath = Join-Path $projectRoot 'target/quizforge-web-1.0.0.jar'
+  $jarPath = Join-Path $coreRoot 'target/quizforge-web-1.0.0.jar'
   $needsBuild = $Rebuild -or -not (Test-Path -LiteralPath $jarPath)
   if (-not $needsBuild -and -not $SkipBuild) {
     $jarTime = (Get-Item -LiteralPath $jarPath).LastWriteTimeUtc
-    $buildInputs = @((Get-Item -LiteralPath (Join-Path $projectRoot 'pom.xml')))
-    $buildInputs += @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/main') -Recurse -File)
+    $buildInputs = @((Get-Item -LiteralPath (Join-Path $coreRoot 'pom.xml')))
+    $buildInputs += @(Get-ChildItem -LiteralPath (Join-Path $coreRoot 'src/main') -Recurse -File)
     $needsBuild = @($buildInputs | Where-Object { $_.LastWriteTimeUtc -gt $jarTime }).Count -gt 0
   }
   if ($needsBuild) {
@@ -137,7 +138,7 @@ try {
   $serverArguments = @('-jar', $jarPath, '--root', $projectRoot, '--host', $bindAddress, '--port', "$Port", '--node', $nodeCommand.Source, '--upgrade-short-answer')
   if ($AccessToken) { $serverArguments += @('--token', $AccessToken) }
   if (-not $NoBrowser) {
-    $helperPath = (Join-Path $projectRoot 'scripts/Open-QuizForge-WhenReady.ps1').Replace("'", "''")
+    $helperPath = (Join-Path $coreRoot 'scripts/Open-QuizForge-WhenReady.ps1').Replace("'", "''")
     $helperToken = $AccessToken.Replace("'", "''")
     $helperCommand = "& '$helperPath' -Port $Port -LauncherPid $PID -AccessToken '$helperToken'"
     $encodedHelper = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($helperCommand))

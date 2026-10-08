@@ -4,7 +4,7 @@
 
 ## 可写范围与包结构
 
-新题型 Agent **只能新增自己的外部 `extensions/<新目录>/` 和新 `question-banks/` 文件**。严禁修改应用的 `web/`、`server/`、`src/`、`shared/`、根 `package*.json`、构建脚本或应用配置，严禁直接修改 `.state/`。功能超出现有接口时，报告缺口，不为题型添加宿主分支。
+本文路径均相对于产品根目录。新题型 Agent **只能新增自己的外部 `extensions/<新目录>/` 和新 `question-banks/` 文件**。严禁修改整个应用 `core/`（包括 `core/web/`、`core/server/`、`core/src/`、`core/shared/`、`core/scripts/`、`core/test/`、`core/package*.json`、`core/pom.xml`、依赖和文档）、产品根启动脚本或应用配置，严禁直接修改 `.state/`。旧平铺项目中的同类核心文件也受保护。功能超出现有接口时，报告缺口，不为题型添加宿主分支。
 
 拓展通过 `manifest.json` 声明资源，不存在另一个前端安装/注册 API：
 
@@ -214,7 +214,7 @@ await editor.ready;
 
 支持 paragraph、heading（level 1–3）、blockquote、bulletList/orderedList/listItem、codeBlock、horizontalRule、image、table/tableRow/tableCell/tableHeader、text、hardBreak、inlineMath/blockMath。marks 支持 bold/italic/strike/underline/code/link/textStyle/highlight/subscript/superscript。字体、字号、行距应从 SDK 的 `FONT_FAMILIES/FONT_SIZES/LINE_HEIGHTS` 枚举选择；颜色为 `#RRGGBB`，链接只允许 http/https/mailto。图片属性是 assetId，不接受 src/URL/base64；数学属性是 latex，不接受 HTML。
 
-文档最多深度 32、5000 节点、100000 文本字符、40 图片；公式 latex 最多 2000 字符；表格最多 30 行/每行最多 30 个有效列；image width 为 24–2400 整数。需复杂表格/mark attrs 时阅读 `shared/richtext/1.1.1/src/document.js` 的实际白名单，禁止靠示例猜任意 attrs。
+文档最多深度 32、5000 节点、100000 文本字符、40 图片；公式 latex 最多 2000 字符；表格最多 30 行/每行最多 30 个有效列；image width 为 24–2400 整数。需复杂表格/mark attrs 时阅读 `core/shared/richtext/1.1.1/src/document.js` 的实际白名单，禁止靠示例猜任意 attrs。
 
 ## 图片、宽度与运行限制
 
@@ -238,4 +238,4 @@ iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问
 
 ## 核对源码入口
 
-页面协议：`web/frame.js`、`web/extension-requests.js`、`web/practice-context.js`、`web/ai-client.js`。规则与 AI 输入校验：`server/rules-runner.cjs`、`src/main/java/io/quizforge/web/AiGradingProtocol.java`。SDK：`shared/richtext/1.1.1/src/{static,document,render,editor}.js`。完整富文本/AI 示例：`extensions/short-answer-1.2.1/{editor.js,practice-ai.js,src/rules.js,src/ai-document.js}`。基础自动判分示例：`extensions/single-choice/`。
+页面协议：`core/web/frame.js`、`core/web/extension-requests.js`、`core/web/practice-context.js`、`core/web/ai-client.js`。规则与 AI 输入校验：`core/server/rules-runner.cjs`、`core/src/main/java/io/quizforge/web/AiGradingProtocol.java`。SDK：`core/shared/richtext/1.1.1/src/{static,document,render,editor}.js`。完整富文本/AI 示例：`extensions/short-answer-1.2.1/{editor.js,practice-ai.js,src/rules.js,src/ai-document.js}`。基础自动判分示例：`extensions/single-choice/`。这些核心入口仅供只读核对；没有 `core/` 的旧平铺 fixture 对应根层路径。

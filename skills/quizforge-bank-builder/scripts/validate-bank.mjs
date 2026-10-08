@@ -41,6 +41,13 @@ async function optionalExists(value,location){
   try{const stat=await lstat(value);if(stat.isSymbolicLink())fail(location,'SYMLINK_FORBIDDEN');return true;}
   catch(error){if(error instanceof Invalid)throw error;if(error.code==='ENOENT')return false;fail(location,'PATH_UNAVAILABLE');}
 }
+async function runtimeRoot(project){
+  const core=path.join(project,'core');
+  if(!await optionalExists(core,'project/core'))return {directory:project,location:'project'};
+  await normalPath(core,'project/core');
+  if(!(await lstat(core)).isDirectory())fail('project/core','INVALID_CORE_DIRECTORY');
+  return {directory:core,location:'project/core'};
+}
 async function safeFile(directory,relative,limit,location){
   if(typeof relative!=='string'||!relative.trim()||relative.length>240||path.isAbsolute(relative)||/[\\:\0]/.test(relative))fail(location,'UNSAFE_DECLARED_PATH');
   const resolved=path.resolve(directory,relative),inside=path.relative(directory,resolved);
@@ -115,7 +122,7 @@ async function extensionIndex(roots){
     }
   }return index;
 }
-async function loadExtension(candidate,project){
+async function loadExtension(candidate,coreRoot){
   const {directory,manifest,location}=candidate;const files={};text(manifest,'name',300,location);text(manifest,'description',4000,location,true);
   for(const field of FIELDS)files[field]=await safeFile(directory,text(manifest,field,240,location),field==='examples'?8*MiB:MiB,location+'/'+field);
   if(own(manifest,'dependencies')){
@@ -123,7 +130,7 @@ async function loadExtension(candidate,project){
     for(let i=0;i<manifest.dependencies.length;i++){
       const where=location+'/dependencies/'+i,dependency=reference(manifest.dependencies[i],where);
       if(Object.keys(manifest.dependencies[i]).length!==2||dependency.id!=='quizforge.richtext'||!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(dependency.version)||used.has(dependency.id))fail(where,'INVALID_SDK_DEPENDENCY');used.add(dependency.id);
-      const sdk=path.join(project,'shared','richtext',dependency.version);
+      const sdk=path.join(coreRoot,'shared','richtext',dependency.version);
       for(const file of ['richtext.js','richtext-editor.js','richtext.css'])await safeFile(sdk,file,MiB,where+'/'+file);
     }
   }
@@ -140,14 +147,14 @@ async function loadExtension(candidate,project){
   return {...candidate,files,assets,fingerprint:fingerprint.digest('hex')};
 }
 function runnerRequest(extension,operation,questions){return {op:operation,questions,rules:extension.files.rules,questionSchema:extension.files.questionSchema,answerSchema:extension.files.answerSchema};}
-async function runRules(project,extension,operation,questions){
-  const runner=path.join(project,'server','rules-runner.cjs'),input=Buffer.from(JSON.stringify(runnerRequest(extension,operation,questions)));if(input.length>8*MiB)return {ok:false,code:'RULE_INPUT_LIMIT'};
+async function runRules(coreRoot,extension,operation,questions){
+  const runner=path.join(coreRoot,'server','rules-runner.cjs'),input=Buffer.from(JSON.stringify(runnerRequest(extension,operation,questions)));if(input.length>8*MiB)return {ok:false,code:'RULE_INPUT_LIMIT'};
   const args=['--max-old-space-size=96','--disable-proto=throw','--permission'];
-  for(const file of [runner,path.join(project,'node_modules'),extension.files.rules,extension.files.questionSchema,extension.files.answerSchema])args.push('--allow-fs-read='+file);
+  for(const file of [runner,path.join(coreRoot,'node_modules'),extension.files.rules,extension.files.questionSchema,extension.files.answerSchema])args.push('--allow-fs-read='+file);
   args.push(runner);const env={};
   for(const name of ['SYSTEMROOT','WINDIR','PATH','TEMP','TMP','COMSPEC','PATHEXT'])if(process.env[name]!==undefined)env[name]=process.env[name];
   return await new Promise(resolve=>{
-    let done=false,output=[],size=0,stderrBytes=0;const child=spawn(process.execPath,args,{cwd:project,env,stdio:['pipe','pipe','pipe'],windowsHide:true});
+    let done=false,output=[],size=0,stderrBytes=0;const child=spawn(process.execPath,args,{cwd:coreRoot,env,stdio:['pipe','pipe','pipe'],windowsHide:true});
     const finish=value=>{if(done)return;done=true;clearTimeout(timer);resolve(value);};
     const stop=code=>{child.kill();finish({ok:false,code});};
     const timer=setTimeout(()=>stop('RULE_TIMEOUT'),8000);
@@ -165,10 +172,10 @@ function chunks(rows,operation){
     if(batch.length&&(batch.length>=512||size+bytes>512*1024)){output.push(batch);batch=[];size=0;}batch.push({...row,input});size+=bytes;
   }if(batch.length)output.push(batch);return output;
 }
-async function ruleFailureLocation(project,extension,operation,batch,code){
+async function ruleFailureLocation(coreRoot,extension,operation,batch,code){
   if(!['RULE_REJECTED','SCORE_UNAVAILABLE'].includes(code))return batch[0].location+'/data';
   let rows=batch;for(let attempts=0;attempts<9&&rows.length>1;attempts++){
-    const middle=Math.ceil(rows.length/2),left=rows.slice(0,middle),result=await runRules(project,extension,operation,left.map(row=>row.input));
+    const middle=Math.ceil(rows.length/2),left=rows.slice(0,middle),result=await runRules(coreRoot,extension,operation,left.map(row=>row.input));
     if(!result.ok){rows=left;if(!['RULE_REJECTED','SCORE_UNAVAILABLE'].includes(result.code))break;}else rows=rows.slice(middle);
   }return rows[0].location+'/data';
 }
@@ -194,11 +201,11 @@ function checkImages(rows,loaded,bankAssets,usedBankAssets,usedExtensionAssets){
     }
   }
 }
-async function checkRules(project,extension,items,examples=false){
+async function checkRules(coreRoot,extension,items,examples=false){
   let maxScore=0;
   for(const operation of ['validateBank','scoreBatch'])for(const batch of chunks(items,operation)){
-    report.summary[examples?'exampleRuleBatches':'ruleBatches']++;const result=await runRules(project,extension,operation,batch.map(row=>row.input));
-    if(!result.ok)fail(await ruleFailureLocation(project,extension,operation,batch,result.code),result.code);
+    report.summary[examples?'exampleRuleBatches':'ruleBatches']++;const result=await runRules(coreRoot,extension,operation,batch.map(row=>row.input));
+    if(!result.ok)fail(await ruleFailureLocation(coreRoot,extension,operation,batch,result.code),result.code);
     if(operation==='validateBank'&&result.data?.valid!==true)fail(batch[0].location+'/data','RULE_INVALID_BATCH_RESPONSE');
     if(operation==='scoreBatch'){
       if(!Array.isArray(result.data?.scores)||result.data.scores.length!==batch.length)fail(batch[0].location+'/data','SCORE_INVALID_BATCH_RESPONSE');
@@ -208,11 +215,12 @@ async function checkRules(project,extension,items,examples=false){
 }
 async function validate(options){
   if(Number(process.versions.node.split('.')[0])!==24)fail('environment','NODE_24_REQUIRED');
-  const project=await normalPath(options.project,'project');await safeFile(project,'server/rules-runner.cjs',MiB,'project/server/rules-runner.cjs');await safeFile(project,'package.json',MiB,'project/package.json');
-  let ajvEntry;try{ajvEntry=createRequire(path.join(project,'package.json')).resolve('ajv');}catch{fail('project/node_modules/ajv','PROJECT_AJV_UNAVAILABLE');}
-  const nodeModules=path.join(project,'node_modules'),ajvRelative=path.relative(nodeModules,ajvEntry);
-  if(ajvRelative==='..'||ajvRelative.startsWith('..'+path.sep)||path.isAbsolute(ajvRelative))fail('project/node_modules/ajv','PROJECT_AJV_UNAVAILABLE');
-  await normalPath(ajvEntry,'project/node_modules/ajv');
+  const project=await normalPath(options.project,'project'),runtime=await runtimeRoot(project),coreRoot=runtime.directory;
+  await safeFile(coreRoot,'server/rules-runner.cjs',MiB,runtime.location+'/server/rules-runner.cjs');await safeFile(coreRoot,'package.json',MiB,runtime.location+'/package.json');
+  let ajvEntry;try{ajvEntry=createRequire(path.join(coreRoot,'package.json')).resolve('ajv');}catch{fail(runtime.location+'/node_modules/ajv','PROJECT_AJV_UNAVAILABLE');}
+  const nodeModules=path.join(coreRoot,'node_modules'),ajvRelative=path.relative(nodeModules,ajvEntry);
+  if(ajvRelative==='..'||ajvRelative.startsWith('..'+path.sep)||path.isAbsolute(ajvRelative))fail(runtime.location+'/node_modules/ajv','PROJECT_AJV_UNAVAILABLE');
+  await normalPath(ajvEntry,runtime.location+'/node_modules/ajv');
   let bankFile=await normalPath(options.bank,'bank');if((await lstat(bankFile)).isDirectory())bankFile=await safeFile(bankFile,'bank.json',8*MiB,'bank/bank.json');else if(path.basename(bankFile)!=='bank.json'&&!bankFile.endsWith('.json'))fail('bank','JSON_BANK_REQUIRED');
   const bank=await jsonFile(bankFile,8*MiB,'bank');report.summary.questions=Array.isArray(bank?.questions)?bank.questions.length:0;
   const {fallback,rows,groups}=documentRows(bank);report.summary.questionTypes=groups.size;
@@ -220,7 +228,7 @@ async function validate(options){
   const required=new Set(groups.keys());if(fallback)required.add(key(fallback));for(const [identity,candidates]of index)if(candidates.length>1)required.add(identity);
   for(const identity of required){
     const candidates=index.get(identity);if(!candidates)fail(identity===key(fallback??{})?'/extension':'/questions/'+groups.get(identity)[0].index+'/extension','EXTENSION_NOT_FOUND');
-    let first;for(const candidate of candidates){const current=await loadExtension(candidate,project);if(first&&first.fingerprint!==current.fingerprint)fail(current.location,'EXTENSION_VERSION_CONTENT_CONFLICT');first??=current;}loaded.set(identity,first);
+    let first;for(const candidate of candidates){const current=await loadExtension(candidate,coreRoot);if(first&&first.fingerprint!==current.fingerprint)fail(current.location,'EXTENSION_VERSION_CONTENT_CONFLICT');first??=current;}loaded.set(identity,first);
   }
   const directoryBank=path.basename(bankFile)==='bank.json'&&path.dirname(bankFile)!==path.join(project,'question-banks');
   const bankAssets=directoryBank?await images(path.dirname(bankFile),'bank/assets'):new Map(),usedBankAssets=new Set(),usedExtensionAssets=new Map();report.summary.images=bankAssets.size;
@@ -230,16 +238,16 @@ async function validate(options){
   for(const identity of [...boundExtensions].sort()){
     const extension=loaded.get(identity),where=extension.location+'/examples';const examples=await jsonFile(extension.files.examples,8*MiB,where);
     const exampleRows=documentRows(examples,where,extension.manifest).rows;report.summary.exampleQuestions+=exampleRows.length;
-    checkImages(exampleRows,loaded,new Map(),new Set(),usedExtensionAssets);await checkRules(project,extension,exampleRows,true);
+    checkImages(exampleRows,loaded,new Map(),new Set(),usedExtensionAssets);await checkRules(coreRoot,extension,exampleRows,true);
   }
   for(const image of bankAssets.values())if(!usedBankAssets.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_BANK_IMAGE'});
   for(const identity of boundExtensions)for(const image of loaded.get(identity).assets.values())if(!usedExtensionAssets.get(identity)?.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_EXTENSION_IMAGE'});
   report.summary.referencedImages=new Set([...usedBankAssets,...[...usedExtensionAssets.values()].flatMap(ids=>[...ids])]).size;
-  for(const identity of [...groups.keys()].sort())report.summary.maxScore+=await checkRules(project,loaded.get(identity),groups.get(identity));
+  for(const identity of [...groups.keys()].sort())report.summary.maxScore+=await checkRules(coreRoot,loaded.get(identity),groups.get(identity));
   if(!Number.isFinite(report.summary.maxScore))fail('/questions','TOTAL_SCORE_NOT_FINITE');report.ok=true;
 }
 function argumentsFor(args){
-  if(args.length===1&&args[0]==='--help'){console.log('Usage: node validate-bank.mjs --project <quizforge_web root> --bank <bank folder or JSON file> [--extensions <staged extensions folder>]\nRead-only. Requires project-installed AJV and Node 24. Exit: 0 valid, 1 invalid, 2 usage/environment.');return null;}
+  if(args.length===1&&args[0]==='--help'){console.log('Usage: node validate-bank.mjs --project <quizforge_web product root> --bank <bank folder or JSON file> [--extensions <staged extensions folder>]\nRead-only. Runtime/AJV/SDK come from core/ when present; legacy flat fixtures are supported only without core/. Requires project-installed AJV and Node 24. Exit: 0 valid, 1 invalid, 2 usage/environment.');return null;}
   const options={};for(let i=0;i<args.length;i+=2){const flag=args[i],name=flag?.slice(2);if(!['--project','--bank','--extensions'].includes(flag)||!args[i+1]||own(options,name))fail('arguments','INVALID_ARGUMENTS');options[name]=args[i+1];}
   if(!options.project||!options.bank)fail('arguments','PROJECT_AND_BANK_REQUIRED');return options;
 }

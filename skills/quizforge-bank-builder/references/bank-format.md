@@ -1,6 +1,6 @@
 # 题库格式与题型能力
 
-读取用途：选择题型、生成 `bank.json` 和资源、核对评分。本文对应 QuizForge Web 当前 JSON 协议；运行时以项目 `IMPLEMENTATION_CONTRACT.md`、安装包 schema/rules 和共享 SDK 为准。
+读取用途：选择题型、生成 `bank.json` 和资源、核对评分。本文路径均相对于 QuizForge Web 产品根目录；运行时以 `core/IMPLEMENTATION_CONTRACT.md`、根层安装包 schema/rules 和 `core/shared/` SDK 为准。没有 `core/` 的旧平铺 fixture 使用对应根层文件。
 
 ## 存放与身份
 
@@ -93,7 +93,7 @@ question-banks/my-exam/
 {"type":"paragraph","content":[{"type":"text","text":"重要内容","marks":[{"type":"bold"}]}]}
 ```
 
-公式用 math 节点的 `attrs.latex`；当前共享 SDK 的标题用 heading 的 `attrs.level`（1–3）。表格与样式请参考安装的简答 schema、examples 和 `shared/richtext/<版本>` 的公共接口，不猜测属性。正常练习与完整编辑使用相同文档格式及内容宽度。
+公式用 math 节点的 `attrs.latex`；当前共享 SDK 的标题用 heading 的 `attrs.level`（1–3）。表格与样式请参考安装的简答 schema、examples 和 `core/shared/richtext/<版本>` 的公共接口，不猜测属性。正常练习与完整编辑使用相同文档格式及内容宽度。
 
 图片形式：
 
@@ -107,6 +107,6 @@ question-banks/my-exam/
 
 ## 校验与能力边界
 
-`scripts/validate-bank.mjs` 使用当前项目已装 AJV 和现有 `server/rules-runner.cjs`，检查 schema、`validateQuestion` 与未作答的 `getScore`。它不验证材料真实性、实际浏览器渲染、编辑器交互、AI 输出或全部已作答状态。
+技能内的 `scripts/validate-bank.mjs` 使用产品根的 `extensions/`、`core/node_modules` 已装 AJV、`core/server/rules-runner.cjs` 和 `core/shared/` SDK，检查 schema、`validateQuestion` 与未作答的 `getScore`。`--project` 指向产品根；没有 `core/` 时兼容旧平铺 fixture，存在但不完整时明确报错。它不验证材料真实性、实际浏览器渲染、编辑器交互、AI 输出或全部已作答状态。
 
 新拓展需要补充提交、review、编辑、历史的针对性验证；不能只依靠初始分值校验。评分必须经拓展规则接口输出，宿主拥有全库得分卡、完成练习与历史统计，不在 bank.json 增加自定义总分字段来代替接口。

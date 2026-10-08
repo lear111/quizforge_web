@@ -1,4 +1,4 @@
-import {validateDocument} from '../../../shared/richtext/1.1.1/src/document.js';
+import {validateDocument} from '../../../core/shared/richtext/1.1.1/src/document.js';
 import {prepareAiGrading} from './ai-document.js';
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const half=value=>Number.isFinite(value)&&Number.isInteger(value*2);

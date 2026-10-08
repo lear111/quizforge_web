@@ -11,9 +11,9 @@ description: 从 Word、PDF、图片或文本材料生成 QuizForge Web 题库�
 
 ## 开始前
 
-确认材料、QuizForge Web 项目路径、输出位置，以及用户已经给出的题型/UI 决定。缺少项目路径时先分析材料，再询问项目位置或拓展清单；不能仅凭本技能中的示例认定某拓展已安装。需要执行校验时使用项目已有的 Node.js 24 与依赖，不自行安装依赖或改变配置。
+确认材料、QuizForge Web 产品根目录、输出位置，以及用户已经给出的题型/UI 决定。产品根目录包含同层的 `core/`、`extensions/`、`question-banks/`、`skills/` 和启动脚本；项目路径及校验器 `--project` 都指向这一层，不指向 `core/`。缺少项目路径时先分析材料，再询问项目位置或拓展清单；不能仅凭本技能中的示例认定某拓展已安装。需要执行校验时使用项目已有的 Node.js 24 与 `core/node_modules` 依赖，不自行安装依赖或改变配置。
 
-先只读查看项目的 `IMPLEMENTATION_CONTRACT.md`、`extensions/*/manifest.json`、相关 schema、examples 和可选的 `editor.json`。按 **id + 精确 version** 建立能力清单，检查页面、编辑器、规则与依赖均存在。仅看拓展名称不足以确认能力。
+先只读查看产品根目录下的 `core/IMPLEMENTATION_CONTRACT.md`、`extensions/*/manifest.json`、相关 schema、examples 和可选的 `editor.json`。共享 SDK 位于 `core/shared/`。按 **id + 精确 version** 建立能力清单，检查页面、编辑器、规则与依赖均存在。仅看拓展名称不足以确认能力。没有 `core/` 的旧平铺目录或隔离 fixture 可沿用根层契约、server、shared 和依赖；存在 `core/` 时不得因文件缺失而退回旧副本。
 
 开始生成前读取 [题库格式与现有题型](references/bank-format.md)。解析 Word/PDF、处理扫描件或复杂排版时读取 [材料分析与保真](references/material-analysis.md)。需要新建拓展才读取 [拓展接口](references/extension-api.md)。本技能记录的版本是起点；实际安装文件与现行接口契约决定可用能力，遇到冲突说明差异，不猜测接口。
 
@@ -53,7 +53,7 @@ description: 从 Word、PDF、图片或文本材料生成 QuizForge Web 题库�
 
 确认后仅在新拓展输出目录实现 `manifest`、页面、样式、纯规则、schema、examples 与 editor 等文件。新题型必须同时支持练习、提交后查看、编辑和只读历史，并通过既有评分接口向宿主输出分值。
 
-严格遵守 [拓展接口](references/extension-api.md)：使用 `QF` 公共接口、共享富文本 SDK、生命周期清理和保存屏障。不得修改 `web/`、`server/`、`src/`、`shared/`、包依赖/锁文件、启动脚本、设置或 `.state`；不得覆盖已发布拓展的同一 id/version。新版本使用新目录和版本号。
+严格遵守 [拓展接口](references/extension-api.md)：使用 `QF` 公共接口、共享富文本 SDK、生命周期清理和保存屏障。不得修改整个 `core/`（包括 web、server、src、shared、scripts、test、构建文件、依赖和文档）、产品根启动脚本、设置或 `.state`；旧平铺项目中的同类核心文件也受保护。不得覆盖已发布拓展的同一 id/version。新版本使用新目录和版本号。
 
 现有接口做不到时，指出缺失能力、受影响的功能及可行替代，停止该功能的实现。可给用户一份开发者反馈草稿；没有明确发送指令，不向开发者或其他人发消息。禁止通过私有消息协议、改宿主或复制内置 SDK 绕过限制。
 
@@ -72,10 +72,10 @@ description: 从 Word、PDF、图片或文本材料生成 QuizForge Web 题库�
 用项目 Node.js 执行本技能只读校验器（以下是占位路径，替换后执行）：
 
 ```sh
-node "<技能目录>/scripts/validate-bank.mjs" --project "<QuizForge Web 项目>" --bank "<输出题库目录>"
+node "<技能目录>/scripts/validate-bank.mjs" --project "<QuizForge Web 产品根目录>" --bank "<输出题库目录>"
 ```
 
-题库引用尚未安装的新拓展时加 `--extensions "<暂存的 extensions 目录>"`。脚本检查结构、精确版本、schema、规则、初始分值与图片引用；它不安装文件、不读取真实练习状态、不启动应用。失败时修复生成的文件并重跑；失败原因若在宿主接口，报告阻碍，不改宿主。
+题库引用尚未安装的新拓展时加 `--extensions "<暂存的 extensions 目录>"`。脚本从产品根读取拓展，从 `core/server`、`core/node_modules`、`core/shared` 读取执行器、AJV 和 SDK；仅在没有 `core/` 时兼容旧平铺 fixture。`core/` 已存在但不完整会报错，不回退、不安装依赖。脚本检查结构、精确版本、schema、规则、初始分值与图片引用；它不安装文件、不读取真实练习状态、不启动应用。失败时修复生成的文件并重跑；失败原因若在宿主接口，报告阻碍，不改宿主。
 
 另外核对每道题与原材料的含义、顺序、答案、分值、资源和遗漏。脚本通过不能证明 OCR 与标准答案正确，也不能证明 UI 正常。新拓展至少验证未提交、提交后、编辑保存、只读历史，以及卸载后的资源清理；有浏览器预览条件时执行，没有时如实列为待用户验证，不将静态原型称为已通过应用运行测试。
 
