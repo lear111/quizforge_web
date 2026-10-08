@@ -1,0 +1,43 @@
+{
+  "id": "skill-example-mixed-bank",
+  "title": "技能示例：混合题型",
+  "description": "供复制和替换的结构示例，共 3 题、6 分。",
+  "questions": [
+    {
+      "id": "q-001",
+      "title": "整数除法",
+      "extension": {"id": "quizforge.single-choice", "version": "1.0.0"},
+      "data": {
+        "stem": "Java 中 7 / 2 的结果是什么？",
+        "options": [{"id": "A", "text": "3"}, {"id": "B", "text": "3.5"}],
+        "correctOptionId": "A",
+        "explanation": "整数相除时舍去小数部分，得到 3。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "q-002",
+      "title": "缓存的作用与更新",
+      "extension": {"id": "quizforge.short-answer", "version": "1.2.1"},
+      "data": {
+        "formatVersion": 1,
+        "stem": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "说明缓存的作用，以及原数据变化后应怎样处理。"}]}]},
+        "referenceAnswer": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "缓存复用已经读取或计算的数据。原数据变化后应更新缓存或使旧缓存失效。"}]}]},
+        "rubric": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "解释复用已有数据减少重复读取或计算得 2 分；说明更新或失效处理得 2 分。可按 0.5 分调整。"}]}]},
+        "maxScore": 4
+      }
+    },
+    {
+      "id": "q-003",
+      "title": "及格边界",
+      "extension": {"id": "quizforge.single-choice", "version": "1.0.0"},
+      "data": {
+        "stem": "达到 60 分即为及格，哪个条件正确？",
+        "options": [{"id": "A", "text": "score > 60"}, {"id": "B", "text": "score >= 60"}],
+        "correctOptionId": "B",
+        "explanation": "达到包含恰好等于，因此应使用大于或等于。",
+        "maxScore": 1
+      }
+    }
+  ]
+}

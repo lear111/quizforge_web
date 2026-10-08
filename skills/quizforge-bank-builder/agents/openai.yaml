@@ -1,0 +1,4 @@
+interface:
+  display_name: "QuizForge 题库制作"
+  short_description: "分析材料并匹配拓展，生成混合题库；新题型经 UI 确认后实现"
+  default_prompt: "使用 $quizforge-bank-builder 分析我的材料，匹配已安装的题型拓展，并在确认必要取舍后生成可校验的题库。"
