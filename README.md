@@ -162,7 +162,7 @@ question-banks/一本题库/
 
 ## 用 Agent 制作题库
 
-可将 [quizforge-bank-builder 技能文件夹](skills/quizforge-bank-builder/) 交给其他 Agent，从 Word、PDF、图片或文本材料生成题库。技能先分析题目并匹配已安装拓展；缺少题型时申请新建，三个 UI 状态经用户确认后才实现功能，始终限制在现有拓展接口内。附有混合题库示例、格式/API 参考和只读校验脚本。
+可将 [quizforge-bank-builder 技能文件夹](skills/quizforge-bank-builder/) 交给其他 Agent，从 Word、PDF、图片或文本材料生成题库。技能先分析题目并匹配拓展，所有题库都先展示代表题的未提交／提交后／编辑三态及交互方案，停在用户确认点；确认后先验证小样，再批量生成。缺少题型另行申请新建，始终限制在现有拓展接口内。附有原型评审要求、混合题库示例、格式/API 参考和只读校验脚本。
 
 使用方式与提示词见 [Agent 题库制作流程](core/docs/AGENT_BANK_WORKFLOW.md)。校验需要项目现有 Node.js 24 和 `core/node_modules` 依赖；请提供整个技能文件夹、材料、产品根目录及输出位置。校验器的 `--project` 指向包含 `core/`、`extensions/` 和 `question-banks/` 的外层目录。
 
