@@ -9,6 +9,7 @@ import {spawn} from 'node:child_process';
 
 const MiB=1024*1024, ID=/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/, ASSET_ID=/^[a-f0-9]{64}$/;
 const FIELDS=['entry','script','style','rules','questionSchema','answerSchema','examples'];
+const API={major:1,minor:0,capabilities:new Set(['practice','editor','editor-drafts','score','manual-review','ai-grading','resources','richtext','navigation','lifecycle'])};
 const STRUCTURAL_KEYS=new Set(['stem','referenceAnswer','rubric','document','content','attrs','marks','type','text','assetId','options','answer','feedback']);
 const report={ok:false,summary:{questions:0,questionTypes:0,images:0,referencedImages:0,ruleBatches:0,exampleQuestions:0,exampleRuleBatches:0,maxScore:0},errors:[],warnings:[]};
 class Invalid extends Error {constructor(location,code){super(code);this.location=location;this.code=code;}}
@@ -25,6 +26,21 @@ function id(value,key,location){if(!object(value)||typeof value[key]!=='string'|
 function reference(value,location){if(!object(value))fail(location,'INVALID_EXTENSION_REFERENCE');return {id:id(value,'id',location),version:id(value,'version',location)};}
 const key=ref=>ref.id+'@'+ref.version;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+
+function apiRequirements(manifest,location){
+  if(!own(manifest,'requiresApi'))return;
+  const value=manifest.requiresApi,where=location+'/requiresApi';
+  if(!object(value)||Object.keys(value).some(name=>!['major','minMinor','capabilities'].includes(name))||!Number.isInteger(value.major)||value.major<1||value.major>2147483647||!Number.isInteger(value.minMinor)||value.minMinor<0||value.minMinor>2147483647)fail(where,'INVALID_API_REQUIREMENT');
+  if(value.major!==API.major||value.minMinor>API.minor)fail(where,'UNSUPPORTED_EXTENSION_API');
+  const capabilities=own(value,'capabilities')?value.capabilities:[];
+  if(!Array.isArray(capabilities)||capabilities.length>100)fail(where+'/capabilities','INVALID_API_REQUIREMENT');
+  const seen=new Set();
+  for(let i=0;i<capabilities.length;i++){
+    const name=capabilities[i];
+    if(typeof name!=='string'||!name.trim()||seen.has(name))fail(where+'/capabilities/'+i,'INVALID_API_REQUIREMENT');seen.add(name);
+    if(!API.capabilities.has(name))fail(where+'/capabilities/'+i,'UNSUPPORTED_API_CAPABILITY');
+  }
+}
 
 async function normalPath(value,location){
   const absolute=path.resolve(value),root=path.parse(absolute).root;
@@ -123,7 +139,7 @@ async function extensionIndex(roots){
   }return index;
 }
 async function loadExtension(candidate,coreRoot){
-  const {directory,manifest,location}=candidate;const files={};text(manifest,'name',300,location);text(manifest,'description',4000,location,true);
+  const {directory,manifest,location}=candidate;apiRequirements(manifest,location);const files={};text(manifest,'name',300,location);text(manifest,'description',4000,location,true);
   for(const field of FIELDS)files[field]=await safeFile(directory,text(manifest,field,240,location),field==='examples'?8*MiB:MiB,location+'/'+field);
   if(own(manifest,'dependencies')){
     if(!Array.isArray(manifest.dependencies)||manifest.dependencies.length>4)fail(location+'/dependencies','INVALID_SDK_DEPENDENCIES');const used=new Set();
@@ -146,7 +162,7 @@ async function loadExtension(candidate,coreRoot){
   // AJV compilation and validation happen only in the deadline-limited project runner.
   return {...candidate,files,assets,fingerprint:fingerprint.digest('hex')};
 }
-function runnerRequest(extension,operation,questions){return {op:operation,questions,rules:extension.files.rules,questionSchema:extension.files.questionSchema,answerSchema:extension.files.answerSchema};}
+function runnerRequest(extension,operation,questions){return {op:operation,apiVersion:{major:API.major,minor:API.minor},questions,rules:extension.files.rules,questionSchema:extension.files.questionSchema,answerSchema:extension.files.answerSchema};}
 async function runRules(coreRoot,extension,operation,questions){
   const runner=path.join(coreRoot,'server','rules-runner.cjs'),input=Buffer.from(JSON.stringify(runnerRequest(extension,operation,questions)));if(input.length>8*MiB)return {ok:false,code:'RULE_INPUT_LIMIT'};
   const args=['--max-old-space-size=96','--disable-proto=throw','--permission'];
@@ -180,7 +196,12 @@ async function ruleFailureLocation(coreRoot,extension,operation,batch,code){
   }return rows[0].location+'/data';
 }
 function documentRows(document,location='',owner=null){
-  if(!object(document))fail(location||'/','INVALID_BANK');const bankId=id(document,'id',location);text(document,'title',300,location);text(document,'description',4000,location,true);
+  if(!object(document))fail(location||'/','INVALID_BANK');
+  if(own(document,'formatVersion')){
+    if(!Number.isInteger(document.formatVersion)||document.formatVersion<1||document.formatVersion>2147483647)fail(location+'/formatVersion','INVALID_BANK_FORMAT');
+    if(document.formatVersion!==1)fail(location+'/formatVersion','UNSUPPORTED_BANK_FORMAT');
+  }
+  const bankId=id(document,'id',location);text(document,'title',300,location);text(document,'description',4000,location,true);
   const fallback=own(document,'extension')?reference(document.extension,location+'/extension'):null;
   if(owner&&(bankId!=='examples'||!fallback||key(fallback)!==key(owner)))fail(location+'/extension','INVALID_EXAMPLE_BINDING');
   if(!Array.isArray(document.questions)||!document.questions.length||document.questions.length>10000)fail(location+'/questions','QUESTION_COUNT_LIMIT');
@@ -235,11 +256,14 @@ async function validate(options){
   if(!directoryBank&&await optionalExists(path.join(path.dirname(bankFile),'assets'),'bank/assets'))report.warnings.push({location:'bank/assets',code:'FLAT_BANK_ASSETS_NOT_IMPORTED'});
   checkImages(rows,loaded,bankAssets,usedBankAssets,usedExtensionAssets);
   const boundExtensions=new Set(groups.keys());if(fallback)boundExtensions.add(key(fallback));
+  const exampleGroups=new Map();
   for(const identity of [...boundExtensions].sort()){
     const extension=loaded.get(identity),where=extension.location+'/examples';const examples=await jsonFile(extension.files.examples,8*MiB,where);
     const exampleRows=documentRows(examples,where,extension.manifest).rows;report.summary.exampleQuestions+=exampleRows.length;
-    checkImages(exampleRows,loaded,new Map(),new Set(),usedExtensionAssets);await checkRules(coreRoot,extension,exampleRows,true);
+    checkImages(exampleRows,loaded,new Map(),new Set(),usedExtensionAssets);exampleGroups.set(identity,exampleRows);
   }
+  // Reject every bound package/example declaration before executing any extension rules.
+  for(const [identity,exampleRows]of exampleGroups)await checkRules(coreRoot,loaded.get(identity),exampleRows,true);
   for(const image of bankAssets.values())if(!usedBankAssets.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_BANK_IMAGE'});
   for(const identity of boundExtensions)for(const image of loaded.get(identity).assets.values())if(!usedExtensionAssets.get(identity)?.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_EXTENSION_IMAGE'});
   report.summary.referencedImages=new Set([...usedBankAssets,...[...usedExtensionAssets.values()].flatMap(ids=>[...ids])]).size;

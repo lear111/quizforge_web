@@ -1,4 +1,5 @@
 import {sameExtension} from './extension-pages.js';
+import {resolveExtensionApi} from './api-bridges.js';
 
 function frozenPage(record,entry){
   let page;
@@ -11,6 +12,7 @@ function frozenPage(record,entry){
   else{page=record.page;}
   if(!page||typeof page!=='object')throw new Error('历史题目的页面数据缺失');
   if(page.extension&&!sameExtension(page.extension,entry.payload.extension||record.extension))throw new Error('历史题目的页面与题型拓展不匹配');
+  resolveExtensionApi(page.apiVersion);
   return page;
 }
 

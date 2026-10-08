@@ -5,6 +5,37 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const Ajv = require('ajv');
 const LIMIT = 8 * 1024 * 1024;
+// Public rule contracts evolve independently of application releases. Retain
+// this v1 registration when a later major adds a separate implementation.
+const ruleApis = new Map([[1, {
+  minor: 0,
+  register(run) {
+    run(`globalThis.__type = null; globalThis.QF = Object.freeze({
+      api:Object.freeze({major:1,minor:0,capabilities:Object.freeze([
+        'practice','editor','editor-drafts','score','manual-review','ai-grading',
+        'resources','richtext','navigation','lifecycle'
+      ])}),
+      defineType(type) {
+        if (__type || !type || typeof type.project !== 'function' || typeof type.grade !== 'function') throw Error('Invalid rule registration');
+        for (const name of ['validateQuestion','validateAnswer','getScore','review','prepareAiGrading']) if (type[name] != null && typeof type[name] !== 'function') throw Error('Invalid validator');
+        globalThis.__type = type;
+      }
+    });`);
+  }
+}]]);
+function selectRuleApi(value) {
+  if (value === undefined) value = {major:1,minor:0};
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+      || !Number.isInteger(value.major) || value.major < 1 || value.major > 2147483647
+      || !Number.isInteger(value.minor) || value.minor < 0 || value.minor > 2147483647) {
+    const error = new Error('Invalid rule API version'); error.code = 'INVALID_API_VERSION'; throw error;
+  }
+  const api = ruleApis.get(value.major);
+  if (!api || value.minor > api.minor) {
+    const error = new Error('Unsupported rule API version; this runner supports v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
+  }
+  return api;
+}
 let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
@@ -14,6 +45,7 @@ process.stdin.on('data', chunk => {
 process.stdin.on('end', () => {
   try {
     const request = JSON.parse(input);
+    const api = selectRuleApi(request.apiVersion);
     const read = path => {
       const stat = fs.statSync(path);
       if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('Rule asset exceeds limit');
@@ -24,11 +56,7 @@ process.stdin.on('end', () => {
     const validAnswer = ajv.compile(JSON.parse(read(request.answerSchema)));
     const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
     const run = code => vm.runInContext(code, context, { timeout: 650, displayErrors: false });
-    run(`globalThis.__type = null; globalThis.QF = Object.freeze({defineType(type) {
-      if (__type || !type || typeof type.project !== 'function' || typeof type.grade !== 'function') throw Error('Invalid rule registration');
-      for (const name of ['validateQuestion','validateAnswer','getScore','review','prepareAiGrading']) if (type[name] != null && typeof type[name] !== 'function') throw Error('Invalid validator');
-      globalThis.__type = type;
-    }});`);
+    api.register(run);
     new vm.Script(read(request.rules), { filename: 'extension-rules.js' }).runInContext(context, { timeout: 650, displayErrors: false });
     if (!run('Boolean(__type)')) throw new Error('Missing rule registration');
     const set = value => run(`globalThis.__input = JSON.parse(${JSON.stringify(JSON.stringify(value))});`);
@@ -130,7 +158,7 @@ process.stdin.on('end', () => {
     process.stdout.write(encoded);
   } catch (error) {
     // Error stacks and paths stay inside the process. Java returns a bounded generic error.
-    process.stdout.write(JSON.stringify({ ok: false, code: error.code === 'SCORE_UNAVAILABLE' ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
+    process.stdout.write(JSON.stringify({ ok: false, code: ['SCORE_UNAVAILABLE','INVALID_API_VERSION','UNSUPPORTED_API_VERSION'].includes(error.code) ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
     process.exitCode = 1;
   }
 });

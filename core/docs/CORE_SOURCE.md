@@ -7,6 +7,7 @@
 | 启动、HTTP、局域网鉴权 | `Main.java`、`QuizForgeServer.java` | 监听器、Host/Origin、密码、请求体与响应限制 |
 | 题库和题目路由 | `CollectionRoutes.java` | 将请求交给对应业务服务，不绕过统一写入检查 |
 | 题库和拓展包 | `Library.java` | 扫描、版本绑定、校验、页面资源和编辑计划 |
+| 更新兼容契约 | `ExtensionApi.java` | API v1.0、Manifest 需求和题库格式校验；缺省旧声明，页面/历史按各自运行版本加载 |
 | 混合题型批处理 | `RuleBatches.java` | 按拓展 ID／版本／签名分组，顺序有界分块，结果恢复原题序 |
 | 作答与历史事务 | `StateStore.java`、`HistoryRounds.java`、`EditJournal.java` | 修订号、幂等回执、保存、历史冻结、恢复；事务继续集中在状态仓库 |
 | 通用 AI 任务 | `AiGradingService.java`、`AiGradingProtocol.java` | 排队、重试、候选、过期检查、确认，以及最终反馈 |
@@ -33,7 +34,7 @@ flowchart LR
 
 ## 原简答题库升级
 
-正常启动脚本传入 `--upgrade-short-answer`，只升级已安装的 `quizforge.short-answer` 1.0.0／1.1.0／1.2.0 题库到 1.2.1。升级在服务开始接受请求之前进行；先关闭原服务再启动，不要让不同端口的服务同时使用同一份数据目录。
+正常启动不传入 `--upgrade-short-answer`，不改题库的拓展绑定。只有用户显式运行根层 `.\Start-QuizForge-Web.cmd -UpgradeShortAnswer`（或自行传 Java 开关 `--upgrade-short-answer`），才将已安装的 `quizforge.short-answer` 1.0.0／1.1.0／1.2.0 题库升级到 1.2.1。该操作会修改旧题库，执行前先保存、关闭原服务并备份整个产品目录。脚本在检测到同根服务运行或另一个启动窗口占用目录时拒绝升级，不复用当前服务。升级在新服务开始接受请求之前进行；不要让不同端口的服务同时使用同一份数据目录。
 
 1.2.1 引用独立发布的富文本 SDK 1.1.1。旧版 SDK 优先解析 `.state/sdk/` 中已校验的固定快照；即使旧版源文件曾经同版本重建，也不会替换快照或阻止正常启动。历史仍读取原来的 SDK 和页面，新版使用新的快照目录。目录加载失败保留具体错误码和原因，升级失败会区分目标拓展缺失与目标资源无效。
 
@@ -45,9 +46,13 @@ flowchart LR
 
 题库引用与新状态使用已有编辑恢复日志共同提交，中断后向前恢复。再次启动会跳过已升级题库。此规则针对已知兼容的简答版本，不是任意拓展的自动迁移机制。
 
+## API 与题库版本兼容
+
+完整政策见 [COMPATIBILITY.md](COMPATIBILITY.md)。当前仅有 API v1.0 与 bank 顶层格式 v1；Manifest 缺少 `requiresApi`、题库缺少 `formatVersion`、旧历史页缺少 `apiVersion` 时都按 v1 读取而不修改文件。显式不兼容声明在拓展规则执行前拒绝。页面与编辑页面携带 `apiVersion:{major:1,minor:0}`；历史保存各页面自己的版本。浏览器 `QF.api` 公布该运行版本与能力列表，操作权限仍由 context.capabilities 控制。题库/拓展内容签名继续遵守既有字节与数据规则，不能为添加新字段重建旧包。
+
 ## 开发与验证
 
-构建命令在 `core/` 中执行：修改当前简答规则源码后执行 `npm run build:short-answer-advanced`；修改公共组件执行 `npm run build:richtext-advanced`。不要编辑已经发布的旧包。拓展列表按类型显示最新可预览版本；旧版本仍可供绑定它的题库和历史使用。`core/web/frame.js` 的 scoped `editor-layout` 消息只控制窗口布局，沿用同一 iframe；宿主通过 `setEditorLayout` 暂停相机更新并在退出时恢复。
+构建命令在 `core/` 中执行。当前 `npm run build:short-answer-advanced` 与 `npm run build:richtext-advanced` 指向已发布版本，不能通过修改源码并重建来发布同版本的新内容；开发新能力应先建立新版本目录并调整对应构建入口，保留原包。拓展列表按类型显示最新可预览版本；旧版本仍可供绑定它的题库和历史使用。`core/web/frame.js` 的 scoped `editor-layout` 消息只控制窗口布局，沿用同一 iframe；宿主通过 `setEditorLayout` 暂停相机更新并在退出时恢复。
 
 定向验证入口：
 

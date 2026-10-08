@@ -17,6 +17,7 @@ question-banks/my-exam/
 
 ```json
 {
+  "formatVersion": 1,
   "id": "my-exam-2026",
   "title": "我的练习",
   "description": "可选的说明",
@@ -34,6 +35,7 @@ question-banks/my-exam/
 `data` 必须按对应拓展的 schema 填写。根对象可以有 `extension` 作为默认绑定，每题的 `extension` 优先；没有根绑定时每题都必须有绑定。版本是精确匹配，不支持 `latest`、范围或只填 id。不同题可以绑定不同 id/version。
 
 - bank/question id：`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$`，同题库题 ID 唯一。
+- 顶层 `formatVersion` 当前只支持数字整数 `1`；旧文件缺省按 `1` 读取，不补写。仅为新题库和新拓展示例显式添加；与题型内部 `data.formatVersion` 相互独立。
 - 标题非空，最长 300；简答也需要元数据 title，即使 UI 不单独显示题名。
 - 每库 1–10000 题，bank JSON 不超过 8 MiB。
 - 题目顺序由 `questions` 数组决定，不按类型重新排序。单选、简答、单选就是三个连续分组。

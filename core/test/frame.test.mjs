@@ -2,12 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {bootstrapV1} from '../web/api-v1.js';
+import {resolveExtensionApi} from '../web/api-bridges.js';
 
 const frameSource=readFileSync(new URL('../web/frame.js',import.meta.url),'utf8');
-const bootstrapStart=frameSource.indexOf('function bootstrap(');
-const mountStart=frameSource.indexOf('export function mountExtension');
-assert.ok(bootstrapStart>=0&&mountStart>bootstrapStart,'The production iframe bootstrap must be present');
-const bootstrapSource=frameSource.slice(bootstrapStart,mountStart);
+const bootstrapSource=bootstrapV1.toString();
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('flush invokes unsent-input hook and propagates failures to the host',async()=>{
@@ -43,7 +42,8 @@ function iframeFixture(context={question:{id:'q1'}}) {
     clearTimeout:id=>timers.delete(id),
     addEventListener:(name,callback)=>listeners.set(name,callback),
   };
-  vm.runInNewContext(`${bootstrapSource}\nbootstrap({session:'iframe-session',context:${JSON.stringify(context)}});`,sandbox);
+  const boot={session:'iframe-session',context,api:resolveExtensionApi().api};
+  vm.runInNewContext(`(${bootstrapSource})(${JSON.stringify(boot)});`,sandbox);
   const receive=(value,{source=parent,session='iframe-session'}={})=>listeners.get('message')({source,data:{...value,channel:'quizforge-host',session}});
   return {QF:sandbox.QF,sent,timers,parent,receive,document:sandbox.document,dispatch:name=>listeners.get(name)?.({})};
 }
@@ -60,6 +60,7 @@ function hostFixture(context={question:{id:'q1'}}) {
   const sandbox={
     Promise,structuredClone,
     makeRequestId:()=>`fixture-${++nextId}`,
+    resolveExtensionApi,
     document:{createElement:()=>frame},
     window:{addEventListener:(name,callback)=>listeners.set(name,callback),removeEventListener:name=>listeners.delete(name)},
     setTimeout(callback){const id=++nextTimer;timers.set(id,callback);return id;},
@@ -67,7 +68,7 @@ function hostFixture(context={question:{id:'q1'}}) {
   };
   // Remove the module boundary without replacing any frame behavior. api.js needs
   // browser storage, while this test supplies only its request-ID dependency.
-  const moduleSource=frameSource.replace(/^import[^\r\n]*\r?\n/,'').replace('export function mountExtension','function mountExtension');
+  const moduleSource=frameSource.replace(/^import[^\r\n]*\r?\n/gm,'').replace('export function mountExtension','function mountExtension');
   vm.runInNewContext(`${moduleSource}\nglobalThis.mountExtension=mountExtension;`,sandbox);
   const mounted=sandbox.mountExtension({append(){}},{html:'<div></div>',script:'',style:''},context,{
     onRequest(method,args){requests.push({method,args});return {ok:true,data:{status:'draft'}};},

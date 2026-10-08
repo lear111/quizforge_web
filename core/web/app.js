@@ -1,5 +1,6 @@
 import {request,readResource,setAccessToken,collectionPath,questionPath,makeRequestId} from './api.js';
 import {mountExtension} from './frame.js';
+import {prepareExtensionAssets} from './page-assets.js';
 import {mountWhiteboard} from './whiteboard.js';
 import {createWriteQueue,createDraftBuffer} from './write-queue.js';
 import {createQuestionCache} from './question-cache.js';
@@ -21,7 +22,7 @@ const catalog={banks:[],extensions:[]},tabs=new Map();
 const questionsCache=createQuestionCache(),pagesCache=createQuestionCache({capacity:4,maxBytes:4*1024*1024});
 const sdkCache=createQuestionCache({capacity:4,maxBytes:8*1024*1024});
 const editorDraftPath=(pane,qid)=>`/api/editor-drafts/${encodeURIComponent(pane.id)}/${encodeURIComponent(qid)}`;
-async function prepareAssets(assets){const libraries=[];for(const dependency of assets.dependencies||[]){libraries.push(await sdkCache.load(`${dependency.id}:${dependency.version}:static`,()=>request(`/api/sdk/${encodeURIComponent(dependency.id)}/${encodeURIComponent(dependency.version)}`)));}return {...assets,libraries};}
+async function prepareAssets(assets){return prepareExtensionAssets(assets,dependency=>sdkCache.load(`${dependency.id}:${dependency.version}:static`,()=>request(`/api/sdk/${encodeURIComponent(dependency.id)}/${encodeURIComponent(dependency.version)}`)));}
 const sidebarPreferences={library:true,outline:true};
 try{const saved=JSON.parse(localStorage.getItem('quizforge-sidebars')||'{}');for(const key of Object.keys(sidebarPreferences))if(typeof saved[key]==='boolean')sidebarPreferences[key]=saved[key];}catch{}
 const libraryDrawer=matchMedia('(max-width:800px)'),outlineDrawer=matchMedia('(max-width:1100px)');

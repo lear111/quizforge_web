@@ -70,6 +70,7 @@ final class HistoryRounds {
 
     static ObjectNode publicRecord(JsonNode source, boolean summary) {
         ObjectNode value = (ObjectNode) source.deepCopy(); value.remove(List.of("fingerprints", "extensionFingerprint", "legacyIds", "completionVersions"));
+        ExtensionApi.normalizeHistory(value);
         if (!value.has("gradedCount")) value.put("gradedCount", value.path("submittedCount").asInt());
         if (!value.has("pendingCount")) value.put("pendingCount", 0);
         if (summary) value.remove(List.of("questions", "collection", "page", "pages")); return value;
@@ -90,6 +91,7 @@ final class HistoryRounds {
 
     private static void validatePage(JsonNode page) throws IOException {
         if (!page.isObject()) throw new IOException("Invalid frozen page");
+        ExtensionApi.requireHistory(page);
         for (String asset : List.of("html", "script", "style")) if (!page.path(asset).isTextual()) throw new IOException("Invalid frozen page");
     }
 
@@ -111,6 +113,7 @@ final class HistoryRounds {
     }
 
     static void validate(JsonNode record) throws IOException {
+        ExtensionApi.requireHistory(record);
         boolean mixed = record.has("pages");
         if (!record.isObject() || record.path("schemaVersion").asInt() != 2 || !record.path("id").isTextual()
                 || !record.path("id").asText().matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}")
@@ -141,6 +144,7 @@ final class HistoryRounds {
         JsonNode outline = record.at("/collection/questions"); if (!outline.isArray() || outline.size() != record.path("questions").size()) throw new IOException("Invalid frozen outline");
         for (int i = 0; i < outline.size(); i++) {
             JsonNode entry = record.path("questions").get(i), payload = entry.path("payload"), state = payload.path("state"); String id = payload.at("/question/id").asText();
+            if (entry.has("page")) validatePage(entry.path("page"));
             if (!payload.isObject() || !id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}") || !ids.add(id) || !id.equals(outline.get(i).path("id").asText())
                     || !payload.at("/question/title").isTextual() || !payload.path("question").has("data") || !payload.path("extension").isObject()
                     || !List.of("unanswered", "draft", "submitted").contains(state.path("status").asText()) || !state.has("answer") || !state.has("result")

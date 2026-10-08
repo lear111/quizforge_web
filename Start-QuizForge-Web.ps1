@@ -4,7 +4,8 @@
   [string]$AccessToken = '',
   [switch]$NoBrowser,
   [switch]$SkipBuild,
-  [switch]$Rebuild
+  [switch]$Rebuild,
+  [switch]$UpgradeShortAnswer
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
@@ -87,8 +88,12 @@ try {
   $launcherMutex = New-Object Threading.Mutex($false, "Local\QuizForgeWeb-$rootHash")
   try { $ownsMutex = $launcherMutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $ownsMutex = $true }
   $running = Find-RunningQuizForge
-  if ($running) { Open-ExistingQuizForge $running; exit 0 }
+  if ($running) {
+    if ($UpgradeShortAnswer) { throw '简答题库升级会修改旧题库，不能复用正在运行的服务。请先保存作答并关闭原启动窗口，再使用 -UpgradeShortAnswer。' }
+    Open-ExistingQuizForge $running; exit 0
+  }
   if (-not $ownsMutex) {
+    if ($UpgradeShortAnswer) { throw '另一个启动窗口正在使用本目录。请先保存作答并关闭原窗口，再使用 -UpgradeShortAnswer 升级题库。' }
     Write-Host 'QuizForge 已在另一个窗口启动中，请等待原窗口完成。' -ForegroundColor Yellow
     exit 0
   }
@@ -135,7 +140,11 @@ try {
     $AccessToken = [BitConverter]::ToString($tokenBytes).Replace('-', '').ToLowerInvariant()
   }
   $baseUrl = "http://127.0.0.1:$Port/"
-  $serverArguments = @('-jar', $jarPath, '--root', $projectRoot, '--host', $bindAddress, '--port', "$Port", '--node', $nodeCommand.Source, '--upgrade-short-answer')
+  $serverArguments = @('-jar', $jarPath, '--root', $projectRoot, '--host', $bindAddress, '--port', "$Port", '--node', $nodeCommand.Source)
+  if ($UpgradeShortAnswer) {
+    Write-Host '已选择显式简答升级：将修改旧简答题库的拓展绑定及兼容题目内容，并建立新版状态；原版本历史保留。' -ForegroundColor Yellow
+    $serverArguments += '--upgrade-short-answer'
+  }
   if ($AccessToken) { $serverArguments += @('--token', $AccessToken) }
   if (-not $NoBrowser) {
     $helperPath = (Join-Path $coreRoot 'scripts/Open-QuizForge-WhenReady.ps1').Replace("'", "''")

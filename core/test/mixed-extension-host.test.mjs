@@ -6,6 +6,7 @@ import {createQuestionCache} from '../web/question-cache.js';
 import {questionExtension,collectionHasExtension,extensionPageRoute,sameQuestionStamp} from '../web/extension-pages.js';
 import {contextFor} from '../web/practice-context.js';
 import {createHistoryView} from '../web/history-view.js';
+import {prepareExtensionAssets} from '../web/page-assets.js';
 
 const source=readFileSync(new URL('../web/app.js',import.meta.url),'utf8');
 const functionSource=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
@@ -27,7 +28,7 @@ function fixture({requestImpl,collection}={}){
     questionsCache:cache,pagesCache:pages,questionCacheKey:(pane,qid)=>`${pane.key}:${qid}`,
     questionPath:(_kind,_id,qid)=>`/api/questions/${qid}`,collectionPath:()=>'/api/collections/bank/mixed',
     request:async(path,options)=>{requests.push({path,options});return requestImpl(path,options);},
-    prepareAssets:async assets=>assets,el:()=>new Element(),active:()=>pane,
+    prepareAssets:assets=>prepareExtensionAssets(assets,async dependency=>({id:dependency.id,version:dependency.version,script:'frozen SDK',style:''})),el:()=>new Element(),active:()=>pane,
     disposeEditorSession(){},disposeScoreSummary(){},syncPracticeCamera(){},renderTabs(){},renderOutline(){},updateChrome(){},saveStatus(){},setEditorLayout(){},pageRequest(){},notice(){},
     mountExtension(container,assets,context){
       const frame=new Element();container.append(frame);live++;maxLive=Math.max(maxLive,live);let destroyed=false;
@@ -85,4 +86,25 @@ test('mixed history mounts only referenced frozen assets with readonly capabilit
   assert.deepEqual(f.mounted.map(value=>value.assets.html),['frozen text','frozen choice']);assert.equal(f.requests.length,0);assert.equal(f.maxLive,1);
   for(const {context}of f.mounted){assert.equal(context.mode,'history');for(const allowed of Object.values(context.capabilities))assert.equal(allowed,false);}
   assert.equal(f.pane.historyQuestion.payload.extension.id,'choice');f.pane.plugin.destroy();
+});
+
+test('incompatible practice assets leave the current iframe, answer and ink in place',async()=>{
+  const f=fixture({requestImpl:async path=>path.includes('/choice/')?{html:'old choice',script:'',style:''}:{html:'future',script:'',style:'',apiVersion:{major:2,minor:0}}});
+  await f.showQuestion(f.pane,'a',{payload:payload('a',single)});
+  const plugin=f.pane.plugin,previous=f.pane.payload,loads=f.pane.whiteboard.loads.length;
+  await assert.rejects(f.showQuestion(f.pane,'b',{payload:payload('b',text)}),error=>error.code==='UNSUPPORTED_API_VERSION');
+  assert.equal(f.pane.plugin,plugin);assert.equal(f.live,1);assert.equal(f.mounted.length,1);
+  assert.equal(f.pane.payload,previous);assert.equal(f.pane.questionId,'a');assert.equal(f.pane.whiteboard.loads.length,loads);assert.equal(f.pane.loading,false);
+  f.pane.plugin.destroy();
+});
+
+test('history keeps API metadata while resolving frozen libraries and mounting a readonly page',async()=>{
+  const page={html:'frozen',script:'',style:'',extension:single,apiVersion:{major:1,minor:0},dependencies:[{id:'quizforge.richtext',version:'1.0.0'}]};
+  const f=fixture({requestImpl:async()=>{throw new Error('History must not load a live extension');}});
+  f.pane.view='history';f.pane.historyView=createHistoryView({questions:[{payload:payload('a',single),pageKey:'frozen'}],pages:{frozen:page}});
+  await f.showHistoryQuestion(f.pane,'a');
+  const assets=f.mounted[0].assets;
+  assert.deepEqual(assets.apiVersion,{major:1,minor:0});assert.equal(assets.libraries[0].version,'1.0.0');
+  assert.equal(page.libraries,undefined,'Preparing a page must not mutate the stored history.');
+  assert.equal(f.mounted[0].context.capabilities.canSave,false);f.pane.plugin.destroy();
 });

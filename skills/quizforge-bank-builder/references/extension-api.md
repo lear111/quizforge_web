@@ -12,6 +12,7 @@
 {
   "id": "example.new-type",
   "version": "1.0.0",
+  "requiresApi": {"major": 1, "minMinor": 0, "capabilities": ["practice", "editor", "score", "richtext", "lifecycle"]},
   "name": "新题型",
   "description": "用途说明",
   "dependencies": [{"id": "quizforge.richtext", "version": "1.1.1"}],
@@ -34,6 +35,8 @@
 HTML 是 body 片段；CSS 和 JS 由宿主注入。页面及规则脚本按普通脚本执行，不能直接留下 ESM `import` 或 Node `require`。需要模块化开发时，在自己的拓展目录内预打包成声明的单文件，不改宿主构建。各路径必须指向本拓展内的真实文件，不能越界或依赖外网 CDN。
 
 ## 页面上下文与三种 UI
+
+页面及规则环境公开只读 `QF.api:{major:1,minor:0,capabilities:[...]}`；页面资源由宿主携带 `apiVersion`。这是已实现协议的元数据，不授予写入权限，也不意味着规则环境能使用浏览器的方法。页面继续根据 context.capabilities 决定哪些操作可用。
 
 练习页面通过 `onLoad(context)` 获得以下字段；这是当前接口全集，不含私有 HTTP 地址、状态修订号或拓展元数据：
 
@@ -231,6 +234,10 @@ iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问
 宿主 JSON 缓存已受 LRU 数量、字节及 5 分钟空闲期限制：题目 12 条/16 MiB、页面 4 条/4 MiB、SDK 4 条/8 MiB。拓展不扩容、不建立绕过这些限制的全局长期缓存、不改宿主清理逻辑。
 
 ## 版本与历史兼容
+
+当前仅实现 Extension API v1.0。Manifest 不写 `requiresApi` 时按 v1.0 处理；显式声明仅允许 `major`、`minMinor`、`capabilities`，前两项必须是整数且分别至少为 1、0，capabilities 可省略（等于空列表）。当前支持 `major:1,minMinor:0`，支持能力为 `practice`、`editor`、`editor-drafts`、`score`、`manual-review`、`ai-grading`、`resources`、`richtext`、`navigation`、`lifecycle`；能力字符串必须非空且不重复。只声明实际需要的能力，富文本仍须单独依赖准确 SDK 版本。未知版本、未知能力或坏声明在规则执行前拒绝。API v2 尚未实现，不可仅改声明假装兼容。
+
+新拓展与新样例可声明 API 和顶层题库 `formatVersion:1`；严禁为补字段修改已经发布的 Manifest、已练习题库或旧绑定。缺省按 v1 是读取规则，不是转换操作。历史按每份冻结页面的 apiVersion 加载，缺字段按 v1.0；同一轮可有不同题型，不按当前安装包或轮次顶层版本重判旧页面。
 
 已发布版本不能原地改字节。新题型使用新 ID/新目录；已有题型升级使用新 version/新目录，保留旧目录与旧题库、历史，不直接迁移或覆盖原文件。引用 SDK 使用确切版本；已固定 SDK 快照优先于同版本 shared 源码，修改源码不会刷新旧快照，绝不可删除/覆盖快照强迫更新。需要公共 SDK 新能力时报告给应用维护者，不在本任务中改 shared 或伪造 SDK 版本。
 

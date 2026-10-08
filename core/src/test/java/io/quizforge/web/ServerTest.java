@@ -109,7 +109,7 @@ class ServerTest {
         assertEquals(400, call("POST", QUESTION + "/actions", "{", TOKEN, "http://127.0.0.1:" + server.port()).status);
         assertEquals(400, call("POST", QUESTION + "/actions", "{} {}", TOKEN, null).status);
         for (String path : new String[]{"/question-banks/bank.json", "/extensions/generic/rules.js", "/.state/", "/%2e%2e/question-banks/bank.json", "/server/rules-runner.cjs"}) assertEquals(404, get(path).status, path);
-        Reply assets = call("GET", "/api/extensions/generic/1.0.0/page", null, TOKEN, null); assertEquals(200, assets.status); assertEquals(3, assets.body.size()); assertFalse(assets.body.toString().contains("grade("));
+        Reply assets = call("GET", "/api/extensions/generic/1.0.0/page", null, TOKEN, null); assertEquals(200, assets.status); assertEquals(4, assets.body.size()); assertEquals(ExtensionApi.version(), assets.body.path("apiVersion")); assertFalse(assets.body.toString().contains("grade("));
         assertEquals("no-store", assets.response.headers().firstValue("Cache-Control").orElse(""));
     }
     @Test void invalidAnswersAndWhiteboardDoNotChangeRevision() throws Exception {
@@ -284,7 +284,7 @@ class ServerTest {
         start(null); assertEquals(200, post(QUESTION + "/actions", action("editor-save", 0, "draft", answer("yes"))).status); JsonNode stamp = get(QUESTION + "/stamp").body; byte[] before = Files.readAllBytes(savedFile());
         JsonNode noEditor = get(QUESTION + "/editor").body; assertTrue(noEditor.path("editor").isNull()); assertEquals("answer-secret", noEditor.at("/question/data/secret").asText()); assertEquals(1, noEditor.path("revision").asInt());
         write("extensions/generic/editor.json", "{\"entry\":\"editor.html\",\"script\":\"editor.js\",\"style\":\"editor.css\"}"); write("extensions/generic/editor.html", "<textarea>editor</textarea>"); write("extensions/generic/editor.js", "QF.editor.register({onLoad(){}})"); write("extensions/generic/editor.css", "textarea{color:#123}");
-        Reply editor = get(QUESTION + "/editor"); assertEquals(200, editor.status); assertEquals(3, editor.body.path("editor").size()); assertEquals(stamp, get(QUESTION + "/stamp").body); assertArrayEquals(before, Files.readAllBytes(savedFile()));
+        Reply editor = get(QUESTION + "/editor"); assertEquals(200, editor.status); assertEquals(4, editor.body.path("editor").size()); assertEquals(ExtensionApi.version(), editor.body.at("/editor/apiVersion")); assertEquals(stamp, get(QUESTION + "/stamp").body); assertArrayEquals(before, Files.readAllBytes(savedFile()));
         write("extensions/generic/editor.json", "{\"entry\":\"../../question-banks/bank.json\",\"script\":\"editor.js\",\"style\":\"editor.css\"}"); assertEquals("INVALID_EDITOR", get(QUESTION + "/editor").body.at("/error/code").asText()); assertEquals(stamp, get(QUESTION + "/stamp").body);
         assertEquals("READ_ONLY_COLLECTION", get("/api/collections/extension/generic/questions/q1/editor").body.at("/error/code").asText());
     }

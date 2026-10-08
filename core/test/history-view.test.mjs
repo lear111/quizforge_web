@@ -58,3 +58,11 @@ test('mixed history rejects pages from another extension or another version',()=
 test('duplicate frozen payloads cannot silently replace an earlier question',()=>{
   assert.throws(()=>createHistoryView({questions:[entry('a'),entry('a')],collection:{questions:[{id:'a'}]},page:{html:'shared'}}),/不完整/);
 });
+
+test('legacy history defaults to v1 and future API pages fail before a view is selected',()=>{
+  const legacy={questions:[entry('a')],page:{html:'legacy'}};
+  assert.equal(createHistoryView(legacy).entry('a').page,legacy.page);
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:1},null]){
+    assert.throws(()=>createHistoryView({questions:[entry('a')],page:{html:'future',apiVersion}}),error=>['UNSUPPORTED_API_VERSION','INVALID_API_VERSION'].includes(error.code));
+  }
+});

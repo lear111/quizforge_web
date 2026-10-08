@@ -28,6 +28,7 @@ final class RuleEngine {
         if (!permissions) System.err.println("Node filesystem permissions unavailable; install Node 24 for the supported restriction mode.");
     }
     JsonNode run(Library.Extension extension, ObjectNode request) {
+        request.set("apiVersion", ExtensionApi.version());
         request.put("rules", extension.rules().toString()); request.put("questionSchema", extension.questionSchema().toString()); request.put("answerSchema", extension.answerSchema().toString());
         List<String> command = new ArrayList<>(List.of(node, "--max-old-space-size=96", "--disable-proto=throw"));
         Path runner = codeRoot.resolve("server/rules-runner.cjs");

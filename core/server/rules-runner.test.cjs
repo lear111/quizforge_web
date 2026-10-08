@@ -30,6 +30,36 @@ test('only public projection is returned until submission',t=>{
   assert.deepEqual(projected.body.data,{projected:{prompt:'public'}});
   const graded=call(files,{op:'submit',data:{secret:'yes'},answer:'yes'}); assert.equal(graded.body.data.result.score,1); assert.equal(graded.body.data.projected.reveal,'yes');
 });
+
+test('legacy rules and explicit v1 rules share an immutable host contract without changing grading',t=>{
+  const files=fixture(t,`QF.defineType({
+    project(data,state){
+      let protectedMetadata=false;try{QF.api.capabilities.push('unexpected');}catch{protectedMetadata=true;}
+      return {major:QF.api.major,minor:QF.api.minor,protectedMetadata,
+        frozen:Object.isFrozen(QF.api)&&Object.isFrozen(QF.api.capabilities),
+        canReview:QF.api.capabilities.includes('manual-review'),reveal:state.submitted?data.secret:null};
+    },
+    grade(data,answer){return {score:answer===data.secret?1:0,maxScore:1,correct:answer===data.secret,feedback:'graded'};}
+  });`);
+  const request={op:'project',data:{secret:'yes'},state:{submitted:false,result:null}};
+  const legacy=call(files,request).body,declared=call(files,{...request,apiVersion:{major:1,minor:0,description:'v1'}}).body;
+  assert.deepEqual(legacy,declared);
+  assert.deepEqual(legacy.data.projected,{major:1,minor:0,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
+  const submitted=call(files,{op:'submit',data:{secret:'yes'},answer:'yes',apiVersion:{major:1,minor:0}}).body;
+  assert.equal(submitted.data.result.score,1);assert.equal(submitted.data.projected.reveal,'yes');
+});
+
+test('invalid and future rule API versions are rejected before reading extension code',t=>{
+  const files=fixture(t,normal);
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:1}]){
+    const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
+    assert.equal(result.ok,false);assert.equal(result.code,'UNSUPPORTED_API_VERSION');
+  }
+  for(const apiVersion of [null,{major:'1',minor:0},{major:1,minor:-1},{major:1}]){
+    const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
+    assert.equal(result.ok,false);assert.equal(result.code,'INVALID_API_VERSION');
+  }
+});
 test('batch projections preserve order and keep unsubmitted answers hidden',t=>{
   const files=fixture(t,normal);
   const result=call(files,{op:'projectBatch',questions:[

@@ -101,6 +101,7 @@ final class Library {
         } catch (IOException | RuntimeException e) { throw new ApiException(422, "INVALID_EDITOR", "Extension editor declaration or assets are invalid"); }
     }
     private static ObjectNode withDependencies(ObjectNode page, Extension extension) {
+        ExtensionApi.declare(page);
         if (!extension.dependencies().isEmpty()) {
             ArrayNode values = page.putArray("dependencies");
             for (Dependency dependency : extension.dependencies()) values.add(Json.object().put("id", dependency.id()).put("version", dependency.version()));
@@ -256,8 +257,9 @@ final class Library {
         for (Path file : bankFiles) {
             ObjectNode entry = Json.object().put("id", fallback(file).replaceFirst("\\.json$", "")).put("title", fallback(file)).put("description", "").put("questionCount", 0);
             try {
-                if (file.getFileName().toString().equals("bank.json") && !file.getParent().equals(root.resolve("question-banks"))) resources.importAssets(file.getParent());
                 JsonNode raw = Json.read(file, 8 * 1024 * 1024);
+                ExtensionApi.requireBank(raw);
+                if (file.getFileName().toString().equals("bank.json") && !file.getParent().equals(root.resolve("question-banks"))) resources.importAssets(file.getParent());
                 String id = Json.id(raw, "id"), title = Json.text(raw, "title", 300);
                 entry.put("id", id).put("title", title).put("description", optional(raw, "description", 4000));
                 Extension extension = raw.has("extension") ? resolveExtension(raw.get("extension"), nextExtensions) : null;
@@ -291,6 +293,7 @@ final class Library {
         JsonNode manifest = Json.read(Json.safeFile(folder, "manifest.json"), 256 * 1024);
         String id = Json.id(manifest, "id"), version = Json.id(manifest, "version");
         entry.put("id", id).put("version", version).put("name", Json.text(manifest, "name", 300)).put("description", optional(manifest, "description", 4000));
+        ExtensionApi.requireManifest(manifest);
         List<Path> assets = new ArrayList<>();
         for (String field : List.of("entry", "script", "style", "rules", "questionSchema", "answerSchema", "examples")) {
             Path asset = Json.safeFile(folder, Json.text(manifest, field, 240));
@@ -320,6 +323,7 @@ final class Library {
     }
     private Collection parseResolvedCollection(JsonNode raw, String kind, Extension extension, String id, Map<String, Extension> available) {
         if (!raw.isObject() || kind.equals("bank") && !id.equals(Json.id(raw, "id"))) throw ApiException.bad("Invalid bank ID");
+        ExtensionApi.requireBank(raw);
         Extension fallback = raw.has("extension") ? resolveExtension(raw.get("extension"), available) : null;
         if (extension != null && (fallback == null || !extension.id().equals(fallback.id()) || !extension.version().equals(fallback.version()))) throw ApiException.bad("Extension mismatch");
         JsonNode questions = raw.get("questions");

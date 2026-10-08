@@ -202,7 +202,8 @@ final class StateStore {
                 for (JsonNode record : saved.path("historyRounds")) { HistoryRounds.validate(record); fileRecords.add(record); }
                 for (JsonNode record : fileRecords) { if (historyId != null && HistoryRounds.matchesId(record, historyId)) return HistoryRounds.publicRecord(record, false); records.add(record); }
             }
-        } catch (IOException | RuntimeException e) { throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
+        } catch (ApiException e) { if (ExtensionApi.historyFailure(e)) throw e; throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
+        catch (IOException | RuntimeException e) { throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
         if (historyId != null) throw new ApiException(404, "HISTORY_NOT_FOUND", "History record does not exist");
         records.sort(java.util.Comparator.comparing((JsonNode record) -> java.time.Instant.parse(record.path("updatedAt").asText())).reversed()); ArrayNode summaries = Json.MAPPER.createArrayNode();
         for (JsonNode record : records) summaries.add(HistoryRounds.publicRecord(record, true));
@@ -230,7 +231,8 @@ final class StateStore {
                 }
                 if (target != null) break;
             }
-        } catch (IOException | RuntimeException e) { throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
+        } catch (ApiException e) { if (ExtensionApi.historyFailure(e)) throw e; throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
+        catch (IOException | RuntimeException e) { throw new ApiException(503, "HISTORY_UNAVAILABLE", "Saved history cannot be read; preserve the state directory for recovery"); }
         if (target == null) throw new ApiException(404, "HISTORY_NOT_FOUND", "History record does not exist");
         long encodedBytes = persist(target, replacement); remember(replacement.path("collection").asText(), replacement, encodedBytes);
         return Json.object().put("deleted", historyId);
@@ -486,6 +488,7 @@ final class StateStore {
         return RuleBatches.run(rules, effective, op, field, inputs);
     }
     private static void freezePages(ObjectNode round, Library.Collection collection) {
+        ExtensionApi.declare(round);
         collectionMetadata(round, collection);
         try {
             if (collection.extension() != null) round.set("page", Library.snapshotPage(collection.extension()));
@@ -553,7 +556,7 @@ final class StateStore {
                 encodedBytes = Files.size(file);
             }
             verifyCompatibility(loaded, collection); remember(collection, loaded, encodedBytes); return loaded;
-        } catch (ApiException e) { if (e.code.equals("COLLECTION_CHANGED")) throw e; throw new ApiException(503, "STATE_UNAVAILABLE", "Saved state cannot be read; preserve the state directory for recovery"); }
+        } catch (ApiException e) { if (e.code.equals("COLLECTION_CHANGED") || ExtensionApi.historyFailure(e)) throw e; throw new ApiException(503, "STATE_UNAVAILABLE", "Saved state cannot be read; preserve the state directory for recovery"); }
         catch (IOException | RuntimeException e) { throw new ApiException(503, "STATE_UNAVAILABLE", "Saved state cannot be read; preserve the state directory for recovery"); }
     }
     private void remember(Library.Collection collection, ObjectNode value, long encodedBytes) {
@@ -620,9 +623,11 @@ final class StateStore {
         for (Library.Question question : collection.questions()) { ObjectNode row = Json.object().put("id", question.id()).put("title", question.title()); row.set("type", extensionMetadata(collection.extensionFor(question))); questions.add(row); states.set(question.id(), publicState(questionState(persisted, collection, question))); } return result;
     }
     private static void validateHistory(JsonNode record) throws IOException {
+        ExtensionApi.requireHistory(record);
         if (record.has("legacyRoundId") && (!record.path("legacyRoundId").isTextual() || !record.path("legacyRoundId").asText().matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}"))) throw new IOException("Invalid legacy history boundary");
         if (!record.isObject() || !record.path("id").isTextual() || !record.path("id").asText().matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}") || !record.path("createdAt").isTextual() || !record.path("questionId").isTextual() || !record.path("questionTitle").isTextual() || !record.path("collectionTitle").isTextual() || !record.path("extension").isObject() || !record.path("score").isNumber() || !record.path("maxScore").isNumber() || !record.path("correct").isBoolean() || !record.path("payload").isObject() || !record.at("/payload/state/status").asText().equals("submitted") || !record.path("page").isObject()) throw new IOException("Invalid history snapshot");
         for (String asset : List.of("html", "script", "style")) if (!record.path("page").path(asset).isTextual()) throw new IOException("Invalid frozen page");
+        ExtensionApi.requireHistory(record.path("page"));
         try { java.time.Instant.parse(record.path("createdAt").asText()); } catch (java.time.DateTimeException e) { throw new IOException("Invalid history timestamp"); }
     }
     static void validateDraft(JsonNode draft) {
