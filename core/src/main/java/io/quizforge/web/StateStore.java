@@ -575,7 +575,7 @@ final class StateStore {
         Library.Extension extension = collection.extensionFor(question);
         return Json.object().put("revision", state.path("revision").asLong())
                 .put("contentVersion", opaqueVersion("question", collection.stateKey(), question.id(), question.title(), question.fingerprint()))
-                .put("packageVersion", opaqueVersion("package", extension.id(), extension.version(), extension.fingerprint()));
+                .put("packageVersion", opaqueVersion("package", extension.id(), extension.version(), extension.fingerprint(), extension.providerRevision()));
     }
     private String opaqueVersion(String... fields) {
         try {

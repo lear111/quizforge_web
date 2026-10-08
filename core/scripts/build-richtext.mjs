@@ -1,12 +1,17 @@
 import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
-import {readFile,writeFile} from 'node:fs/promises';
-const root=fileURLToPath(new URL('..',import.meta.url)),productRoot=fileURLToPath(new URL('../..',import.meta.url)),shared=resolve(root,'shared/richtext/1.0.0');
+import {readFile,writeFile,access} from 'node:fs/promises';
+const version=process.argv[2]==='--version'?process.argv[3]:null;
+if(process.argv.length!==4||!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(version||''))throw new Error('Specify a new component release: npm run build:richtext -- --version <version>');
+const root=fileURLToPath(new URL('..',import.meta.url)),shared=resolve(root,'shared/richtext',version);
+for(const file of ['richtext.js','richtext-editor.js','THIRD_PARTY_NOTICES.md']){
+  try{await access(resolve(shared,file));}catch(error){if(error.code==='ENOENT')continue;throw error;}
+  throw new Error(`Published component ${version} cannot be rebuilt; create a new version directory with src/ and richtext.css.`);
+}
 const options={bundle:true,format:'iife',platform:'browser',target:['es2022'],minify:true,legalComments:'eof'};
 await build({...options,entryPoints:[resolve(shared,'src/static.js')],outfile:resolve(shared,'richtext.js')});
 await build({...options,entryPoints:[resolve(shared,'src/editor.js')],outfile:resolve(shared,'richtext-editor.js')});
-await build({...options,entryPoints:[resolve(productRoot,'extensions/short-answer/src/rules.js')],outfile:resolve(productRoot,'extensions/short-answer/rules.js')});
 const licenses=[];
 for(const [name,file] of [
   ['Tiptap','node_modules/@tiptap/core/LICENSE.md'],['Tiptap PM and third-party dependencies','node_modules/@tiptap/pm/THIRD_PARTY_LICENSES.md'],

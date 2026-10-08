@@ -13,7 +13,7 @@ description: 从 Word、PDF、图片或文本材料生成 QuizForge Web 题库�
 
 确认材料、QuizForge Web 产品根目录、输出位置，以及用户已经给出的题型/UI 决定。产品根目录包含同层的 `core/`、`extensions/`、`question-banks/`、`skills/` 和启动脚本；项目路径及校验器 `--project` 都指向这一层，不指向 `core/`。缺少项目路径时先分析材料，再询问项目位置或拓展清单；不能仅凭本技能中的示例认定某拓展已安装。需要执行校验时使用项目已有的 Node.js 24 与 `core/node_modules` 依赖，不自行安装依赖或改变配置。
 
-先只读查看产品根目录下的 `core/IMPLEMENTATION_CONTRACT.md`、`extensions/*/manifest.json`、相关 schema、examples 和可选的 `editor.json`。共享 SDK 位于 `core/shared/`。按 **id + 精确 version** 建立能力清单，检查页面、编辑器、规则与依赖均存在。仅看拓展名称不足以确认能力。没有 `core/` 的旧平铺目录或隔离 fixture 可沿用根层契约、server、shared 和依赖；存在 `core/` 时不得因文件缺失而退回旧副本。
+先只读查看产品根目录下的 `core/IMPLEMENTATION_CONTRACT.md`、`extensions/*/manifest.json`、相关 schema、examples 和可选的 `editor.json`。共享 SDK 位于 `core/shared/`，富文本配置与兼容实现由 `core/shared/richtext/service.json` 声明。按 **id + 精确 version** 建立题型能力清单，检查页面、编辑器、规则与公共服务需求均满足。仅看拓展名称不足以确认能力。没有 `core/` 的旧平铺目录或隔离 fixture 可沿用根层契约、server、shared 和依赖；存在 `core/` 时不得因文件缺失而退回旧副本。
 
 开始生成前读取 [题库格式与现有题型](references/bank-format.md)。解析 Word/PDF、处理扫描件或复杂排版时读取 [材料分析与保真](references/material-analysis.md)。需要新建拓展才读取 [拓展接口](references/extension-api.md)。本技能记录的版本是起点；实际安装文件与现行接口契约决定可用能力，遇到冲突说明差异，不猜测接口。
 
@@ -69,7 +69,7 @@ description: 从 Word、PDF、图片或文本材料生成 QuizForge Web 题库�
 
 保持现有题库、练习和历史数据不变。默认在用户指定输出目录交付新文件；用户明确要求安装到某项目时，可直接复制到该项目的**新**题库/拓展目录，不另加一次常规确认。目标已存在且内容不同时改用新 ID/目录或询问覆盖决定，不能外部覆盖正在练习的题库。
 
-新题库填写顶层 `formatVersion:1`，新拓展可填写 `requiresApi:{major:1,minMinor:0,capabilities:[实际需要的公共能力]}`。这些字段只加到本次生成的新文件；不修改旧文件为其“适配更新”。保持稳定 ID 和精确版本引用，新版本另建目录。普通应用更新/启动不应被当作更换题型版本的授权。
+新题库填写顶层 `formatVersion:1`，新拓展可填写 `requiresApi:{major:1,minMinor:0,capabilities:[实际需要的公共能力]}`。新富文本拓展使用 `requiresRichText` 声明公共 API、文档格式、配置和所需能力，不依赖 Tiptap 或精确 SDK 包版本；字段见 [拓展接口](references/extension-api.md)。这些字段只加到本次生成的新文件；不修改旧文件为其“适配更新”。保持稳定 ID 和精确题型版本引用，新版本另建目录。普通应用更新/启动不应被当作更换题型版本的授权。
 
 ## 5. 校验、预览与交付
 

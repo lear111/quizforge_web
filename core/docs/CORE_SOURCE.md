@@ -15,7 +15,7 @@
 | 浏览器协调 | `core/web/app.js` | 标签、页面生命周期、保存屏障、草稿、编辑和历史切换 |
 | 题型请求与视图上下文 | `core/web/extension-requests.js`、`core/web/practice-context.js`、`core/web/extension-pages.js` | 请求分发、读写权限、导航、题目级拓展页面路由与缓存归属 |
 | 拓展沙箱与 AI 桥接 | `core/web/frame.js`、`core/web/ai-client.js` | 会话来源校验、SDK、请求去重、确认后更新宿主状态 |
-| 简答业务 | `extensions/short-answer-1.2.2/` | 统一题干、两级富文本编辑、AI 评分输入、0.5 分精度、人工确认；引用公共富文本 1.1.2，规则源码位于 `src/`，构建为 `rules.js` |
+| 简答业务 | `extensions/short-answer-1.2.2/` | 统一题干、两级富文本编辑、AI 评分输入、0.5 分精度、人工确认；使用应用提供的富文本接口，规则源码位于 `src/`，构建为 `rules.js` |
 
 Java 文件均位于 `core/src/main/java/io/quizforge/web/`；共享组件位于 `core/shared/richtext/`。题型自己的题干、参考答案、评分说明和判分规则留在根层 `extensions/` 中；分值汇总、历史、模型设置和密钥由应用负责。
 
@@ -36,7 +36,7 @@ flowchart LR
 
 正常启动不传入 `--upgrade-short-answer`，不改题库的拓展绑定。只有用户显式运行根层 `.\Start-QuizForge-Web.cmd -UpgradeShortAnswer`（或自行传 Java 开关 `--upgrade-short-answer`），才将已安装的 `quizforge.short-answer` 1.0.0／1.1.0／1.2.0／1.2.1 升级到 1.2.2，支持根级单拓展和题目级混合绑定。该操作会修改旧题库，执行前先保存、关闭原服务并备份整个产品目录。脚本在检测到同根服务运行或另一个启动窗口占用目录时拒绝升级，不复用当前服务。升级在新服务开始接受请求之前进行；不要让不同端口的服务同时使用同一份数据目录。
 
-1.2.2 引用独立发布的富文本 SDK 1.1.2，修复完整工具栏、中文斜体、图片选择、选区恢复和图片拖动缩放。旧版 SDK 优先解析 `.state/sdk/` 中已校验的固定快照；即使旧版源文件曾经同版本重建，也不会替换快照或阻止正常启动。历史仍读取原来的 SDK 和页面，新版使用新的快照目录。目录加载失败保留具体错误码和原因，升级失败会区分目标拓展缺失与目标资源无效。
+富文本公共接口与实现分离：`RichTextService.java` 读取 `shared/richtext/service.json`，为新 `requiresRichText` 与已知旧依赖选择兼容实现；`QF.content` 是宿主公开的服务门面，拓展无需直接使用 Tiptap。当前高级文档约定使用组件 1.1.2，基础约定保留 1.0.0；普通更新不修改拓展或题库绑定。页面资源版本包含实现选择，题目/作答/草稿身份不包含实现版本。历史冻结实际选择，读取 `.state/sdk/` 中固定组件及原页面；不会按当前配置替换旧历史。详见 [富文本服务](RICHTEXT_SERVICE.md)。
 
 升级保持题库 ID、题目 ID、原题干和图片；1.0.0／1.1.0 的旧独立题名作为题干开头的二级标题保留，已有相同开头时不重复添加，1.2.0／1.2.1 的题干不再追加题名。通用题目元数据仍保留 title，新简答编辑器从题干生成该字段。根级单拓展绑定使用独立状态文件与新的修订号，旧版 `.state` 文件不变；题目级绑定的状态标识仍为 `bank:<id>:mixed`，即使只有一种题型也沿用该标识。升级先将原题库和状态字节备份到 `.state/upgrade-backups/`，再通过已有编辑事务更新同一状态文件。进行中轮次保留其他题型的答案、结果与修订号；已完成轮次的全部答案转为草稿，清空当前结果并增加修订号。历史中的题目、页面、答案和评分内容保持原样，旧进行中轮标记中断并记录关闭时间，已完成历史保持冻结。旧写入回执不会套用到新版本。
 
@@ -52,7 +52,7 @@ flowchart LR
 
 ## 开发与验证
 
-构建命令在 `core/` 中执行。当前 `npm run build:short-answer-advanced` 与 `npm run build:richtext-advanced` 指向已发布版本，不能通过修改源码并重建来发布同版本的新内容；开发新能力应先建立新版本目录并调整对应构建入口，保留原包。拓展列表按类型显示最新可预览版本；旧版本仍可供绑定它的题库和历史使用。`core/web/frame.js` 的 scoped `editor-layout` 消息只控制窗口布局，沿用同一 iframe；宿主通过 `setEditorLayout` 暂停相机更新并在退出时恢复。
+构建命令在 `core/` 中执行。组件构建 `npm run build:richtext-advanced -- --version <新组件版本>`（基础为 `build:richtext`）只构建新组件目录并拒绝覆盖已发布输出，不重建拓展。题型规则变化才单独构建新拓展版本；现有 `build:short-answer-advanced` 指向已发布 1.2.2，不能原地重建发布内容。拓展列表按类型显示最新可预览版本；旧版本仍可供绑定它的题库和历史使用。`core/web/frame.js` 的 scoped `editor-layout` 消息只控制窗口布局，沿用同一 iframe；宿主通过 `setEditorLayout` 暂停相机更新并在退出时恢复。
 
 定向验证入口：
 

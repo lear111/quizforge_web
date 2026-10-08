@@ -1,10 +1,12 @@
 import {makeRequestId} from './api.js';
 import {resolveExtensionApi} from './api-bridges.js';
+import {validateContentApi} from './page-assets.js';
 const escapeScript = value => value.replace(/<\/script/gi, '<\\/script');
 export function mountExtension(container,assets,context,{onRequest,onError,onDirty,onLayout,editorDraft=null}) {
   const bridge=resolveExtensionApi(assets.apiVersion);
+  if(Object.hasOwn(assets,'contentApi'))validateContentApi(assets.contentApi);
   const session=makeRequestId(),frame=document.createElement('iframe');frame.className='question-frame';frame.title='题型练习页面';frame.setAttribute('sandbox','allow-scripts');frame.referrerPolicy='no-referrer';
-  const nonce=makeRequestId().replace(/[^a-zA-Z0-9]/g,'');const boot={session,context,nonce,dependencies:assets.dependencies||[],editorDraft,api:bridge.api};
+  const nonce=makeRequestId().replace(/[^a-zA-Z0-9]/g,'');const boot={session,context,nonce,dependencies:assets.dependencies||[],contentApi:assets.contentApi,editorDraft,api:bridge.api};
   const policy=`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'`;
   const start=`(${bridge.bootstrap.toString()})(${JSON.stringify(boot).replace(/</g,'\\u003c')});`;
   const phoneStyle=`@media(max-width:600px){html,body{padding:0!important;background:#fff}body>:first-child{border:0!important;border-radius:0!important;box-shadow:none!important}input,textarea,select{font-size:16px!important}}`;

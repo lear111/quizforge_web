@@ -10,8 +10,9 @@ export function createExtensionRouter({readResource,uploadResource,loadSdk,save,
     }
     if(method==='sdk-editor'){
       const assets=pane.view==='edit'?pane.editState?.editor:pane.view==='history'?pane.historyQuestion?.page:pane.pageAssets;
-      if(!assets?.dependencies?.some(value=>value.id===args?.id&&value.version===args?.version))return denied('SDK_UNAVAILABLE','未声明此组件依赖');
-      return loadSdk(args.id,args.version).then(data=>({ok:true,data}));
+      const dependency=assets?.dependencies?.find(value=>value.id===args?.id&&value.version===args?.version);
+      if(!dependency)return denied('SDK_UNAVAILABLE','未声明此组件依赖');
+      return loadSdk(dependency.id,dependency.version).then(data=>({ok:true,data}));
     }
     if(pane.view!=='practice')return denied('READ_ONLY','当前页面不接受作答修改');
     if(!args||typeof args!=='object')return denied('INVALID_REQUEST','请求格式不正确');

@@ -1,6 +1,6 @@
 # 外部题型拓展 API 参考
 
-适用当前 QuizForge Web：公共富文本 SDK `quizforge.richtext@1.1.1`，完整示例 `extensions/short-answer-1.2.1/`。以下接口已从实际宿主、规则执行器及 SDK 源码核对；不要根据名称推测额外接口。
+适用当前 QuizForge Web：公共富文本服务 API v1.0、文档格式 v1。宿主通过 `core/shared/richtext/service.json` 选择兼容实现；Tiptap 是当前编辑实现，不是拓展依赖。完整既有示例 `extensions/short-answer-1.2.2/` 仍保留旧式精确依赖声明。以下接口已从实际宿主、规则执行器及 SDK 源码核对；不要根据名称推测额外接口。
 
 ## 可写范围与包结构
 
@@ -15,7 +15,7 @@
   "requiresApi": {"major": 1, "minMinor": 0, "capabilities": ["practice", "editor", "score", "richtext", "lifecycle"]},
   "name": "新题型",
   "description": "用途说明",
-  "dependencies": [{"id": "quizforge.richtext", "version": "1.1.1"}],
+  "requiresRichText": {"major": 1, "minMinor": 0, "documentFormat": 1, "documentProfile": "advanced-v1", "capabilities": ["images", "tables", "math"]},
   "entry": "practice.html",
   "script": "practice.js",
   "style": "practice.css",
@@ -26,7 +26,9 @@
 }
 ```
 
-不用富文本时省略 `dependencies`。当前支持的公共 SDK ID 只有 `quizforge.richtext`，依赖指定确切版本，不支持版本范围。题目编辑器由拓展目录下可选的 `editor.json` 声明：
+不用富文本时省略 `requiresRichText` 和 `dependencies`。新拓展使用 `requiresRichText`，不绑定 Tiptap/npm 包或具体 SDK 版本，也不得同时声明 `dependencies`（即使空数组）。必填字段是正整数 `major`、非负整数 `minMinor`、正整数 `documentFormat` 和非空 `documentProfile`；可选 `capabilities` 为不重复的非空字符串数组。当前支持 `major:1,minMinor:0,documentFormat:1`。配置 `basic-v1` 提供 `basic-formatting`、`images`；`advanced-v1` 另提供 `advanced-formatting`、`tables`、`math`、`image-resize`。声明实际需要的能力，宿主选择满足该配置的实现。配置决定可保存的文档范围，不能把 `basic-v1` 的旧格式当作可保存表格/公式的高级格式。
+
+旧拓展的 `dependencies:[{id:"quizforge.richtext",version:"精确版本"}]` 继续支持；已知旧版本由宿主兼容表匹配，未知版本沿用精确加载。不要修改已发布 manifest 来补新声明。历史使用保存时冻结的精确实现，不应用当前兼容表重新选择。题目编辑器由拓展目录下可选的 `editor.json` 声明：
 
 ```json
 {"entry":"editor.html","script":"editor.js","style":"editor.css"}
@@ -181,7 +183,7 @@ AI 输入协议：
 
 ## 公共富文本 `QF.content`
 
-只有声明富文本依赖后才能访问 `QF.content`。静态渲染包随页面加载；编辑包在首次 `createEditor` 时由宿主按声明版本延迟加载。直接使用以下公开 API，不调用 `_createEditor`、自行 configure 宿主资源桥或复制修改 shared SDK。
+只有声明 `requiresRichText` 或旧式富文本依赖后才能访问 `QF.content`。静态渲染包随页面加载；编辑包在首次 `createEditor` 时由宿主延迟加载同一已选择的实现。`QF.content.api` 提供公共接口、文档格式、配置与能力的元数据；依照声明和配置使用功能，不检测供应包版本或依赖 Tiptap 内部对象。直接使用以下公开 API，不调用 `_createEditor`、自行 configure 宿主资源桥或复制修改 shared SDK。
 
 | API | 参数及返回 |
 | --- | --- |
@@ -193,7 +195,7 @@ AI 输入协议：
 | `fromEditorDocument(doc)` | 清理编辑器 JSON attrs 后验证/拷贝；不是 HTML、Markdown 或 Office 转换器。 |
 | `EMPTY_DOCUMENT` | `{type:"doc",content:[{type:"paragraph"}]}`；使用 cloneDocument 获得自己的副本。 |
 
-editor 方法：`ready`、`getDocument()`、`setDocument(doc)`、`focus()`、`flush()`、`isUploading()`、`setAdvanced(boolean)`、`isAdvanced()`、`destroy()`。`ready` 和 `flush/setAdvanced` 为 Promise；setDocument 不发 onChange。保存/切字段前 `await editor.flush()`，再取 getDocument，处理上传失败。每个 iframe **只允许一个活动富文本 editor**；创建第二个前先 flush 并 destroy 第一个，其他字段用静态 render。销毁后不要使用；每次重绘先 destroy 旧 renderer/editor。
+editor 方法：`ready`、`getDocument()`、`setDocument(doc)`、`focus()`、`flush()`、`isUploading()`、`destroy()`；`advanced-v1` 另提供 `setAdvanced(boolean)`、`isAdvanced()`。`ready` 和 `flush/setAdvanced` 为 Promise；setDocument 不发 onChange。保存/切字段前 `await editor.flush()`，再取 getDocument，处理上传失败。每个 iframe **只允许一个活动富文本 editor**；创建第二个前先 flush 并 destroy 第一个，其他字段用静态 render。销毁后不要使用；每次重绘先 destroy 旧 renderer/editor。
 
 ```js
 const editor = QF.content.createEditor(host, {
@@ -215,9 +217,9 @@ await editor.ready;
 ]}
 ```
 
-支持 paragraph、heading（level 1–3）、blockquote、bulletList/orderedList/listItem、codeBlock、horizontalRule、image、table/tableRow/tableCell/tableHeader、text、hardBreak、inlineMath/blockMath。marks 支持 bold/italic/strike/underline/code/link/textStyle/highlight/subscript/superscript。字体、字号、行距应从 SDK 的 `FONT_FAMILIES/FONT_SIZES/LINE_HEIGHTS` 枚举选择；颜色为 `#RRGGBB`，链接只允许 http/https/mailto。图片属性是 assetId，不接受 src/URL/base64；数学属性是 latex，不接受 HTML。
+`advanced-v1` 支持 paragraph、heading（level 1–3）、blockquote、bulletList/orderedList/listItem、codeBlock、horizontalRule、image、table/tableRow/tableCell/tableHeader、text、hardBreak、inlineMath/blockMath。marks 支持 bold/italic/strike/underline/code/link/textStyle/highlight/subscript/superscript。字体、字号、行距应从公开的 `FONT_FAMILIES/FONT_SIZES/LINE_HEIGHTS` 枚举选择；颜色为 `#RRGGBB`，链接只允许 http/https/mailto。图片属性是 assetId，不接受 src/URL/base64；数学属性是 latex，不接受 HTML。`basic-v1` 沿用基础格式：不支持表格/公式、textStyle/highlight/subscript/superscript、段落对齐/行距和图片 width/align；其节点和属性以对应基础配置校验器为准。
 
-文档最多深度 32、5000 节点、100000 文本字符、40 图片；公式 latex 最多 2000 字符；表格最多 30 行/每行最多 30 个有效列；image width 为 24–2400 整数。需复杂表格/mark attrs 时阅读 `core/shared/richtext/1.1.1/src/document.js` 的实际白名单，禁止靠示例猜任意 attrs。
+文档最多深度 32、5000 节点、100000 文本字符、40 图片；高级配置的公式 latex 最多 2000 字符；表格最多 30 行/每行最多 30 个有效列；image width 为 24–2400 整数。需复杂表格/mark attrs 时先只读查看 `core/shared/richtext/service.json`，再阅读所选配置实现的 `src/document.js` 实际白名单，禁止靠示例猜任意 attrs。文档是 QuizForge 的持久化协议，不保存编辑器私有节点、HTML 或供应包版本。
 
 ## 图片、宽度与运行限制
 
@@ -235,14 +237,14 @@ iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问
 
 ## 版本与历史兼容
 
-当前仅实现 Extension API v1.0。Manifest 不写 `requiresApi` 时按 v1.0 处理；显式声明仅允许 `major`、`minMinor`、`capabilities`，前两项必须是整数且分别至少为 1、0，capabilities 可省略（等于空列表）。当前支持 `major:1,minMinor:0`，支持能力为 `practice`、`editor`、`editor-drafts`、`score`、`manual-review`、`ai-grading`、`resources`、`richtext`、`navigation`、`lifecycle`；能力字符串必须非空且不重复。只声明实际需要的能力，富文本仍须单独依赖准确 SDK 版本。未知版本、未知能力或坏声明在规则执行前拒绝。API v2 尚未实现，不可仅改声明假装兼容。
+当前仅实现 Extension API v1.0。Manifest 不写 `requiresApi` 时按 v1.0 处理；显式声明仅允许 `major`、`minMinor`、`capabilities`，前两项必须是整数且分别至少为 1、0，capabilities 可省略（等于空列表）。当前支持 `major:1,minMinor:0`，支持能力为 `practice`、`editor`、`editor-drafts`、`score`、`manual-review`、`ai-grading`、`resources`、`richtext`、`navigation`、`lifecycle`；能力字符串必须非空且不重复。富文本服务另用 `requiresRichText` 声明其公共 API、文档格式、配置和实际需要的能力；与应用版本、拓展版本、Tiptap 版本分别独立。未知版本、未知能力或坏声明在规则执行前拒绝。API v2 尚未实现，不可仅改声明假装兼容。
 
 新拓展与新样例可声明 API 和顶层题库 `formatVersion:1`；严禁为补字段修改已经发布的 Manifest、已练习题库或旧绑定。缺省按 v1 是读取规则，不是转换操作。历史按每份冻结页面的 apiVersion 加载，缺字段按 v1.0；同一轮可有不同题型，不按当前安装包或轮次顶层版本重判旧页面。
 
-已发布版本不能原地改字节。新题型使用新 ID/新目录；已有题型升级使用新 version/新目录，保留旧目录与旧题库、历史，不直接迁移或覆盖原文件。引用 SDK 使用确切版本；已固定 SDK 快照优先于同版本 shared 源码，修改源码不会刷新旧快照，绝不可删除/覆盖快照强迫更新。需要公共 SDK 新能力时报告给应用维护者，不在本任务中改 shared 或伪造 SDK 版本。
+已发布版本不能原地改字节。新题型使用新 ID/新目录；已有题型升级使用新 version/新目录，保留旧目录与旧题库、历史，不直接迁移或覆盖原文件。富文本实现的兼容修复由宿主更新服务映射，满足原声明时无需更改题库/拓展版本。旧基础配置不会被自动扩大成高级配置。历史和精确 SDK 端点使用已固定的不可变快照，修改源码不会刷新旧快照，绝不可删除/覆盖快照强迫更新。需要新公共能力时报告给应用维护者，不在本任务中改 shared 或伪造 API/配置版本。
 
 混合题库每题绑定自己的拓展版本；题型页面只使用该题上下文，不假设集合只有一个类型。历史页面由宿主解析保存的 page/pageKey 和 SDK 依赖；缺快照引用应报错，不能由当前安装版本兜底。拓展无需也不应自行解析历史存储。
 
 ## 核对源码入口
 
-页面协议：`core/web/frame.js`、`core/web/extension-requests.js`、`core/web/practice-context.js`、`core/web/ai-client.js`。规则与 AI 输入校验：`core/server/rules-runner.cjs`、`core/src/main/java/io/quizforge/web/AiGradingProtocol.java`。SDK：`core/shared/richtext/1.1.1/src/{static,document,render,editor}.js`。完整富文本/AI 示例：`extensions/short-answer-1.2.1/{editor.js,practice-ai.js,src/rules.js,src/ai-document.js}`。基础自动判分示例：`extensions/single-choice/`。这些核心入口仅供只读核对；没有 `core/` 的旧平铺 fixture 对应根层路径。
+页面协议：`core/web/frame.js`、`core/web/extension-requests.js`、`core/web/practice-context.js`、`core/web/ai-client.js`。规则与 AI 输入校验：`core/server/rules-runner.cjs`、`core/src/main/java/io/quizforge/web/AiGradingProtocol.java`。富文本服务选择：`core/shared/richtext/service.json`；配置实现：该文件指定的 `core/shared/richtext/<provider.version>/src/{static,document,render,editor}.js`。完整既有富文本/AI 示例：`extensions/short-answer-1.2.2/{editor.js,practice-ai.js,src/rules.js,src/ai-document.js}`。基础自动判分示例：`extensions/single-choice/`。这些核心入口仅供只读核对；没有 `core/` 的旧平铺 fixture 对应根层路径。

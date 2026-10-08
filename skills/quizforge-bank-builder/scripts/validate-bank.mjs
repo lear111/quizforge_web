@@ -26,6 +26,46 @@ function id(value,key,location){if(!object(value)||typeof value[key]!=='string'|
 function reference(value,location){if(!object(value))fail(location,'INVALID_EXTENSION_REFERENCE');return {id:id(value,'id',location),version:id(value,'version',location)};}
 const key=ref=>ref.id+'@'+ref.version;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const sdkVersion=value=>typeof value==='string'&&/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(value);
+const richTextCapabilities=new Set(['basic-formatting','images','advanced-formatting','tables','math','image-resize']);
+const integer=(value,min)=>Number.isInteger(value)&&value>=min&&value<=2147483647;
+const fields=(value,names)=>object(value)&&Object.keys(value).every(name=>names.includes(name));
+function capabilityList(value,where,code){
+  if(!Array.isArray(value)||value.length>100)fail(where,code);
+  const seen=new Set();for(let i=0;i<value.length;i++){const name=value[i];if(typeof name!=='string'||!name.trim()||seen.has(name))fail(where+'/'+i,code);seen.add(name);}return seen;
+}
+async function richTextRegistry(coreRoot,required=false){
+  const where='project/shared/richtext/service.json',file=path.join(coreRoot,'shared','richtext','service.json');
+  if(!await optionalExists(file,where)){if(required)fail(where,'RICHTEXT_SERVICE_UNAVAILABLE');return null;}
+  const value=await jsonFile(file,256*1024,where),code='INVALID_RICHTEXT_SERVICE';
+  if(!fields(value,['schemaVersion','api','defaultProfile','profiles'])||value.schemaVersion!==1||!fields(value.api,['major','minor','documentFormat'])||!integer(value.api.major,1)||!integer(value.api.minor,0)||!integer(value.api.documentFormat,1)||typeof value.defaultProfile!=='string'||!Array.isArray(value.profiles)||!value.profiles.length||value.profiles.length>2)fail(where,code);
+  if(value.api.major!==1||value.api.minor!==0||value.api.documentFormat!==1)fail(where,code);
+  const profiles=new Map(),aliases=new Map();
+  for(let i=0;i<value.profiles.length;i++){
+    const profile=value.profiles[i],location=where+'/profiles/'+i;
+    if(!fields(profile,['id','provider','capabilities','legacyVersions'])||!['basic-v1','advanced-v1'].includes(profile.id)||profiles.has(profile.id)||!fields(profile.provider,['id','version'])||Object.keys(profile.provider).length!==2||profile.provider.id!=='quizforge.richtext'||!sdkVersion(profile.provider.version)||!Array.isArray(profile.legacyVersions)||profile.legacyVersions.length>100)fail(location,code);
+    const capabilities=capabilityList(profile.capabilities,location+'/capabilities',code);
+    if(!capabilities.size||[...capabilities].some(name=>!richTextCapabilities.has(name)||profile.id==='basic-v1'&&!['basic-formatting','images'].includes(name)))fail(location+'/capabilities',code);
+    for(let j=0;j<profile.legacyVersions.length;j++){const version=profile.legacyVersions[j];if(!sdkVersion(version)||aliases.has(version))fail(location+'/legacyVersions/'+j,code);aliases.set(version,profile);}
+    profiles.set(profile.id,{...profile,capabilitySet:capabilities});
+  }
+  if(!profiles.has(value.defaultProfile))fail(where+'/defaultProfile',code);
+  return {...value,profiles,aliases};
+}
+async function richTextRequirement(manifest,coreRoot,location){
+  const value=manifest.requiresRichText,where=location+'/requiresRichText';
+  if(own(manifest,'dependencies')||!fields(value,['major','minMinor','documentFormat','documentProfile','capabilities'])||!integer(value.major,1)||!integer(value.minMinor,0)||!integer(value.documentFormat,1)||typeof value.documentProfile!=='string'||!ID.test(value.documentProfile))fail(where,'INVALID_RICHTEXT_REQUIREMENT');
+  const requested=capabilityList(own(value,'capabilities')?value.capabilities:[],where+'/capabilities','INVALID_RICHTEXT_REQUIREMENT'),registry=await richTextRegistry(coreRoot,true);
+  if(value.major!==registry.api.major||value.minMinor>registry.api.minor)fail(where,'UNSUPPORTED_RICHTEXT_API');
+  if(value.documentFormat!==registry.api.documentFormat)fail(where+'/documentFormat','UNSUPPORTED_RICHTEXT_DOCUMENT_FORMAT');
+  const profile=registry.profiles.get(value.documentProfile);if(!profile)fail(where+'/documentProfile','UNSUPPORTED_RICHTEXT_PROFILE');
+  for(const capability of requested)if(!profile.capabilitySet.has(capability))fail(where+'/capabilities','UNSUPPORTED_RICHTEXT_CAPABILITY');
+  return profile.provider;
+}
+async function checkSdk(coreRoot,dependency,where){
+  const sdk=path.join(coreRoot,'shared','richtext',dependency.version);
+  for(const file of ['richtext.js','richtext-editor.js','richtext.css'])await safeFile(sdk,file,MiB,where+'/'+file);
+}
 
 function apiRequirements(manifest,location){
   if(!own(manifest,'requiresApi'))return;
@@ -141,13 +181,14 @@ async function extensionIndex(roots){
 async function loadExtension(candidate,coreRoot){
   const {directory,manifest,location}=candidate;apiRequirements(manifest,location);const files={};text(manifest,'name',300,location);text(manifest,'description',4000,location,true);
   for(const field of FIELDS)files[field]=await safeFile(directory,text(manifest,field,240,location),field==='examples'?8*MiB:MiB,location+'/'+field);
-  if(own(manifest,'dependencies')){
+  if(own(manifest,'requiresRichText'))await checkSdk(coreRoot,await richTextRequirement(manifest,coreRoot,location),location+'/requiresRichText');
+  else if(own(manifest,'dependencies')){
     if(!Array.isArray(manifest.dependencies)||manifest.dependencies.length>4)fail(location+'/dependencies','INVALID_SDK_DEPENDENCIES');const used=new Set();
+    const registry=await richTextRegistry(coreRoot);
     for(let i=0;i<manifest.dependencies.length;i++){
       const where=location+'/dependencies/'+i,dependency=reference(manifest.dependencies[i],where);
-      if(Object.keys(manifest.dependencies[i]).length!==2||dependency.id!=='quizforge.richtext'||!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(dependency.version)||used.has(dependency.id))fail(where,'INVALID_SDK_DEPENDENCY');used.add(dependency.id);
-      const sdk=path.join(coreRoot,'shared','richtext',dependency.version);
-      for(const file of ['richtext.js','richtext-editor.js','richtext.css'])await safeFile(sdk,file,MiB,where+'/'+file);
+      if(Object.keys(manifest.dependencies[i]).length!==2||dependency.id!=='quizforge.richtext'||!sdkVersion(dependency.version)||used.has(dependency.id))fail(where,'INVALID_SDK_DEPENDENCY');used.add(dependency.id);
+      await checkSdk(coreRoot,registry?.aliases.get(dependency.version)?.provider??dependency,where);
     }
   }
   const fingerprint=createHash('sha256');

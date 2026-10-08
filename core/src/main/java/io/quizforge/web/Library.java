@@ -19,9 +19,12 @@ import java.util.Map;
 final class Library {
     record Dependency(String id, String version) { }
     record Extension(String id, String version, String name, String description, Path directory,
-                     Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies) {
+                     Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies, ObjectNode contentApi, String providerRevision) {
         Extension(String id, String version, String name, String description, Path directory, Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint) {
             this(id, version, name, description, directory, entry, script, style, rules, questionSchema, answerSchema, examples, fingerprint, List.of());
+        }
+        Extension(String id, String version, String name, String description, Path directory, Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies) {
+            this(id, version, name, description, directory, entry, script, style, rules, questionSchema, answerSchema, examples, fingerprint, dependencies, null, "");
         }
     }
     record Question(String id, String title, JsonNode data, String fingerprint, Extension extension) {
@@ -65,13 +68,14 @@ final class Library {
     private final Path codeRoot;
     private final RuleEngine engine;
     private final ResourceStore resources;
+    private final RichTextService richText;
     private Map<String, Extension> extensions = Map.of();
     private Map<String, Collection> banks = Map.of(), previews = Map.of();
     private Map<String, Path> bankPaths = Map.of();
     private ObjectNode catalog = Json.object();
     private String previousSignature = null;
     Library(Path root, RuleEngine engine) { this(root, root, engine); }
-    Library(Path root, Path codeRoot, RuleEngine engine) { this.root = root; this.codeRoot = codeRoot; this.engine = engine; resources = new ResourceStore(root); }
+    Library(Path root, Path codeRoot, RuleEngine engine) { this.root = root; this.codeRoot = codeRoot; this.engine = engine; resources = new ResourceStore(root); richText = new RichTextService(codeRoot); }
 
     synchronized ObjectNode catalog() { refresh(); return catalog.deepCopy(); }
     synchronized Collection collection(String kind, String id) {
@@ -102,6 +106,7 @@ final class Library {
     }
     private static ObjectNode withDependencies(ObjectNode page, Extension extension) {
         ExtensionApi.declare(page);
+        if (extension.contentApi() != null) page.set("contentApi", extension.contentApi().deepCopy());
         if (!extension.dependencies().isEmpty()) {
             ArrayNode values = page.putArray("dependencies");
             for (Dependency dependency : extension.dependencies()) values.add(Json.object().put("id", dependency.id()).put("version", dependency.version()));
@@ -119,21 +124,15 @@ final class Library {
             return Json.object().put("script", snapshot.path("script").asText()).put("style", snapshot.path("style").asText());
         } catch (IOException e) { throw new ApiException(404, "SDK_UNAVAILABLE", "Requested public SDK version is unavailable"); }
     }
-    private List<Dependency> dependencies(JsonNode manifest) throws IOException {
-        JsonNode values = manifest.get("dependencies"); if (values == null) return List.of();
-        if (!values.isArray() || values.size() > 4) throw ApiException.bad("Invalid SDK dependencies");
-        List<Dependency> result = new ArrayList<>(); var ids = new HashSet<String>();
-        for (JsonNode value : values) {
-            if (!value.isObject() || value.size() != 2) throw ApiException.bad("Invalid SDK dependency");
-            String id = Json.id(value, "id"), version = Json.id(value, "version"); validateSdk(id, version);
-            if (!ids.add(id)) throw ApiException.bad("Duplicate SDK dependency");
-            try { resolveSdk(id, version); }
-            catch (IOException e) { throw new ApiException(422, "SDK_UNAVAILABLE", "Public SDK " + id + "@" + version + " is unavailable: " + e.getMessage()); }
-            result.add(new Dependency(id, version));
+    private RichTextService.Resolution dependencies(JsonNode manifest) throws IOException {
+        RichTextService.Resolution resolution = richText.resolve(manifest);
+        for (Dependency value : resolution.dependencies()) {
+            try { resolveSdk(value.id(), value.version()); }
+            catch (IOException e) { throw new ApiException(422, "SDK_UNAVAILABLE", "Public SDK " + value.id() + "@" + value.version() + " is unavailable: " + e.getMessage()); }
         }
-        return List.copyOf(result);
+        return resolution;
     }
-    private static void validateSdk(String id, String version) {
+    static void validateSdk(String id, String version) {
         if (!id.equals("quizforge.richtext") || !version.matches("[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}")) throw new ApiException(404, "SDK_UNAVAILABLE", "Unsupported public SDK package or version");
     }
     private ObjectNode resolveSdk(String id, String version) throws IOException {
@@ -308,8 +307,9 @@ final class Library {
             int max = field.equals("examples") ? 8 * 1024 * 1024 : 1024 * 1024;
             if (Files.size(asset) > max) throw new IOException("Asset size limit"); assets.add(asset);
         }
+        RichTextService.Resolution selected = dependencies(manifest);
         return new Extension(id, version, Json.text(manifest, "name", 300), optional(manifest, "description", 4000), folder,
-                assets.get(0), assets.get(1), assets.get(2), assets.get(3), assets.get(4), assets.get(5), assets.get(6), extensionFingerprint(folder, assets), dependencies(manifest));
+                assets.get(0), assets.get(1), assets.get(2), assets.get(3), assets.get(4), assets.get(5), assets.get(6), extensionFingerprint(folder, assets), selected.dependencies(), selected.contentApi(), selected.revision());
     }
     private static String extensionFingerprint(Path folder, List<Path> assets) throws IOException {
         try {
@@ -378,16 +378,16 @@ final class Library {
     private String signature(List<Path> folders, List<Path> banks) {
         StringBuilder signature = new StringBuilder();
         try {
+            Path registry = richText.registryPath();
+            if (Files.exists(registry, LinkOption.NOFOLLOW_LINKS)) stamp(signature, registry);
             for (Path folder : folders) {
                 signature.append(folder).append(':');
                 try {
                     Path manifest = Json.safeFile(folder, "manifest.json"); stamp(signature, manifest);
                     JsonNode value = Json.read(manifest, 256 * 1024);
                     for (String field : List.of("entry", "script", "style", "rules", "questionSchema", "answerSchema", "examples")) stamp(signature, Json.safeFile(folder, Json.text(value, field, 240)));
-                    JsonNode dependencies = value.path("dependencies");
-                    if (dependencies.isArray()) for (JsonNode dependency : dependencies) {
-                        String id = Json.id(dependency, "id"), version = Json.id(dependency, "version"); validateSdk(id, version);
-                        Path sdk = codeRoot.resolve("shared/richtext").resolve(version);
+                    for (Dependency dependency : richText.resolve(value).dependencies()) {
+                        Path sdk = codeRoot.resolve("shared/richtext").resolve(dependency.version());
                         stamp(signature, Json.safeFile(sdk, "richtext.js")); stamp(signature, Json.safeFile(sdk, "richtext-editor.js")); stamp(signature, Json.safeFile(sdk, "richtext.css"));
                     }
                     stampAssets(signature, folder);

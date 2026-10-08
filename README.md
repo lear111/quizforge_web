@@ -74,7 +74,7 @@ quizforge_web/
     short-answer-1.1.0/  AI 辅助评分简答拓展，保留旧版兼容历史
     short-answer-1.2.0/  两级富文本编辑与统一题干，保留旧版
     short-answer-1.2.1/  保留已发布的简答与富文本 1.1.1
-    short-answer-1.2.2/  当前简答版本，引用独立发布的富文本 1.1.2
+    short-answer-1.2.2/  当前简答版本，由应用提供兼容富文本实现
   .state/                当前作答、白板、历史、请求回执、编辑草稿、资源及恢复资料，请勿手动覆盖
   core/                  应用核心代码、构建与开发资料
     web/                 浏览器宿主与白板
@@ -102,7 +102,7 @@ quizforge_web/
 
 已经练习过的题目会绑定内容签名。直接在目录文件中修改其题干、选项、答案等数据时，应给新题库使用新的 ID；修改拓展规则、Schema 或练习页面时，应发布新的版本号。否则后端会拒绝沿用旧状态并保留原文件。直接只改标题或题目顺序仍可继续原练习。应用内“编辑本题”通过受控接口同步更新题库和状态签名，可以保留题库 ID，行为见下文。
 
-拓展目录必须有 `manifest.json`，声明 ID、版本、名称、页面 HTML/JS/CSS、规则、题目／答案 Schema 和样例文件；可用 `dependencies` 声明公共组件版本。页面调用 `QF.page.register / QF.save / QF.requestAction`，富文本通过 `QF.content` 使用；规则使用 `QF.defineType`。使用现有协议的新增题型只添加拓展与题库数据，不改 Java 或宿主 UI。详见 [实现契约](core/IMPLEMENTATION_CONTRACT.md) 与 [后端说明](core/server/README.md)。
+拓展目录必须有 `manifest.json`，声明 ID、版本、名称、页面 HTML/JS/CSS、规则、题目／答案 Schema 和样例文件；新拓展通过 `requiresRichText` 声明公共富文本接口、文档约定与能力，不指定 Tiptap 或组件实现版本。页面调用 `QF.page.register / QF.save / QF.requestAction`，富文本通过 `QF.content` 使用；规则使用 `QF.defineType`。使用现有协议的新增题型只添加拓展与题库数据，不改 Java 或宿主 UI。详见 [富文本服务](core/docs/RICHTEXT_SERVICE.md)、[实现契约](core/IMPLEMENTATION_CONTRACT.md) 与 [后端说明](core/server/README.md)。
 
 拓展可提供 `getScore(data,state) -> {score,maxScore}`，负责自己的判分与分值输出；待评分结果的 `score` 为 `null`，已评分结果为合法数值。人工评分由拓展的 `review(data,answer,review)` 校验并产生结果，Java 通过通用接口汇总，分值卡由宿主设计。`GET .../summary` 读取本轮分值，`POST .../finish` 确认完成，有待评分提交时拒绝完成。现有单选 1.0.0 由规则执行器从已提交结果／未提交公开投影适配分值，不修改原判分协议。
 
@@ -147,7 +147,9 @@ question-banks/一本题库/
 
 富文本采用结构化 JSON（`formatVersion:1`），支持段落、标题、粗体、斜体、下划线、列表、引用、代码和图片；图片节点仅保存 `attrs.assetId`。单张 PNG/JPEG/WebP/GIF 最大 4 MiB，当前页已加载图片合计最大 16 MiB。题库和拓展样例资源导入 `.state/resources/` 持久区；作答图片也进入该区。编辑目录题库时将题目引用的资源补入题库 `assets/`，便于搬运。资源按内容哈希保存且不可覆盖；本版不自动删除资源，移动题库或删除历史不会误删其他历史依赖。
 
-公共组件按版本保存在 `core/shared/richtext/`，当前简答 1.2.2 引用 `dependencies:[{id:"quizforge.richtext",version:"1.1.2"}]`，旧版本保持原样。完整编辑窗口只显示高级工具和返回入口，保留与练习相同的正文宽度；中文斜体允许字体合成，插图入口使用原生文件选择控件，选中图片后可拖动四角等比缩放或填写尺寸，宽度保存在文档中并用于只读渲染。只读渲染和完整 Tiptap 编辑器分包，编辑时才加载重包；各拓展不复制组件。组件首次使用后固定到 `.state/sdk/`，已有版本优先使用经过校验的固定快照，源文件变化不会覆盖快照；新改动必须发布新版本才能生效。当前构建入口为在 `core/` 中执行 `npm run build:richtext-advanced` 和 `npm run build:short-answer-advanced`，源码位于组件版本目录的 `src/`；不要重建已经发布的版本。
+公共富文本接口与 Tiptap 实现已分离。新拓展声明 `requiresRichText:{major:1,minMinor:0,documentFormat:1,documentProfile:"advanced-v1",capabilities:["images","tables","math"]}`，由应用的 `core/shared/richtext/service.json` 选择已验证的兼容实现。旧拓展文件保持原样：基础 1.0.0 保留基础文档约定，高级 1.1.0／1.1.1／1.1.2 在当前练习和编辑中使用兼容组件 1.1.2；不更换题库绑定，不重置答案与草稿。编辑器修复只更新应用组件，无需升级拓展。旧历史继续按当时实际选择的组件版本显示。
+
+完整编辑窗口只显示高级工具和返回入口，保留与练习相同的正文宽度；中文斜体允许字体合成，插图入口使用原生文件选择控件，选中图片后可拖动四角等比缩放或填写尺寸。只读渲染和完整 Tiptap 编辑器分包，编辑时才加载重包；各拓展不复制组件。组件首次使用后固定到 `.state/sdk/`，源文件变化不会覆盖旧快照。发布新组件在 `core/` 执行 `npm run build:richtext-advanced -- --version <新组件版本>`；构建不会编译拓展，也拒绝覆盖已发布输出。基础组件使用 `build:richtext`。接口、文档约定与发布步骤详见 [富文本服务](core/docs/RICHTEXT_SERVICE.md)。
 
 内联富文本保留基础工具，右上角“展开高级编辑”打开完整工具窗口。字体、字号、颜色、高亮、上下标、段落对齐／行距、链接、公式、表格行列／合并拆分和图片宽度等工具集中显示；“返回基础编辑”回到题卡。展开与返回保留同一编辑器和撤销记录。高级正文宽度取自内联正文，题干编辑与练习共用相同卡片宽度和排版。公式以 LaTeX 保存、MathML 渲染；表格、公式和图片仍是结构化文档，AI 转换保留其内容语义。高级模式不会额外开启题型 iframe。
 
