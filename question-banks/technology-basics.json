@@ -1,0 +1,63 @@
+{
+  "id": "technology-basics",
+  "title": "学习与技术常识",
+  "description": "通过编码、算法、版本管理、路径和数据单位巩固日常技术基础。",
+  "extension": { "id": "quizforge.single-choice", "version": "1.0.0" },
+  "questions": [
+    {
+      "id": "technology-utf8-character-size",
+      "title": "字符编码与字节数",
+      "data": {
+        "stem": "关于 UTF-8 编码，以下哪一种说法正确？",
+        "options": [{ "id": "A", "text": "所有字符都固定占用 1 个字节" }, { "id": "B", "text": "一个 Unicode 码点在 UTF-8 中可以占用 1 至 4 个字节" }, { "id": "C", "text": "UTF-8 只能表示英文字母" }, { "id": "D", "text": "任何中文字符都与英文字母占用相同的字节数" }],
+        "correctOptionId": "B",
+        "explanation": "UTF-8 使用可变长度编码，一个 Unicode 码点占用 1 至 4 个字节。ASCII 范围内的字符通常占用 1 个字节，常见汉字通常占用 3 个字节，因此字符数量与字节数量不是同一个概念。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "technology-binary-search-prerequisite",
+      "title": "二分查找的前提",
+      "data": {
+        "stem": "要在一个数组中按照通常的二分查找流程寻找目标值，首先需要满足哪一个条件？",
+        "options": [{ "id": "A", "text": "数组按用于比较的规则有序" }, { "id": "B", "text": "数组中所有元素互不相同" }, { "id": "C", "text": "数组长度必须是偶数" }, { "id": "D", "text": "数组中只能保存正整数" }],
+        "correctOptionId": "A",
+        "explanation": "二分查找通过比较中间元素排除一半的搜索范围，这依赖数据有序。重复值、奇数长度或负数都不会从根本上阻止二分查找。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "technology-git-local-commit",
+      "title": "理解本地提交",
+      "data": {
+        "stem": "在一个正常的本地 Git 仓库中执行 git commit 并成功生成提交后，以下哪一种描述准确？",
+        "options": [{ "id": "A", "text": "提交已经自动上传到远程仓库" }, { "id": "B", "text": "所有尚未暂存的改动都被自动加入提交" }, { "id": "C", "text": "暂存区的内容被记录为本地仓库中的新提交" }, { "id": "D", "text": "远程分支一定已完成合并" }],
+        "correctOptionId": "C",
+        "explanation": "git commit 将暂存区的内容记录到本地提交历史。向远程仓库上传提交通常还需要 git push；未暂存的改动不会因为一次普通提交而自动被包含。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "technology-relative-path-base",
+      "title": "相对路径的含义",
+      "data": {
+        "stem": "在命令行中使用相对路径 notes/plan.txt 时，若没有另行指定基准目录，它通常相对于什么位置解析？",
+        "options": [{ "id": "A", "text": "计算机的系统安装目录" }, { "id": "B", "text": "当前工作目录" }, { "id": "C", "text": "互联网服务器的根目录" }, { "id": "D", "text": "最近打开过的任意文件夹" }],
+        "correctOptionId": "B",
+        "explanation": "命令行中的相对路径通常以当前工作目录为基准。当前目录改变时，同一个相对路径可能指向不同的位置；绝对路径则明确给出位置。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "technology-bits-per-byte",
+      "title": "位与字节",
+      "data": {
+        "stem": "在现代常见计算机系统中，1 个字节（byte）包含多少个位（bit）？",
+        "options": [{ "id": "A", "text": "2 位" }, { "id": "B", "text": "4 位" }, { "id": "C", "text": "8 位" }, { "id": "D", "text": "16 位" }],
+        "correctOptionId": "C",
+        "explanation": "现代常见计算机系统把 8 个二进制位组成 1 个字节。bit 与 byte 的单位不同，例如 8 bit 表示 1 byte。",
+        "maxScore": 1
+      }
+    }
+  ]
+}

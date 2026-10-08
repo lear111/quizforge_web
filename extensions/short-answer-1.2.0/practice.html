@@ -1,0 +1,22 @@
+<article class="question-card" lang="zh-CN" aria-label="简答题">
+  <header class="card-header"><div class="eyebrow"><span class="type-badge">简答</span><span id="score-hint" class="muted"></span></div></header>
+  <div class="question-body">
+    <div id="stem" class="rich-content"></div>
+    <h2 class="field-title">你的答案</h2><div id="answer-host" class="rich-content"></div>
+  </div>
+  <section id="result-panel" class="result-panel" hidden>
+    <div class="result-summary"><h2>作答结果</h2><span id="result-score"></span></div>
+    <div class="reference-block"><h3>参考答案</h3><div id="reference-answer" class="rich-content"></div></div>
+    <div class="reference-block"><h3>评分说明</h3><div id="rubric" class="rich-content"></div></div>
+    <p id="result-feedback" class="result-feedback" hidden></p>
+    <section id="ai-panel" class="ai-panel" aria-labelledby="ai-heading" hidden>
+      <div class="ai-heading"><h3 id="ai-heading">AI 评分建议</h3><span id="ai-status" role="status" aria-live="polite"></span></div>
+      <p id="ai-help" class="ai-help">AI 建议不会自动写入成绩，确认后才保存。</p>
+      <div id="ai-candidate" class="ai-candidate" hidden><strong id="ai-score"></strong><p id="ai-feedback"></p></div>
+      <p id="ai-error" class="ai-error" role="alert" hidden></p>
+      <div class="ai-actions"><button id="ai-grade" class="secondary-button" type="button">AI 评分</button><button id="ai-retry" class="secondary-button" type="button" hidden>重试评分</button><button id="ai-regrade" class="secondary-button" type="button" hidden>重新评分</button><button id="ai-confirm" class="primary-button" type="button" hidden>确认 AI 分数</button></div>
+    </section>
+    <div id="review-panel" class="review-panel"><label for="review-score">对照参考答案评分</label><div class="score-control"><input id="review-score" type="range" min="0" max="5" step="0.5" value="0"><output id="review-value" for="review-score">0 分</output><button id="review-confirm" class="secondary-button" type="button">确认评分</button></div><p>以 0.5 分为单位，结束本轮前可以重新确认分数。</p></div>
+  </section>
+  <footer class="card-footer"><div><span id="progress-label" class="progress-label">待作答</span><p id="save-notice" class="save-notice" role="status" aria-live="polite"></p></div><div class="actions"><button id="submit-button" class="primary-button" type="button">提交答案</button><button id="retry-button" class="primary-button" type="button" hidden>再答一次</button></div></footer>
+</article>

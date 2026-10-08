@@ -1,0 +1,120 @@
+{
+  "id" : "java-foundations",
+  "title" : "Java 基础练习",
+  "description" : "围绕字符串、集合、拆箱、资源关闭和对象相等的五道单选题。",
+  "extension" : {
+    "id" : "quizforge.single-choice",
+    "version" : "1.0.0"
+  },
+  "questions" : [ {
+    "id" : "java-string-content-equality",
+    "title" : "比较字符串内容",
+    "data" : {
+      "stem" : "已知两个变量分别创建了字符串对象：\nString a = new String(\"QuizForge\");\nString b = new String(\"QuizForge\");\n要判断 a 与 b 的文字内容是否相同，应使用哪一个表达式？",
+      "options" : [ {
+        "id" : "A",
+        "text" : "a == b"
+      }, {
+        "id" : "B",
+        "text" : "a.equals(b)"
+      }, {
+        "id" : "C",
+        "text" : "a.length() == b.length()"
+      }, {
+        "id" : "D",
+        "text" : "a.hashCode() != b.hashCode()"
+      } ],
+      "correctOptionId" : "A",
+      "explanation" : "String.equals 比较字符串内容。== 比较这两个引用是否指向同一对象；长度相同不能保证内容相同；哈希值比较也不能替代内容比较。",
+      "maxScore" : 5
+    }
+  }, {
+    "id" : "java-arraylist-order-duplicates",
+    "title" : "选择合适的集合",
+    "data" : {
+      "stem" : "需要保存学生提交答案的先后顺序，并允许同一个答案出现多次。下列哪一种集合最符合这两项要求？",
+      "options" : [ {
+        "id" : "A",
+        "text" : "HashSet<String>"
+      }, {
+        "id" : "B",
+        "text" : "TreeSet<String>"
+      }, {
+        "id" : "C",
+        "text" : "ArrayList<String>"
+      }, {
+        "id" : "D",
+        "text" : "HashMap<String, String> 的键集合"
+      } ],
+      "correctOptionId" : "C",
+      "explanation" : "ArrayList 按列表位置保留添加的顺序，并允许重复元素。Set 不允许重复元素，Map 的键也不能重复，因而它们不符合题目要求。",
+      "maxScore" : 1
+    }
+  }, {
+    "id" : "java-null-unboxing",
+    "title" : "自动拆箱与空值",
+    "data" : {
+      "stem" : "执行下面两行代码时，会发生什么？\nInteger count = null;\nint value = count;",
+      "options" : [ {
+        "id" : "A",
+        "text" : "value 自动得到 0"
+      }, {
+        "id" : "B",
+        "text" : "第二行在运行时抛出 NullPointerException"
+      }, {
+        "id" : "C",
+        "text" : "value 保存 null"
+      }, {
+        "id" : "D",
+        "text" : "两行代码始终无法通过编译"
+      } ],
+      "correctOptionId" : "B",
+      "explanation" : "赋值给 int 时需要将 Integer 自动拆箱，相当于对 count 调用 intValue()。count 为 null，因此运行到第二行会抛出 NullPointerException。基本类型 int 不能保存 null。",
+      "maxScore" : 1
+    }
+  }, {
+    "id" : "java-try-with-resources-contract",
+    "title" : "自动关闭资源",
+    "data" : {
+      "stem" : "希望一个自定义资源类可以放在 try-with-resources 的资源声明中，让 Java 自动调用其关闭方法。这个类需要实现哪一个接口（或实现它的子接口）？",
+      "options" : [ {
+        "id" : "A",
+        "text" : "Serializable"
+      }, {
+        "id" : "B",
+        "text" : "Runnable"
+      }, {
+        "id" : "C",
+        "text" : "Comparable"
+      }, {
+        "id" : "D",
+        "text" : "AutoCloseable"
+      } ],
+      "correctOptionId" : "D",
+      "explanation" : "try-with-resources 要求资源类型实现 AutoCloseable。离开该语句的资源作用域时会自动调用 close()；Closeable 是 AutoCloseable 的子接口。",
+      "maxScore" : 1
+    }
+  }, {
+    "id" : "java-equals-hashcode-contract",
+    "title" : "相等对象与哈希值",
+    "data" : {
+      "stem" : "为一个自定义类重写 equals 和 hashCode，以便将对象用作 HashMap 的键。若 x.equals(y) 返回 true，以下哪项必须成立？",
+      "options" : [ {
+        "id" : "A",
+        "text" : "x == y 必须为 true"
+      }, {
+        "id" : "B",
+        "text" : "x.hashCode() 与 y.hashCode() 必须相同"
+      }, {
+        "id" : "C",
+        "text" : "x 与 y 必须拥有不同的哈希值"
+      }, {
+        "id" : "D",
+        "text" : "只需要重写 equals，无需考虑 hashCode"
+      } ],
+      "correctOptionId" : "B",
+      "explanation" : "equals 判定相等的对象必须具有相同的 hashCode，这样基于哈希的集合才能按约定查找它们。反过来，哈希值相同并不保证对象相等。",
+      "maxScore" : 1
+    }
+  } ]
+}

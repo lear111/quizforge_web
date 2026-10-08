@@ -1,0 +1,1 @@
+{"id":"quizforge.short-answer","version":"1.0.0","name":"简答题","description":"富文本作答，提交后对照参考答案，以 0.5 分为单位自评。","dependencies":[{"id":"quizforge.richtext","version":"1.0.0"}],"entry":"practice.html","script":"practice.js","style":"practice.css","rules":"rules.js","questionSchema":"question.schema.json","answerSchema":"answer.schema.json","examples":"examples.json"}

@@ -1,0 +1,43 @@
+{
+  "id": "mixed-demo",
+  "title": "混合题型练习",
+  "description": "单选、简答、单选交替排列；分值由各拓展输出，总分 7 分。",
+  "questions": [
+    {
+      "id": "mixed-integer-division",
+      "title": "整数除法",
+      "extension": {"id": "quizforge.single-choice", "version": "1.0.0"},
+      "data": {
+        "stem": "在 Java 中，表达式 7 / 2 的结果是什么？",
+        "options": [{"id": "A", "text": "3"}, {"id": "B", "text": "3.5"}, {"id": "C", "text": "4"}, {"id": "D", "text": "编译失败"}],
+        "correctOptionId": "A",
+        "explanation": "整数除法舍去小数部分，结果为 3。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "mixed-cache-boundary",
+      "title": "解释缓存的作用与边界",
+      "extension": {"id": "quizforge.short-answer", "version": "1.2.0"},
+      "data": {
+        "formatVersion": 1,
+        "stem": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "请用一个生活中的例子解释缓存如何提高效率，并说明原始数据发生变化时应该怎样处理缓存。"}]}]},
+        "referenceAnswer": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "例如把常用联系人保存在手机本地，查找时无需每次访问服务器。联系人信息变化后，需要更新或使旧缓存失效，避免使用过期信息。"}]}]},
+        "rubric": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "合理例子 1 分；解释复用数据减少重复读取 2 分；说明更新或失效处理 2 分。可以按 0.5 分调整。"}]}]},
+        "maxScore": 5
+      }
+    },
+    {
+      "id": "mixed-inclusive-boundary",
+      "title": "判断边界",
+      "extension": {"id": "quizforge.single-choice", "version": "1.0.0"},
+      "data": {
+        "stem": "分数达到 60 分即为及格。以下哪个条件准确表达及格？",
+        "options": [{"id": "A", "text": "score > 60"}, {"id": "B", "text": "score >= 60"}, {"id": "C", "text": "score == 60"}, {"id": "D", "text": "score < 60"}],
+        "correctOptionId": "B",
+        "explanation": "达到 60 分包含恰好等于 60 的情况，所以使用大于或等于。",
+        "maxScore": 1
+      }
+    }
+  ]
+}

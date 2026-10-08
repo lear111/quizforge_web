@@ -1,0 +1,13 @@
+{
+  "id": "quizforge.single-choice",
+  "version": "1.0.0",
+  "name": "单选题",
+  "description": "选择一个答案，提交后查看得分、标准答案和解析。",
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples.json"
+}

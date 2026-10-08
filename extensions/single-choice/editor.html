@@ -1,0 +1,44 @@
+<article class="editor-card" lang="zh-CN" aria-labelledby="editor-heading">
+  <header class="editor-header">
+    <span class="type-badge">单选</span>
+    <h1 id="editor-heading">编辑题目</h1>
+  </header>
+  <form id="question-editor" novalidate>
+    <fieldset id="editor-fields" disabled>
+      <div class="field">
+        <label for="edit-title">题名</label>
+        <input id="edit-title" type="text" maxlength="300" required autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="edit-stem">题干</label>
+        <textarea id="edit-stem" rows="4" maxlength="20000" required></textarea>
+      </div>
+      <section class="options-section" aria-labelledby="options-heading">
+        <div class="section-heading">
+          <h2 id="options-heading">选项</h2>
+          <span id="option-count" class="muted"></span>
+        </div>
+        <div id="edit-options" class="option-list"></div>
+        <button id="add-option" class="add-button" type="button">＋ 添加选项</button>
+      </section>
+      <div class="answer-row">
+        <div class="field">
+          <label for="edit-correct">正确答案</label>
+          <select id="edit-correct" required></select>
+        </div>
+        <div class="field score-field">
+          <label for="edit-score">分值</label>
+          <input id="edit-score" type="number" min="0.000001" max="100000" step="any" inputmode="decimal" required>
+        </div>
+      </div>
+      <div class="field">
+        <label for="edit-explanation">解析</label>
+        <textarea id="edit-explanation" rows="4" maxlength="20000" required></textarea>
+      </div>
+    </fieldset>
+  </form>
+  <p id="editor-error" class="editor-error" role="alert" hidden></p>
+  <footer class="editor-footer">
+    <p id="editor-notice" role="status" aria-live="polite">正在准备编辑器…</p>
+  </footer>
+</article>

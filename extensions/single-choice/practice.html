@@ -1,0 +1,37 @@
+  <article class="question-card" lang="zh-CN" aria-labelledby="question-title">
+    <header class="card-header">
+      <div class="eyebrow"><span class="type-badge">单选</span><span id="score-hint" class="muted"></span></div>
+      <h1 id="question-title">单选练习</h1>
+      <p id="mode-hint" class="intro">读题后，选择一个最合适的答案。</p>
+    </header>
+
+    <div class="question-body">
+      <p id="stem" class="stem"></p>
+      <fieldset id="option-fieldset" class="options">
+        <legend class="sr-only">请选择一个答案</legend>
+        <div id="option-list"></div>
+      </fieldset>
+    </div>
+
+    <section id="result-panel" class="result-panel" aria-labelledby="result-heading" hidden>
+      <div class="result-summary">
+        <h2 id="result-heading">作答结果</h2>
+        <span id="result-score" class="result-score"></span>
+      </div>
+      <p id="result-feedback" class="feedback"></p>
+      <div class="reference-block"><h3>标准答案</h3><p id="reference-answer"></p></div>
+      <div class="reference-block"><h3>解析</h3><p id="explanation" class="explanation"></p></div>
+    </section>
+
+    <footer class="card-footer">
+      <div class="save-summary">
+        <span id="progress-label" class="progress-label">待作答</span>
+        <p id="save-notice" class="save-notice" role="status" aria-live="polite">选择后自动保存，提交后可查看解析。</p>
+      </div>
+      <div class="actions">
+        <button id="submit-button" class="primary-button" type="button" disabled>提交答案</button>
+        <button id="retry-button" class="primary-button" type="button" hidden>再答一次</button>
+      </div>
+    </footer>
+  </article>
+  <noscript><p class="fallback-message">请启用浏览器脚本后进行练习。</p></noscript>

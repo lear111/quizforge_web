@@ -1,0 +1,50 @@
+:root {
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  color: #302d41;
+  background: transparent;
+  line-height: 1.6;
+  color-scheme: light;
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2px; }
+button, input, textarea, select { font: inherit; }
+[hidden] { display: none !important; }
+.editor-card { background: #fff; border: 1px solid #e8e4f1; border-radius: 20px; overflow: hidden; }
+.editor-header { display: flex; align-items: center; gap: 12px; padding: 20px 28px; border-bottom: 1px solid #f0edf6; }
+.type-badge { background: #eee8fd; color: #6b46b7; border-radius: 7px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+h1 { margin: 0; font-size: 20px; font-weight: 650; }
+form { padding: 23px 28px 24px; }
+fieldset { display: grid; gap: 21px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.field { display: grid; gap: 7px; min-width: 0; }
+.field > label, .section-heading h2 { margin: 0; color: #64586f; font-size: 13px; font-weight: 650; }
+input, textarea, select { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid #ded8e9; border-radius: 9px; color: inherit; background: #fdfcfe; font-size: 14px; }
+textarea { resize: vertical; line-height: 1.75; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid #dfd1f4; outline-offset: 2px; border-color: #a484d1; }
+input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: #c65c54; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.muted { color: #8a8194; font-size: 12px; }
+.option-list { display: grid; gap: 10px; }
+.option-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 32px; align-items: start; gap: 10px; }
+.option-letter { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-top: 8px; border-radius: 8px; color: #776889; background: #eeebf3; font-size: 13px; font-weight: 650; }
+.option-input { min-height: 46px; padding-top: 9px; padding-bottom: 9px; }
+.delete-option { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 42px; padding: 0; border: 0; border-radius: 8px; color: #8a8194; background: transparent; cursor: pointer; touch-action: manipulation; }
+.delete-option:hover { color: #b34e46; background: #fff1ef; }
+.delete-option svg { width: 17px; height: 17px; }
+.delete-option:disabled { color: #c7c1ce; cursor: default; }
+.add-button { min-height: 40px; margin-top: 10px; padding: 8px 12px; border: 1px solid #e3dbee; border-radius: 9px; background: #faf7ff; color: #7850b3; font-size: 13px; cursor: pointer; touch-action: manipulation; }
+.add-button:hover { background: #f1eafb; }
+.add-button:disabled { color: #b4a9c5; background: #fcfbfe; cursor: default; }
+.answer-row { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 16px; }
+.editor-error { margin: 0 28px 20px; padding: 10px 13px; border: 1px solid #f1cfcc; border-radius: 9px; color: #a5413a; background: #fff5f3; font-size: 13px; }
+.editor-footer { padding: 15px 28px; background: #fdfcfe; border-top: 1px solid #f0edf6; }
+.editor-footer p { margin: 0; color: #8a8194; font-size: 12px; }
+@media (max-width: 520px) {
+  .editor-header { padding: 17px 18px; }
+  form { padding: 18px; }
+  .answer-row { grid-template-columns: minmax(0, 1fr) 100px; gap: 12px; }
+  .option-row { grid-template-columns: 26px minmax(0, 1fr) 32px; gap: 7px; }
+  .option-letter { width: 26px; height: 26px; }
+  .editor-error { margin: 0 18px 18px; }
+  .editor-footer { padding: 14px 18px; }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "examples",
+  "title": "单选题示例",
+  "description": "三道简短示例，用于体验选择、自动保存、提交和重新作答。",
+  "extension": { "id": "quizforge.single-choice", "version": "1.0.0" },
+  "questions": [
+    {
+      "id": "example-integer-division",
+      "title": "整数除法",
+      "data": {
+        "stem": "在 Java 中，表达式 7 / 2 的结果是什么？",
+        "options": [{ "id": "A", "text": "3" }, { "id": "B", "text": "3.5" }, { "id": "C", "text": "4" }, { "id": "D", "text": "编译失败" }],
+        "correctOptionId": "A",
+        "explanation": "7 和 2 都是整数，Java 的整数除法会舍去小数部分，因此结果为 3。若希望得到 3.5，可让至少一个操作数为浮点数，例如 7.0 / 2。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "example-inclusive-boundary",
+      "title": "判断边界",
+      "data": {
+        "stem": "某测验规定分数达到 60 分即为及格。若变量 score 保存分数，以下哪一个条件准确表达“及格”？",
+        "options": [{ "id": "A", "text": "score > 60" }, { "id": "B", "text": "score >= 60" }, { "id": "C", "text": "score == 60" }, { "id": "D", "text": "score < 60" }],
+        "correctOptionId": "B",
+        "explanation": "“达到 60 分”包含恰好等于 60 的情况，所以应使用大于或等于。只写大于会漏掉边界值，只写等于则会漏掉高于 60 的分数。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "example-loop-count",
+      "title": "循环执行次数",
+      "data": {
+        "stem": "下面循环中的循环体会执行几次？\nfor (int i = 0; i < 4; i++) {\n    System.out.println(i);\n}",
+        "options": [{ "id": "A", "text": "3 次" }, { "id": "B", "text": "4 次" }, { "id": "C", "text": "5 次" }, { "id": "D", "text": "不会执行" }],
+        "correctOptionId": "B",
+        "explanation": "i 依次取 0、1、2、3 时满足 i < 4，所以循环体执行 4 次。i 增加到 4 后条件不成立，循环结束。",
+        "maxScore": 1
+      }
+    }
+  ]
+}

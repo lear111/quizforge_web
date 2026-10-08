@@ -1,0 +1,39 @@
+{
+  "name": "quizforge-web-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local QuizForge extension rule runner and browser checks",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build:richtext": "node scripts/build-richtext.mjs",
+    "build:richtext-advanced": "node scripts/build-richtext-advanced.mjs",
+    "build:short-answer-advanced": "node scripts/build-short-answer-advanced.mjs",
+    "build:short-answer-ai": "node scripts/build-short-answer-ai.mjs",
+    "test": "node --test test/*.test.mjs server/*.test.cjs",
+    "test:rules": "node --test server/*.test.cjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extension-color": "3.31.4",
+    "@tiptap/extension-font-family": "3.31.4",
+    "@tiptap/extension-highlight": "3.31.4",
+    "@tiptap/extension-mathematics": "3.31.4",
+    "@tiptap/extension-placeholder": "3.31.4",
+    "@tiptap/extension-subscript": "3.31.4",
+    "@tiptap/extension-superscript": "3.31.4",
+    "@tiptap/extension-table": "3.31.4",
+    "@tiptap/extension-text-align": "3.31.4",
+    "@tiptap/extension-text-style": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
+    "ajv": "8.20.0",
+    "esbuild": "0.28.2",
+    "katex": "0.16.43"
+  },
+  "devDependencies": {
+    "jsdom": "27.4.0"
+  }
+}

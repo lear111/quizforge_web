@@ -1,0 +1,10 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "单选题答案",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selectedOptionId"],
+  "properties": {
+    "selectedOptionId": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 64 }
+  }
+}

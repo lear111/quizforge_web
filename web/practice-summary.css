@@ -1,0 +1,24 @@
+.practice-summary-card{width:100%;border:1px solid #e8e4f1;border-radius:20px;overflow:hidden;background:#fff;color:#302d41;line-height:1.65}
+.practice-summary-header{padding:26px 28px 20px;border-bottom:1px solid #f0edf6}
+.practice-summary-badge{display:inline-block;margin-bottom:10px;padding:3px 10px;border-radius:7px;background:#eee8fd;color:#6b46b7;font-size:12px;font-weight:700;letter-spacing:.08em}
+.practice-summary-title{margin:0;color:#302d41;font-size:25px;font-weight:650;line-height:1.45}
+.practice-summary-intro{margin:7px 0 0;color:#81798d;font-size:13px}
+.practice-summary-body{padding:35px 28px 32px;text-align:center}
+.practice-summary-score-label{color:#81798d;font-size:13px}
+.practice-summary-score{display:flex;align-items:baseline;justify-content:center;gap:14px;flex-wrap:wrap;margin:10px 0 23px;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.practice-summary-earned{color:#8255c5;font-size:58px;font-weight:650;letter-spacing:-2px}
+.practice-summary-separator{color:#ccc2dc;font-size:28px;font-weight:400}
+.practice-summary-maximum{color:#8c7ba0;font-size:30px}
+.practice-summary-counts{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.practice-summary-count{min-width:113px;padding:8px 16px;border:1px solid #e9e6f0;border-radius:9px;background:#fcfbfe;color:#776889;font-size:12px}
+.practice-summary-footer{padding:20px 28px 24px;border-top:1px solid #f0edf6;background:#fdfcfe;text-align:center}
+.practice-summary-note{margin:0 0 14px;color:#8a8194;font-size:12px;overflow-wrap:anywhere}
+.practice-summary-error{margin:0 0 14px;color:#ae4c43;font-size:12px;overflow-wrap:anywhere}
+.practice-summary-finish{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:160px;min-height:44px;padding:10px 24px;border:0;border-radius:10px;background:#8255c5;color:#fff;font-size:14px;font-weight:600;touch-action:manipulation}
+.practice-summary-finish:hover:not(:disabled){background:#7045b1}
+.practice-summary-finish:disabled{background:#d4c8e5;opacity:1}
+.practice-summary-finish.is-busy::before{content:"";width:13px;height:13px;border:2px solid #ffffff60;border-top-color:#fff;border-radius:50%;animation:practice-summary-spin .7s linear infinite}
+@keyframes practice-summary-spin{to{transform:rotate(360deg)}}
+@media(max-width:520px){.practice-summary-header{padding:20px 18px 16px}.practice-summary-title{font-size:22px}.practice-summary-body{padding:28px 18px}.practice-summary-earned{font-size:48px}.practice-summary-maximum{font-size:26px}.practice-summary-footer{padding:18px}.practice-summary-finish{width:100%}}
+@media(prefers-reduced-motion:reduce){.practice-summary-finish.is-busy::before{animation:none}}
+@media(max-width:600px){.practice-summary-card{border:0;border-radius:0;min-height:100%}}

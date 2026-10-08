@@ -1,0 +1,19 @@
+{
+  "id": "quizforge.short-answer",
+  "version": "1.1.0",
+  "name": "简答题",
+  "description": "富文本简答，支持 AI 评分建议与人工确认，保留 0.5 分自评。",
+  "dependencies": [
+    {
+      "id": "quizforge.richtext",
+      "version": "1.0.0"
+    }
+  ],
+  "entry": "practice.html",
+  "script": "practice-ai.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples.json"
+}

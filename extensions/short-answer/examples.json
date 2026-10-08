@@ -1,0 +1,354 @@
+{
+  "id": "examples",
+  "title": "简答题示例",
+  "description": "体验富文本作答、图片及提交后自评。",
+  "extension": {
+    "id": "quizforge.short-answer",
+    "version": "1.0.0"
+  },
+  "questions": [
+    {
+      "id": "short-answer-information-flow",
+      "title": "描述信息处理流程",
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "下图从左至右分别表示"
+                },
+                {
+                  "type": "text",
+                  "text": "输入、处理、输出",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "。请用一个生活中的例子解释三个阶段，并说明处理阶段的作用。"
+                }
+              ]
+            },
+            {
+              "type": "image",
+              "attrs": {
+                "assetId": "4a5d9a79a27ea9ff0f8777de8b4f5194e540c1fda8161b243249a2092606bcd7",
+                "alt": "三个色块用箭头连接，从左至右表示输入、处理和输出"
+              }
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "答案中可以使用列表、加粗或插入图片。"
+                }
+              ]
+            }
+          ]
+        },
+        "referenceAnswer": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "例如制作一杯果汁：输入是水果和水；处理是清洗、切块并搅拌；输出是一杯果汁。处理阶段把原始材料转换为满足需求的结果。"
+                }
+              ]
+            }
+          ]
+        },
+        "rubric": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "给出合理的生活例子：1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "准确对应输入、处理、输出三个阶段：每阶段 1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "解释处理阶段的转换作用：1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      }
+    },
+    {
+      "id": "short-answer-explain-cache",
+      "title": "解释缓存的作用与边界",
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "heading",
+              "attrs": {
+                "level": 2
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "为什么第二次打开同一道题会更快？"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "请解释缓存如何减少加载时间，并列举一个需要更新缓存的场景。"
+                }
+              ]
+            },
+            {
+              "type": "blockquote",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "提示：考虑题目内容被编辑，以及浏览器保存的数据是否仍然有效。"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "referenceAnswer": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "缓存保存已经读取的数据，再次访问时可以复用，减少网络传输和重复解析。题目被编辑后旧缓存可能过期，因此需要通过版本或修订号检查并更新。"
+                }
+              ]
+            }
+          ]
+        },
+        "rubric": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "说明缓存复用已有数据，减少重复读取：2 分。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "给出题目修改、状态改变等有效更新场景：1.5 分。"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 3.5
+      }
+    },
+    {
+      "id": "short-answer-review-code",
+      "title": "阅读代码并解释行为",
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "阅读以下代码，解释输出结果，并说明"
+                },
+                {
+                  "type": "text",
+                  "text": "对象相等",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "与"
+                },
+                {
+                  "type": "text",
+                  "text": "内容相等",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "的区别。"
+                }
+              ]
+            },
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "java"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "String a = new String(\"QuizForge\");\nString b = new String(\"QuizForge\");\nSystem.out.println(a == b);\nSystem.out.println(a.equals(b));"
+                }
+              ]
+            }
+          ]
+        },
+        "referenceAnswer": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "依次输出 false 和 true。== 比较两个引用是否指向同一对象，这里是两个分别创建的对象；String.equals 比较字符串内容，两者内容相同。"
+                }
+              ]
+            }
+          ]
+        },
+        "rubric": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "正确写出两个输出：每个 1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "解释 == 比较引用：1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "解释 equals 比较字符串内容：1 分。"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 4
+      }
+    }
+  ]
+}

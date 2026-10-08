@@ -1,0 +1,2 @@
+# Keep extension/SDK content fingerprints stable when cloning on different platforms.
+* -text

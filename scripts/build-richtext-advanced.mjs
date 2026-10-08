@@ -1,0 +1,11 @@
+import {build} from 'esbuild';
+import {fileURLToPath} from 'node:url';
+import {resolve} from 'node:path';
+import {readFile,writeFile} from 'node:fs/promises';
+const root=fileURLToPath(new URL('..',import.meta.url)),shared=resolve(root,'shared/richtext/1.1.0');
+const options={bundle:true,format:'iife',platform:'browser',target:['es2022'],minify:true,legalComments:'eof'};
+await build({...options,entryPoints:[resolve(shared,'src/static.js')],outfile:resolve(shared,'richtext.js')});
+await build({...options,entryPoints:[resolve(shared,'src/editor.js')],outfile:resolve(shared,'richtext-editor.js')});
+const files=[['Tiptap 3.31.4','node_modules/@tiptap/core/LICENSE.md'],['Tiptap PM and third-party dependencies','node_modules/@tiptap/pm/THIRD_PARTY_LICENSES.md'],['KaTeX 0.16.43','node_modules/katex/LICENSE'],...['model','state','view','transform','commands','history','keymap','inputrules','schema-list','gapcursor','dropcursor','tables'].map(name=>[`ProseMirror ${name}`,`node_modules/prosemirror-${name}/LICENSE`]),...['orderedmap','w3c-keyname','rope-sequence'].map(name=>[name,`node_modules/${name}/LICENSE`])];
+const licenses=[];for(const [name,file] of files)licenses.push(`## ${name}\n\n${await readFile(resolve(root,file),'utf8')}`);
+await writeFile(resolve(shared,'THIRD_PARTY_NOTICES.md'),`# Bundled rich-text dependencies\n\nTiptap 3.31.4, ProseMirror and KaTeX 0.16.43. Version-locked packages, rebuilt locally. KaTeX uses native MathML output; no external fonts or network requests are required.\n\n${licenses.join('\n\n')}`);
