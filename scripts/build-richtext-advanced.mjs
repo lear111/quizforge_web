@@ -2,7 +2,8 @@ import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 import {readFile,writeFile} from 'node:fs/promises';
-const root=fileURLToPath(new URL('..',import.meta.url)),shared=resolve(root,'shared/richtext/1.1.0');
+// Generate the current patch release; preserve previously published SDK directories.
+const root=fileURLToPath(new URL('..',import.meta.url)),shared=resolve(root,'shared/richtext/1.1.1');
 const options={bundle:true,format:'iife',platform:'browser',target:['es2022'],minify:true,legalComments:'eof'};
 await build({...options,entryPoints:[resolve(shared,'src/static.js')],outfile:resolve(shared,'richtext.js')});
 await build({...options,entryPoints:[resolve(shared,'src/editor.js')],outfile:resolve(shared,'richtext-editor.js')});

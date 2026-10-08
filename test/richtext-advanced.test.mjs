@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {validateDocument,fromEditorDocument} from '../shared/richtext/1.1.0/src/document.js';
-const read=file=>readFileSync(new URL(`../shared/richtext/1.1.0/${file}`,import.meta.url),'utf8');
+import {validateDocument,fromEditorDocument} from '../shared/richtext/1.1.1/src/document.js';
+const read=file=>readFileSync(new URL(`../shared/richtext/1.1.1/${file}`,import.meta.url),'utf8');
 const light=read('richtext.js'),heavy=read('richtext-editor.js'),css=read('richtext.css');
 const plain=value=>JSON.parse(JSON.stringify(value)),tick=()=>new Promise(resolve=>setTimeout(resolve,20));
 const paragraph=text=>({type:'paragraph',content:[{type:'text',text}]}),doc=text=>({type:'doc',content:[paragraph(text)]});
@@ -25,7 +25,7 @@ test('new document schema accepts legacy content and rejects unsafe style/resour
   assert.deepEqual(fromEditorDocument({type:'doc',content:[{type:'paragraph',attrs:{textAlign:null,lineHeight:null},content:[{type:'text',text:'粘贴',marks:[{type:'textStyle',attrs:{color:'rgb(18, 52, 86)',fontFamily:'"Georgia"',fontSize:'12px',evil:'ignored'}}]}]}]}),{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'粘贴',marks:[{type:'textStyle',attrs:{color:'#123456',fontFamily:'Georgia',fontSize:'12px'}}]}]}]});
 });
 test('readonly renderer handles table, styles, math and sized images without creating editors',async t=>{
-  const f=fixture(t),rendered=f.api.render(f.view,rich);await rendered.ready;assert.equal(f.loads(),0);assert.equal(f.view.querySelectorAll('math').length,2);assert.equal(f.view.querySelector('h2').style.textAlign,'center');assert.equal(f.view.querySelector('h2').style.lineHeight,'1.5');assert.equal(f.view.querySelector('span[style]').style.fontSize,'24px');assert.equal(f.view.querySelector('th').colSpan,2);assert.equal(f.view.querySelector('img').style.width,'320px');assert.equal(f.view.querySelector('img').style.marginRight,'0px');assert.equal(f.view.querySelector('iframe'),null);rendered.destroy();
+  const f=fixture(t);assert.equal(f.api.version,'1.1.1');const rendered=f.api.render(f.view,rich);await rendered.ready;assert.equal(f.loads(),0);assert.equal(f.view.querySelectorAll('math').length,2);assert.equal(f.view.querySelector('h2').style.textAlign,'center');assert.equal(f.view.querySelector('h2').style.lineHeight,'1.5');assert.equal(f.view.querySelector('span[style]').style.fontSize,'24px');assert.equal(f.view.querySelector('th').colSpan,2);assert.equal(f.view.querySelector('img').style.width,'320px');assert.equal(f.view.querySelector('img').style.marginRight,'0px');assert.equal(f.view.querySelector('iframe'),null);rendered.destroy();
 });
 test('actual editor preserves all versioned nodes and attributes through save and advanced toggle',async t=>{
   const calls=[],f=fixture(t,{setExpanded:async value=>calls.push(plain(value))}),editor=f.api.createEditor(f.field,{doc:rich});await editor.ready;await editor.flush();assert.deepEqual(plain(editor.getDocument()),rich);

@@ -111,8 +111,7 @@ final class Library {
     synchronized ObjectNode sdk(String id, String version, boolean editor) {
         validateSdk(id, version);
         try {
-            Path archive = sdkArchive(id, version, false);
-            ObjectNode snapshot = Files.exists(archive, LinkOption.NOFOLLOW_LINKS) ? readSdkArchive(archive, id, version) : pinSdk(id, version);
+            ObjectNode snapshot = resolveSdk(id, version);
             if (editor) return Json.object().put("script", snapshot.path("editorScript").asText());
             return Json.object().put("script", snapshot.path("script").asText()).put("style", snapshot.path("style").asText());
         } catch (IOException e) { throw new ApiException(404, "SDK_UNAVAILABLE", "Requested public SDK version is unavailable"); }
@@ -125,12 +124,20 @@ final class Library {
             if (!value.isObject() || value.size() != 2) throw ApiException.bad("Invalid SDK dependency");
             String id = Json.id(value, "id"), version = Json.id(value, "version"); validateSdk(id, version);
             if (!ids.add(id)) throw ApiException.bad("Duplicate SDK dependency");
-            pinSdk(id, version); result.add(new Dependency(id, version));
+            try { resolveSdk(id, version); }
+            catch (IOException e) { throw new ApiException(422, "SDK_UNAVAILABLE", "Public SDK " + id + "@" + version + " is unavailable: " + e.getMessage()); }
+            result.add(new Dependency(id, version));
         }
         return List.copyOf(result);
     }
     private static void validateSdk(String id, String version) {
         if (!id.equals("quizforge.richtext") || !version.matches("[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}")) throw new ApiException(404, "SDK_UNAVAILABLE", "Unsupported public SDK package or version");
+    }
+    private ObjectNode resolveSdk(String id, String version) throws IOException {
+        Path archive = sdkArchive(id, version, false);
+        // Once published locally, the snapshot serves banks and frozen history.
+        // Source rebuilds must never replace that version's installed assets.
+        return Files.exists(archive, LinkOption.NOFOLLOW_LINKS) ? readSdkArchive(archive, id, version) : pinSdk(id, version);
     }
     private ObjectNode pinSdk(String id, String version) throws IOException {
         Path source = root.resolve("shared/richtext").resolve(version);
@@ -177,29 +184,39 @@ final class Library {
         } catch (IOException e) { throw new ApiException(503, "BANK_UNAVAILABLE", "Bank cannot be prepared for editing"); }
     }
     synchronized EditPlan prepareShortAnswerUpgrade(Collection current) throws IOException {
-        if (!current.kind().equals("bank") || current.extension() == null || !current.extension().id().equals("quizforge.short-answer") || !java.util.Set.of("1.0.0", "1.1.0").contains(current.extension().version()))
-            throw ApiException.bad("Only short-answer 1.0.0 or 1.1.0 banks can use this upgrade");
+        if (!current.kind().equals("bank") || current.extension() == null || !current.extension().id().equals("quizforge.short-answer") || !java.util.Set.of("1.0.0", "1.1.0", "1.2.0").contains(current.extension().version()))
+            throw ApiException.bad("Only short-answer 1.0.0, 1.1.0 or 1.2.0 banks can use this upgrade");
         Collection latest = collection("bank", current.id());
         if (!latest.equals(current)) throw new ApiException(409, "CONTENT_CONFLICT", "Bank changed before upgrade");
-        Extension target = extensions.get("quizforge.short-answer@1.2.0");
-        if (target == null) throw new ApiException(422, "MISSING_EXTENSION", "Advanced short-answer 1.2.0 is not installed");
+        Extension target = shortAnswerUpgradeTarget();
         Path path = bankPaths.get(current.id()); byte[] before = Files.readAllBytes(path);
         ObjectNode raw = (ObjectNode) Json.MAPPER.readTree(before);
         if (!parseCollection(raw, "bank", current.extension(), current.id(), null).equals(current)) throw new ApiException(409, "CONTENT_CONFLICT", "Bank changed while reading upgrade source");
         ((ObjectNode) raw.path("extension")).put("version", target.version());
-        for (JsonNode question : raw.path("questions")) {
-            String title = question.path("title").asText().trim();
-            ObjectNode stem = (ObjectNode) question.path("data").path("stem");
-            ArrayNode content = (ArrayNode) stem.path("content");
-            // The new view has one stem; retain the old separate title as rich text.
-            if (!title.isEmpty() && (content.isEmpty() || !nodeText(content.get(0)).trim().equals(title))) {
-                ObjectNode heading = Json.object().put("type", "heading"); heading.putObject("attrs").put("level", 2);
-                heading.putArray("content").addObject().put("type", "text").put("text", title);
-                content.insert(0, heading);
+        if (!current.extension().version().equals("1.2.0")) {
+            for (JsonNode question : raw.path("questions")) {
+                String title = question.path("title").asText().trim();
+                ObjectNode stem = (ObjectNode) question.path("data").path("stem");
+                ArrayNode content = (ArrayNode) stem.path("content");
+                // The new view has one stem; retain the old separate title as rich text.
+                if (!title.isEmpty() && (content.isEmpty() || !nodeText(content.get(0)).trim().equals(title))) {
+                    ObjectNode heading = Json.object().put("type", "heading"); heading.putObject("attrs").put("level", 2);
+                    heading.putArray("content").addObject().put("type", "text").put("text", title);
+                    content.insert(0, heading);
+                }
             }
         }
         Collection replacement = parseCollection(raw, "bank", target, current.id(), null);
         return new EditPlan(path, before, Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(raw), replacement, null);
+    }
+    private Extension shortAnswerUpgradeTarget() {
+        for (JsonNode row : catalog.path("extensions")) {
+            if (row.path("id").asText().equals("quizforge.short-answer") && row.path("version").asText().equals("1.2.1") && row.has("error"))
+                throw new ApiException(row.path("errorStatus").asInt(422), row.path("errorCode").asText("INVALID_EXTENSION"), "Short-answer upgrade target 1.2.1 is unavailable: " + row.path("error").asText());
+        }
+        Extension target = extensions.get("quizforge.short-answer@1.2.1");
+        if (target == null) throw new ApiException(422, "MISSING_EXTENSION", "Advanced short-answer 1.2.1 is not installed");
+        return target;
     }
     private static String nodeText(JsonNode node) {
         if (node == null) return "";
@@ -219,7 +236,7 @@ final class Library {
         for (Path folder : extensionFolders) {
             ObjectNode entry = Json.object().put("id", fallback(folder)).put("version", "?").put("name", fallback(folder)).put("description", "").put("questionCount", 0);
             try {
-                Extension extension = extension(folder);
+                Extension extension = extension(folder, entry);
                 resources.importAssets(folder);
                 entry.put("id", extension.id()).put("version", extension.version()).put("name", extension.name()).put("description", extension.description());
                 String key = extension.id() + "@" + extension.version();
@@ -230,8 +247,8 @@ final class Library {
                     entry.put("questionCount", preview.questions().size());
                     Collection previous = nextPreviews.get(extension.id());
                     if (previous == null || compareVersion(extension.version(), previous.extension().version()) > 0) nextPreviews.put(extension.id(), preview);
-                } catch (Exception e) { transientRuleFailure |= transientRules(e); entry.put("error", "Invalid extension examples or question data"); }
-            } catch (Exception e) { entry.put("error", "Invalid extension manifest or declared assets"); }
+                } catch (Exception e) { transientRuleFailure |= transientRules(e); catalogError(entry, e, "INVALID_EXTENSION_EXAMPLES", "Invalid extension examples or question data"); }
+            } catch (Exception e) { catalogError(entry, e, "INVALID_EXTENSION", "Invalid extension manifest or declared assets"); }
             extensionCatalog.add(entry);
         }
         for (Path file : bankFiles) {
@@ -248,7 +265,7 @@ final class Library {
                 else entry.set("extension", extensionReference(bank.extension()));
                 ArrayNode used = entry.putArray("extensions"); for (Extension value : bank.extensions()) used.add(extensionReference(value));
                 nextBanks.put(id, bank); nextBankPaths.put(id, file); entry.put("questionCount", bank.questions().size());
-            } catch (Exception e) { transientRuleFailure |= transientRules(e); entry.put("error", "Invalid bank JSON, extension reference, or question data"); }
+            } catch (Exception e) { transientRuleFailure |= transientRules(e); catalogError(entry, e, "INVALID_BANK", "Invalid bank JSON, extension reference, or question data"); }
             bankCatalog.add(entry);
         }
         // The preview route is keyed by type ID and opens its latest installed version.
@@ -264,9 +281,14 @@ final class Library {
     private static boolean transientRules(Exception failure) {
         return failure instanceof ApiException api && (api.code.equals("RULE_TIMEOUT") || api.code.equals("RULE_UNAVAILABLE"));
     }
-    private Extension extension(Path folder) throws IOException {
+    private static void catalogError(ObjectNode entry, Exception failure, String defaultCode, String description) {
+        if (failure instanceof ApiException api) entry.put("error", api.getMessage()).put("errorCode", api.code).put("errorStatus", api.status);
+        else entry.put("error", description + (failure.getMessage() == null ? "" : ": " + failure.getMessage())).put("errorCode", defaultCode).put("errorStatus", 422);
+    }
+    private Extension extension(Path folder, ObjectNode entry) throws IOException {
         JsonNode manifest = Json.read(Json.safeFile(folder, "manifest.json"), 256 * 1024);
         String id = Json.id(manifest, "id"), version = Json.id(manifest, "version");
+        entry.put("id", id).put("version", version).put("name", Json.text(manifest, "name", 300)).put("description", optional(manifest, "description", 4000));
         List<Path> assets = new ArrayList<>();
         for (String field : List.of("entry", "script", "style", "rules", "questionSchema", "answerSchema", "examples")) {
             Path asset = Json.safeFile(folder, Json.text(manifest, field, 240));
