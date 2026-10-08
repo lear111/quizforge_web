@@ -243,7 +243,9 @@ final class StateStore {
         EditorDraftStore drafts = new EditorDraftStore(directory.getParent());
         for (Library.Question question : previous.questions()) {
             if (ShortAnswerUpgrade.eligible(previous.extensionFor(question)) && drafts.get(previous.id(), question.id()).path("changed").asBoolean())
-                throw new ApiException(409, "UPGRADE_EDITOR_DRAFT_PENDING", "Save or cancel the pending short-answer edit before upgrading; the editor draft is preserved");
+                throw new ApiException(409, "UPGRADE_EDITOR_DRAFT_PENDING", "Pending short-answer edit in bank \"" + previous.title() + "\" (" + previous.id()
+                        + "), question " + (previous.questions().indexOf(question) + 1) + " \"" + question.title() + "\" (" + question.id()
+                        + "). Start normally without -UpgradeShortAnswer, open this question in edit mode and save or cancel its changes, then stop the service and retry; the editor draft is preserved");
         }
         ObjectNode old = load(previous); Library.Collection replacement = plan.collection();
         Path source = file(previous), target = file(replacement); boolean sameState = source.equals(target);

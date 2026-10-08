@@ -165,7 +165,10 @@ class ShortAnswerUpgradeTest {
         var drafts=new EditorDraftStore(root);ObjectNode request=Json.object().put("contentVersion","a".repeat(64)).put("changed",true);
         request.set("draft",Json.object().put("pendingStem","尚未保存的题干"));drafts.put(bank.id(),qid,request);ObjectNode beforeDraft=drafts.get(bank.id(),qid);
         Path state=oldStateFile(),bankFile=root.resolve("question-banks/mixed-demo/bank.json");byte[] oldState=Files.readAllBytes(state),oldBank=Files.readAllBytes(bankFile);
-        assertEquals("UPGRADE_EDITOR_DRAFT_PENDING",assertThrows(ApiException.class,()->ShortAnswerUpgrade.run(library,states)).code);
+        ApiException failure=assertThrows(ApiException.class,()->ShortAnswerUpgrade.run(library,states));
+        assertEquals("UPGRADE_EDITOR_DRAFT_PENDING",failure.code);
+        assertTrue(failure.getMessage().contains(bank.id()));assertTrue(failure.getMessage().contains(qid));
+        assertTrue(failure.getMessage().contains("question 2"));assertTrue(failure.getMessage().contains("without -UpgradeShortAnswer"));
         assertEquals(beforeDraft,drafts.get(bank.id(),qid));assertArrayEquals(oldState,Files.readAllBytes(state));assertArrayEquals(oldBank,Files.readAllBytes(bankFile));
         assertFalse(Files.exists(root.resolve(".state/upgrade-backups")));
     }
