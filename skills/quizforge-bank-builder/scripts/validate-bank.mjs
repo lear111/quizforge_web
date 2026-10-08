@@ -9,9 +9,9 @@ import {spawn} from 'node:child_process';
 
 const MiB=1024*1024, ID=/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/, ASSET_ID=/^[a-f0-9]{64}$/;
 const FIELDS=['entry','script','style','rules','questionSchema','answerSchema','examples'];
-const API={major:1,minor:0,capabilities:new Set(['practice','editor','editor-drafts','score','manual-review','ai-grading','resources','richtext','navigation','lifecycle'])};
+const API={major:1,minor:1,capabilities:new Set(['practice','editor','editor-drafts','score','manual-review','ai-grading','resources','richtext','navigation','lifecycle','outline-items'])};
 const STRUCTURAL_KEYS=new Set(['stem','referenceAnswer','rubric','document','content','attrs','marks','type','text','assetId','options','answer','feedback']);
-const report={ok:false,summary:{questions:0,questionTypes:0,images:0,referencedImages:0,ruleBatches:0,exampleQuestions:0,exampleRuleBatches:0,maxScore:0},errors:[],warnings:[]};
+const report={ok:false,summary:{questions:0,questionTypes:0,images:0,referencedImages:0,ruleBatches:0,exampleQuestions:0,exampleRuleBatches:0,outlineItems:0,outlineRuleBatches:0,exampleOutlineItems:0,exampleOutlineRuleBatches:0,maxScore:0},errors:[],warnings:[]};
 class Invalid extends Error {constructor(location,code){super(code);this.location=location;this.code=code;}}
 const fail=(location,code)=>{throw new Invalid(location,code);};
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -79,6 +79,7 @@ function apiRequirements(manifest,location){
     const name=capabilities[i];
     if(typeof name!=='string'||!name.trim()||seen.has(name))fail(where+'/capabilities/'+i,'INVALID_API_REQUIREMENT');seen.add(name);
     if(!API.capabilities.has(name))fail(where+'/capabilities/'+i,'UNSUPPORTED_API_CAPABILITY');
+    if(name==='outline-items'&&value.minMinor<1)fail(where,'INVALID_API_REQUIREMENT');
   }
 }
 
@@ -203,7 +204,8 @@ async function loadExtension(candidate,coreRoot){
   // AJV compilation and validation happen only in the deadline-limited project runner.
   return {...candidate,files,assets,fingerprint:fingerprint.digest('hex')};
 }
-function runnerRequest(extension,operation,questions){return {op:operation,apiVersion:{major:API.major,minor:API.minor},questions,rules:extension.files.rules,questionSchema:extension.files.questionSchema,answerSchema:extension.files.answerSchema};}
+function outlineDeclared(manifest){return manifest.requiresApi?.minMinor>=1&&manifest.requiresApi?.capabilities?.includes('outline-items')===true;}
+function runnerRequest(extension,operation,questions){return {op:operation,apiVersion:{major:extension.manifest.requiresApi?.major??1,minor:extension.manifest.requiresApi?.minMinor??0},outlineItemsDeclared:outlineDeclared(extension.manifest),withCapabilities:operation==='validateBank',questions,rules:extension.files.rules,questionSchema:extension.files.questionSchema,answerSchema:extension.files.answerSchema};}
 async function runRules(coreRoot,extension,operation,questions){
   const runner=path.join(coreRoot,'server','rules-runner.cjs'),input=Buffer.from(JSON.stringify(runnerRequest(extension,operation,questions)));if(input.length>8*MiB)return {ok:false,code:'RULE_INPUT_LIMIT'};
   const args=['--max-old-space-size=96','--disable-proto=throw','--permission'];
@@ -219,7 +221,7 @@ async function runRules(coreRoot,extension,operation,questions){
     child.stdout.on('data',bytes=>{size+=bytes.length;if(size>2*MiB)stop('RULE_OUTPUT_LIMIT');else output.push(bytes);});
     child.stderr.on('data',bytes=>{stderrBytes+=bytes.length;if(stderrBytes>64*1024)stop('RULE_OUTPUT_LIMIT');});
     child.on('close',code=>{if(done)return;let result;try{result=JSON.parse(Buffer.concat(output).toString('utf8'));}catch{return finish({ok:false,code:'RULE_INVALID_RESPONSE'});}
-      if(code!==0||result?.ok!==true)return finish({ok:false,code:result?.code==='SCORE_UNAVAILABLE'?'SCORE_UNAVAILABLE':'RULE_REJECTED'});finish({ok:true,data:result.data});});
+      if(code!==0||result?.ok!==true)return finish({ok:false,code:['SCORE_UNAVAILABLE','INVALID_OUTLINE_ITEMS'].includes(result?.code)?result.code:'RULE_REJECTED'});finish({ok:true,data:result.data});});
     child.stdin.end(input);
   });
 }
@@ -230,10 +232,10 @@ function chunks(rows,operation){
   }if(batch.length)output.push(batch);return output;
 }
 async function ruleFailureLocation(coreRoot,extension,operation,batch,code){
-  if(!['RULE_REJECTED','SCORE_UNAVAILABLE'].includes(code))return batch[0].location+'/data';
+  if(!['RULE_REJECTED','SCORE_UNAVAILABLE','INVALID_OUTLINE_ITEMS'].includes(code))return batch[0].location+'/data';
   let rows=batch;for(let attempts=0;attempts<9&&rows.length>1;attempts++){
     const middle=Math.ceil(rows.length/2),left=rows.slice(0,middle),result=await runRules(coreRoot,extension,operation,left.map(row=>row.input));
-    if(!result.ok){rows=left;if(!['RULE_REJECTED','SCORE_UNAVAILABLE'].includes(result.code))break;}else rows=rows.slice(middle);
+    if(!result.ok){rows=left;if(!['RULE_REJECTED','SCORE_UNAVAILABLE','INVALID_OUTLINE_ITEMS'].includes(result.code))break;}else rows=rows.slice(middle);
   }return rows[0].location+'/data';
 }
 function documentRows(document,location='',owner=null){
@@ -263,12 +265,34 @@ function checkImages(rows,loaded,bankAssets,usedBankAssets,usedExtensionAssets){
     }
   }
 }
-async function checkRules(coreRoot,extension,items,examples=false){
+async function checkRules(coreRoot,extension,items,examples=false,outlineBudget={bytes:1}){
   let maxScore=0;
   for(const operation of ['validateBank','scoreBatch'])for(const batch of chunks(items,operation)){
     report.summary[examples?'exampleRuleBatches':'ruleBatches']++;const result=await runRules(coreRoot,extension,operation,batch.map(row=>row.input));
     if(!result.ok)fail(await ruleFailureLocation(coreRoot,extension,operation,batch,result.code),result.code);
     if(operation==='validateBank'&&result.data?.valid!==true)fail(batch[0].location+'/data','RULE_INVALID_BATCH_RESPONSE');
+    if(operation==='validateBank'&&(outlineDeclared(extension.manifest)||result.data?.capabilities?.canOutlineItems===true)){
+      if(!outlineDeclared(extension.manifest))fail(extension.location+'/requiresApi','INVALID_OUTLINE_ITEMS');
+      // A legal outline can contain 100 long Unicode labels; bound its output,
+      // independently of the much smaller question-data input batching.
+      for(let at=0;at<batch.length;at+=24){
+        const outlineBatch=batch.slice(at,at+24);report.summary[examples?'exampleOutlineRuleBatches':'outlineRuleBatches']++;
+        const outlines=await runRules(coreRoot,extension,'outlineBatch',outlineBatch.map(row=>row.data));
+        if(!outlines.ok)fail(await ruleFailureLocation(coreRoot,extension,'outlineBatch',outlineBatch.map(row=>({...row,input:row.data})),outlines.code),outlines.code);
+        if(!Array.isArray(outlines.data?.outlineItems)||outlines.data.outlineItems.length!==outlineBatch.length)fail(outlineBatch[0].location+'/data','INVALID_OUTLINE_ITEMS');
+        for(const [index,outline]of outlines.data.outlineItems.entries()){
+          const where=outlineBatch[index].location+'/data',seen=new Set();
+          if(!Array.isArray(outline)||outline.length>100)fail(where,'INVALID_OUTLINE_ITEMS');
+          outlineBudget.bytes+=Buffer.byteLength(JSON.stringify(outline))+1;
+          if(outlineBudget.bytes>8*MiB)fail(where,'INVALID_OUTLINE_ITEMS');
+          for(const item of outline){
+            const plain=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&value===value.trim()&&!/[\u0000-\u001f\u007f-\u009f<>]/.test(value);
+            if(!fields(item,['id','label'])||Object.keys(item).length!==2||!plain(item.id,128)||!plain(item.label,80)||seen.has(item.id))fail(where,'INVALID_OUTLINE_ITEMS');seen.add(item.id);
+          }
+          report.summary[examples?'exampleOutlineItems':'outlineItems']+=outline.length;
+        }
+      }
+    }
     if(operation==='scoreBatch'){
       if(!Array.isArray(result.data?.scores)||result.data.scores.length!==batch.length)fail(batch[0].location+'/data','SCORE_INVALID_BATCH_RESPONSE');
       result.data.scores.forEach((score,index)=>{if(!object(score)||score.gradingStatus!=='unsubmitted'||score.score!==0||!Number.isFinite(score.maxScore)||score.maxScore<0)fail(batch[index].location+'/data','INVALID_INITIAL_SCORE');maxScore+=score.maxScore;});
@@ -308,7 +332,8 @@ async function validate(options){
   for(const image of bankAssets.values())if(!usedBankAssets.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_BANK_IMAGE'});
   for(const identity of boundExtensions)for(const image of loaded.get(identity).assets.values())if(!usedExtensionAssets.get(identity)?.has(image.hash))report.warnings.push({location:image.location,code:'UNREFERENCED_EXTENSION_IMAGE'});
   report.summary.referencedImages=new Set([...usedBankAssets,...[...usedExtensionAssets.values()].flatMap(ids=>[...ids])]).size;
-  for(const identity of [...groups.keys()].sort())report.summary.maxScore+=await checkRules(coreRoot,loaded.get(identity),groups.get(identity));
+  const outlineBudget={bytes:1};
+  for(const identity of [...groups.keys()].sort())report.summary.maxScore+=await checkRules(coreRoot,loaded.get(identity),groups.get(identity),false,outlineBudget);
   if(!Number.isFinite(report.summary.maxScore))fail('/questions','TOTAL_SCORE_NOT_FINITE');report.ok=true;
 }
 function argumentsFor(args){

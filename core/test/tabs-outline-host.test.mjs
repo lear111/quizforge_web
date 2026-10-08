@@ -9,6 +9,7 @@ import {createQuestionCache} from '../web/question-cache.js';
 import {unusedPagePrefixes} from '../web/extension-pages.js';
 import {visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor} from '../web/practice-context.js';
 import {consecutiveQuestionGroups} from '../web/outline-groups.js';
+import {navigateOutlineTarget} from '../web/outline-navigation.js';
 
 const source=readFileSync(new URL('../web/app.js',import.meta.url),'utf8');
 const part=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
@@ -27,7 +28,7 @@ function fixture(t){
   const cache=createQuestionCache({schedule:null}),pages=createQuestionCache({schedule:null});
   t.after(()=>{cache.clear();pages.clear();});
   const sandbox={document:dom.window.document,$:selector=>dom.window.document.querySelector(selector),setTimeout,clearTimeout,Promise,tabs,activeKey:null,transition:Promise.resolve(),
-    questionsCache:cache,pagesCache:pages,unusedPagePrefixes,visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor,consecutiveQuestionGroups,
+    questionsCache:cache,pagesCache:pages,unusedPagePrefixes,visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor,consecutiveQuestionGroups,navigateOutlineTarget,
     active:()=>tabs.get(sandbox.activeKey),notice(){},failure:error=>errors.push(error),updateChrome(){},renderRecovery(){},
     editorDraftPath:(pane,id)=>`/drafts/${pane.id}/${id}`,request:async(path,options)=>{deletedDrafts.push({path,options});},
     confirm:()=>false,disposeScoreSummary(){},showScoreSummary(){},navigateQuestion(){},closeDrawers(){},
@@ -97,6 +98,33 @@ test('unsaved active and suspended editors require a discard decision and keep d
     assert.equal(asked,2);assert.equal(f.tabs.has(pane.key),false);assert.equal(pane.editorSession,null);
     assert.deepEqual(f.deletedDrafts.map(row=>row.options.method),['DELETE']);assert.deepEqual(f.errors,[]);
   }
+});
+
+test('outline renders ordered children next to their own parent without adding questions or statuses',async t=>{
+  const f=fixture(t),pane=f.add('composite');
+  const single={id:'choice',name:'单选'},composite={id:'parts',name:'复合题'};
+  pane.collection.questions=[{id:'a',title:'普通题',type:single},{id:'parent',title:'大题',type:composite,outlineItems:[{id:'second',label:'2'},{id:'first',label:'1'}]},{id:'last',title:'普通题',type:single}];
+  pane.questionId='parent';pane.collection.states.parent={status:'submitted',result:{correct:true}};pane.outlineItemId='second';
+  f.host.renderOutline();
+  const root=f.dom.window.document.querySelector('#outline-list');
+  assert.deepEqual([...root.querySelectorAll('.outline-group-title')].map(node=>node.textContent),['单选','复合题','单选']);
+  assert.deepEqual([...root.querySelectorAll('.outline-child')].map(node=>[node.dataset.questionId,node.dataset.outlineItemId,node.textContent]),[['parent','second','2'],['parent','first','1']]);
+  assert.equal(root.querySelector('.outline-parent>.outline-item').textContent,'2');
+  assert.equal(root.querySelector('.outline-parent>.outline-item').classList.contains('correct'),true);
+  assert.equal(root.querySelector('.outline-child.active').dataset.outlineItemId,'second');
+  assert.equal(root.querySelectorAll('.outline-child.correct').length,0);
+  assert.equal(pane.collection.questions.length,3);
+  let called=0;pane.plugin.navigateOutline=async id=>{called++;assert.equal(id,'first');assert.equal(pane.node.inert,false);};
+  root.querySelector('[data-outline-item-id="first"]').click();await f.sandbox.transition;
+  assert.equal(called,1);assert.equal(pane.outlineItemId,'first');assert.deepEqual(f.errors,[]);
+});
+
+test('old flat outline keeps its original parent number buttons',t=>{
+  const f=fixture(t),pane=f.add('legacy');
+  pane.collection.questions.push({id:'b',title:'旧题'});f.host.renderOutline();
+  const root=f.dom.window.document.querySelector('#outline-list');
+  assert.deepEqual([...root.querySelectorAll('.outline-item')].map(node=>node.textContent),['1','2']);
+  assert.equal(root.querySelector('.outline-parent'),null);assert.equal(root.querySelector('.outline-child'),null);
 });
 
 test('Enter and Space on the close button retain native button activation instead of activating the tab',async t=>{

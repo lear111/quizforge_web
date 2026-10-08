@@ -33,10 +33,16 @@ function fixture(t){
   return {root,manifest,write,run};
 }
 const MiB=1024*1024;
+function outlineType(f,body,{declared=true,minor=1}={}){
+  const original=readFileSync(path.join(product,'extensions/single-choice/rules.js'),'utf8');assert.match(original,/QF\.defineType\(\s*\{/);
+  f.write('staged/custom/rules.js',original.replace(/QF\.defineType\(\s*\{/,'QF.defineType({getOutlineItems(data){'+body+'},'));
+  f.write('staged/custom/manifest.json',{...f.manifest,requiresApi:{major:1,minMinor:minor,capabilities:declared?['practice','score','outline-items']:['practice','score']}});
+}
 
 test('bank builder validates a staged public richtext requirement with the normal rule runner and preserves files',t=>{
   const f=fixture(t),manifestBefore=readFileSync(path.join(f.root,'staged/custom/manifest.json')),bankBefore=readFileSync(path.join(f.root,'bank/bank.json'));
   const result=f.run();assert.equal(result.code,0,JSON.stringify(result.report));assert.equal(result.report.ok,true);assert.equal(result.report.summary.questions,3);assert.equal(result.report.summary.maxScore,3);assert.equal(result.report.summary.ruleBatches,2);
+  assert.equal(result.report.summary.outlineRuleBatches,0);assert.equal(result.report.summary.exampleOutlineRuleBatches,0);
   assert.deepEqual(readFileSync(path.join(f.root,'staged/custom/manifest.json')),manifestBefore);assert.deepEqual(readFileSync(path.join(f.root,'bank/bank.json')),bankBefore);assert.equal(existsSync(path.join(f.root,'.state')),false);
 });
 
@@ -77,4 +83,33 @@ test('registry errors and missing new service fail before rule execution',t=>{
     f.write('core/shared/richtext/service.json',value);const result=f.run();assert.equal(result.report.errors[0].code,'INVALID_RICHTEXT_SERVICE');assert.equal(result.report.summary.exampleRuleBatches,0);
   }
   rmSync(path.join(f.root,'core/shared/richtext/service.json'));assert.equal(f.run().report.errors[0].code,'RICHTEXT_SERVICE_UNAVAILABLE');
+});
+
+test('staged outline extension preserves parent question count, scores and files while checking ordered child metadata',t=>{
+  const f=fixture(t);outlineType(f,"return data.options.map((option,index)=>({id:option.id,label:'小问'+(index+1)}));");
+  const bank=readFileSync(path.join(f.root,'bank/bank.json')),manifest=readFileSync(path.join(f.root,'staged/custom/manifest.json')),result=f.run();
+  assert.equal(result.code,0,JSON.stringify(result.report));assert.equal(result.report.summary.questions,3);assert.equal(result.report.summary.maxScore,3);
+  assert.equal(result.report.summary.outlineItems,12);assert.equal(result.report.summary.exampleOutlineItems,12);assert.equal(result.report.summary.outlineRuleBatches,1);assert.equal(result.report.summary.exampleOutlineRuleBatches,1);
+  assert.deepEqual(readFileSync(path.join(f.root,'bank/bank.json')),bank);assert.deepEqual(readFileSync(path.join(f.root,'staged/custom/manifest.json')),manifest);assert.equal(existsSync(path.join(f.root,'.state')),false);
+});
+
+test('invalid child metadata from real staged rules fails before parent scoring',t=>{
+  const f=fixture(t);
+  for(const body of [
+    'return [{id:"p1",label:"(1)"},{id:"p1",label:"(2)"}];',
+    'return [{id:"p1",label:"<b>(1)</b>"}];',
+    'return [{id:"p1",label:"(1)",maxScore:2}];',
+    'return Array.from({length:101},(_,i)=>({id:"p"+i,label:String(i)}));',
+    'return Promise.resolve([{id:"p1",label:"(1)"}]);'
+  ]){
+    outlineType(f,body);const result=f.run();assert.equal(result.code,1,JSON.stringify(result.report));assert.equal(result.report.errors[0].code,'INVALID_OUTLINE_ITEMS');assert.equal(result.report.summary.ruleBatches,0);
+  }
+});
+
+test('outline opt-in requires API 1.1 but declared capability without a hook remains empty',t=>{
+  const f=fixture(t);outlineType(f,'return [{id:"p1",label:"(1)"}];',{minor:0});
+  let result=f.run();assert.equal(result.report.errors[0].code,'INVALID_API_REQUIREMENT');assert.equal(result.report.summary.exampleRuleBatches,0);
+  outlineType(f,'return [{id:"p1",label:"(1)"}];',{declared:false});result=f.run();assert.equal(result.report.errors[0].code,'INVALID_OUTLINE_ITEMS');
+  cpSync(path.join(product,'extensions/single-choice/rules.js'),path.join(f.root,'staged/custom/rules.js'));
+  f.write('staged/custom/manifest.json',{...f.manifest,requiresApi:{major:1,minMinor:1,capabilities:['outline-items']}});result=f.run();assert.equal(result.code,0,JSON.stringify(result.report));assert.equal(result.report.summary.outlineItems,0);assert.equal(result.report.summary.exampleOutlineItems,0);
 });

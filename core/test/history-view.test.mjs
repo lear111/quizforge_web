@@ -62,7 +62,8 @@ test('duplicate frozen payloads cannot silently replace an earlier question',()=
 test('legacy history defaults to v1 and future API pages fail before a view is selected',()=>{
   const legacy={questions:[entry('a')],page:{html:'legacy'}};
   assert.equal(createHistoryView(legacy).entry('a').page,legacy.page);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:1},null]){
+  assert.equal(createHistoryView({questions:[entry('a')],page:{html:'minor1',apiVersion:{major:1,minor:1}}}).questions.length,1);
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:2},null]){
     assert.throws(()=>createHistoryView({questions:[entry('a')],page:{html:'future',apiVersion}}),error=>['UNSUPPORTED_API_VERSION','INVALID_API_VERSION'].includes(error.code));
   }
 });

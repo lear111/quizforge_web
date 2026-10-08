@@ -31,15 +31,16 @@ class VersionCompatibilityTest {
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(Json.object()));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":0}")));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1.0,\"minMinor\":0.0}")));
+        assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":1,\"capabilities\":[\"outline-items\"]}")));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("""
                 {"major":1,"minMinor":0,"capabilities":["practice","editor","editor-drafts","score","manual-review","ai-grading","resources","richtext","navigation","lifecycle"]}
                 """)));
         for (String invalid : List.of("null", "[]", "{}", "{\"major\":\"1\",\"minMinor\":0}", "{\"major\":1,\"minMinor\":0.5}",
                 "{\"major\":0,\"minMinor\":0}", "{\"major\":1,\"minMinor\":-1}", "{\"major\":1,\"minMinor\":0,\"typo\":true}",
                 "{\"major\":1,\"minMinor\":0,\"capabilities\":null}", "{\"major\":1,\"minMinor\":0,\"capabilities\":[1]}",
-                "{\"major\":1,\"minMinor\":0,\"capabilities\":[\"editor\",\"editor\"]}", "{\"major\":2147483648,\"minMinor\":0}"))
+                "{\"major\":1,\"minMinor\":0,\"capabilities\":[\"editor\",\"editor\"]}", "{\"major\":1,\"minMinor\":0,\"capabilities\":[\"outline-items\"]}", "{\"major\":2147483648,\"minMinor\":0}"))
             assertEquals("INVALID_API_REQUIREMENT", assertThrows(ApiException.class, () -> ExtensionApi.requireManifest(requirement(invalid))).code, invalid);
-        for (String future : List.of("{\"major\":2,\"minMinor\":0}", "{\"major\":1,\"minMinor\":1}"))
+        for (String future : List.of("{\"major\":2,\"minMinor\":0}", "{\"major\":1,\"minMinor\":2}"))
             assertEquals("UNSUPPORTED_EXTENSION_API", assertThrows(ApiException.class, () -> ExtensionApi.requireManifest(requirement(future))).code);
         assertEquals("UNSUPPORTED_API_CAPABILITY", assertThrows(ApiException.class,
                 () -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":0,\"capabilities\":[\"future-feature\"]}"))).code);
@@ -103,8 +104,8 @@ class VersionCompatibilityTest {
         ObjectNode saved = (ObjectNode) Json.read(state, 32 * 1024 * 1024); removeVersions(saved); Files.writeString(state, saved.toString());
         byte[] before = Files.readAllBytes(state), bank = Files.readAllBytes(root.resolve("question-banks/bank.json")); fixture.start(null);
         var restored = fixture.get(ServerTest.QUESTION); assertEquals(200, restored.status()); assertEquals(submitted.body().path("state"), restored.body().path("state"));
-        var history = fixture.get("/api/collections/bank/bank/history/" + id); assertEquals(200, history.status()); assertEquals(ExtensionApi.version(), history.body().path("apiVersion"));
-        assertEquals(ExtensionApi.version(), history.body().at("/page/apiVersion")); assertEquals("submitted", history.body().at("/questions/0/payload/state/status").asText());
+        var history = fixture.get("/api/collections/bank/bank/history/" + id); assertEquals(200, history.status()); assertEquals(Json.object().put("major", 1).put("minor", 0), history.body().path("apiVersion"));
+        assertEquals(Json.object().put("major", 1).put("minor", 0), history.body().at("/page/apiVersion")); assertEquals("submitted", history.body().at("/questions/0/payload/state/status").asText());
         assertEquals("unanswered", history.body().at("/questions/1/payload/state/status").asText()); assertEquals(1, history.body().at("/questions/0/payload/state/result/score").asInt());
         assertArrayEquals(before, Files.readAllBytes(state)); assertArrayEquals(bank, Files.readAllBytes(root.resolve("question-banks/bank.json")));
     }

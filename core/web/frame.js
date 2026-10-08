@@ -15,7 +15,7 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
   let disposed=false,dirty=false,expanded=false,normalHeight='100px',viewContext=context,resolveReady,rejectReady;
   const ready=new Promise((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
   const readyTimer=setTimeout(()=>rejectReady(new Error('题型页面加载超时')),10000);
-  const flushes=new Map(),documents=new Map(),drafts=new Map();
+  const flushes=new Map(),documents=new Map(),drafts=new Map(),outlineNavigations=new Map();
   const send=value=>{if(!disposed)frame.contentWindow?.postMessage({...value,channel:'quizforge-host',session},'*');};
   function listener(event){const value=event.data;if(disposed||event.source!==frame.contentWindow||value?.channel!=='quizforge-extension'||value.session!==session)return;
     if(value.kind==='registered'){clearTimeout(readyTimer);resolveReady();}
@@ -24,6 +24,7 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
     else if(value.kind==='flushed'){const item=flushes.get(value.id);if(item){clearTimeout(item.timer);flushes.delete(value.id);if(value.ok===false)item.reject(new Error(value.error?.message||'保存未完成'));else item.resolve();}}
     else if(value.kind==='editor-draft'){const item=drafts.get(value.id);if(item){clearTimeout(item.timer);drafts.delete(value.id);if(value.ok){dirty=!!value.changed;item.resolve({draft:value.draft,changed:dirty,supported:!!value.supported});}else item.reject(new Error(value.error?.message||'编辑草稿读取失败'));}}
     else if(value.kind==='document'){const item=documents.get(value.id);if(item){clearTimeout(item.timer);documents.delete(value.id);if(value.ok){dirty=!!value.changed;item.resolve({document:value.document,changed:!!value.changed});}else item.reject(Object.assign(new Error(value.error?.message||'题目内容不完整'),{code:value.error?.code||'INVALID_DOCUMENT'}));}}
+    else if(value.kind==='outline-navigated'){const item=outlineNavigations.get(value.id);if(item){clearTimeout(item.timer);outlineNavigations.delete(value.id);if(value.ok===true)item.resolve();else item.reject(Object.assign(new Error(value.error?.message||'子题定位失败，请重试'),{code:value.error?.code||'OUTLINE_NAVIGATION_FAILED'}));}}
     else if(value.kind==='editor-dirty'){dirty=!!value.changed;onDirty?.(dirty);}
     else if(value.kind==='request'&&value.method==='editor-layout'&&typeof value.id==='string'){
       Promise.resolve().then(async()=>{
@@ -46,9 +47,21 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
   window.addEventListener('message',listener);container.append(frame);
   return {
     frame,ready,get isDirty(){return dirty;},update(next){viewContext=next;dirty=false;send({kind:'context',context:next});},
+    async navigateOutline(itemId){
+      const closedError=()=>Object.assign(new Error('题目页面已关闭'),{code:'PAGE_CLOSED'});
+      if(disposed)throw closedError();
+      if(typeof itemId!=='string'||!itemId.length||itemId.length>128||itemId!==itemId.trim()||/[\u0000-\u001f\u007f-\u009f<>]/.test(itemId))throw Object.assign(new Error('子题编号无效'),{code:'INVALID_OUTLINE_ITEM'});
+      try{await ready;}catch(error){if(disposed)throw closedError();throw error;}
+      if(disposed)throw closedError();
+      if(!bridge.api.capabilities.includes('outline-items'))throw Object.assign(new Error('这个题型页面尚未支持子题定位'),{code:'OUTLINE_UNAVAILABLE'});
+      const id=makeRequestId();return new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{outlineNavigations.delete(id);reject(Object.assign(new Error('子题定位等待超时，请重试'),{code:'OUTLINE_TIMEOUT'}));},10000);
+        outlineNavigations.set(id,{resolve,reject,timer});send({kind:'outline-navigate',id,itemId});
+      });
+    },
     getDocument({checkOnly=false}={}){if(disposed)return Promise.reject(new Error('编辑页面已关闭'));const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{documents.delete(id);reject(new Error('编辑页面读取超时，当前修改仍保留'));},10000);documents.set(id,{resolve,reject,timer});send({kind:'read-document',id,checkOnly});});},
     exportDraft(){if(disposed)return Promise.reject(new Error('编辑页面已关闭'));const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{drafts.delete(id);reject(new Error('编辑草稿读取超时，当前输入仍保留'));},16000);drafts.set(id,{resolve,reject,timer});send({kind:'read-draft',id});});},
     flush(){if(disposed)return Promise.resolve();const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{flushes.delete(id);reject(new Error('题型页面仍在保存，请稍后重试'));},16000);flushes.set(id,{resolve,reject,timer});send({kind:'flush',id});});},
-    destroy(){if(disposed)return;send({kind:'dispose'});disposed=true;if(expanded){expanded=false;try{onLayout?.({expanded:false},frame);}catch{}}clearTimeout(readyTimer);rejectReady(new Error('题型页面已关闭'));window.removeEventListener('message',listener);for(const item of flushes.values()){clearTimeout(item.timer);item.resolve();}flushes.clear();for(const map of [documents,drafts]){for(const item of map.values()){clearTimeout(item.timer);item.reject(new Error('编辑页面已关闭'));}map.clear();}frame.remove();}
+    destroy(){if(disposed)return;send({kind:'dispose'});disposed=true;if(expanded){expanded=false;try{onLayout?.({expanded:false},frame);}catch{}}clearTimeout(readyTimer);rejectReady(new Error('题型页面已关闭'));window.removeEventListener('message',listener);for(const item of flushes.values()){clearTimeout(item.timer);item.resolve();}flushes.clear();for(const map of [documents,drafts]){for(const item of map.values()){clearTimeout(item.timer);item.reject(new Error('编辑页面已关闭'));}map.clear();}for(const item of outlineNavigations.values()){clearTimeout(item.timer);item.reject(Object.assign(new Error('题目页面已关闭'),{code:'PAGE_CLOSED'}));}outlineNavigations.clear();frame.remove();}
   };
 }

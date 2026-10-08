@@ -29,6 +29,7 @@ final class RuleEngine {
     }
     JsonNode run(Library.Extension extension, ObjectNode request) {
         request.set("apiVersion", ExtensionApi.version());
+        request.put("outlineItemsDeclared", extension.outlineItemsDeclared());
         request.put("rules", extension.rules().toString()); request.put("questionSchema", extension.questionSchema().toString()); request.put("answerSchema", extension.answerSchema().toString());
         List<String> command = new ArrayList<>(List.of(node, "--max-old-space-size=96", "--disable-proto=throw"));
         Path runner = codeRoot.resolve("server/rules-runner.cjs");
@@ -55,6 +56,7 @@ final class RuleEngine {
             if (overflow.get()) throw new ApiException(422, "RULE_OUTPUT_LIMIT", "Extension rules exceeded their output limit");
             JsonNode response = Json.MAPPER.readTree(bytes);
             if (response != null && response.path("code").asText().equals("SCORE_UNAVAILABLE")) throw new ApiException(422, "SCORE_UNAVAILABLE", "题型拓展尚未提供有效的分值接口，请实现 getScore 并返回 score、maxScore。");
+            if (response != null && response.path("code").asText().equals("INVALID_OUTLINE_ITEMS")) throw new ApiException(422, "INVALID_OUTLINE_ITEMS", "题型拓展的小题目录无效，请检查 outline-items 声明及 getOutlineItems 返回的唯一 id 和纯文本 label。");
             if (process.exitValue() != 0 || response == null || !response.path("ok").asBoolean()) throw new ApiException(422, "RULE_REJECTED", "Extension rules rejected or could not process this data");
             return response.get("data");
         } catch (ApiException e) { throw e; }

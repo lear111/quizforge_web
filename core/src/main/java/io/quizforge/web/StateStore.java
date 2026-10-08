@@ -667,7 +667,7 @@ final class StateStore {
     private ObjectNode overviewValue(Library.Collection collection, ObjectNode persisted) {
         ObjectNode result = Json.object().put("id", collection.id()).put("title", collection.title()).put("kind", collection.kind()); collectionMetadata(result, collection);
         ArrayNode questions = result.putArray("questions"); ObjectNode states = result.putObject("states");
-        for (Library.Question question : collection.questions()) { ObjectNode row = Json.object().put("id", question.id()).put("title", question.title()); row.set("type", extensionMetadata(collection.extensionFor(question))); questions.add(row); states.set(question.id(), publicState(questionState(persisted, collection, question))); } return result;
+        for (Library.Question question : collection.questions()) { ObjectNode row = Json.object().put("id", question.id()).put("title", question.title()); row.set("type", extensionMetadata(collection.extensionFor(question))); OutlineItems.attach(row, question.outlineItems()); questions.add(row); states.set(question.id(), publicState(questionState(persisted, collection, question))); } return result;
     }
     private static void validateHistory(JsonNode record) throws IOException {
         ExtensionApi.requireHistory(record);

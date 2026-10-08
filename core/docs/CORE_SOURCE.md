@@ -7,7 +7,7 @@
 | 启动、HTTP、局域网鉴权 | `Main.java`、`QuizForgeServer.java` | 监听器、Host/Origin、密码、请求体与响应限制 |
 | 题库和题目路由 | `CollectionRoutes.java` | 将请求交给对应业务服务，不绕过统一写入检查 |
 | 题库和拓展包 | `Library.java` | 扫描、版本绑定、校验、页面资源和编辑计划 |
-| 更新兼容契约 | `ExtensionApi.java` | API v1.0、Manifest 需求和题库格式校验；缺省旧声明，页面/历史按各自运行版本加载 |
+| 更新兼容契约 | `ExtensionApi.java` | API v1.0／v1.1、Manifest 需求和题库格式校验；缺省旧声明，页面/历史按各自运行版本加载 |
 | 混合题型批处理 | `RuleBatches.java` | 按拓展 ID／版本／签名分组，顺序有界分块，结果恢复原题序 |
 | 作答与历史事务 | `StateStore.java`、`HistoryRounds.java`、`EditJournal.java` | 修订号、幂等回执、保存、历史冻结、恢复；事务继续集中在状态仓库 |
 | 通用 AI 任务 | `AiGradingService.java`、`AiGradingProtocol.java` | 排队、重试、候选、过期检查、确认，以及最终反馈 |
@@ -46,9 +46,13 @@ flowchart LR
 
 题库引用与新状态使用已有编辑恢复日志逐库共同提交，日志落盘后的中断会向前恢复；多个题库并非一次整体事务。备份写入失败或目录冲突时安全拒绝。再次启动会跳过已升级题库。此规则针对已知兼容的简答版本，不是任意拓展的自动迁移机制。
 
+## 小题导航
+
+`getOutlineItems(data)` 是 API 1.1 的可选纯规则接口，集合加载时批量生成元数据并缓存。`outline-navigation.js` 在复用或打开父题后调用页面的 `onOutlineNavigate(itemId)`；历史从冻结集合读取小题顺序和标签。现有拓展不改动，父题状态与评分结构不变。完整接口见 [SUBQUESTION_OUTLINE.md](SUBQUESTION_OUTLINE.md)。
+
 ## API 与题库版本兼容
 
-完整政策见 [COMPATIBILITY.md](COMPATIBILITY.md)。当前仅有 API v1.0 与 bank 顶层格式 v1；Manifest 缺少 `requiresApi`、题库缺少 `formatVersion`、旧历史页缺少 `apiVersion` 时都按 v1 读取而不修改文件。显式不兼容声明在拓展规则执行前拒绝。页面与编辑页面携带 `apiVersion:{major:1,minor:0}`；历史保存各页面自己的版本。浏览器 `QF.api` 公布该运行版本与能力列表，操作权限仍由 context.capabilities 控制。题库/拓展内容签名继续遵守既有字节与数据规则，不能为添加新字段重建旧包。
+完整政策见 [COMPATIBILITY.md](COMPATIBILITY.md)。当前支持 API v1.0／v1.1 与 bank 顶层格式 v1；Manifest 缺少 `requiresApi`、题库缺少 `formatVersion`、旧历史页缺少 `apiVersion` 时都按 v1 读取而不修改文件。显式不兼容声明在拓展规则执行前拒绝。页面与编辑页面携带 `apiVersion:{major:1,minor:1}`；历史保存各页面自己的版本。浏览器 `QF.api` 公布该运行版本与能力列表，操作权限仍由 context.capabilities 控制。题库/拓展内容签名继续遵守既有字节与数据规则，不能为添加新字段重建旧包。
 
 ## 开发与验证
 

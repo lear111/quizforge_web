@@ -4,7 +4,7 @@
 
 ## 当前实现的版本
 
-应用自己的版本、拓展的 `id@version`、宿主 Extension API 版本、题库格式版本和公共 SDK 版本分别管理。当前应用支持 **Extension API 1.0** 与 **题库格式 1**，尚未实现 API v2、格式 v2、应用更新器、Hub 或任意题型之间的通用迁移。
+应用自己的版本、拓展的 `id@version`、宿主 Extension API 版本、题库格式版本和公共 SDK 版本分别管理。当前应用支持 **Extension API 1.0／1.1** 与 **题库格式 1**，尚未实现 API v2、格式 v2、应用更新器、Hub 或任意题型之间的通用迁移。
 
 新拓展可在 Manifest 中声明：
 
@@ -16,7 +16,7 @@
 }
 ```
 
-整个 `requiresApi` 缺省表示需要 API 1.0。显式声明时 `major`、`minMinor` 必填，必须是整数，分别至少为 1、0；`capabilities` 可省略，省略等于空列表。对象仅允许上述三个字段；能力须为不重复的非空字符串。当前只接受 `major:1,minMinor:0`，未来版本和未实现能力明确拒绝，不能静默当作 v1 运行。
+整个 `requiresApi` 缺省表示需要 API 1.0。显式声明时 `major`、`minMinor` 必填，必须是整数，分别至少为 1、0；`capabilities` 可省略，省略等于空列表。对象仅允许上述三个字段；能力须为不重复的非空字符串。当前接受 `major:1,minMinor:0` 或 `minMinor:1`，未来版本和未实现能力明确拒绝，不能静默当作 v1 运行。
 
 支持的能力清单：
 
@@ -31,6 +31,7 @@
 | `resources` | 内容哈希图片上传、读取 |
 | `richtext` | 使用独立的公共富文本接口和文档约定 |
 | `navigation` | 练习中的切题请求 |
+| `outline-items` | API 1.1 可选的有序小题导航，声明时需 `minMinor:1`；见 [接口说明](SUBQUESTION_OUTLINE.md) |
 | `lifecycle` | flush 与 dispose 保存/释放钩子 |
 
 能力清单说明宿主实现了哪些公共协议，不会自动让某个页面获得写入或评分权限。页面必须继续检查 context.capabilities，历史始终只读；新拓展通过 `requiresRichText` 声明富文本 API、文档格式、文档约定及能力，应用选择兼容实现。旧精确 `dependencies` 保留兼容读取。详见 [富文本服务](RICHTEXT_SERVICE.md)。

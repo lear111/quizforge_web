@@ -1,6 +1,7 @@
 // The v1 bridge is serialized into the sandbox. Keep this function self-contained.
 export function bootstrapV1(boot) {
-  let hooks,editorHooks,closed=false,context=boot.context,sequence=0;
+  let hooks,editorHooks,closed=false,context=boot.context,sequence=0,outlineQueue=Promise.resolve();
+  const outlineSupported=boot.api.capabilities.includes('outline-items');
   const resourceCache=new Map(),resourceUrls=new Set();let resourceBytes=0,editorLoading=null,contentFacade=null;
   const requests=new Map(),pending=new Set();
   const send=message=>parent.postMessage({...message,channel:'quizforge-extension',session:boot.session},'*');
@@ -13,7 +14,7 @@ export function bootstrapV1(boot) {
     return track(new Promise(resolve=>{const timer=setTimeout(()=>{requests.delete(id);resolve(fail('REQUEST_TIMEOUT','保存等待超时，请检查连接后重试'));},15000);requests.set(id,{resolve,timer});send({kind:'request',id,method,args});}));
   }
   function load(next) { context=next;try{return track(hooks?.onLoad?.(structuredClone(context)));}catch(error){send({kind:'error',message:error.message});return Promise.reject(error);} }
-  async function register(value){if(hooks)throw new Error('页面只能注册一次');if(!value||typeof value.onLoad!=='function')throw new TypeError('必须提供 onLoad');hooks=value;await load(context);if(editorHooks&&boot.editorDraft!=null){if(typeof editorHooks.importDraft!=='function')throw new Error('拓展不支持恢复编辑草稿');await editorHooks.importDraft(structuredClone(boot.editorDraft));}send({kind:'registered'});resize();return structuredClone(context);}
+  async function register(value){if(hooks)throw new Error('页面只能注册一次');if(!value||typeof value.onLoad!=='function')throw new TypeError('必须提供 onLoad');if(outlineSupported&&value.onOutlineNavigate!==undefined&&typeof value.onOutlineNavigate!=='function')throw new TypeError('onOutlineNavigate 必须是函数');hooks=value;await load(context);if(editorHooks&&boot.editorDraft!=null){if(typeof editorHooks.importDraft!=='function')throw new Error('拓展不支持恢复编辑草稿');await editorHooks.importDraft(structuredClone(boot.editorDraft));}send({kind:'registered'});resize();return structuredClone(context);}
   const unwrap=reply=>{if(!reply?.ok)throw Object.assign(new Error(reply?.error?.message||'资源操作失败'),{code:reply?.error?.code});return reply.data;};
   const resources=Object.freeze({
     async put(file){if(closed)throw new Error('页面已关闭');if(!file||file.size>4*1024*1024||!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))throw new Error('请选择不超过 4 MiB 的 PNG、JPEG、WebP 或 GIF 图片');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('无法读取图片'));reader.readAsDataURL(file);});return unwrap(await invoke('resource-put',{mime:file.type,data}));},
@@ -65,6 +66,19 @@ export function bootstrapV1(boot) {
   });
   addEventListener('message',event=>{const value=event.data;if(event.source!==parent||value?.channel!=='quizforge-host'||value.session!==boot.session)return;
     if(value.kind==='reply'){const item=requests.get(value.id);if(item){clearTimeout(item.timer);requests.delete(value.id);item.resolve(value.reply);}}
+    else if(value.kind==='outline-navigate'&&!closed&&typeof value.id==='string'){
+      const reply=(ok,error)=>{if(!closed)send({kind:'outline-navigated',id:value.id,ok,...(error?{error}:{})});};
+      const itemId=value.itemId;
+      if(typeof itemId!=='string'||!itemId.length||itemId.length>128||itemId!==itemId.trim()||/[\u0000-\u001f\u007f-\u009f<>]/.test(itemId)){reply(false,{code:'INVALID_OUTLINE_ITEM',message:'子题编号无效'});return;}
+      if(!outlineSupported||typeof hooks?.onOutlineNavigate!=='function'){reply(false,{code:'OUTLINE_UNAVAILABLE',message:'这个题型尚未提供子题定位功能'});return;}
+      // Preserve request order when a hook switches an internal child view
+      // asynchronously. Disposal cancels queued calls and their late replies.
+      outlineQueue=outlineQueue.catch(()=>{}).then(async()=>{
+        if(closed)return;
+        try{const located=await hooks.onOutlineNavigate(itemId);if(!closed){if(located===false)reply(false,{code:'OUTLINE_ITEM_NOT_FOUND',message:'子题已不存在，请刷新题目大纲或先保存编辑'});else{resize();reply(true);}}}
+        catch(error){reply(false,{code:typeof error?.code==='string'?error.code:'OUTLINE_NAVIGATION_FAILED',message:error?.message||'子题定位失败，请重试'});}
+      });
+    }
     else if(value.kind==='context')load(value.context).catch(error=>send({kind:'error',message:error.message}));
     else if(value.kind==='flush'){(async()=>{try{await hooks?.onFlush?.();while(pending.size)await Promise.allSettled([...pending]);send({kind:'flushed',id:value.id,ok:true});}catch(error){send({kind:'flushed',id:value.id,ok:false,error:{message:error.message||'编辑内容尚未保存'}});}})();}
     else if(value.kind==='read-draft'&&!closed){(async()=>{try{await hooks?.onFlush?.();const supported=typeof editorHooks?.exportDraft==='function';const changed=editorHooks?.hasChanges?!!(await editorHooks.hasChanges()):true;const draft=supported?structuredClone(await editorHooks.exportDraft()):null;send({kind:'editor-draft',id:value.id,ok:true,supported,draft,changed});}catch(error){send({kind:'editor-draft',id:value.id,ok:false,error:{message:error.message||'编辑草稿读取失败'}});}})();}

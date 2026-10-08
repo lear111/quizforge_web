@@ -143,6 +143,8 @@ final class HistoryRounds {
         var ids = new HashSet<String>(); int submitted = 0, graded = 0, pending = 0; BigDecimal score = BigDecimal.ZERO, maxScore = BigDecimal.ZERO;
         JsonNode outline = record.at("/collection/questions"); if (!outline.isArray() || outline.size() != record.path("questions").size()) throw new IOException("Invalid frozen outline");
         for (int i = 0; i < outline.size(); i++) {
+            if (outline.get(i).has("outlineItems")) try { OutlineItems.read(outline.get(i).get("outlineItems")); }
+            catch (ApiException e) { throw new IOException("Invalid frozen outline items"); }
             JsonNode entry = record.path("questions").get(i), payload = entry.path("payload"), state = payload.path("state"); String id = payload.at("/question/id").asText();
             if (entry.has("page")) validatePage(entry.path("page"));
             if (!payload.isObject() || !id.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}") || !ids.add(id) || !id.equals(outline.get(i).path("id").asText())

@@ -44,14 +44,14 @@ test('legacy rules and explicit v1 rules share an immutable host contract withou
   const request={op:'project',data:{secret:'yes'},state:{submitted:false,result:null}};
   const legacy=call(files,request).body,declared=call(files,{...request,apiVersion:{major:1,minor:0,description:'v1'}}).body;
   assert.deepEqual(legacy,declared);
-  assert.deepEqual(legacy.data.projected,{major:1,minor:0,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
+  assert.deepEqual(legacy.data.projected,{major:1,minor:1,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
   const submitted=call(files,{op:'submit',data:{secret:'yes'},answer:'yes',apiVersion:{major:1,minor:0}}).body;
   assert.equal(submitted.data.result.score,1);assert.equal(submitted.data.projected.reveal,'yes');
 });
 
 test('invalid and future rule API versions are rejected before reading extension code',t=>{
   const files=fixture(t,normal);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:1}]){
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:2}]){
     const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
     assert.equal(result.ok,false);assert.equal(result.code,'UNSUPPORTED_API_VERSION');
   }
@@ -127,7 +127,7 @@ test('pending results cannot smuggle a zero score or a correctness boolean',t=>{
 test('AI preparation is an optional server rule hook and raw data never leaks through capability probing',t=>{
   const hook=manual.replace('project(data,state)', "prepareAiGrading(data,answer){return {protocolVersion:1,question:[{type:'text',text:'prompt'}],answer:[{type:'text',text:answer}],referenceAnswer:[{type:'text',text:data.secret}],rubric:[{type:'text',text:'rubric'}],maxScore:5,scoreStep:0.5};},project(data,state)");
   const files=fixture(t,hook);
-  assert.deepEqual(call(files,{op:'capabilities'}).body.data,{canAiGrade:true});
+  assert.deepEqual(call(files,{op:'capabilities'}).body.data,{canAiGrade:true,canOutlineItems:false});
   const prepared=call(files,{op:'prepareAiGrading',data:{secret:'private reference'},answer:'submitted answer',state:{status:'submitted',submitted:true,result:{gradingStatus:'pending',score:null,maxScore:5,correct:null,feedback:null}}});
   assert.equal(prepared.body.ok,true); assert.equal(prepared.body.data.gradingInput.referenceAnswer[0].text,'private reference'); assert.equal(prepared.body.data.maxScore,5);
   assert.equal(call(fixture(t,normal),{op:'capabilities'}).body.data.canAiGrade,false);
@@ -143,4 +143,30 @@ test('AI scoring consistency rejects mismatched getScore without extending legac
     for(const payload of [pending,review]) { const result=call(files,payload).body; assert.equal(result.ok,false); assert.equal(result.code,'SCORE_UNAVAILABLE'); }
   }
   assert.equal(call(fixture(t,manual.replace('score:state.submitted?state.result.score:0', 'score:0')),review).body.ok,true);
+});
+
+test('outline metadata is opt-in, ordered, bounded and independent of parent grading',t=>{
+  const hook=normal.replace('project(data,state)', "getOutlineItems(){return [{id:'part-2',label:'(2)'},{id:'part-1',label:'(1)'},{id:'读写题',label:'补充题'}];},project(data,state)");
+  const files=fixture(t,hook), contract={apiVersion:{major:1,minor:1},outlineItemsDeclared:true};
+  const probe=call(files,{...contract,op:'validateBank',questions:[{secret:'yes'}],withCapabilities:true}).body;
+  assert.equal(probe.ok,true);assert.equal(probe.data.capabilities.canOutlineItems,true);
+  const metadata=call(files,{...contract,op:'outlineBatch',questions:[{secret:'yes'},{secret:'other'}]}).body;
+  assert.equal(metadata.ok,true);assert.equal(metadata.data.outlineItems.length,2);
+  assert.deepEqual(metadata.data.outlineItems[0],[{id:'part-2',label:'(2)'},{id:'part-1',label:'(1)'},{id:'读写题',label:'补充题'}]);
+  assert.equal(JSON.stringify(metadata).includes('yes'),false);
+  const submitted=call(files,{...contract,op:'submit',data:{secret:'yes'},answer:'yes'}).body;
+  assert.equal(submitted.ok,true);assert.equal(submitted.data.result.score,1);assert.equal(submitted.data.result.maxScore,1);
+  const missing=call(fixture(t,normal),{...contract,op:'outlineBatch',questions:[{secret:'yes'}]}).body;
+  assert.deepEqual(missing.data,{outlineItems:[[]]});
+  for(const payload of [{op:'validateBank',questions:[{secret:'yes'}]}, {...contract,apiVersion:{major:1,minor:0},op:'outlineBatch',questions:[{secret:'yes'}]}, {...contract,outlineItemsDeclared:false,op:'capabilities'}]) {
+    const rejected=call(files,payload).body;assert.equal(rejected.ok,false);assert.equal(rejected.code,'INVALID_OUTLINE_ITEMS');
+  }
+});
+
+test('outline hook rejects malformed arrays, unsafe labels, duplicate ids and hidden fields',t=>{
+  const contract={apiVersion:{major:1,minor:1},outlineItemsDeclared:true,op:'outlineBatch',questions:[{secret:'yes'}]};
+  for(const expression of ['undefined','null','{}',"[{id:'same',label:'1'},{id:'same',label:'2'}]","[{id:'x',label:'<b>1</b>'}]","[{id:'x',label:'1',secret:'hidden'}]","[{id:' x',label:'1'}]","[{id:'x',label:'\\n'}]","[{id:'x'.repeat(129),label:'1'}]","[{id:'x',label:'1'.repeat(81)}]","Array.from({length:101},(_,i)=>({id:String(i),label:'1'}))"]) {
+    const hook=normal.replace('project(data,state)',`getOutlineItems(){return ${expression};},project(data,state)`);
+    const result=call(fixture(t,hook),contract).body;assert.equal(result.ok,false,expression);assert.equal(result.code,'INVALID_OUTLINE_ITEMS',expression);
+  }
 });

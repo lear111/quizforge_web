@@ -5,6 +5,7 @@ import {mountWhiteboard} from './whiteboard.js';
 import {createWriteQueue,createDraftBuffer} from './write-queue.js';
 import {createQuestionCache} from './question-cache.js';
 import {consecutiveQuestionGroups} from './outline-groups.js';
+import {navigateOutlineTarget} from './outline-navigation.js';
 import {practiceViewport} from './view-camera.js';
 import {createHistoryView,historyProgress} from './history-view.js';
 import {createEditorSession} from './editor-session.js';
@@ -133,7 +134,7 @@ async function showQuestion(pane,qid,{payload:prepared,collection:descriptor=pan
     disposeScoreSummary(pane);
     pane.collection=descriptor;pane.needsRefresh=false;pane.view='practice';pane.historyEntry=null;pane.historyView=null;pane.historyQuestion=null;pane.historyQuestionId=null;pane.editState=null;
     pane.node.classList.remove('is-edit');pane.node.classList.toggle('is-draft',pane.draftMode);
-    pane.questionId=qid;pane.ink.clear();pane.payload=payload;pane.renderedContentVersion=payload.stamp?.contentVersion;pane.collection.states[qid]=payload.state;
+    pane.questionId=qid;pane.outlineItemId=null;pane.ink.clear();pane.payload=payload;pane.renderedContentVersion=payload.stamp?.contentVersion;pane.collection.states[qid]=payload.state;
     pane.plugin?.destroy();pane.plugin=null;pane.frameHost.replaceChildren();
     pane.viewport.scrollTop=0;pane.viewport.scrollLeft=0;
     const zoom=Math.max(.25,Math.min(1,(pane.viewport.clientWidth-24)/760));
@@ -196,7 +197,7 @@ async function showScoreSummary(pane){
   try{
     const summary=history?pane.historyEntry.summary:await request(`${collectionPath(pane.kind,pane.id)}/summary`);
     disposeEditorSession(pane);disposeScoreSummary(pane);pane.plugin?.destroy();pane.plugin=null;pane.frameHost.replaceChildren();
-    pane.view=history?'history':'summary';pane.summaryShown=true;pane.scoreSummary=summary;
+    pane.view=history?'history':'summary';pane.summaryShown=true;pane.outlineItemId=null;pane.scoreSummary=summary;
     pane.node.classList.remove('is-edit','is-draft');pane.node.classList.add('is-summary');pane.tools.hidden=true;
     pane.whiteboard.load(null);pane.whiteboard.setMode('practice');pane.viewport.scrollTop=0;pane.viewport.scrollLeft=0;
     pane.summaryCard=mountPracticeSummary(pane.frameHost,summary,{readonly:history,onFinish:value=>finishPractice(pane,value)});
@@ -295,7 +296,7 @@ async function showHistoryQuestion(pane,qid){
   try{
     const assets=await prepareAssets(entry.page);
     disposeScoreSummary(pane);
-    pane.plugin?.destroy();pane.plugin=null;pane.frameHost.replaceChildren();pane.historyQuestion=entry;pane.historyQuestionId=qid;
+    pane.plugin?.destroy();pane.plugin=null;pane.frameHost.replaceChildren();pane.historyQuestion=entry;pane.historyQuestionId=qid;pane.outlineItemId=null;
     pane.node.classList.remove('is-edit','is-draft');pane.tools.hidden=true;pane.viewport.scrollTop=0;pane.viewport.scrollLeft=0;
     pane.whiteboard.load(entry.payload.draft);pane.whiteboard.setMode('practice');
     pane.historyQuestion.page=assets;
@@ -342,7 +343,7 @@ async function showEditorQuestion(pane,qid){
     }
     // Invalid intermediate forms are persisted before the previous iframe
     // is released; only the target editor remains mounted.
-    pane.editorSession=session;pane.view='edit';pane.questionId=qid;pane.editState=entry.value;pane.historyEntry=null;pane.historyView=null;pane.historyQuestion=null;pane.historyQuestionId=null;pane.plugin=entry.plugin;
+    pane.editorSession=session;pane.view='edit';pane.questionId=qid;pane.outlineItemId=null;pane.editState=entry.value;pane.historyEntry=null;pane.historyView=null;pane.historyQuestion=null;pane.historyQuestionId=null;pane.plugin=entry.plugin;
     entry.container.hidden=false;pane.node.classList.remove('is-draft');pane.node.classList.add('is-edit');pane.tools.hidden=true;
     pane.whiteboard.setMode('practice');pane.viewport.scrollTop=entry.scrollTop;pane.viewport.scrollLeft=0;
     syncPracticeCamera(pane);saveStatus('编辑中');renderOutline();
@@ -467,8 +468,17 @@ function renderOutline(){
     for(const {question:row,number}of group.items){
     const state=stateFor(pane,row.id);let status=roundScores.has(row.id)&&!roundScores.get(row.id).submitted?'unanswered':state.status;
     if(status==='submitted')status=state.result?.gradingStatus==='pending'?'pending-review':state.result?.correct?'correct':'incorrect';
-    const button=el('button',`outline-item ${status}${row.id===qid?' active':''}`,String(number));button.dataset.questionId=row.id;button.setAttribute('aria-current',row.id===qid?'true':'false');button.setAttribute('aria-label',`第 ${number} 题：${row.title}`);button.title=`第 ${number} 题 · ${row.title}`;
-    button.addEventListener('click',()=>transitionTo(async()=>{await navigateQuestion(pane,row.id);closeDrawers();}));matrix.append(button);
+    const children=row.outlineItems||[],parentActive=row.id===qid&&(!children.length||!pane.outlineItemId);
+    const button=el('button',`outline-item ${status}${parentActive?' active':''}`,String(number));button.type='button';button.dataset.questionId=row.id;button.setAttribute('aria-current',parentActive?'true':'false');button.setAttribute('aria-label',`第 ${number} 题：${row.title}`);button.title=`第 ${number} 题 · ${row.title}`;
+    const jump=itemId=>transitionTo(async()=>{await navigateOutlineTarget(pane,row.id,itemId,{navigateQuestion,renderOutline});closeDrawers();});
+    button.addEventListener('click',()=>jump(null));
+    if(!children.length){matrix.append(button);continue;}
+    const parent=el('div','outline-parent'),childMatrix=el('div','outline-child-matrix');parent.append(button,childMatrix);matrix.append(parent);
+    for(const item of children){
+      const selected=row.id===qid&&pane.outlineItemId===item.id,child=el('button',`outline-item outline-child${selected?' active':''}`,item.label);
+      child.type='button';child.dataset.questionId=row.id;child.dataset.outlineItemId=item.id;child.title=`第 ${number} 题 · ${item.label}`;child.setAttribute('aria-label',`第 ${number} 题，小题 ${item.label}`);child.setAttribute('aria-current',selected?'true':'false');
+      child.addEventListener('click',()=>jump(item.id));childMatrix.append(child);
+    }
     }
   }
   if(hasScoreSummary(pane)){const button=el('button',`outline-score-summary${pane.summaryShown?' active':''}`,'分值汇总');button.addEventListener('click',()=>transitionTo(async()=>{await showScoreSummary(pane);closeDrawers();}));root.append(button);}

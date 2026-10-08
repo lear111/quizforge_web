@@ -15,7 +15,7 @@ test('version selection defaults old pages to v1 and refuses malformed or newer 
   for(const version of [null,'1.0',[],{},1,{major:1},{major:1,minor:-1},{major:'1',minor:0},{major:0,minor:0},{major:1,minor:0.5}]) {
     assert.throws(()=>resolveExtensionApi(version),error=>error.code==='INVALID_API_VERSION');
   }
-  for(const version of [{major:2,minor:0},{major:1,minor:1}]) {
+  for(const version of [{major:2,minor:0},{major:1,minor:2}]) {
     assert.throws(()=>resolveExtensionApi(version),error=>error.code==='UNSUPPORTED_API_VERSION'&&error.message.includes(`${version.major}.${version.minor}`));
   }
 });
@@ -50,7 +50,7 @@ test('mount rejects unsupported versions before creating an iframe, timer or lis
     document:{createElement(){created++;}},window:{addEventListener(){listeners++;}},setTimeout(){timers++;}};
   const source=frameSource.replace(/^import[^\r\n]*\r?\n/gm,'').replace('export function mountExtension','function mountExtension');
   vm.runInNewContext(`${source}\nglobalThis.mount=mountExtension;`,sandbox);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:1},null]) {
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:2},null]) {
     assert.throws(()=>sandbox.mount({append(){appended++;}},{apiVersion}, {},{}),error=>['UNSUPPORTED_API_VERSION','INVALID_API_VERSION'].includes(error.code));
   }
   assert.deepEqual([created,timers,listeners,appended],[0,0,0,0]);

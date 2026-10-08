@@ -16,7 +16,8 @@ function fixture(t,folder,mode,context,{richtext=false}={}) {
   dom.window.structuredClone=structuredClone;
   dom.window.ResizeObserver=class{observe(){}disconnect(){}};
   const bridge=resolveExtensionApi(); // Unmodified legacy manifests/pages have no version declaration.
-  const boot={session:'old-extension',context,api:bridge.api};
+  const dependencies=JSON.parse(read(`../../extensions/${folder}/manifest.json`)).dependencies||[];
+  const boot={session:'old-extension',context,api:bridge.api,dependencies};
   dom.window.eval(`(${bridge.bootstrap.toString()})(${JSON.stringify(boot)});`);
   if(richtext)dom.window.eval(read('../shared/richtext/1.0.0/richtext.js'));
   const receive=value=>dom.window.dispatchEvent(new dom.window.MessageEvent('message',{source:parent,data:{...value,channel:'quizforge-host',session:boot.session}}));

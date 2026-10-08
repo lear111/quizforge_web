@@ -19,16 +19,19 @@ import java.util.Map;
 final class Library {
     record Dependency(String id, String version) { }
     record Extension(String id, String version, String name, String description, Path directory,
-                     Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies, ObjectNode contentApi, String providerRevision) {
+                     Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies, ObjectNode contentApi, String providerRevision, boolean outlineItemsDeclared) {
         Extension(String id, String version, String name, String description, Path directory, Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint) {
             this(id, version, name, description, directory, entry, script, style, rules, questionSchema, answerSchema, examples, fingerprint, List.of());
         }
         Extension(String id, String version, String name, String description, Path directory, Path entry, Path script, Path style, Path rules, Path questionSchema, Path answerSchema, Path examples, String fingerprint, List<Dependency> dependencies) {
-            this(id, version, name, description, directory, entry, script, style, rules, questionSchema, answerSchema, examples, fingerprint, dependencies, null, "");
+            this(id, version, name, description, directory, entry, script, style, rules, questionSchema, answerSchema, examples, fingerprint, dependencies, null, "", false);
         }
     }
-    record Question(String id, String title, JsonNode data, String fingerprint, Extension extension) {
+    record OutlineItem(String id, String label) { }
+    record Question(String id, String title, JsonNode data, String fingerprint, Extension extension, List<OutlineItem> outlineItems) {
+        Question { outlineItems = List.copyOf(outlineItems); }
         Question(String id, String title, JsonNode data, String fingerprint) { this(id, title, data, fingerprint, null); }
+        Question(String id, String title, JsonNode data, String fingerprint, Extension extension) { this(id, title, data, fingerprint, extension, List.of()); }
     }
     record EditPlan(Path path, byte[] before, byte[] after, Collection collection, Question question) { }
     record Collection(String id, String title, String description, String kind, Extension extension, List<Question> questions,
@@ -51,7 +54,7 @@ final class Library {
             return value;
         }
         private static Bindings bindings(Extension extension, List<Question> questions) {
-            List<Question> resolved = questions.stream().map(q -> q.extension() == null && extension != null ? new Question(q.id(), q.title(), q.data(), q.fingerprint(), extension) : q).toList();
+            List<Question> resolved = questions.stream().map(q -> q.extension() == null && extension != null ? new Question(q.id(), q.title(), q.data(), q.fingerprint(), extension, q.outlineItems()) : q).toList();
             var values = new LinkedHashMap<String, Extension>();
             for (Question question : resolved) {
                 Extension value = question.extension(); if (value == null) throw ApiException.bad("Question extension is missing");
@@ -309,7 +312,7 @@ final class Library {
         }
         RichTextService.Resolution selected = dependencies(manifest);
         return new Extension(id, version, Json.text(manifest, "name", 300), optional(manifest, "description", 4000), folder,
-                assets.get(0), assets.get(1), assets.get(2), assets.get(3), assets.get(4), assets.get(5), assets.get(6), extensionFingerprint(folder, assets), selected.dependencies(), selected.contentApi(), selected.revision());
+                assets.get(0), assets.get(1), assets.get(2), assets.get(3), assets.get(4), assets.get(5), assets.get(6), extensionFingerprint(folder, assets), selected.dependencies(), selected.contentApi(), selected.revision(), ExtensionApi.outlineItemsDeclared(manifest));
     }
     private static String extensionFingerprint(Path folder, List<Path> assets) throws IOException {
         try {
@@ -349,7 +352,7 @@ final class Library {
         }
         RuleBatches.validate(engine, list);
         Extension collectionExtension = kind.equals("extension") ? extension : perQuestion || fallback == null ? null : fallback;
-        return new Collection(id, Json.text(raw, "title", 300), optional(raw, "description", 4000), kind, collectionExtension, List.copyOf(list));
+        return new Collection(id, Json.text(raw, "title", 300), optional(raw, "description", 4000), kind, collectionExtension, RuleBatches.outline(engine, list));
     }
     private static Extension resolveExtension(JsonNode reference, Map<String, Extension> available) {
         if (reference == null || !reference.isObject()) throw ApiException.bad("Invalid extension reference");

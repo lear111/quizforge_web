@@ -8,16 +8,17 @@ const LIMIT = 8 * 1024 * 1024;
 // Public rule contracts evolve independently of application releases. Retain
 // this v1 registration when a later major adds a separate implementation.
 const ruleApis = new Map([[1, {
-  minor: 0,
+  minor: 1,
   register(run) {
     run(`globalThis.__type = null; globalThis.QF = Object.freeze({
-      api:Object.freeze({major:1,minor:0,capabilities:Object.freeze([
+      api:Object.freeze({major:1,minor:1,capabilities:Object.freeze([
         'practice','editor','editor-drafts','score','manual-review','ai-grading',
-        'resources','richtext','navigation','lifecycle'
+        'resources','richtext','navigation','lifecycle','outline-items'
       ])}),
       defineType(type) {
         if (__type || !type || typeof type.project !== 'function' || typeof type.grade !== 'function') throw Error('Invalid rule registration');
         for (const name of ['validateQuestion','validateAnswer','getScore','review','prepareAiGrading']) if (type[name] != null && typeof type[name] !== 'function') throw Error('Invalid validator');
+        if (type.getOutlineItems != null && typeof type.getOutlineItems !== 'function') { const error = new Error('Invalid outline hook'); error.code = 'INVALID_OUTLINE_ITEMS'; throw error; }
         globalThis.__type = type;
       }
     });`);
@@ -32,7 +33,7 @@ function selectRuleApi(value) {
   }
   const api = ruleApis.get(value.major);
   if (!api || value.minor > api.minor) {
-    const error = new Error('Unsupported rule API version; this runner supports v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
+    const error = new Error('Unsupported rule API version; this runner supports v1.1 and v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
   }
   return api;
 }
@@ -46,6 +47,7 @@ process.stdin.on('end', () => {
   try {
     const request = JSON.parse(input);
     const api = selectRuleApi(request.apiVersion);
+    const requestedMinor = request.apiVersion === undefined ? 0 : request.apiVersion.minor;
     const read = path => {
       const stat = fs.statSync(path);
       if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('Rule asset exceeds limit');
@@ -59,6 +61,9 @@ process.stdin.on('end', () => {
     api.register(run);
     new vm.Script(read(request.rules), { filename: 'extension-rules.js' }).runInContext(context, { timeout: 650, displayErrors: false });
     if (!run('Boolean(__type)')) throw new Error('Missing rule registration');
+    const canOutlineItems = run('typeof __type.getOutlineItems === "function"');
+    const outlineError = () => { const error = new Error('Invalid outline items or undeclared outline-items capability'); error.code = 'INVALID_OUTLINE_ITEMS'; throw error; };
+    if (canOutlineItems && (request.outlineItemsDeclared !== true || requestedMinor < 1)) outlineError();
     const set = value => run(`globalThis.__input = JSON.parse(${JSON.stringify(JSON.stringify(value))});`);
     const invoke = expression => JSON.parse(run(`JSON.stringify(${expression})`));
     const validateQ = data => {
@@ -82,11 +87,30 @@ process.stdin.on('end', () => {
     };
     let output;
     if (request.op === 'capabilities') {
-      output = { canAiGrade: run('typeof __type.prepareAiGrading === "function" && typeof __type.review === "function"') };
+      output = { canAiGrade: run('typeof __type.prepareAiGrading === "function" && typeof __type.review === "function"'), canOutlineItems };
     } else if (request.op === 'validateBank') {
       if (!Array.isArray(request.questions) || request.questions.length > 10000) throw new Error('Invalid question list');
       for (const question of request.questions) validateQ(question);
       output = { valid: true };
+    } else if (request.op === 'outlineBatch') {
+      if (requestedMinor < 1 || request.outlineItemsDeclared !== true) outlineError();
+      if (!Array.isArray(request.questions) || request.questions.length > 10000) outlineError();
+      const outlineItems = [];
+      const plain = (value, maximum) => typeof value === 'string' && value.length > 0 && value.length <= maximum && value === value.trim() && !/[\u0000-\u001f\u007f-\u009f<>]/u.test(value);
+      for (const question of request.questions) {
+        validateQ(question); set({ data: question });
+        let items;
+        try { items = canOutlineItems ? invoke('__type.getOutlineItems(__input.data)') : []; }
+        catch { outlineError(); }
+        if (!Array.isArray(items) || items.length > 100) outlineError();
+        const ids = new Set();
+        for (const item of items) {
+          if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).length !== 2 || !plain(item.id, 128) || !plain(item.label, 80) || ids.has(item.id)) outlineError();
+          ids.add(item.id);
+        }
+        outlineItems.push(items);
+      }
+      output = { outlineItems };
     } else if (request.op === 'scoreBatch') {
       if (!Array.isArray(request.questions) || request.questions.length > 10000) throw new Error('Invalid scoring list');
       const scores = [];
@@ -152,13 +176,13 @@ process.stdin.on('end', () => {
       } else if (request.op === 'validateAnswer') output = { valid: true };
       else throw new Error('Unknown rule operation');
     }
-    if (request.withCapabilities === true) output.capabilities = {canAiGrade:run('typeof __type.prepareAiGrading === "function" && typeof __type.review === "function"')};
+    if (request.withCapabilities === true) output.capabilities = {canAiGrade:run('typeof __type.prepareAiGrading === "function" && typeof __type.review === "function"'),canOutlineItems};
     const encoded = JSON.stringify({ ok: true, data: output });
     if (Buffer.byteLength(encoded) > 2 * 1024 * 1024) throw new Error('Output limit exceeded');
     process.stdout.write(encoded);
   } catch (error) {
     // Error stacks and paths stay inside the process. Java returns a bounded generic error.
-    process.stdout.write(JSON.stringify({ ok: false, code: ['SCORE_UNAVAILABLE','INVALID_API_VERSION','UNSUPPORTED_API_VERSION'].includes(error.code) ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
+    process.stdout.write(JSON.stringify({ ok: false, code: ['SCORE_UNAVAILABLE','INVALID_API_VERSION','UNSUPPORTED_API_VERSION','INVALID_OUTLINE_ITEMS'].includes(error.code) ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
     process.exitCode = 1;
   }
 });

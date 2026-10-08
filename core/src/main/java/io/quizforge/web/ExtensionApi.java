@@ -10,12 +10,19 @@ import java.util.Set;
 final class ExtensionApi {
     private record Contract(int minor, Set<String> capabilities) { }
     // A new major requires its own implementation and compatibility tests before registration.
-    private static final Map<Integer, Contract> CONTRACTS = Map.of(1, new Contract(0, Set.of(
+    private static final Map<Integer, Contract> CONTRACTS = Map.of(1, new Contract(1, Set.of(
             "practice", "editor", "editor-drafts", "score", "manual-review", "ai-grading",
-            "resources", "richtext", "navigation", "lifecycle")));
+            "resources", "richtext", "navigation", "lifecycle", "outline-items")));
     private ExtensionApi() { }
 
-    static ObjectNode version() { return Json.object().put("major", 1).put("minor", 0); }
+    static ObjectNode version() { return Json.object().put("major", 1).put("minor", 1); }
+    private static ObjectNode legacyVersion() { return Json.object().put("major", 1).put("minor", 0); }
+    static boolean outlineItemsDeclared(JsonNode manifest) {
+        JsonNode requirement = manifest.path("requiresApi");
+        if (requirement.path("major").asInt() != 1 || requirement.path("minMinor").asInt() < 1) return false;
+        for (JsonNode capability : requirement.path("capabilities")) if (capability.asText().equals("outline-items")) return true;
+        return false;
+    }
 
     static void requireManifest(JsonNode manifest) {
         JsonNode requirement = manifest.get("requiresApi");
@@ -26,7 +33,7 @@ final class ExtensionApi {
         int major = requirement.path("major").asInt(), minor = requirement.path("minMinor").asInt();
         Contract contract = CONTRACTS.get(major);
         if (contract == null || minor > contract.minor())
-            throw new ApiException(422, "UNSUPPORTED_EXTENSION_API", "拓展需要 API v" + major + "." + minor + "，本应用支持 API v1.0。请安装兼容的拓展版本，或在应用支持该接口后再升级。");
+            throw new ApiException(422, "UNSUPPORTED_EXTENSION_API", "拓展需要 API v" + major + "." + minor + "，本应用支持 API v1.1。请安装兼容的拓展版本，或在应用支持该接口后再升级。");
         JsonNode capabilities = requirement.get("capabilities");
         if (capabilities == null) return;
         if (!capabilities.isArray() || capabilities.size() > 100)
@@ -37,6 +44,8 @@ final class ExtensionApi {
                 throw new ApiException(422, "INVALID_API_REQUIREMENT", "requiresApi.capabilities 必须包含不重复的非空字符串，请修正拓展声明。");
             if (!contract.capabilities().contains(capability.asText()))
                 throw new ApiException(422, "UNSUPPORTED_API_CAPABILITY", "本应用的 API v" + major + " 不支持能力「" + capability.asText() + "」。请使用兼容拓展，或向开发者反馈所需能力。");
+            if (capability.asText().equals("outline-items") && minor < 1)
+                throw new ApiException(422, "INVALID_API_REQUIREMENT", "outline-items 能力需要明确声明 requiresApi.minMinor 至少为 1。");
         }
     }
 
@@ -54,18 +63,18 @@ final class ExtensionApi {
             throw new ApiException(409, "INVALID_HISTORY_API", "历史记录的 apiVersion 声明无效，无法安全打开。原记录保留，请从备份恢复或向开发者反馈。");
         Contract contract = CONTRACTS.get(value.path("major").asInt());
         if (contract == null || value.path("minor").asInt() > contract.minor())
-            throw new ApiException(409, "UNSUPPORTED_HISTORY_API", "历史记录需要 API v" + value.path("major").asText() + "." + value.path("minor").asText() + "，本应用仅支持 v1.0。请使用支持该接口的应用打开；原记录未修改。");
+            throw new ApiException(409, "UNSUPPORTED_HISTORY_API", "历史记录需要 API v" + value.path("major").asText() + "." + value.path("minor").asText() + "，本应用支持 v1.1 及旧版 v1.0。请使用支持该接口的应用打开；原记录未修改。");
     }
 
     static ObjectNode declare(ObjectNode document) { document.set("apiVersion", version()); return document; }
     static void normalizeHistory(ObjectNode document) {
-        requireHistory(document); if (!document.has("apiVersion")) declare(document);
+        requireHistory(document); if (!document.has("apiVersion")) document.set("apiVersion", legacyVersion());
         normalizePage(document.get("page"));
         for (JsonNode page : document.path("pages")) normalizePage(page);
         for (JsonNode question : document.path("questions")) normalizePage(question.get("page"));
     }
     private static void normalizePage(JsonNode page) {
-        if (page != null && page.isObject()) { requireHistory(page); if (!page.has("apiVersion")) declare((ObjectNode) page); }
+        if (page != null && page.isObject()) { requireHistory(page); if (!page.has("apiVersion")) ((ObjectNode) page).set("apiVersion", legacyVersion()); }
     }
     static boolean historyFailure(ApiException failure) { return failure.code.equals("INVALID_HISTORY_API") || failure.code.equals("UNSUPPORTED_HISTORY_API"); }
     private static boolean integer(JsonNode value, int minimum) {
