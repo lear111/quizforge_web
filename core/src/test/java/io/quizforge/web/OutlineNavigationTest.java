@@ -51,7 +51,7 @@ class OutlineNavigationTest {
         fixture.finishCurrent("outline-finish"); String id = fixture.get("/api/collections/bank/bank/history").body().at("/records/0/id").asText(); String historyPath = "/api/collections/bank/bank/history/" + id;
         JsonNode history = fixture.get(historyPath).body(); assertEquals(overview.at("/questions/0/outlineItems"), history.at("/collection/questions/0/outlineItems"));
         assertEquals(2, history.path("questions").size()); assertEquals(2, history.path("questionCount").asInt()); assertEquals(1, history.path("submittedCount").asInt());
-        assertEquals(1, history.at("/page/apiVersion/minor").asInt()); byte[] stateBefore = Files.readAllBytes(fixture.savedFile()); fixture.server.close(); fixture.server = null;
+        assertEquals(ExtensionApi.version(), history.at("/page/apiVersion")); byte[] stateBefore = Files.readAllBytes(fixture.savedFile()); fixture.server.close(); fixture.server = null;
         Files.delete(root.resolve("extensions/generic/rules.js")); fixture.write("server/rules-runner.cjs", "process.exit(2);"); fixture.start(null);
         assertEquals(history, fixture.get(historyPath).body()); assertArrayEquals(stateBefore, Files.readAllBytes(fixture.savedFile())); assertArrayEquals(bankBefore, Files.readAllBytes(root.resolve("question-banks/bank.json")));
     }

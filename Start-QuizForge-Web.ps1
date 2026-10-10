@@ -26,8 +26,28 @@ function Find-RunningQuizForge {
     $candidateRoot = $rootMatch.Groups['root'].Value
     if (-not [IO.Path]::IsPathRooted($candidateRoot)) { continue }
     if ([IO.Path]::GetFullPath($candidateRoot).TrimEnd('\') -ieq $projectRoot) {
-      return [pscustomobject]@{ Port = [int]$portMatch.Groups['port'].Value; Pid = $candidate.ProcessId }
+      return [pscustomobject]@{
+        Port = [int]$portMatch.Groups['port'].Value
+        Pid = $candidate.ProcessId
+        StartedAtUtc = if ($candidate.CreationDate) { $candidate.CreationDate.ToUniversalTime() } else { $null }
+      }
     }
+  }
+}
+
+function Get-RunningQuizForgeRefreshReason($running) {
+  if ($Rebuild) { return '已指定 -Rebuild，不能复用正在运行的服务。' }
+  if (-not $running.StartedAtUtc) { return '无法确认正在运行的服务是否使用当前后端。' }
+  $jarPath = Join-Path $coreRoot 'target/quizforge-web-1.0.0.jar'
+  if (-not (Test-Path -LiteralPath $jarPath -PathType Leaf)) { return '当前 Java 构建文件缺失，不能复用正在运行的服务。' }
+  if ((Get-Item -LiteralPath $jarPath).LastWriteTimeUtc -gt $running.StartedAtUtc) {
+    return 'Java 程序已更新，正在运行的服务仍使用旧后端。'
+  }
+  # A running JVM does not load later Java/POM changes, even with -SkipBuild.
+  $buildInputs = @((Get-Item -LiteralPath (Join-Path $coreRoot 'pom.xml')))
+  $buildInputs += @(Get-ChildItem -LiteralPath (Join-Path $coreRoot 'src/main') -Recurse -File)
+  if (@($buildInputs | Where-Object { $_.LastWriteTimeUtc -gt $running.StartedAtUtc }).Count -gt 0) {
+    return 'Java 源码或 POM 已更新，正在运行的服务仍使用旧后端。'
   }
 }
 
@@ -90,6 +110,8 @@ try {
   $running = Find-RunningQuizForge
   if ($running) {
     if ($UpgradeShortAnswer) { throw '简答题库升级会修改旧题库，不能复用正在运行的服务。请先保存作答并关闭原启动窗口，再使用 -UpgradeShortAnswer。' }
+    $refreshReason = Get-RunningQuizForgeRefreshReason $running
+    if ($refreshReason) { throw "$refreshReason 请先保存作答并关闭原启动窗口，再重新启动；不会自动停止当前服务。" }
     Open-ExistingQuizForge $running; exit 0
   }
   if (-not $ownsMutex) {
@@ -155,7 +177,7 @@ try {
   }
   Write-Host "QuizForge Web: $baseUrl" -ForegroundColor Green
   if (-not $NoBrowser) { Write-Host '服务就绪后会自动打开浏览器；也可手动访问上方地址。' }
-  if (-not $Lan) { Write-Host '局域网连接和密码可在网页左下角的设置中配置。' }
+  if (-not $Lan) { Write-Host '局域网／公网连接和共用密码可在网页左下角的设置中配置。' }
   if ($Lan) {
     Write-Host '局域网已启用。平板可访问这台电脑的局域网 IP 与相同端口。'
     Write-Host '临时访问口令（仅在当前窗口显示）：'

@@ -1,4 +1,4 @@
-﻿param([int]$Port = 8796, [string]$ShortAnswerVersion = '1.2.2')
+param([int]$Port = 8796, [string]$ShortAnswerVersion = '1.3.0')
 $ErrorActionPreference = 'Stop'
 $coreRoot = Split-Path -Parent $PSScriptRoot
 $projectRoot = Split-Path -Parent $coreRoot
@@ -9,9 +9,13 @@ foreach ($folder in @('web','server','shared')) {
   Copy-Item -LiteralPath (Join-Path $coreRoot $folder) -Destination $previewCore -Recurse
 }
 New-Item -ItemType Directory -Path (Join-Path $previewRoot 'extensions'), (Join-Path $previewRoot 'question-banks') | Out-Null
-$extensionPath = Join-Path $projectRoot "extensions/short-answer-$ShortAnswerVersion"
+$extensionPath = Join-Path $projectRoot "extensions/基础题型/short-answer-$ShortAnswerVersion"
+if (-not (Test-Path -LiteralPath $extensionPath -PathType Container)) {
+  $legacyFolder = if ($ShortAnswerVersion -eq '1.0.0') { 'short-answer' } else { "short-answer-$ShortAnswerVersion" }
+  $extensionPath = Join-Path $coreRoot "test/fixtures/legacy-extensions/$legacyFolder"
+}
 Copy-Item -LiteralPath $extensionPath -Destination (Join-Path $previewRoot 'extensions') -Recurse
-Copy-Item -LiteralPath (Join-Path $projectRoot 'extensions/single-choice') -Destination (Join-Path $previewRoot 'extensions') -Recurse
+Copy-Item -LiteralPath (Join-Path $projectRoot 'extensions/基础题型/single-choice') -Destination (Join-Path $previewRoot 'extensions') -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'question-banks/java-foundations.json') -Destination (Join-Path $previewRoot 'question-banks')
 $dependencyRoot = Join-Path $previewCore 'node_modules'
 New-Item -ItemType Directory -Path $dependencyRoot | Out-Null

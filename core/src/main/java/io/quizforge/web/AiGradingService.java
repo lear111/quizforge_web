@@ -19,27 +19,42 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-/** Persisted candidates, never model HTTP under StateStore's practice lock. */
+/** Durable or page-scoped model results, never model HTTP under the practice lock. */
 final class AiGradingService implements AutoCloseable {
     private static final int MAX_CALLS = 3;
     private static final int MAX_FILES = 4096;
     private static final long MAX_DIRECTORY_BYTES = 256L * 1024 * 1024;
+    private static final long MAX_MEMORY_BYTES = 32L * 1024 * 1024;
     private static final String PROMPT_VERSION = "quizforge-ai-grading-v1";
     private final Path directory;
     private final StateStore states;
     private final Library library;
     private final AiGateway gateway;
     private final ThreadPoolExecutor workers;
+    private final boolean memoryOnly;
+    private final Object memoryLock = new Object();
+    private final Map<String, MemoryRecord> memoryRecords = new LinkedHashMap<>();
+    private long memoryBytes;
+    private record MemoryRecord(ObjectNode value, int bytes) { }
     private final Map<String, Task> cache = new LinkedHashMap<>(32, .75f, true);
     private final Map<String, Task> live = new ConcurrentHashMap<>();
     private volatile boolean closed;
     private static final class Task { final ObjectNode value; final AiGateway frozenGateway; Task(ObjectNode value) { this(value, null); } Task(ObjectNode value, AiGateway frozenGateway) { this.value = value; this.frozenGateway = frozenGateway; } }
 
     AiGradingService(Path root, StateStore states, Library library, AiGateway gateway) throws IOException {
+        this(root, states, library, gateway, false);
+    }
+    private AiGradingService(Path root, StateStore states, Library library, AiGateway gateway, boolean memoryOnly) throws IOException {
         this.states = states; this.library = library; this.gateway = gateway; directory = root.resolve(".state/ai-grading");
-        if (Files.isSymbolicLink(root.resolve(".state")) || Files.isSymbolicLink(directory)) throw new IOException("Unsafe AI task directory"); Files.createDirectories(directory);
+        this.memoryOnly = memoryOnly;
+        if (!memoryOnly) { if (Files.isSymbolicLink(root.resolve(".state")) || Files.isSymbolicLink(directory)) throw new IOException("Unsafe AI task directory"); Files.createDirectories(directory); }
         workers = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(16), runnable -> { Thread thread = new Thread(runnable, "quizforge-ai-grading"); thread.setDaemon(true); return thread; });
     }
+    static AiGradingService memory(Path root, StateStore states, Library library, AiGateway gateway) throws IOException {
+        if (!states.memoryOnly()) throw new IllegalArgumentException("Temporary AI grading requires in-memory practice state");
+        return new AiGradingService(root, states, library, gateway, true);
+    }
+    long memoryBytes() { synchronized (memoryLock) { return memoryBytes; } }
 
     synchronized ObjectNode start(Library.Collection collection, Library.Question question, JsonNode request) {
         validateStart(request); String requestId = requestId(request), id = commandId(collection, question, "start", requestId), hash = requestHash(request);
@@ -68,8 +83,11 @@ final class AiGradingService implements AutoCloseable {
             if (!status.equals("confirmed") && task.value.path("candidate").isObject() && states.confirmedAiReceipt(collection, question, taskId, task.value.at("/candidate/version").asText()) != null) mark(task, "confirmed", null, null);
             else if (!status.equals("confirmed") && !states.aiCurrent(collection, question, snapshot(task), taskId)) mark(task, "superseded", "AI_RESULT_STALE", "题目、答案或评分已变化，请重新发起评分。");
             else if (List.of("queued", "running").contains(status) && !live.containsKey(taskId)) mark(task, "failed", "AI_INTERRUPTED", "评分任务因服务中断停止，请手动重试。");
-            return publicTask(task);
         }
+        // Only jobs created with the automatic policy can resume the narrow
+        // candidate-persisted / practice-not-yet-committed crash window.
+        autoApply(task);
+        return publicTask(task);
     }
 
     synchronized ObjectNode retry(Library.Collection collection, Library.Question question, String taskId, JsonNode request) {
@@ -98,7 +116,23 @@ final class AiGradingService implements AutoCloseable {
             ObjectNode assessment = (ObjectNode) candidate.deepCopy(); assessment.put("taskId", taskId); assessment.remove("version"); assessment.put("candidateVersion", version);
             // StateStore's receipt also recovers the crash window after practice
             // commits but before this task file is marked confirmed.
-            ObjectNode payload = states.confirmAi(collection, question, snapshot(task), taskId, requestId, version, selected.asDouble(), assessment);
+            ObjectNode payload;
+            try { payload = states.confirmAi(collection, question, snapshot(task), taskId, requestId, version, selected.asDouble(), assessment); }
+            catch (ApiException failure) {
+                if (!failure.code.equals("AI_RESULT_STALE")) throw failure;
+                payload = states.confirmedAiReceipt(collection, question, taskId, version);
+                if (payload == null) throw failure;
+                // A different request may acknowledge the committed result,
+                // but must use ordinary review to change its score.
+                if (selected.decimalValue().compareTo(payload.at("/state/result/score").decimalValue()) != 0)
+                    throw new ApiException(409, "AI_CANDIDATE_CONFLICT", "这份 AI 评分已经保存，调整分数请使用人工评分。");
+                ObjectNode current = states.question(collection, question); JsonNode result = current.at("/state/result");
+                if (!List.of("ai", "ai-assisted").contains(result.path("gradingSource").asText())
+                        || !result.at("/aiAssessment/taskId").asText().equals(taskId)
+                        || !result.at("/aiAssessment/candidateVersion").asText().equals(version)
+                        || selected.decimalValue().compareTo(result.path("score").decimalValue()) != 0) throw failure;
+                payload = current;
+            }
             if (!task.value.path("status").asText().equals("confirmed")) { task.value.put("status", "confirmed").put("updatedAt", Instant.now().toString()).put("confirmedAt", Instant.now().toString()); persist(task); }
             ObjectNode response = publicTask(task); response.set("payload", payload); return response;
         }
@@ -154,12 +188,38 @@ final class AiGradingService implements AutoCloseable {
                     }
                     continue;
                 }
-                synchronized (task) { task.value.set("candidate", candidate); task.value.remove("invalidOutput"); task.value.put("needsRepair", false); mark(task, "succeeded", null, null); } return;
+                synchronized (task) { task.value.set("candidate", candidate); task.value.remove("invalidOutput"); task.value.put("needsRepair", false); mark(task, "succeeded", null, null); }
+                // confirm resolves the service scope before taking the task
+                // lock. Releasing this lock prevents inversion with start/retry.
+                autoApply(task); return;
             }
             synchronized (task) { mark(task, "failed", "AI_INTERRUPTED", "评分任务已停止，请手动重试。"); }
         } catch (RuntimeException error) {
             synchronized (task) { try { mark(task, "failed", "AI_TASK_FAILED", "评分任务无法继续，已保留当前作答，请手动重试。"); } catch (RuntimeException ignored) { } }
         } finally { live.remove(id); }
+    }
+
+    private void autoApply(Task task) {
+        ObjectNode request; String kind, collectionId, questionId, taskId;
+        synchronized (task) {
+            if (!task.value.path("autoApply").isBoolean() || !task.value.path("autoApply").booleanValue() || !task.value.path("status").asText().equals("succeeded")) return;
+            JsonNode candidate = task.value.path("candidate"); if (!candidate.isObject()) return;
+            taskId = task.value.path("taskId").asText(); kind = task.value.path("kind").asText();
+            collectionId = task.value.path("collectionId").asText(); questionId = task.value.path("questionId").asText();
+            request = Json.object().put("requestId", "auto-" + taskId).put("candidateVersion", candidate.path("version").asText());
+            request.set("score", candidate.path("score").deepCopy());
+        }
+        try {
+            Library.Collection collection = library.collection(kind, collectionId);
+            confirm(collection, collection.question(questionId), taskId, request);
+        } catch (ApiException failure) {
+            synchronized (task) {
+                if (task.value.path("status").asText().equals("confirmed")) return;
+                boolean stale = List.of("AI_RESULT_STALE", "COLLECTION_NOT_FOUND", "QUESTION_NOT_FOUND", "COLLECTION_CHANGED").contains(failure.code);
+                mark(task, stale ? "superseded" : "failed", stale ? "AI_RESULT_STALE" : failure.code,
+                        stale ? "题目、答案或评分已变化，这次模型结果不会写入。" : failure.getMessage());
+            }
+        }
     }
 
     private boolean stillCurrent(Task task) {
@@ -191,7 +251,8 @@ final class AiGradingService implements AutoCloseable {
     private static ObjectNode lastAttempt(Task task) { JsonNode attempts = task.value.path("attempts"); return (ObjectNode) attempts.get(attempts.size() - 1); }
 
     private synchronized Task command(String id, String hash, Library.Collection collection, Library.Question question) {
-        if (!Files.exists(file(id), LinkOption.NOFOLLOW_LINKS)) return null;
+        if (memoryOnly) { synchronized (memoryLock) { if (!memoryRecords.containsKey(id)) return null; } }
+        else if (!Files.exists(file(id), LinkOption.NOFOLLOW_LINKS)) return null;
         ObjectNode raw = read(id); if (!raw.path("requestHash").asText().equals(hash)) throw new ApiException(409, "REQUEST_ID_REUSED", "Request ID was already used with different data");
         return scoped(collection, question, raw.path("alias").isTextual() ? raw.path("alias").asText() : id);
     }
@@ -201,7 +262,7 @@ final class AiGradingService implements AutoCloseable {
         if (!task.value.path("stateKey").asText().equals(collection.stateKey()) || !task.value.path("questionId").asText().equals(question.id())) throw new ApiException(404, "AI_TASK_NOT_FOUND", "评分任务不存在。"); return task;
     }
     private Task create(Library.Collection collection, Library.Question question, String id, String requestHash, StateStore.AiSnapshot snapshot, String previous) {
-        ObjectNode value = scope(collection, question).put("schemaVersion", 1).put("taskId", id).put("requestHash", requestHash).put("status", "queued").put("calls", 0).put("repairUsed", false)
+        ObjectNode value = scope(collection, question).put("schemaVersion", 1).put("taskId", id).put("requestHash", requestHash).put("status", "queued").put("calls", 0).put("repairUsed", false).put("autoApply", true)
                 .put("createdAt", Instant.now().toString()).put("updatedAt", Instant.now().toString()).put("inputHash", Json.fingerprint(snapshot.gradingInput(), "quizforge-ai-input-v1"));
         ObjectNode target = value.putObject("snapshot").put("stateKey", snapshot.stateKey()).put("roundId", snapshot.roundId()).put("questionFingerprint", snapshot.questionFingerprint()).put("extensionFingerprint", snapshot.extensionFingerprint())
                 .put("answerHash", snapshot.answerHash()).put("submissionGeneration", snapshot.submissionGeneration()).put("gradingGeneration", snapshot.gradingGeneration()); target.set("gradingInput", snapshot.gradingInput().deepCopy());
@@ -211,7 +272,7 @@ final class AiGradingService implements AutoCloseable {
     private static ObjectNode scope(Library.Collection collection, Library.Question question) { return Json.object().put("stateKey", collection.stateKey()).put("kind", collection.kind()).put("collectionId", collection.id()).put("questionId", question.id()); }
     private static StateStore.AiSnapshot snapshot(Task task) { JsonNode value = task.value.path("snapshot"); return new StateStore.AiSnapshot(value.path("stateKey").asText(), value.path("roundId").asText(), value.path("questionFingerprint").asText(), value.path("extensionFingerprint").asText(), value.path("answerHash").asText(), value.path("submissionGeneration").asLong(), value.path("gradingGeneration").asLong(), (ObjectNode) value.path("gradingInput").deepCopy()); }
     private void mark(Task task, String status, String code, String message) { task.value.put("status", status).put("updatedAt", Instant.now().toString()); if (code == null) task.value.remove("error"); else task.value.set("error", Json.object().put("code", code).put("message", message)); persist(task); }
-    private static ObjectNode publicTask(Task task) { synchronized (task) { ObjectNode result = task.value.deepCopy(); result.remove(List.of("schemaVersion", "stateKey", "kind", "collectionId", "questionId", "requestHash", "snapshot", "inputHash", "invalidOutput", "needsRepair")); return result; } }
+    private static ObjectNode publicTask(Task task) { synchronized (task) { ObjectNode result = task.value.deepCopy(); result.remove(List.of("schemaVersion", "stateKey", "kind", "collectionId", "questionId", "requestHash", "snapshot", "inputHash", "invalidOutput", "needsRepair", "autoApply")); return result; } }
     private static String requestId(JsonNode request) { String value = Json.id(request, "requestId"); if (value.length() < 8) throw ApiException.bad("requestId must have at least 8 characters"); return value; }
     private static void validateStart(JsonNode request) { validateFields(request, List.of("requestId", "contentVersion", "force")); if (request.has("force") && !request.path("force").isBoolean()) throw ApiException.bad("Invalid force"); if (request.has("contentVersion") && (!request.path("contentVersion").isTextual() || !request.path("contentVersion").asText().matches("[a-f0-9]{64}"))) throw ApiException.bad("Invalid contentVersion"); }
     private static void validateFields(JsonNode request, List<String> allowed) { if (request == null || !request.isObject()) throw ApiException.bad("AI request must be an object"); request.fieldNames().forEachRemaining(key -> { if (!allowed.contains(key)) throw ApiException.bad("Unexpected AI request field"); }); }
@@ -220,6 +281,10 @@ final class AiGradingService implements AutoCloseable {
     private static void validateTaskId(String id) { if (id == null || !id.matches("[a-f0-9]{64}")) throw new ApiException(404, "AI_TASK_NOT_FOUND", "评分任务不存在。"); }
     private Path file(String id) { validateTaskId(id); return directory.resolve(id + ".json"); }
     private ObjectNode read(String id) {
+        if (memoryOnly) {
+            validateTaskId(id);
+            synchronized (memoryLock) { MemoryRecord record = memoryRecords.get(id); if (record == null) throw new ApiException(404, "AI_TASK_NOT_FOUND", "评分任务不存在。"); return record.value().deepCopy(); }
+        }
         try { JsonNode value = Json.read(file(id), 2 * 1024 * 1024); if (value == null || !value.isObject() || value.path("schemaVersion").asInt() != 1 || !value.path("requestHash").isTextual() || !value.path("stateKey").isTextual()) throw new IOException("Invalid AI task"); return (ObjectNode) value; }
         catch (IOException error) { if (!Files.exists(file(id), LinkOption.NOFOLLOW_LINKS)) throw new ApiException(404, "AI_TASK_NOT_FOUND", "评分任务不存在。"); throw new ApiException(503, "AI_TASK_UNAVAILABLE", "评分任务无法读取，请保留状态目录。"); }
     }
@@ -227,6 +292,17 @@ final class AiGradingService implements AutoCloseable {
     private void write(String id, ObjectNode value) {
         Path temporary = null;
         try {
+            if (memoryOnly) {
+                validateTaskId(id); byte[] bytes = Json.MAPPER.writeValueAsBytes(value);
+                if (bytes.length > 2 * 1024 * 1024) throw new ApiException(413, "AI_TASK_SIZE_LIMIT", "评分任务超出存储限制。");
+                synchronized (memoryLock) {
+                    if (closed) return;
+                    MemoryRecord previous = memoryRecords.get(id); long nextBytes = memoryBytes - (previous == null ? 0 : previous.bytes()) + bytes.length;
+                    if (nextBytes > MAX_MEMORY_BYTES || (previous == null && memoryRecords.size() >= 256)) throw new ApiException(413, "AI_TASK_SESSION_LIMIT", "当前页面的临时 AI 评分任务已达到上限，当前作答仍保留。");
+                    memoryRecords.put(id, new MemoryRecord(value.deepCopy(), bytes.length)); memoryBytes = nextBytes;
+                }
+                return;
+            }
             if (Files.isSymbolicLink(directory) || Files.isSymbolicLink(directory.getParent()) || Files.isSymbolicLink(file(id))) throw new IOException("Unsafe AI task path");
             byte[] bytes = Json.MAPPER.writeValueAsBytes(value); if (bytes.length > 2 * 1024 * 1024) throw new ApiException(413, "AI_TASK_SIZE_LIMIT", "评分任务超出存储限制。");
             if (!Files.exists(file(id), LinkOption.NOFOLLOW_LINKS)) try (var files = Files.list(directory)) {
@@ -241,5 +317,8 @@ final class AiGradingService implements AutoCloseable {
         } catch (IOException error) { throw new ApiException(503, "AI_TASK_WRITE_FAILED", "评分任务保存失败，当前作答仍保留。"); }
         finally { if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException ignored) { } }
     }
-    @Override public void close() { closed = true; workers.shutdownNow(); }
+    @Override public void close() {
+        closed = true; workers.shutdownNow();
+        if (memoryOnly) { synchronized (memoryLock) { memoryRecords.clear(); memoryBytes = 0; } synchronized (this) { cache.clear(); } live.clear(); }
+    }
 }

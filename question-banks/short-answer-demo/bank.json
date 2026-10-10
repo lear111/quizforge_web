@@ -4,7 +4,7 @@
   "description" : "富文本、图片、待评分与 0.5 分自评示例。",
   "extension" : {
     "id" : "quizforge.short-answer",
-    "version" : "1.1.0"
+    "version" : "1.3.0"
   },
   "questions" : [ {
     "id" : "short-answer-information-flow",
@@ -14,6 +14,15 @@
       "stem" : {
         "type" : "doc",
         "content" : [ {
+          "type" : "heading",
+          "attrs" : {
+            "level" : 2
+          },
+          "content" : [ {
+            "type" : "text",
+            "text" : "描述信息处理流程"
+          } ]
+        }, {
           "type" : "paragraph",
           "content" : [ {
             "type" : "text",
@@ -102,6 +111,15 @@
           },
           "content" : [ {
             "type" : "text",
+            "text" : "解释缓存的作用与边界"
+          } ]
+        }, {
+          "type" : "heading",
+          "attrs" : {
+            "level" : 2
+          },
+          "content" : [ {
+            "type" : "text",
             "text" : "为什么第二次打开同一道题会更快？"
           } ]
         }, {
@@ -166,6 +184,15 @@
       "stem" : {
         "type" : "doc",
         "content" : [ {
+          "type" : "heading",
+          "attrs" : {
+            "level" : 2
+          },
+          "content" : [ {
+            "type" : "text",
+            "text" : "阅读代码并解释行为"
+          } ]
+        }, {
           "type" : "paragraph",
           "content" : [ {
             "type" : "text",

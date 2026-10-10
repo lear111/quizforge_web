@@ -32,6 +32,13 @@ test('a confirmed background task refreshes current persisted grading when its r
   await client('ai-task',{});assert.deepEqual(calls,['/question/ai/current','/question']);assert.equal(updates[0].state.result.score,4);
 });
 
+for(const method of ['ai-grade','ai-retry'])test(`an immediately confirmed ${method} refreshes the automatically saved score`,async()=>{
+  const calls=[],updates=[];
+  const client=createAiClient({path:'/question',makeRequestId:()=> 'host-id-1',settled:async()=>{},shouldRefreshTask:()=>true,onConfirmed:value=>updates.push(value),request:async path=>{calls.push(path);return path==='/question'?{state:{revision:3,result:{score:5}}}:{taskId:'task-1',status:'confirmed'};}});
+  const reply=await client(method,{taskId:'task-1'},'content-version');
+  assert.equal(reply.data.status,'confirmed');assert.equal(calls.at(-1),'/question');assert.equal(updates[0].state.result.score,5);
+});
+
 async function fixture(request){
   const dom=new JSDOM(await readFile(new URL('../web/index.html',import.meta.url),'utf8'));
   const document=dom.window.document,dialog=document.getElementById('network-settings-dialog');dialog.open=true;dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
@@ -55,7 +62,27 @@ test('AI settings preserve saved key when blank, clear entered secret when closi
 test('remote AI settings are visible but cannot save, test or expose a key field value',async()=>{
   let writes=0;
   const f=await fixture(async(path,options)=>{if(options)writes++;return {...profile,canManage:false};});
-  await f.ui.open();assert.equal(f.get('save').disabled,true);assert.equal(f.get('test').disabled,true);assert.equal(f.get('apiKey').disabled,true);
+  await f.ui.open();assert.equal(f.get('save').disabled,true);assert.equal(f.get('test').disabled,true);assert.equal(f.get('apiKey').disabled,true);assert.equal(f.get('autoGrade').disabled,true);
   f.get('form').dispatchEvent(new f.dom.window.Event('submit',{cancelable:true}));assert.equal(writes,0);
+  f.ui.destroy();f.dom.window.close();
+});
+
+test('automatic AI grading defaults off for legacy status and saves an explicit opt-in without a model request',async()=>{
+  const calls=[];
+  const f=await fixture(async(path,options)=>{calls.push({path,options});return options?{...profile,autoGrade:JSON.parse(options.body).autoGrade}:profile;});
+  await f.ui.open();assert.equal(f.get('autoGrade').checked,false);assert.match(f.get('status').textContent,/题卡点击评分.*自动保存/);
+  assert.match(f.get('autoGrade').parentElement.textContent,/提交答案后自动 AI 评分/);
+  f.get('autoGrade').checked=true;f.get('form').dispatchEvent(new f.dom.window.Event('submit',{cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(calls.length,2);assert.equal(calls[1].path,'/api/settings/ai');assert.equal(calls[1].options.method,'PUT');assert.equal(JSON.parse(calls[1].options.body).autoGrade,true);
+  assert.equal(f.get('autoGrade').checked,true);assert.equal(calls.some(value=>value.path.endsWith('/test')),false);
+  f.ui.destroy();f.dom.window.close();
+});
+
+test('saved automatic grading is shown and can be switched off independently of AI enablement',async()=>{
+  const calls=[];
+  const f=await fixture(async(path,options)=>{calls.push({path,options});return options?{...profile,autoGrade:false}:{...profile,autoGrade:true};});
+  await f.ui.open();assert.equal(f.get('autoGrade').checked,true);assert.match(f.get('status').textContent,/提交答案后自动评分.*自动保存/);
+  f.get('autoGrade').checked=false;f.get('form').dispatchEvent(new f.dom.window.Event('submit',{cancelable:true}));await new Promise(resolve=>setTimeout(resolve,0));
+  const body=JSON.parse(calls[1].options.body);assert.equal(body.autoGrade,false);assert.equal(body.enabled,true);assert.equal(f.get('autoGrade').checked,false);
   f.ui.destroy();f.dom.window.close();
 });

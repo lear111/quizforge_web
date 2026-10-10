@@ -1,0 +1,172 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "写作 · UI 原型",
+  "description": "界面演示，真实保存与判分尚未实现。",
+  "extension": {
+    "id": "quizforge.english-writing",
+    "version": "1.0.0"
+  },
+  "features": {
+    "editing": true,
+    "whiteboard": true,
+    "history": true
+  },
+  "questions": [
+    {
+      "id": "sample-writing-mail-2026",
+      "title": "邮件写作 · 51",
+      "data": {
+        "directions": "51. Writing · Part A",
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Read the following email from your friend Paul and write him a reply."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hi Li Ming,"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "I was really moved by the Chinese families’ handwritten letters you posted yesterday. They are priceless! Could you please tell me a bit more about them? And are they currently on pubic display somewhere? I’m very keen to see them in person. Thanks."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Yours,"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Paul"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "You should write about 100 words on the ANSWER SHEET."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Do not use your own name in your email; use “Li Ming” instead. (10 points)"
+                }
+              ]
+            }
+          ]
+        },
+        "referenceAnswer": "",
+        "rubric": "",
+        "maxScore": 10
+      },
+      "outline": {
+        "level": "question",
+        "label": "51"
+      }
+    },
+    {
+      "id": "sample-writing-chart-2026",
+      "title": "图表写作 · 52",
+      "data": {
+        "directions": "52. Writing · Part B",
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write an essay based on the charts below. In your essay, you should"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "1) describe the charts briefly,"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "2) interpret the charts, and"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "3) give your comments."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write your answer in 160–200 words on the ANSWER SHEET. (20 points)"
+                }
+              ]
+            },
+            {
+              "type": "image",
+              "attrs": {
+                "assetId": "770758340583c5b9e7837deedfa503e9e3e81c57c6f6a7c74736ddf29bbd689f",
+                "alt": "养老机器人消费者接受度与首要关注点调查原图",
+                "width": 620,
+                "align": "center"
+              }
+            }
+          ]
+        },
+        "referenceAnswer": "",
+        "rubric": "",
+        "maxScore": 20
+      },
+      "outline": {
+        "level": "question",
+        "label": "52"
+      }
+    }
+  ]
+}

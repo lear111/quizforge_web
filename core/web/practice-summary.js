@@ -1,5 +1,5 @@
 // This card belongs to the host; question extensions provide scores, not this UI.
-export function mountPracticeSummary(container, summary, {onFinish, readonly=false}={}) {
+export function mountPracticeSummary(container, summary, {onFinish,onRestart,readonly=false,history=true}={}) {
   const document=container.ownerDocument;
   const element=(tag,className,text)=>{
     const node=document.createElement(tag);
@@ -54,24 +54,25 @@ export function mountPracticeSummary(container, summary, {onFinish, readonly=fal
     pending.textContent=`未提交 ${count-done} 题`;
     grading.hidden=!awaiting;grading.textContent=`待评分 ${awaiting} 题`;
     scoreLabel.textContent=awaiting?'已评分得分 / 总分':'本轮得分 / 总分';
-    note.textContent=readonly?'此页为只读历史汇总。':current?.finished?'本轮结果已保存到历史记录。':awaiting?'请返回题目确认评分，再完成练习。':count-done?'未提交的题目暂计 0 分，完成后保留本轮记录。':'完成练习后保留本轮结果。';
+    note.textContent=readonly?'此页为只读历史汇总。':current?.finished?(current.historyId?'本轮结果已保存到历史记录。':'本轮练习已完成，结果仅在当前会话保留。'):awaiting?'请返回题目确认评分，再完成练习。':!history?'结果仅在当前会话保留，刷新或关闭页面后清除。':count-done?'未提交的题目暂计 0 分，完成后保留本轮记录。':'完成练习后保留本轮结果。';
     if(button){
-      button.disabled=busy||Boolean(current?.finished)||awaiting>0||typeof onFinish!=='function';
-      button.textContent=busy?'正在完成…':current?.finished?'练习已完成':'完成练习';
+      button.disabled=busy||(current?.finished?typeof onRestart!=='function':awaiting>0||typeof onFinish!=='function');
+      button.textContent=current?.finished?(busy?'正在开始…':typeof onRestart==='function'?'再练一次':'练习已完成'):(busy?'正在完成…':'完成练习');
       button.classList.toggle('is-busy',busy);
       button.setAttribute('aria-busy',String(busy));
     }
   }
   async function finish() {
-    if(destroyed||busy||current?.finished||current?.pendingCount>0||typeof onFinish!=='function')return;
+    const restarting=Boolean(current?.finished),action=restarting?onRestart:onFinish;
+    if(destroyed||busy||(!restarting&&current?.pendingCount>0)||typeof action!=='function')return;
     busy=true;error.hidden=true;render();
     try {
-      const next=await onFinish(current);
+      const next=await action(current);
       if(destroyed)return;
       if(next)current=next;
     } catch(cause) {
       if(destroyed)return;
-      error.textContent=cause?.message||'完成练习失败，请重试。';
+      error.textContent=cause?.message||(restarting?'开始新一轮失败，请重试。':'完成练习失败，请重试。');
       error.hidden=false;
     } finally {
       busy=false;

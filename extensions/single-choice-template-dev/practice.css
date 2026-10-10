@@ -1,0 +1,45 @@
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; font: 16px/1.6 system-ui, sans-serif; color: #303044; }
+.question-card { width: 100%; max-width: 704px; margin: auto; padding: 24px; background: #fff; border: 1px solid #e4e0ef; border-radius: 16px; }
+.question-card > section + section { margin-top: 24px; }
+.content { white-space: pre-wrap; overflow-wrap: anywhere; }
+#stem.content { text-align: left; }
+#options { width: 100%; max-width: 100%; margin-inline: 0; }
+h3 { margin: 0 0 12px; font-size: 16px; }
+.design-note { color: #756386; font-size: 13px; }
+fieldset { margin: 0 0 16px; padding: 0; border: 0; min-width: 0; }
+.choice { display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 12px; margin-bottom: 10px; background: #fbfaff; border: 1px solid #e4e0ef; border-radius: 10px; cursor: pointer; }
+.choice:not(.is-correct):not(.is-incorrect):has(input:checked) { border-color: #9471ce; background: #f3edff; }
+.choice:not(.is-correct):not(.is-incorrect):has(input:checked) .choice-text { color: #7050a4; }
+.choice.is-correct { background: #e9f7ee; border-color: #99cbae; color: #226a43; }
+.choice.is-correct .choice-letter { background: #cfead9; color: #226a43; }
+.choice.is-correct .choice-text { color: #226a43; }
+.choice.is-correct input { accent-color: #328457; }
+.choice.is-incorrect { background: #fff0f0; border-color: #e6a3a3; color: #a83a3a; }
+.choice.is-incorrect .choice-letter { background: #f7d5d5; color: #a83a3a; }
+.choice.is-incorrect .choice-text { color: #a83a3a; }
+.choice.is-incorrect input { accent-color: #c34c4c; }
+.choice:has(input:disabled) { cursor: default; }
+.choice input { flex: 0 0 auto; width: 18px; height: 18px; margin: 4px 0; accent-color: #8060b8; }
+.choice-letter { flex: 0 0 28px; text-align: center; border-radius: 6px; background: #eee8f5; color: #756386; font-weight: 600; }
+.choice-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+textarea { width: 100%; margin: 8px 0 16px; padding: 12px; font: inherit; border: 1px solid #d6cdeb; border-radius: 8px; background: #fff; color: inherit; }
+button { padding: 10px 18px; border: 1px solid #8060b8; border-radius: 8px; background: #8060b8; color: #fff; font: inherit; cursor: pointer; }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #b7a2de; outline-offset: 2px; }
+.option-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; padding: 6px; border-radius: 8px; cursor: pointer; }
+.option-row .choice-letter { margin-top: 7px; cursor: pointer; }
+.correct-selector { flex: 0 0 auto; width: 18px; height: 18px; margin: 11px 0 0; accent-color: #328457; }
+.option-row textarea { flex: 1; min-width: 0; min-height: 40px; margin: 0; padding: 7px 10px; line-height: 24px; resize: none; overflow: hidden; }
+.option-row button { padding: 6px 10px; background: transparent; color: #756386; border-color: #e4e0ef; }
+.option-row.is-correct { background: #e9f7ee; color: #226a43; }
+.option-row.is-correct .choice-letter { background: #cfead9; color: #226a43; }
+.option-row.is-correct textarea { background: #f4fcf7; border-color: #99cbae; color: #226a43; }
+.option-row.is-correct button { border-color: #badfc7; color: #226a43; }
+.inline-score { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.inline-score input { width: 64px; padding: 2px 4px; border: 0; border-bottom: 1px solid #c7bad9; border-radius: 0; background: transparent; color: inherit; font: inherit; text-align: center; }
+.inline-score input:focus-visible { outline: none; border-bottom-color: #8060b8; box-shadow: 0 1px 0 #8060b8; }
+input[type="range"] { width: 100%; accent-color: #8060b8; }
+#ai-feedback-area { margin: 16px 0; }
+@media (max-width: 600px) { .question-card { border-radius: 0; padding: 16px; } }

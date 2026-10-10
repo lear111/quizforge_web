@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 const coreRoot=new URL('../',import.meta.url),root=new URL('../../',import.meta.url),read=path=>readFileSync(new URL(path,path.startsWith('shared/')?coreRoot:root),'utf8');
-const sample=JSON.parse(read('extensions/short-answer/examples.json')).questions[0];
+const sample=JSON.parse(read('core/test/fixtures/legacy-extensions/short-answer/examples.json')).questions[0];
 const plain=value=>JSON.parse(JSON.stringify(value)),paragraph=text=>({type:'doc',content:[{type:'paragraph',...(text?{content:[{type:'text',text}]}:{})}]});
 async function fixture(t){
-  const dom=new JSDOM(read('extensions/short-answer/editor.html'),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'});t.after(()=>dom.window.close());dom.window.eval(read('shared/richtext/1.0.0/richtext.js'));const api=dom.window.QFRichText;
+  const dom=new JSDOM(read('core/test/fixtures/legacy-extensions/short-answer/editor.html'),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'});t.after(()=>dom.window.close());dom.window.eval(read('shared/richtext/1.0.0/richtext.js'));const api=dom.window.QFRichText;
   api.configure({resources:{get:async()=>({url:'blob:local',mime:'image/png',size:10}),put:async()=>({id:'a'.repeat(64),mime:'image/png',size:10})},async loadEditor(){dom.window.eval(read('shared/richtext/1.0.0/richtext-editor.js'));}});
-  let hooks;dom.window.QF={content:api,editor:{register:value=>{hooks=value;}},ui:{resize(){}}};dom.window.eval(read('extensions/short-answer/editor.js'));await hooks.onLoad({mode:'edit',question:plain(sample),capabilities:{canEdit:true}});
+  let hooks;dom.window.QF={content:api,editor:{register:value=>{hooks=value;}},ui:{resize(){}}};dom.window.eval(read('core/test/fixtures/legacy-extensions/short-answer/editor.js'));await hooks.onLoad({mode:'edit',question:plain(sample),capabilities:{canEdit:true}});
   return {dom,api,hooks,byId:id=>dom.window.document.getElementById(id)};
 }
 test('short-answer editor keeps three fields static until activated and returns a clean document',async t=>{

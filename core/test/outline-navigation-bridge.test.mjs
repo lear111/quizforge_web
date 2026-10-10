@@ -35,7 +35,8 @@ test('API 1.1 adds outline navigation while missing and explicit 1.0 keep their 
   const old=resolveExtensionApi(),explicitOld=resolveExtensionApi({major:1,minor:0}),next=resolveExtensionApi({major:1,minor:1});
   assert.equal(old,explicitOld);assert.equal(old.api.minor,0);assert.equal(old.api.capabilities.includes('outline-items'),false);
   assert.equal(next.api.minor,1);assert.deepEqual([...next.api.capabilities],[...old.api.capabilities,'outline-items']);assert.equal(next.bootstrap,old.bootstrap);assert.equal(Object.isFrozen(next.api.capabilities),true);
-  assert.throws(()=>resolveExtensionApi({major:1,minor:2}),error=>error.code==='UNSUPPORTED_API_VERSION');
+  const score=resolveExtensionApi({major:1,minor:2});assert.equal(score.api.minor,2);assert.equal(score.api.capabilities,next.api.capabilities);assert.equal(score.bootstrap,next.bootstrap);
+  assert.throws(()=>resolveExtensionApi({major:1,minor:3}),error=>error.code==='UNSUPPORTED_API_VERSION');
 });
 
 test('practice, editor and readonly history hooks locate children without reloading parent context',async()=>{

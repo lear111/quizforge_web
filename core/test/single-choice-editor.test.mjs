@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../../extensions/single-choice/editor.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../extensions/基础题型/single-choice/editor.js', import.meta.url), 'utf8');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const sample = () => ({
   title: '题名',

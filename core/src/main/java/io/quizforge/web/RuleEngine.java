@@ -28,14 +28,19 @@ final class RuleEngine {
         if (!permissions) System.err.println("Node filesystem permissions unavailable; install Node 24 for the supported restriction mode.");
     }
     JsonNode run(Library.Extension extension, ObjectNode request) {
+        boolean development = DevelopmentExtensions.runtimeMetadata(extension) != null;
+        request.put("development", development);
+        if (development && extension.rules() == null) return developmentProjection(request);
         request.set("apiVersion", ExtensionApi.version());
         request.put("outlineItemsDeclared", extension.outlineItemsDeclared());
-        request.put("rules", extension.rules().toString()); request.put("questionSchema", extension.questionSchema().toString()); request.put("answerSchema", extension.answerSchema().toString());
+        request.put("rules", extension.rules().toString());
+        if (extension.questionSchema() == null) request.putNull("questionSchema"); else request.put("questionSchema", extension.questionSchema().toString());
+        if (extension.answerSchema() == null) request.putNull("answerSchema"); else request.put("answerSchema", extension.answerSchema().toString());
         List<String> command = new ArrayList<>(List.of(node, "--max-old-space-size=96", "--disable-proto=throw"));
         Path runner = codeRoot.resolve("server/rules-runner.cjs");
         if (permissions) {
             command.add("--permission");
-            for (Path allowed : List.of(runner, codeRoot.resolve("node_modules"), extension.rules(), extension.questionSchema(), extension.answerSchema())) command.add("--allow-fs-read=" + allowed);
+            for (Path allowed : new Path[]{runner, codeRoot.resolve("node_modules"), extension.rules(), extension.questionSchema(), extension.answerSchema()}) if (allowed != null) command.add("--allow-fs-read=" + allowed);
         }
         command.add(runner.toString());
         Process process = null;
@@ -55,8 +60,10 @@ final class RuleEngine {
             byte[] bytes = output.get(2, TimeUnit.SECONDS); error.get(2, TimeUnit.SECONDS); write.get(2, TimeUnit.SECONDS);
             if (overflow.get()) throw new ApiException(422, "RULE_OUTPUT_LIMIT", "Extension rules exceeded their output limit");
             JsonNode response = Json.MAPPER.readTree(bytes);
+            if (development && response != null && response.path("code").asText().equals("DEVELOPMENT_NOT_IMPLEMENTED")) throw notImplemented();
             if (response != null && response.path("code").asText().equals("SCORE_UNAVAILABLE")) throw new ApiException(422, "SCORE_UNAVAILABLE", "题型拓展尚未提供有效的分值接口，请实现 getScore 并返回 score、maxScore。");
             if (response != null && response.path("code").asText().equals("INVALID_OUTLINE_ITEMS")) throw new ApiException(422, "INVALID_OUTLINE_ITEMS", "题型拓展的小题目录无效，请检查 outline-items 声明及 getOutlineItems 返回的唯一 id 和纯文本 label。");
+            if (response != null && response.path("code").asText().equals("INVALID_OUTLINE_STATES")) throw new ApiException(422, "INVALID_OUTLINE_STATES", "题型拓展的 getScore 返回了无效的小题状态，请检查 outlineStates 的唯一 id 和 status。");
             if (process.exitValue() != 0 || response == null || !response.path("ok").asBoolean()) throw new ApiException(422, "RULE_REJECTED", "Extension rules rejected or could not process this data");
             return response.get("data");
         } catch (ApiException e) { throw e; }
@@ -64,6 +71,22 @@ final class RuleEngine {
         catch (Exception e) { throw new ApiException(503, "RULE_UNAVAILABLE", "Rule engine unavailable; verify Node and installed dependencies"); }
         finally { if (process != null && process.isAlive()) process.destroyForcibly(); }
     }
+    private static ObjectNode developmentProjection(ObjectNode request) {
+        ObjectNode value = Json.object(); String operation = request.path("op").asText();
+        switch (operation) {
+            case "validateBank" -> value.put("valid", true);
+            case "project" -> value.set("projected", request.path("data").deepCopy());
+            case "projectBatch" -> { var projected = value.putArray("projected"); for (JsonNode question : request.path("questions")) projected.add(question.path("data").deepCopy()); }
+            case "outlineBatch" -> { var items = value.putArray("outlineItems"); for (JsonNode ignored : request.path("questions")) items.addArray(); }
+            case "capabilities" -> { value.put("canAiGrade", false); value.put("canOutlineItems", false); }
+            default -> throw notImplemented();
+        }
+        if (request.path("withCapabilities").asBoolean()) value.set("capabilities", Json.object().put("canAiGrade", false).put("canOutlineItems", false));
+        try { if (Json.MAPPER.writeValueAsBytes(value).length > 2 * 1024 * 1024) throw new ApiException(422, "RULE_OUTPUT_LIMIT", "Development projection exceeded the rule output limit"); }
+        catch (IOException error) { throw new ApiException(503, "RULE_UNAVAILABLE", "Development projection could not be encoded"); }
+        return value;
+    }
+    private static ApiException notImplemented() { return new ApiException(422, "DEVELOPMENT_NOT_IMPLEMENTED", "开发版拓展尚未实现当前操作，请补齐对应规则、数据结构或评分接口；当前输入已保留。"); }
     private static void sanitizeEnvironment(ProcessBuilder builder) {
         var environment = builder.environment(); var previous = new java.util.HashMap<>(environment); environment.clear();
         for (var entry : previous.entrySet()) if (List.of("SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP", "COMSPEC", "PATHEXT").contains(entry.getKey().toUpperCase(java.util.Locale.ROOT))) environment.put(entry.getKey(), entry.getValue());

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {historyProgress} from '../web/history-view.js';
+import {collectionFeature} from '../web/practice-context.js';
 
 const source=readFileSync(new URL('../web/app.js',import.meta.url),'utf8');
 const start=source.indexOf('const historyPath=');
@@ -40,7 +41,7 @@ function fixture({requestImpl=async()=>({}),returnError=null,records=2,view='pra
   nodes.get('#history-delete-dialog').append(nodes.get('#history-delete-detail'),nodes.get('#history-delete-cancel'),nodes.get('#history-delete-confirm'));
   const pane={kind:'bank',id:'bank',view,questionId:'q1',collection:{title:'测试题库'},historyRecords:Array.from({length:records},(_,index)=>({id:`round-${index+1}`,collectionTitle:'测试题库',createdAt:`2026-10-07T0${index+1}:00:00Z`,updatedAt:`2026-10-07T0${index+1}:01:00Z`,status:'completed',submittedCount:2,questionCount:2,score:2,maxScore:2})),frameHost:new Element('div'),whiteboard:{load:value=>loads.push(value)}};
   if(view==='history'){pane.historyEntry={id:'round-1'};pane.historyView={frozen:true};pane.historyQuestion={frozen:true};pane.historyQuestionId='q1';pane.plugin={destroy(){pane.pluginDestroyed=true;}};}
-  const sandbox={document,Date,Promise,encodeURIComponent,historyProgress,
+  const sandbox={document,Date,Promise,encodeURIComponent,historyProgress,collectionFeature,
     $:selector=>document.querySelector(selector),collectionPath:()=>'/api/collections/bank/bank',
     request:async(path,options)=>{requests.push({path,options});return requestImpl(path,options);},
     transitionTo:fn=>{const operation=Promise.resolve().then(fn);transitions.push(operation);operation.catch(()=>{});return operation;},

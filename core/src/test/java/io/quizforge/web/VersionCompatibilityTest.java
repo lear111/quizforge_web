@@ -32,6 +32,7 @@ class VersionCompatibilityTest {
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":0}")));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1.0,\"minMinor\":0.0}")));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":1,\"capabilities\":[\"outline-items\"]}")));
+        assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":2,\"capabilities\":[\"score\",\"outline-items\"]}")));
         assertDoesNotThrow(() -> ExtensionApi.requireManifest(requirement("""
                 {"major":1,"minMinor":0,"capabilities":["practice","editor","editor-drafts","score","manual-review","ai-grading","resources","richtext","navigation","lifecycle"]}
                 """)));
@@ -40,7 +41,7 @@ class VersionCompatibilityTest {
                 "{\"major\":1,\"minMinor\":0,\"capabilities\":null}", "{\"major\":1,\"minMinor\":0,\"capabilities\":[1]}",
                 "{\"major\":1,\"minMinor\":0,\"capabilities\":[\"editor\",\"editor\"]}", "{\"major\":1,\"minMinor\":0,\"capabilities\":[\"outline-items\"]}", "{\"major\":2147483648,\"minMinor\":0}"))
             assertEquals("INVALID_API_REQUIREMENT", assertThrows(ApiException.class, () -> ExtensionApi.requireManifest(requirement(invalid))).code, invalid);
-        for (String future : List.of("{\"major\":2,\"minMinor\":0}", "{\"major\":1,\"minMinor\":2}"))
+        for (String future : List.of("{\"major\":2,\"minMinor\":0}", "{\"major\":1,\"minMinor\":3}"))
             assertEquals("UNSUPPORTED_EXTENSION_API", assertThrows(ApiException.class, () -> ExtensionApi.requireManifest(requirement(future))).code);
         assertEquals("UNSUPPORTED_API_CAPABILITY", assertThrows(ApiException.class,
                 () -> ExtensionApi.requireManifest(requirement("{\"major\":1,\"minMinor\":0,\"capabilities\":[\"future-feature\"]}"))).code);

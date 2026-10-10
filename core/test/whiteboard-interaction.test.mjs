@@ -110,6 +110,65 @@ function fixture({ externalToolbar = false, onFullscreen = () => {} } = {}) {
   return { board, root, canvas, container, toolbarContainer, changes, interactions, pointer, click, window, paint };
 }
 
+test('readonly history restores paper and camera, allows pan and zoom, and never alters the frozen draft', () => {
+  const { board, root, canvas, container, toolbarContainer, changes, pointer, click, paint } = fixture({ externalToolbar: true });
+  const draft = emptyDraft();
+  draft.viewport = { x: 20, y: 30, zoom: 2 };
+  draft.paper = { color: '#fff3ce', pattern: 'grid' };
+  draft.strokes.push({ id: 'saved', color: '#334155', width: 3, points: [{ x: 40, y: 50, pressure: 0.5 }] });
+  board.setReadOnly(true); board.load(draft); board.setMode('draft'); paint();
+  assert.deepEqual(board.getViewCamera(), draft.viewport);
+  assert.equal(root.dataset.tool, 'pan');
+  for (const tool of ['pen', 'eraser']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, true);
+  for (const tool of ['select', 'pan']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, false);
+  assert.equal(toolbarContainer.querySelector('[data-action="settings"]').hidden, true);
+  assert.equal(toolbarContainer.querySelector('[data-action="undo"]').parentElement.hidden, true);
+  assert.equal(toolbarContainer.querySelector('[data-control="ink-color"]').parentElement.hidden, true);
+  const paper = container.querySelector('.qf-whiteboard-paper');
+  assert.equal(paper.hidden, false); assert.equal(paper.dataset.pattern, 'grid');
+  assert.equal(paper.style.backgroundColor, draft.paper.color);
+  pointer('pointerdown', 10, 20); pointer('pointerup', 50, 80);
+  assert.deepEqual(board.getViewCamera(), { x: 40, y: 60, zoom: 2 });
+  click('[data-action="zoom-in"]');
+  assert.equal(board.getViewCamera().zoom, 2.5);
+  canvas.dispatch('wheel', { clientX: 40, clientY: 60, deltaY: -50 });
+  assert.ok(board.getViewCamera().zoom > 2.5);
+  pointer('pointerdown', 10, 20, 'touch', 1); pointer('pointerdown', 50, 20, 'touch', 2);
+  pointer('pointermove', 70, 20, 'touch', 2); pointer('pointerup', 70, 20, 'touch', 2); pointer('pointerup', 10, 20, 'touch', 1);
+  assert.deepEqual(board.flush(), draft);
+  assert.deepEqual(draft.viewport, { x: 20, y: 30, zoom: 2 });
+  assert.equal(changes.length, 0);
+  board.setViewCamera({ x: 0, y: 0, zoom: 1 }); board.setMode('practice');
+  assert.equal(paper.hidden, true); assert.deepEqual(board.getViewCamera(), { x: 0, y: 0, zoom: 1 });
+  board.load(draft); board.setMode('draft');
+  assert.deepEqual(board.getViewCamera(), draft.viewport, 'Loading another snapshot resets temporary viewing changes.');
+  board.destroy();
+});
+
+test('readonly tool, keyboard and paper actions cannot mutate history; returning to practice restores writing', () => {
+  const { board, root, canvas, changes, click, pointer } = fixture();
+  const draft = emptyDraft();
+  draft.strokes.push({ id: 'saved', color: '#334155', width: 3, points: [{ x: 40, y: 50, pressure: 0.5 }] });
+  board.load(draft); board.setReadOnly(true); board.setMode('draft');
+  for (const action of ['undo', 'redo', 'clear', 'confirm-clear', 'settings']) click(`[data-action="${action}"]`);
+  for (const tool of ['pen', 'eraser']) click(`[data-tool="${tool}"]`);
+  for (const key of ['p', 'e', 'z', 'y']) canvas.dispatch('keydown', { key, ctrlKey: ['z', 'y'].includes(key) });
+  assert.equal(root.dataset.tool, 'pan');
+  const paperControl = root.querySelector('[data-control="paper-color"]');
+  paperControl.value = '#000000'; paperControl.dispatch('change');
+  assert.equal(paperControl.value, '#ffffff');
+  assert.equal(root.querySelector('.qf-whiteboard-confirm').hidden, true);
+  assert.equal(root.querySelector('.qf-whiteboard-settings').hidden, true);
+  click('[data-tool="select"]'); pointer('pointerdown', 10, 20); pointer('pointerup', 20, 30);
+  assert.deepEqual(board.getDraft(), draft); assert.equal(changes.length, 0);
+  board.setReadOnly(false);
+  assert.equal(root.dataset.tool, 'pen');
+  assert.equal(root.querySelector('[data-tool="pen"]').hidden, false);
+  pointer('pointerdown', 10, 20); pointer('pointerup', 20, 30);
+  assert.equal(board.getDraft().strokes.length, 2); assert.equal(changes.length, 1);
+  board.destroy();
+});
+
 test('paper stays outside the ink overlay, follows scroll and draft mode, and is cleaned up', () => {
   const { board, root, container, paint, changes } = fixture();
   const paper = container.querySelector('.qf-whiteboard-paper');

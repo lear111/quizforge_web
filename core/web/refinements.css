@@ -2,22 +2,31 @@
 .app-shell{--left-width:var(--sidebar);--right-width:var(--outline);grid-template-columns:var(--left-width) minmax(0,1fr) var(--right-width)}
 .app-shell.library-hidden{--left-width:0px}.app-shell.outline-hidden{--right-width:0px}
 .question-viewport{background:#fff}
-.tab-header{height:38px;padding:0 10px;gap:6px;align-items:center}
-.tabs{height:100%}.tab{padding:0 10px;font-size:11px;max-width:220px;gap:6px}
+/* Keep long questions scrollable with a quiet, draggable scrollbar. */
+.question-viewport{scrollbar-width:thin;scrollbar-color:#d8d2e5 transparent}
+@supports selector(::-webkit-scrollbar){
+  .question-viewport{scrollbar-width:auto;scrollbar-color:auto}
+  .question-viewport::-webkit-scrollbar{width:6px;height:6px}
+  .question-viewport::-webkit-scrollbar-track{background:transparent}
+  .question-viewport::-webkit-scrollbar-thumb{background:#d8d2e5;border-radius:999px}
+  .question-viewport::-webkit-scrollbar-thumb:hover{background:#b4a6cd}
+  .question-viewport::-webkit-scrollbar-button{display:none;width:0;height:0}
+  .question-viewport::-webkit-scrollbar-corner{background:transparent}
+}
 .sidebar-toggle{display:inline-grid;flex:none;align-self:center;width:28px;height:28px}
 .sidebar-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
-.document-header{min-height:48px;padding:7px 18px;gap:12px}
-.document-header h1{font-size:15px;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.document-header{min-height:48px;padding:7px 10px;gap:10px}
+.document-header h1{flex:1;font-size:15px;line-height:1.4;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .document-actions{gap:10px}.draft-toggle{padding:5px 10px;font-size:11px}.draft-toggle span{font-size:15px}
-.sidebar-actions{display:flex;align-items:center;gap:3px}.outline-heading{height:38px;padding:0 14px}
+.sidebar-actions{display:flex;align-items:center;gap:3px}.outline-heading{height:48px;padding:0 14px}
 .outline-list{padding:16px 14px 14px}.outline-group{margin:0 0 16px}.outline-group-title{margin:0 0 8px;font-size:10px;font-weight:500;color:#9a8faa;line-height:1.6}
 .outline-matrix{display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:7px}
 .outline-item{display:grid;place-items:center;padding:0;margin:0;width:100%;height:35px;font-size:11px;border-radius:7px;border:1px solid #e6e1ed;color:#8e829b;font-variant-numeric:tabular-nums}
 .outline-item.active{border-color:#a08acb;background:#f0eafa;color:#71509f;box-shadow:0 0 0 1px #c5b4e855}
-.outline-item.draft{background:#f0ebfc;border-color:#e0d5f5;color:#8a6cba}.outline-item.correct{background:#edf6f1;border-color:#d5e9de;color:#5d9274}.outline-item.incorrect{background:#fff0ed;border-color:#f2d8d1;color:#b77968}
-.outline-item.active:is(.draft,.correct,.incorrect){outline:2px solid #ac91d4;outline-offset:1px}
+.outline-item.correct{background:#edf6f1;border-color:#d5e9de;color:#5d9274}.outline-item.incorrect{background:#fff0ed;border-color:#f2d8d1;color:#b77968}
+.outline-item.active:is(.correct,.incorrect){outline:2px solid #ac91d4;outline-offset:1px}
 @media(max-width:1100px) and (min-width:801px){.app-shell{grid-template-columns:var(--left-width) minmax(0,1fr)}.outline{grid-column:auto}}
-@media(max-width:800px){.app-shell{grid-template-columns:1fr}.main{grid-column:1}.library,.outline{grid-column:auto}.tab-header{height:38px;padding:0 7px}.document-header{min-height:45px;padding:6px 12px}.document-header h1{font-size:14px}.outline-heading{height:38px}}
+@media(max-width:800px){.app-shell{grid-template-columns:1fr}.main{grid-column:1}.library,.outline{grid-column:auto}.document-header{min-height:45px;padding:6px 8px}.document-header h1{font-size:14px}.outline-heading{height:45px}}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .question-navigation{position:absolute;inset:0;z-index:8;pointer-events:none}
 .question-arrow{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:52px;display:grid;place-items:center;border:1px solid #e4ddef;border-radius:12px;background:#ffffffdc;color:#8871b3;box-shadow:0 3px 14px #36224909;pointer-events:auto;backdrop-filter:blur(8px)}
@@ -34,8 +43,8 @@
 /* Phone reading uses natural responsive content; draft keeps its fixed world coordinates. */
 html:fullscreen{width:100%;height:100%;background:#f8f9fc}
 @media(max-width:600px){
-  .app-shell{min-height:0}.tab-header{height:44px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}.sidebar-toggle{width:40px;height:40px}.tab{max-width:180px;font-size:12px}
-  .document-header{min-height:44px;padding:2px 10px}.document-actions{gap:5px}.header-action{width:36px;height:36px}.draft-toggle{min-height:36px;padding:5px 8px}.document-header h1{font-size:13px;flex:1}
+  .app-shell{min-height:0}.sidebar-toggle{width:36px;height:36px}
+  .document-header{min-height:44px;padding:2px max(6px,env(safe-area-inset-right)) 2px max(6px,env(safe-area-inset-left));gap:5px}.document-actions{gap:5px}.header-action{width:36px;height:36px}.draft-toggle{min-height:36px;padding:5px 8px}.document-header h1{font-size:13px}.save-state{display:none}
   .question-pane{bottom:calc(56px + env(safe-area-inset-bottom))}.question-viewport{background:#fff}
   .question-pane:not(.is-draft) .question-world{position:relative;width:100%;transform:none}
   .question-pane:not(.is-draft) .question-frame-wrapper{width:100%;max-width:none;margin:0!important;padding:0!important}
@@ -48,15 +57,12 @@ html:fullscreen{width:100%;height:100%;background:#f8f9fc}
 .app-shell.draft-fullscreen{grid-template-columns:minmax(0,1fr);min-height:0}
 .app-shell.draft-fullscreen>.main{grid-column:1}
 .app-shell.draft-fullscreen>.library,.app-shell.draft-fullscreen>.outline,
-.app-shell.draft-fullscreen .tab-header,.app-shell.draft-fullscreen .document-header,
+.app-shell.draft-fullscreen .document-header,
 .app-shell.draft-fullscreen #mode-bar{display:none}
 .app-shell.draft-fullscreen .question-pane{bottom:0}
 .app-shell.draft-fullscreen .question-navigation{inset:0;height:auto;border:0;background:none;pointer-events:none}
 .app-shell.draft-fullscreen .question-arrow{top:50%;pointer-events:auto}
 .app-shell.draft-fullscreen .qf-whiteboard-tool-row{bottom:calc(12px + env(safe-area-inset-bottom));left:max(6px,env(safe-area-inset-left));right:max(6px,env(safe-area-inset-right))}
-.outline-item.pending-review{background:#fff8e8;border-color:#ead4a8;color:#9a732b}
-.outline-parent{grid-column:1/-1;display:grid;grid-template-columns:35px minmax(0,1fr);gap:8px;align-items:start}
-.outline-child-matrix{display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:7px;padding-left:8px;border-left:1px solid var(--line)}
 .outline-child{height:auto;min-height:35px;padding:5px 3px;overflow-wrap:anywhere;line-height:1.4}
 .practice-summary-grading{color:#9a732b;font-size:13px;padding:8px 0}
 /* Expand the existing iframe in place: its editor, selection and undo stack survive. */

@@ -1,10 +1,13 @@
 let accessToken = sessionStorage.getItem('quizforge-access-token') || '';
+// Practice without history belongs to this loaded page only. Never persist the
+// token: refreshing or opening another browser page must create a new session.
+const practiceSession=globalThis.crypto?.randomUUID?.()||'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,char=>{const value=globalThis.crypto?.getRandomValues?globalThis.crypto.getRandomValues(new Uint8Array(1))[0]&15:Math.floor(Math.random()*16);return (char==='x'?value:(value&3)|8).toString(16);});
 const params = new URLSearchParams(location.hash.slice(1));
 if (params.has('token')) { accessToken = params.get('token'); sessionStorage.setItem('quizforge-access-token', accessToken); history.replaceState(null, '', location.pathname + location.search); }
 export function setAccessToken(value) { accessToken = value; sessionStorage.setItem('quizforge-access-token', value); }
 export async function request(path, options = {}) {
   const {timeoutMs=12000,...fetchOptions}=options;
-  const headers = {Accept:'application/json', ...options.headers};
+  const headers = {Accept:'application/json', ...options.headers,'X-QuizForge-Practice-Session':practiceSession};
   if (accessToken) headers['X-QuizForge-Token'] = accessToken;
   if (options.body) headers['Content-Type'] = 'application/json';
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.min(135000,Math.max(1000,timeoutMs)));
@@ -24,12 +27,12 @@ export const collectionPath = (kind,id) => `/api/collections/${encodeURIComponen
 export const questionPath = (kind,id,qid) => `${collectionPath(kind,id)}/questions/${encodeURIComponent(qid)}`;
 export function makeRequestId() { return crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`; }
 
-export async function readResource(id) {
+export async function readResource(id,{development=false}={}) {
   if(!/^[a-f0-9]{64}$/.test(id))throw new Error('图片资源编号无效');
-  const headers={};if(accessToken)headers['X-QuizForge-Token']=accessToken;
+  const headers={'X-QuizForge-Practice-Session':practiceSession};if(accessToken)headers['X-QuizForge-Token']=accessToken;
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
   try {
-    const response=await fetch(`/api/resources/${id}`,{headers,signal:controller.signal,cache:'no-store'});
+    const response=await fetch(`/api/${development?'development/':''}resources/${id}`,{headers,signal:controller.signal,cache:'no-store'});
     if(!response.ok){if(response.status===401)document.dispatchEvent(new Event('quizforge-auth-required'));const value=await response.json();throw Object.assign(new Error(value.error?.message||'图片读取失败'),{code:value.error?.code,status:response.status});}
     const blob=await response.blob();
     if(blob.size>4*1024*1024)throw new Error('图片超过 4 MiB 限制');

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-const extension=fileURLToPath(new URL('../../extensions/short-answer/',import.meta.url));
+const extension=fileURLToPath(new URL('./fixtures/legacy-extensions/short-answer/',import.meta.url));
 const files={rules:`${extension}rules.js`,questionSchema:`${extension}question.schema.json`,answerSchema:`${extension}answer.schema.json`};
 const bank=JSON.parse(readFileSync(new URL('../../question-banks/short-answer-demo/bank.json',import.meta.url),'utf8'));
 const answer={formatVersion:1,document:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'我的回答',marks:[{type:'bold'}]}]}]}};

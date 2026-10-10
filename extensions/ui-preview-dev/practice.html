@@ -1,0 +1,14 @@
+<article class="question-card">
+  <header class="card-heading"><span class="type-badge">单选</span><h2 id="stem">缓存如何提高效率？</h2></header>
+  <section class="card-content">
+    <p id="prompt">访问过的内容保存在本地后，下一次读取可以减少等待。下面哪种做法更合理？</p>
+    <img class="diagram" src="assets/cache.svg" alt="首次请求从服务读取，后续请求可从缓存读取">
+    <fieldset class="choices" aria-label="答案选项">
+      <label class="choice"><input type="radio" name="answer" value="A"><span class="letter">A</span><span>所有内容一直缓存，永不更新</span></label>
+      <label class="choice"><input type="radio" name="answer" value="B"><span class="letter">B</span><span>复用有效缓存，内容变化时更新</span></label>
+      <label class="choice"><input type="radio" name="answer" value="C"><span class="letter">C</span><span>每次操作都清空缓存</span></label>
+    </fieldset>
+    <section id="feedback" class="feedback" hidden><strong id="result"></strong><p>缓存减少重复读取；内容发生变化时应更新缓存。这是提交后界面的演示。</p></section>
+  </section>
+  <footer class="card-footer"><span id="answer-status">未作答</span><button id="submit" class="primary" disabled>提交答案</button><button id="reset" hidden>重新体验</button></footer>
+</article>

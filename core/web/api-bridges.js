@@ -11,10 +11,14 @@ const v1Outline=Object.freeze({
   api:Object.freeze({major:1,minor:1,capabilities:Object.freeze([...v1.api.capabilities,'outline-items'])}),
   bootstrap:bootstrapV1,
 });
+const v1ScoreOutline=Object.freeze({
+  api:Object.freeze({...v1Outline.api,minor:2}),
+  bootstrap:bootstrapV1,
+});
 
 // New API majors get their own bridge here; retain existing bridges for old
 // extensions and frozen history. A newer minor must preserve the older contract.
-const bridges=new Map([[1,[v1,v1Outline]]]);
+const bridges=new Map([[1,[v1,v1Outline,v1ScoreOutline]]]);
 
 export function resolveExtensionApi(version) {
   if(version===undefined)version={major:1,minor:0};

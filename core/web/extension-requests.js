@@ -1,12 +1,14 @@
+import {collectionFeature} from './practice-context.js';
 const denied=(code,message)=>Promise.resolve({ok:false,error:{code,message}});
 
 // Dispatches the public extension protocol. The shell owns persistence and lifecycle.
 export function createExtensionRouter({readResource,uploadResource,loadSdk,save,ai,navigate,summary,schedule=fn=>setTimeout(fn,0)}){
   return function route(pane,method,args){
-    if(method==='resource-get')return readResource(args?.id).then(data=>({ok:true,data}));
+    if(method==='resource-get')return readResource(args?.id,pane).then(data=>({ok:true,data}));
     if(method==='resource-put'){
       if(!['practice','edit'].includes(pane.view))return denied('READ_ONLY','历史记录不能上传图片');
-      return uploadResource(args).then(data=>({ok:true,data}));
+      if(pane.view==='edit'&&!collectionFeature(pane,'editing'))return denied('FEATURE_DISABLED','题库未开放编辑');
+      return uploadResource(args,pane).then(data=>({ok:true,data}));
     }
     if(method==='sdk-editor'){
       const assets=pane.view==='edit'?pane.editState?.editor:pane.view==='history'?pane.historyQuestion?.page:pane.pageAssets;

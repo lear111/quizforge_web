@@ -19,7 +19,7 @@
     {
       "id": "q-002",
       "title": "缓存的作用与更新",
-      "extension": {"id": "quizforge.short-answer", "version": "1.2.1"},
+      "extension": {"id": "quizforge.short-answer", "version": "1.3.0"},
       "data": {
         "formatVersion": 1,
         "stem": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "说明缓存的作用，以及原数据变化后应怎样处理。"}]}]},

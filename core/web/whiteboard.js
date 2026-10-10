@@ -21,7 +21,7 @@ const icons = {
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
 
-export function mountWhiteboard(container, { onChange = () => {}, onInteractionChange = () => {}, onFullscreen = () => {}, toolbarContainer = null } = {}) {
+export function mountWhiteboard(container, { onChange = () => {}, onViewChange = () => {}, onInteractionChange = () => {}, onFullscreen = () => {}, toolbarContainer = null } = {}) {
   if (!container?.ownerDocument) throw new TypeError('Whiteboard requires a DOM container');
   const doc = container.ownerDocument, win = doc.defaultView;
   if (toolbarContainer && (toolbarContainer.ownerDocument !== doc || typeof toolbarContainer.append !== 'function')) {
@@ -98,6 +98,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
   let mode = 'practice', tool = 'pen', destroyed = false, frame = 0;
   let fullscreenActive = false;
   let viewCamera = null;
+  let readOnly = false, readOnlyCamera = null, writableTool = tool;
   let viewWidth = 1, viewHeight = 1, pixelRatio = 1, strokeSequence = 0;
   let gesture = null, cameraBefore = null, interaction = false, eraserCursor = null;
   const pointers = new Map();
@@ -113,19 +114,31 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     interaction = active;
     onInteractionChange(active);
   }
-  function emitChange() { updateControls(); onChange(model.getDraft()); }
+  // History navigation has its own camera; the frozen draft never changes.
+  function draftCamera() { return readOnly ? { ...readOnlyCamera } : model.viewport; }
+  function setDraftCamera(value) {
+    if (!readOnly) return model.setViewport(value);
+    const next = normalizeViewport(value), previous = readOnlyCamera;
+    readOnlyCamera = next;
+    return next.x !== previous.x || next.y !== previous.y || next.zoom !== previous.zoom;
+  }
+  function emitChange() { updateControls(); if (readOnly) onViewChange(draftCamera()); else onChange(model.getDraft()); }
   function updateControls() {
-    undoButton.disabled = !model.canUndo;
-    redoButton.disabled = !model.canRedo;
+    for (const button of toolButtons) button.hidden = readOnly && !['select', 'pan'].includes(button.dataset.tool);
+    inkColor.parentElement.hidden = readOnly;
+    undoButton.parentElement.hidden = readOnly;
+    settingsButton.hidden = readOnly;
+    undoButton.disabled = readOnly || !model.canUndo;
+    redoButton.disabled = readOnly || !model.canRedo;
     select('[data-action="clear"]').disabled = model.strokes.length === 0;
-    const viewport = model.viewport;
+    const viewport = draftCamera();
     zoomButton.textContent = `${Math.round(viewport.zoom * 100)}%`;
     select('[data-action="zoom-out"]').disabled = viewport.zoom <= DRAFT_LIMITS.minZoom;
     select('[data-action="zoom-in"]').disabled = viewport.zoom >= DRAFT_LIMITS.maxZoom;
     paperColor.value = model.paper.color;
     pattern.value = model.paper.pattern;
   }
-  function displayCamera() { return mode === 'practice' && viewCamera ? { ...viewCamera } : model.viewport; }
+  function displayCamera() { return mode === 'practice' && viewCamera ? { ...viewCamera } : draftCamera(); }
   function syncCamera() {
     const camera = displayCamera();
     // Host content uses these same screen translations with transform-origin: 0 0.
@@ -223,12 +236,12 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     return { x: point.x + scroll.x, y: point.y + scroll.y };
   }
   function inkPoint(event) {
-    const point = screenToWorld(cameraPoint(screenPoint(event)), model.viewport);
+    const point = screenToWorld(cameraPoint(screenPoint(event)), draftCamera());
     const bound = value => Math.round(Math.max(-DRAFT_LIMITS.coordinate, Math.min(DRAFT_LIMITS.coordinate, value)) * 1_000) / 1_000;
     const pressure = event.pointerType === 'pen' && event.pressure > 0 ? Math.min(1, event.pressure) : 0.5;
     return { x: bound(point.x), y: bound(point.y), pressure: Math.round(pressure * 1_000) / 1_000 };
   }
-  function eraserRadius() { return Math.max(8, Number(widthInput.value) * 2) / model.viewport.zoom; }
+  function eraserRadius() { return Math.max(8, Number(widthInput.value) * 2) / draftCamera().zoom; }
   function capture(event) { try { canvas.setPointerCapture(event.pointerId); } catch { /* A cancelled pointer may already have disappeared. */ } }
   function releaseAll() {
     const ids = [...pointers.keys()];
@@ -237,7 +250,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
   }
   function cancelInteraction() {
     gesture = null;
-    if (cameraBefore) model.setViewport(cameraBefore);
+    if (cameraBefore) setDraftCamera(cameraBefore);
     cameraBefore = null;
     releaseAll();
     eraserCursor = null;
@@ -252,12 +265,12 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     let changed = false;
     if (commit) {
       try {
-        if (active?.kind === 'ink' && active.stroke.points.length) changed = model.appendStroke(active.stroke);
-        else if (active?.kind === 'erase') changed = model.eraseAlong(active.points, active.radius);
-        const camera = model.viewport;
+        if (!readOnly && active?.kind === 'ink' && active.stroke.points.length) changed = model.appendStroke(active.stroke);
+        else if (!readOnly && active?.kind === 'erase') changed = model.eraseAlong(active.points, active.radius);
+        const camera = draftCamera();
         changed ||= !!cameraBefore && (camera.x !== cameraBefore.x || camera.y !== cameraBefore.y || camera.zoom !== cameraBefore.zoom);
       } catch (error) { report(error.message); }
-    } else if (cameraBefore) model.setViewport(cameraBefore);
+    } else if (cameraBefore) setDraftCamera(cameraBefore);
     cameraBefore = null;
     releaseAll();
     syncCamera();
@@ -271,13 +284,13 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     const [first, second] = touches;
     const midpoint = { x: (first[1].screen.x + second[1].screen.x) / 2, y: (first[1].screen.y + second[1].screen.y) / 2 };
     gesture = {
-      kind: 'pinch', ids: [first[0], second[0]], camera: model.viewport,
-      anchor: screenToWorld(cameraPoint(midpoint), model.viewport),
+      kind: 'pinch', ids: [first[0], second[0]], camera: draftCamera(),
+      anchor: screenToWorld(cameraPoint(midpoint), draftCamera()),
       distance: Math.max(1, Math.hypot(first[1].screen.x - second[1].screen.x, first[1].screen.y - second[1].screen.y)),
     };
     requestPaint(); // Discard any first-finger preview immediately.
   }
-  function beginPan(pointerId, screen) { gesture = { kind: 'pan', pointerId, origin: screen, camera: model.viewport }; }
+  function beginPan(pointerId, screen) { gesture = { kind: 'pan', pointerId, origin: screen, camera: draftCamera() }; }
   function previewErase(path) {
     for (const stroke of model.strokes) {
       if (!gesture.erasedIds.has(stroke.id) && strokeTouchesPath(stroke, path, gesture.radius)) gesture.erasedIds.add(stroke.id);
@@ -292,7 +305,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     const screen = screenPoint(event);
     pointers.set(event.pointerId, { type: event.pointerType, screen });
     capture(event);
-    if (!interaction) { cameraBefore = model.viewport; notifyInteraction(true); report(); }
+    if (!interaction) { cameraBefore = draftCamera(); notifyInteraction(true); report(); }
     if (event.pointerType === 'touch' && [...pointers.values()].filter(pointer => pointer.type === 'touch').length >= 2) {
       startPinch();
       return;
@@ -317,7 +330,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     for (const sample of samples.length ? samples : [event]) {
       if (points.length >= DRAFT_LIMITS.maxPointsPerStroke) break;
       const point = inkPoint(sample), previous = points[points.length - 1];
-      if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) * model.viewport.zoom >= 0.35) {
+      if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) * draftCamera().zoom >= 0.35) {
         points.push(point);
         if (gesture.kind === 'erase') previewErase(previous ? [previous, point] : [point]);
       }
@@ -338,9 +351,9 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
       const zoom = Math.max(DRAFT_LIMITS.minZoom, Math.min(DRAFT_LIMITS.maxZoom, gesture.camera.zoom * distance / gesture.distance));
       const bound = value => Math.max(-DRAFT_LIMITS.coordinate, Math.min(DRAFT_LIMITS.coordinate, value));
       const anchor = cameraPoint(midpoint);
-      model.setViewport({ x: bound(anchor.x / zoom - gesture.anchor.x), y: bound(anchor.y / zoom - gesture.anchor.y), zoom });
+      setDraftCamera({ x: bound(anchor.x / zoom - gesture.anchor.x), y: bound(anchor.y / zoom - gesture.anchor.y), zoom });
     } else if (gesture?.pointerId === event.pointerId) {
-      if (gesture.kind === 'pan') model.setViewport(translateCamera(gesture.camera, pointer.screen.x - gesture.origin.x, pointer.screen.y - gesture.origin.y));
+      if (gesture.kind === 'pan') setDraftCamera(translateCamera(gesture.camera, pointer.screen.x - gesture.origin.x, pointer.screen.y - gesture.origin.y));
       else addSamples(event);
     }
     syncCamera();
@@ -360,6 +373,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     try { if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); } catch {}
   }
   function setTool(next) {
+    if (readOnly && !['select', 'pan'].includes(next)) return;
     finishInteraction();
     tool = next;
     root.dataset.tool = tool;
@@ -380,6 +394,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     (tool === 'select' ? select('[data-tool="select"]') : canvas).focus({ preventScroll: true });
   }
   function perform(action) {
+    if (readOnly && !['zoom-in', 'zoom-out', 'zoom-reset', 'fullscreen'].includes(action)) return;
     finishInteraction();
     report();
     let changed = false;
@@ -396,9 +411,9 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     else if (action === 'confirm-clear') { changed = model.clear(); confirmation.hidden = true; focusTool(); }
     else if (action === 'fullscreen' && mode === 'draft') { closeSettings(); onFullscreen(); }
     else if (action.startsWith('zoom-')) {
-      const camera = model.viewport;
+      const camera = draftCamera();
       const zoom = action === 'zoom-reset' ? 1 : camera.zoom * (action === 'zoom-in' ? 1.25 : 0.8);
-      changed = model.setViewport(zoomAt(camera, zoom, cameraPoint({ x: viewWidth / 2, y: viewHeight / 2 })));
+      changed = setDraftCamera(zoomAt(camera, zoom, cameraPoint({ x: viewWidth / 2, y: viewHeight / 2 })));
     }
     toolbar.inert = !confirmation.hidden;
     if (changed) emitChange();
@@ -417,7 +432,8 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
     event.preventDefault();
     finishInteraction();
     const amount = Math.max(-100, Math.min(100, event.deltaY));
-    if (model.setViewport(zoomAt(model.viewport, model.viewport.zoom * Math.exp(-amount * 0.002), cameraPoint(screenPoint(event))))) emitChange();
+    const camera = draftCamera();
+    if (setDraftCamera(zoomAt(camera, camera.zoom * Math.exp(-amount * 0.002), cameraPoint(screenPoint(event))))) emitChange();
     syncCamera();
     requestPaint();
   }, { passive: false });
@@ -435,6 +451,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
   listen(widthInput, 'input', () => { widthValue.value = widthInput.value; widthValue.textContent = widthInput.value; });
   listen(penOnly, 'change', cancelInteraction);
   for (const control of [paperColor, pattern]) listen(control, 'change', () => {
+    if (readOnly) { updateControls(); return; }
     finishInteraction();
     if (model.setPaper({ color: paperColor.value, pattern: pattern.value })) emitChange();
     requestPaint();
@@ -464,6 +481,20 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
   updateControls();
 
   return {
+    setReadOnly(value) {
+      if (destroyed || readOnly === !!value) return;
+      cancelInteraction();
+      if (value) writableTool = tool;
+      readOnly = !!value;
+      readOnlyCamera = readOnly ? model.viewport : null;
+      setTool(readOnly ? 'pan' : writableTool);
+      confirmation.hidden = true;
+      toolbar.inert = false;
+      closeSettings();
+      updateControls();
+      syncCamera();
+      requestPaint();
+    },
     setFullscreenState({ supported, active, pending }) {
       if (destroyed) return;
       fullscreenActive = !!active;
@@ -481,6 +512,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
       const next = new WhiteboardModel(draft).getDraft();
       cancelInteraction();
       model.load(next);
+      if (readOnly) readOnlyCamera = model.viewport;
       syncCamera();
       confirmation.hidden = true;
       toolbar.inert = false;
@@ -507,7 +539,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onInteractionC
       // Validate before finishing ink so rejected layout adjustments have no effect.
       const next = normalizeViewport(viewport);
       finishInteraction();
-      const changed = model.setViewport(next);
+      const changed = setDraftCamera(next);
       syncCamera();
       updateControls();
       if (changed && emit) emitChange();

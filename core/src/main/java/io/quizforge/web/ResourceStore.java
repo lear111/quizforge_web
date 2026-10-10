@@ -11,13 +11,24 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
 
-/** Content-addressed image resources outlive mutable banks and their source folders. */
+/** Durable images and page-scoped uploads share content addressing and validation. */
 final class ResourceStore {
     static final int MAX_BYTES = 4 * 1024 * 1024;
     private static final Map<String, String> TYPES = Map.of("image/png", "png", "image/jpeg", "jpg", "image/webp", "webp", "image/gif", "gif");
+    private static final long MAX_MEMORY_BYTES = 32L * 1024 * 1024;
     record Resource(String id, String mime, byte[] bytes) { }
     private final Path root, directory;
-    ResourceStore(Path root) { this.root = root; directory = root.resolve(".state/resources"); }
+    private final ResourceStore fallback;
+    private final Map<String, Resource> memory;
+    private long memoryBytes;
+    ResourceStore(Path root) { this(root, null, false); }
+    private ResourceStore(Path root, ResourceStore fallback, boolean memoryOnly) {
+        this.root = root; directory = root.resolve(".state/resources"); this.fallback = fallback;
+        memory = memoryOnly ? new java.util.LinkedHashMap<>() : null;
+    }
+    static ResourceStore memory(Path root, ResourceStore fallback) { return new ResourceStore(root, fallback, true); }
+    synchronized long memoryBytes() { return memoryBytes; }
+    synchronized void clearMemory() { if (memory != null) memory.clear(); memoryBytes = 0; }
 
     synchronized ObjectNode upload(JsonNode request) throws IOException {
         if (request == null || !request.isObject() || request.size() != 2 || !request.has("mime") || !request.has("data")) throw ApiException.bad("Image upload requires mime and base64 data");
@@ -33,6 +44,12 @@ final class ResourceStore {
 
     synchronized Resource read(String id) throws IOException {
         if (!id.matches("[a-f0-9]{64}")) throw ApiException.bad("Invalid image resource ID");
+        if (memory != null) {
+            Resource resource = memory.get(id);
+            if (resource != null) return new Resource(resource.id(), resource.mime(), resource.bytes().clone());
+            if (fallback != null) return fallback.read(id);
+            throw new ApiException(404, "RESOURCE_NOT_FOUND", "Image resource does not exist in this page session");
+        }
         safeDirectory(false);
         for (var type : TYPES.entrySet()) {
             Path file = directory.resolve(id + "." + type.getValue());
@@ -46,6 +63,14 @@ final class ResourceStore {
     }
 
     synchronized void importAssets(Path bankDirectory) throws IOException {
+        importAssets(bankDirectory, Json.MAPPER.createArrayNode(), false);
+    }
+    synchronized void importExtensionAssets(Path bankDirectory, JsonNode staticAssets) throws IOException {
+        importAssets(bankDirectory, staticAssets, true);
+    }
+    private void importAssets(Path bankDirectory, JsonNode staticAssets, boolean extension) throws IOException {
+        var allowedStatic = new java.util.HashSet<Path>();
+        for (JsonNode path : staticAssets) allowedStatic.add(Json.safeFile(bankDirectory, path.asText()));
         Path assets = bankDirectory.resolve("assets");
         if (!Files.exists(assets, LinkOption.NOFOLLOW_LINKS)) return;
         if (Files.isSymbolicLink(assets) || !Files.isDirectory(assets, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Bank assets must be a normal directory");
@@ -57,6 +82,9 @@ final class ResourceStore {
                 if (Files.isDirectory(file, LinkOption.NOFOLLOW_LINKS)) continue;
                 if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > MAX_BYTES) throw new IOException("Invalid bank asset size");
                 byte[] bytes = Files.readAllBytes(file); String mime = detectMime(bytes);
+                // Extensions can retain prototype media, fonts and other local files.
+                // Only declared page assets are served; this scan imports raster resources.
+                if (mime == null && (extension || allowedStatic.contains(file.toRealPath()))) continue;
                 if (mime == null) throw new IOException("Bank assets support only PNG, JPEG, WebP and GIF");
                 store(mime, bytes);
             }
@@ -90,7 +118,14 @@ final class ResourceStore {
     private Resource store(String mime, byte[] bytes) throws IOException {
         if (bytes.length == 0 || bytes.length > MAX_BYTES) throw new ApiException(413, "IMAGE_SIZE_LIMIT", "Image exceeds 4 MiB");
         if (!mime.equals(detectMime(bytes))) throw new ApiException(415, "IMAGE_TYPE_MISMATCH", "Image bytes do not match the declared type");
-        safeDirectory(true); String id = hash(bytes); Path file = directory.resolve(id + "." + TYPES.get(mime));
+        String id = hash(bytes);
+        if (memory != null) {
+            Resource prior = memory.get(id);
+            if (prior != null) return prior;
+            if (memory.size() >= 200 || memoryBytes + bytes.length > MAX_MEMORY_BYTES) throw new ApiException(413, "RESOURCE_SESSION_LIMIT", "当前页面的临时图片已达到上限，请刷新页面开始新的练习。");
+            Resource resource = new Resource(id, mime, bytes.clone()); memory.put(id, resource); memoryBytes += bytes.length; return resource;
+        }
+        safeDirectory(true); Path file = directory.resolve(id + "." + TYPES.get(mime));
         if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) EditJournal.replace(file, bytes);
         else if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(file) || Files.size(file) != bytes.length || !MessageDigest.isEqual(Files.readAllBytes(file), bytes)) throw new IOException("Stored image has unrelated changes");
         return new Resource(id, mime, bytes);

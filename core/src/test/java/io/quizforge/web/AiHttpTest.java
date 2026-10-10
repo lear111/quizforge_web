@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Real host HTTP -> provider HTTP -> review/history, with no external model or user data. */
 class AiHttpTest {
     @TempDir Path root;
-    @Test void boundedRepairCandidateConfirmationAndHistoryAreHostOwned() throws Exception {
+    @Test void boundedRepairAutomaticScoreAndHistoryAreHostOwned() throws Exception {
         ServerTest fixture = new ServerTest(); fixture.root = root; fixture.prepare();
         fixture.write("extensions/generic/rules.js", """
                 QF.defineType({
@@ -58,12 +58,13 @@ class AiHttpTest {
             var task=begun.body();
             long end=System.nanoTime()+java.time.Duration.ofSeconds(20).toNanos();
             while(java.util.List.of("queued","running").contains(task.path("status").asText())&&System.nanoTime()<end){Thread.sleep(40);task=fixture.get(taskPath).body();}
-            assertEquals("succeeded",task.path("status").asText(),task.toString());assertEquals(3,calls.get());assertEquals(3.5,task.at("/candidate/score").asDouble());
-            assertEquals("pending",fixture.get(ServerTest.QUESTION).body().at("/state/result/gradingStatus").asText());
+            assertEquals("confirmed",task.path("status").asText(),task.toString());assertEquals(3,calls.get());assertEquals(3.5,task.at("/candidate/score").asDouble());
+            var automaticallyGraded=fixture.get(ServerTest.QUESTION).body();assertEquals("graded",automaticallyGraded.at("/state/result/gradingStatus").asText());assertEquals(3.5,automaticallyGraded.at("/state/result/score").asDouble());
             assertEquals(404,fixture.get("/api/collections/bank/bank/questions/q2/ai/tasks/"+taskId).status());
-            var confirmed=fixture.post(taskPath+"/confirm",Json.object().put("requestId","ai-confirm-0001").put("candidateVersion",task.at("/candidate/version").asText()).put("score",4));
-            assertEquals(200,confirmed.status(),confirmed.body().toString());var payload=confirmed.body().path("payload");assertEquals(4,payload.at("/state/result/score").asDouble());
-            assertTrue(payload.at("/state/result/feedback").asText().contains("最终得分：4 / 5"));assertTrue(payload.at("/state/result/feedback").asText().contains("3.5"));
+            var confirmed=fixture.post(taskPath+"/confirm",Json.object().put("requestId","ai-confirm-0001").put("candidateVersion",task.at("/candidate/version").asText()));
+            assertEquals(200,confirmed.status(),confirmed.body().toString());var payload=confirmed.body().path("payload");assertEquals(3.5,payload.at("/state/result/score").asDouble());
+            assertTrue(payload.at("/state/result/feedback").asText().contains("最终得分：3.5 / 5"));
+            var conflicting=fixture.post(taskPath+"/confirm",Json.object().put("requestId","ai-confirm-change").put("candidateVersion",task.at("/candidate/version").asText()).put("score",4));assertEquals(409,conflicting.status());assertEquals("AI_CANDIDATE_CONFLICT",conflicting.body().at("/error/code").asText());
             var reviewed=fixture.post(ServerTest.QUESTION+"/actions",fixture.action("ai-manual-0001",payload.at("/state/revision").asLong(),"review",Json.object().set("review",Json.object().put("score",2))));
             assertEquals(200,reviewed.status(),reviewed.body().toString());assertTrue(reviewed.body().at("/state/result/feedback").asText().contains("最终得分：2 / 5"));assertTrue(reviewed.body().at("/state/result/feedback").asText().contains("3.5"));
             fixture.finishCurrent("ai-finish-0001");

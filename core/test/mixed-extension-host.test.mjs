@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createQuestionCache} from '../web/question-cache.js';
 import {questionExtension,collectionHasExtension,extensionPageRoute,sameQuestionStamp} from '../web/extension-pages.js';
-import {contextFor} from '../web/practice-context.js';
+import {contextFor,collectionFeature,practiceSaveLabel,canViewDraft,draftViewActive} from '../web/practice-context.js';
 import {createHistoryView} from '../web/history-view.js';
 import {prepareExtensionAssets} from '../web/page-assets.js';
 
@@ -18,18 +18,21 @@ function fixture({requestImpl,collection}={}){
   const mounted=[],requests=[],cache=createQuestionCache({schedule:null}),pages=createQuestionCache({schedule:null,capacity:4,maxBytes:4*1024*1024});
   let live=0,maxLive=0;
   class Element{
-    constructor(){this.children=[];this.dataset={};this.classList={remove(){},toggle(){}};}
+    constructor(){this.children=[];this.dataset={};const names=new Set();this.classList={remove(...values){values.forEach(value=>names.delete(value));},add(value){names.add(value);},contains:value=>names.has(value),toggle(){}};}
+    setAttribute(){}
+    addEventListener(){}
+    prepend(...children){this.children.unshift(...children);for(const child of children)child.parent=this;}
     append(...children){this.children.push(...children);for(const child of children)child.parent=this;}
     replaceChildren(...children){for(const child of this.children)child.parent=null;this.children=[];this.append(...children);}
     remove(){if(this.parent)this.parent.children=this.parent.children.filter(child=>child!==this);this.parent=null;}
   }
-  const pane={kind:'bank',id:'mixed',key:'bank:mixed',node:new Element(),frameHost:new Element(),viewport:{clientWidth:900,scrollTop:0,scrollLeft:0},tools:{},collection:collection||{extension:null,extensions:[single,text],questions:[{id:'a',type:single},{id:'b',type:text},{id:'c',type:single}],states:{}},ink:{clear(){}},whiteboard:{loads:[],load(value){this.loads.push(value);},setMode(){}},view:'practice',plugin:null,draftMode:false};
-  const sandbox={performance:{now:()=>0},setTimeout,clearTimeout,structuredClone,Math,questionExtension,collectionHasExtension,extensionPageRoute,sameQuestionStamp,contextFor,
+  const pane={kind:'bank',id:'mixed',key:'bank:mixed',node:new Element(),frameHost:new Element(),viewport:{clientWidth:900,scrollTop:0,scrollLeft:0},tools:{},collection:collection||{extension:null,extensions:[single,text],questions:[{id:'a',type:single},{id:'b',type:text},{id:'c',type:single}],states:{}},ink:{clear(){}},whiteboard:{loads:[],load(value){this.loads.push(value);},setReadOnly(value){this.readOnly=value;},setMode(value){this.mode=value;}},view:'practice',plugin:null,draftMode:false};
+  const sandbox={performance:{now:()=>0},setTimeout,clearTimeout,structuredClone,Math,questionExtension,collectionHasExtension,extensionPageRoute,sameQuestionStamp,contextFor,collectionFeature,practiceSaveLabel,canViewDraft,draftViewActive,
     questionsCache:cache,pagesCache:pages,questionCacheKey:(pane,qid)=>`${pane.key}:${qid}`,
     questionPath:(_kind,_id,qid)=>`/api/questions/${qid}`,collectionPath:()=>'/api/collections/bank/mixed',
     request:async(path,options)=>{requests.push({path,options});return requestImpl(path,options);},
     prepareAssets:assets=>prepareExtensionAssets(assets,async dependency=>({id:dependency.id,version:dependency.version,script:'frozen SDK',style:''})),el:()=>new Element(),active:()=>pane,
-    disposeEditorSession(){},disposeScoreSummary(){},syncPracticeCamera(){},renderTabs(){},renderOutline(){},updateChrome(){},saveStatus(){},setEditorLayout(){},pageRequest(){},notice(){},
+    disposeEditorSession(){},disposeScoreSummary(){},syncPracticeCamera(){},renderOutline(){},updateChrome(){},saveStatus(){},setEditorLayout(){},pageRequest(){},notice(){},
     mountExtension(container,assets,context){
       const frame=new Element();container.append(frame);live++;maxLive=Math.max(maxLive,live);let destroyed=false;
       const plugin={frame,ready:Promise.resolve(),destroy(){if(destroyed)return;destroyed=true;live--;frame.remove();}};
@@ -50,7 +53,7 @@ test('mixed navigation routes each question to its own assets and mounts only th
   for(const id of ['a','b','c'])await f.showQuestion(f.pane,id,{payload:values[id]});
   assert.deepEqual(f.mounted.map(value=>value.assets.html),['choice','text','choice']);
   assert.deepEqual(f.mounted.map(value=>value.context.question.id),['a','b','c']);
-  assert.equal(f.requests.length,2);assert.equal(f.maxLive,1);assert.equal(f.live,1);assert.equal(f.pane.frameHost.children.length,1);
+  assert.equal(f.requests.length,2);assert.equal(f.maxLive,2);assert.equal(f.live,1);assert.equal(f.pane.frameHost.children.length,1);
   f.pane.plugin.destroy();
 });
 
@@ -70,11 +73,35 @@ test('package-only stamp changes reload a cached question and its page',async()=
     if(path==='/api/extensions/choice/1.0.0/page')return {html:'new frozen package',script:'',style:''};
     throw new Error(`Unexpected request ${path}`);
   }});
-  f.cache.set('bank:mixed:a',previous);f.pages.set('choice:1.0.0:old page',{html:'stale'});
+  f.cache.set('bank:mixed:a',previous);f.pages.set(extensionPageRoute(single,'old page').key,{html:'stale'});
   const fresh=await f.loadQuestion(f.pane,'a');
   assert.equal(fresh.stamp.packageVersion,'new page');assert.equal(f.pane.node.dataset.questionSource,'server');
   await f.showQuestion(f.pane,'a',{payload:fresh});assert.equal(f.mounted[0].assets.html,'new frozen package');
   assert.equal(f.requests.filter(value=>value.path==='/api/questions/a').length,1);f.pane.plugin.destroy();
+});
+
+test('ordinary mixed banks switch independent extensions in one folder without loading all runtimes',async()=>{
+  const choice={id:'choice',version:'1.0.0',name:'单选',group:'语言题型'},essay={id:'essay',version:'1.0.0',name:'作文',group:'语言题型'};
+  const collection={extension:null,extensions:[choice,essay],questions:[{id:'a',type:choice},{id:'b',type:essay},{id:'c',type:choice}],states:{}};
+  const values={a:payload('a',choice,'same-fingerprint'),b:payload('b',essay,'same-fingerprint'),c:payload('c',choice,'same-fingerprint')};
+  const f=fixture({collection,requestImpl:async path=>{
+    if(path==='/api/extensions/choice/1.0.0/page')return {html:'choice type',script:'',style:''};
+    if(path==='/api/extensions/essay/1.0.0/page')return {html:'essay type',script:'',style:''};
+    throw new Error(`Unexpected request ${path}`);
+  }});
+  for(const id of ['a','b','c','b'])await f.showQuestion(f.pane,id,{payload:values[id]});
+  assert.deepEqual(f.mounted.map(row=>row.assets.html),['choice type','essay type','choice type','essay type']);
+  assert.equal(f.requests.length,2,'Repeated samples reuse only their matching type page.');assert.equal(f.maxLive,2);assert.equal(f.live,1);
+  for(const row of f.mounted)assert.equal(row.context.mode,'practice');
+  f.pane.plugin.destroy();
+});
+
+test('mixed extensions from one folder resolve only their own frozen history pages',async()=>{
+  const choice={id:'choice',version:'1.0.0',name:'单选',group:'语言题型'},essay={id:'essay',version:'1.0.0',name:'作文',group:'语言题型'};
+  const f=fixture({requestImpl:async()=>{throw new Error('History cannot fetch live package pages');}});
+  f.pane.view='history';f.pane.historyView=createHistoryView({questions:[{payload:payload('a',choice),pageKey:'choice'},{payload:payload('b',essay),pageKey:'essay'}],pages:{choice:{html:'frozen choice',script:'',style:'',extension:choice},essay:{html:'frozen essay',script:'',style:'',extension:essay}}});
+  await f.showHistoryQuestion(f.pane,'b');await f.showHistoryQuestion(f.pane,'a');
+  assert.deepEqual(f.mounted.map(row=>row.assets.html),['frozen essay','frozen choice']);assert.equal(f.maxLive,1);assert.equal(f.requests.length,0);f.pane.plugin.destroy();
 });
 
 test('mixed history mounts only referenced frozen assets with readonly capabilities',async()=>{

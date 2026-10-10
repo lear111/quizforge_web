@@ -30,3 +30,10 @@ test('history context is immutable and summary navigation retains original quest
   const context=contextFor(pane);assert.equal(context.mode,'history');assert.equal(context.capabilities.canAiGrade,false);assert.equal(context.capabilities.canReview,false);
   pane.summaryShown=true;assert.equal(navigationIndex(pane),2);pane.view='history-deleted';assert.deepEqual(visibleQuestions(pane),[]);
 });
+
+test('collection controls preserve answer autosave without whiteboard and reject disabled editing uploads',async()=>{
+  const {route,pane,calls}=fixture();pane.collection.features={editing:false,whiteboard:false,history:false};
+  await route(pane,'save',{purpose:'draft',data:{answer:{text:'unfinished answer'}}});assert.equal(calls.at(-1)[0],'save');assert.equal(calls.at(-1)[2],'draft');
+  pane.view='edit';assert.equal((await route(pane,'resource-put',{})).error.code,'FEATURE_DISABLED');pane.collection.features.editing=true;await route(pane,'resource-put',{});assert.equal(calls.at(-1)[0],'upload');
+  pane.view='practice';pane.kind='extension';pane.payload={question:{id:'q1'},state:{status:'unanswered'}};const context=contextFor(pane);assert.equal(context.capabilities.canSave,true);assert.equal(context.capabilities.canSubmit,true);assert.equal(context.capabilities.canWhiteboard,false);assert.equal(context.capabilities.canHistory,false);assert.equal(context.capabilities.canEdit,true);
+});

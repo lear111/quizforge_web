@@ -1,0 +1,206 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "组合翻译 · UI 原型",
+  "description": "界面演示，真实保存与判分尚未实现。",
+  "extension": {
+    "id": "quizforge.english-translation",
+    "version": "1.0.0"
+  },
+  "features": {
+    "editing": true,
+    "whiteboard": true,
+    "history": true
+  },
+  "questions": [
+    {
+      "id": "sample-translation-2026",
+      "title": "英译汉 · 46–50",
+      "data": {
+        "directions": "Read the text carefully and translate the underlined segments into Chinese. (10 points)",
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Science education today revolves around the idea of scientific literacy—the base-level knowledge about science that nonscientists require to effectively get on in the world. This concept has served as a central goal for curriculum developers, local school boards, business and community leaders, and policymakers ever since its introduction nearly 80 years ago."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "(46) "
+                },
+                {
+                  "type": "text",
+                  "text": "Tracing the history of the term, we can see how the definition of scientific literacy has shifted over time, muddying the waters when it comes to determining the goals of science education.",
+                  "marks": [
+                    {
+                      "type": "underline"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": " And that’s a shame, because there is much to recommend in the idea of scientific literacy as it was originally articulated in 1945, a time when science appeared to be the key to progress and scientists seemingly held the fate of the world in their hands. (47) "
+                },
+                {
+                  "type": "text",
+                  "text": "A return to that version of scientific literacy, which focused more on teaching what science is and how it works and less on memorizing scientific facts, seems like something society today desperately needs.",
+                  "marks": [
+                    {
+                      "type": "underline"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "In the United States, the desire to provide the public with a general, nontechnical education in science originated as far back as the late 1800s. (48) "
+                },
+                {
+                  "type": "text",
+                  "text": "Educators advanced the idea of having students complete detailed laboratory exercises in high schools in the belief that such work was beneficial primarily as a way to enhance logical reasoning and observational skills.",
+                  "marks": [
+                    {
+                      "type": "underline"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": " The development in 1915 of the popular new subject “general science” was another effort to train students to apply the principles of science to everyday, nonscience problems."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Although these efforts were aimed at the nonscience-bound student, they never really made their way into mainstream thought and public discourse as a means to rally widespread support for the importance of science teaching in schools. (49) "
+                },
+                {
+                  "type": "text",
+                  "text": "It wasn’t until the phrase “scientific literacy” came along in the 1940s that science had the formidable slogan it needed to command public attention and make improving science education an important national goal.",
+                  "marks": [
+                    {
+                      "type": "underline"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "(50) "
+                },
+                {
+                  "type": "text",
+                  "text": "The intense focus on scientific literacy in the United States originally grew out of the critical role of science and technology during World War II, as well as the perceived deficiencies of American soldiers.",
+                  "marks": [
+                    {
+                      "type": "underline"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": " As the war unfolded, science rapidly assumed a central role. Battles increasingly depended on new military technologies such as radar and the proximity fuze. Science-based analytical approaches proved remarkably successful in the hunt for German submarines in the Atlantic Ocean. And there was the (then-secret) work building the world’s first atomic bomb. As a result, scientists—physicists in particular— found themselves in high demand."
+                }
+              ]
+            }
+          ]
+        },
+        "parts": [
+          {
+            "id": "q46",
+            "label": "46",
+            "stem": "Tracing the history of the term, we can see how the definition of scientific literacy has shifted over time, muddying the waters when it comes to determining the goals of science education.",
+            "referenceAnswer": "追溯这一术语的历史，我们可以看到科学素养的定义如何随时间推 移而演变，这使得在确定科学教育的目标时，情况变得模糊不清。",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2
+          },
+          {
+            "id": "q47",
+            "label": "47",
+            "stem": "A return to that version of scientific literacy, which focused more on teaching what science is and how it works and less on memorizing scientific facts, seems like something society today desperately needs.",
+            "referenceAnswer": "回归到那个版本的科学素养理念——它更侧重于教授科学的本质与 运作方式，而非记忆科学事实——似乎正是当今社会所亟需的。",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2
+          },
+          {
+            "id": "q48",
+            "label": "48",
+            "stem": "Educators advanced the idea of having students complete detailed laboratory exercises in high schools in the belief that such work was beneficial primarily as a way to enhance logical reasoning and observational skills.",
+            "referenceAnswer": "教育家们提出了让学生在高中阶段完成详细实验训练的主张，他们 认为这类训练的主要益处在于能提升逻辑推理和观察能力。",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2
+          },
+          {
+            "id": "q49",
+            "label": "49",
+            "stem": "It wasn’t until the phrase “scientific literacy” came along in the 1940s that science had the formidable slogan it needed to command public attention and make improving science education an important national goal.",
+            "referenceAnswer": "直到 20 世纪 40 年代“科学素养”这一说法出现，科学才拥有了一 个极具号召力的口号，得以赢得公众关注，并将改善科学教育确立为一项重 要的国家目标。",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2
+          },
+          {
+            "id": "q50",
+            "label": "50",
+            "stem": "The intense focus on scientific literacy in the United States originally grew out of the critical role of science and technology during World War II, as well as the perceived deficiencies of American soldiers.",
+            "referenceAnswer": "美国对科学素养的高度关注，最初源于科学技术在二战期间发挥的 关键作用，以及当时所意识到的美国士兵的素质不足。",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2
+          }
+        ],
+        "referenceAnswer": "",
+        "rubric": "",
+        "maxScore": 10
+      },
+      "outline": {
+        "level": "parts",
+        "items": [
+          {
+            "id": "q46",
+            "label": "46"
+          },
+          {
+            "id": "q47",
+            "label": "47"
+          },
+          {
+            "id": "q48",
+            "label": "48"
+          },
+          {
+            "id": "q49",
+            "label": "49"
+          },
+          {
+            "id": "q50",
+            "label": "50"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
 interface:
   display_name: "QuizForge 题库制作"
-  short_description: "先展示代表题三态原型与交互方案，确认后验证小样并生成题库"
-  default_prompt: "使用 $quizforge-bank-builder 分析我的材料并匹配拓展。先展示代表题的未提交、提交后和编辑界面及交互方案，停在 UI 确认阶段；得到确认后再制作完整题库。"
+  short_description: "设计前逐轮追问 UI 细节与编辑白名单，确认原型和真实功能后再生成题库"
+  default_prompt: "使用 $quizforge-bank-builder 制作题库：先确认功能开关和材料选型，逐轮访谈 UI 并确认编辑白名单后制作三态原型；原型确认后完善真实接口、验证小样，经我验收并明确许可后才批量生成。"

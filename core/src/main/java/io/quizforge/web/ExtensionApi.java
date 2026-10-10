@@ -10,12 +10,12 @@ import java.util.Set;
 final class ExtensionApi {
     private record Contract(int minor, Set<String> capabilities) { }
     // A new major requires its own implementation and compatibility tests before registration.
-    private static final Map<Integer, Contract> CONTRACTS = Map.of(1, new Contract(1, Set.of(
+    private static final Map<Integer, Contract> CONTRACTS = Map.of(1, new Contract(2, Set.of(
             "practice", "editor", "editor-drafts", "score", "manual-review", "ai-grading",
             "resources", "richtext", "navigation", "lifecycle", "outline-items")));
     private ExtensionApi() { }
 
-    static ObjectNode version() { return Json.object().put("major", 1).put("minor", 1); }
+    static ObjectNode version() { return Json.object().put("major", 1).put("minor", 2); }
     private static ObjectNode legacyVersion() { return Json.object().put("major", 1).put("minor", 0); }
     static boolean outlineItemsDeclared(JsonNode manifest) {
         JsonNode requirement = manifest.path("requiresApi");
@@ -33,7 +33,7 @@ final class ExtensionApi {
         int major = requirement.path("major").asInt(), minor = requirement.path("minMinor").asInt();
         Contract contract = CONTRACTS.get(major);
         if (contract == null || minor > contract.minor())
-            throw new ApiException(422, "UNSUPPORTED_EXTENSION_API", "拓展需要 API v" + major + "." + minor + "，本应用支持 API v1.1。请安装兼容的拓展版本，或在应用支持该接口后再升级。");
+            throw new ApiException(422, "UNSUPPORTED_EXTENSION_API", "拓展需要 API v" + major + "." + minor + "，本应用支持 API v1.2。请安装兼容的拓展版本，或在应用支持该接口后再升级。");
         JsonNode capabilities = requirement.get("capabilities");
         if (capabilities == null) return;
         if (!capabilities.isArray() || capabilities.size() > 100)
@@ -63,7 +63,7 @@ final class ExtensionApi {
             throw new ApiException(409, "INVALID_HISTORY_API", "历史记录的 apiVersion 声明无效，无法安全打开。原记录保留，请从备份恢复或向开发者反馈。");
         Contract contract = CONTRACTS.get(value.path("major").asInt());
         if (contract == null || value.path("minor").asInt() > contract.minor())
-            throw new ApiException(409, "UNSUPPORTED_HISTORY_API", "历史记录需要 API v" + value.path("major").asText() + "." + value.path("minor").asText() + "，本应用支持 v1.1 及旧版 v1.0。请使用支持该接口的应用打开；原记录未修改。");
+            throw new ApiException(409, "UNSUPPORTED_HISTORY_API", "历史记录需要 API v" + value.path("major").asText() + "." + value.path("minor").asText() + "，本应用支持 v1.2 及旧版 v1.1、v1.0。请使用支持该接口的应用打开；原记录未修改。");
     }
 
     static ObjectNode declare(ObjectNode document) { document.set("apiVersion", version()); return document; }

@@ -232,7 +232,7 @@ class ServerTest {
         String newVersion = get(QUESTION + "/stamp").body.path("contentVersion").asText(); assertNotEquals(oldVersion, newVersion);
         ObjectNode staleRequest = action("content-001", 0, "draft", answer("invalid")); staleRequest.put("contentVersion", oldVersion);
         Reply stale = post(QUESTION + "/actions", staleRequest); assertEquals(409, stale.status); assertEquals("CONTENT_CONFLICT", stale.body.at("/error/code").asText());
-        try (var paths = Files.list(root.resolve(".state"))) { assertEquals(0, paths.count()); }
+        try (var paths = Files.list(root.resolve(".state"))) { assertEquals(0, paths.filter(path -> path.getFileName().toString().matches("[a-f0-9]{64}\\.json")).count()); }
         ObjectNode freshRequest = action("content-002", 0, "draft", answer("yes")); freshRequest.put("contentVersion", newVersion);
         Reply saved = post(QUESTION + "/actions", freshRequest); assertEquals(200, saved.status); Path state = savedFile(); byte[] savedBytes = Files.readAllBytes(state);
         server.close(); server = null; start(null);

@@ -77,16 +77,27 @@ final class HistoryRounds {
     }
 
     static String pageKey(String id, String version, String fingerprint) {
-        return Json.fingerprint(Json.object().put("id", id).put("version", version), fingerprint);
+        return pageKey(id, version, null, fingerprint);
+    }
+    // Read-only compatibility for frozen records made during the retired multi-type preview.
+    static String pageKey(String id, String version, String typeId, String fingerprint) {
+        ObjectNode identity = Json.object().put("id", id).put("version", version); if (typeId != null) identity.put("typeId", typeId);
+        return Json.fingerprint(identity, fingerprint);
+    }
+
+    private static String frozenIdentity(JsonNode extension) {
+        String typeId = extension.path("typeId").asText(null);
+        return extension.path("id").asText() + "@" + extension.path("version").asText() + (typeId == null ? "" : ":" + typeId);
     }
 
     private static void validateExtension(JsonNode extension) throws IOException {
         if (!extension.isObject() || !extension.path("id").isTextual() || !extension.path("id").asText().matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}")
                 || !extension.path("version").isTextual() || !extension.path("version").asText().matches("[A-Za-z0-9][A-Za-z0-9._-]{0,119}")) throw new IOException("Invalid frozen extension");
+        if (extension.has("typeId") && (!extension.path("typeId").isTextual() || !extension.path("typeId").asText().matches("[A-Za-z0-9][A-Za-z0-9_-]{0,63}"))) throw new IOException("Invalid frozen typeId");
     }
 
     private static boolean sameExtension(JsonNode left, JsonNode right) {
-        return left.path("id").equals(right.path("id")) && left.path("version").equals(right.path("version"));
+        return left.path("id").equals(right.path("id")) && left.path("version").equals(right.path("version")) && left.path("typeId").equals(right.path("typeId"));
     }
 
     private static void validatePage(JsonNode page) throws IOException {
@@ -129,13 +140,14 @@ final class HistoryRounds {
         if (mixed) {
             var declared = new HashSet<String>();
             for (JsonNode extension : record.path("extensions")) {
-                validateExtension(extension); if (!declared.add(extension.path("id").asText() + "@" + extension.path("version").asText())) throw new IOException("Duplicate frozen extension");
+                validateExtension(extension); if (!declared.add(frozenIdentity(extension))) throw new IOException("Duplicate frozen extension");
             }
             var identities = new HashSet<String>(); var pages = record.path("pages").fields();
             while (pages.hasNext()) {
                 var entry = pages.next(); JsonNode page = entry.getValue(), extension = page.path("extension"); validatePage(page); validateExtension(extension);
-                String fingerprint = extension.path("fingerprint").asText(), identity = extension.path("id").asText() + "@" + extension.path("version").asText();
-                if (!fingerprint.matches("[a-f0-9]{64}") || !entry.getKey().equals(pageKey(extension.path("id").asText(), extension.path("version").asText(), fingerprint))
+                String typeId = extension.path("typeId").asText(null);
+                String fingerprint = extension.path("fingerprint").asText(), identity = frozenIdentity(extension);
+                if (!fingerprint.matches("[a-f0-9]{64}") || !entry.getKey().equals(pageKey(extension.path("id").asText(), extension.path("version").asText(), typeId, fingerprint))
                         || !identities.add(identity) || !declared.contains(identity)) throw new IOException("Invalid frozen page identity");
             }
             if (!identities.equals(declared) || !record.path("extensions").equals(record.at("/collection/extensions"))) throw new IOException("Frozen extension outline mismatch");
@@ -143,6 +155,10 @@ final class HistoryRounds {
         var ids = new HashSet<String>(); int submitted = 0, graded = 0, pending = 0; BigDecimal score = BigDecimal.ZERO, maxScore = BigDecimal.ZERO;
         JsonNode outline = record.at("/collection/questions"); if (!outline.isArray() || outline.size() != record.path("questions").size()) throw new IOException("Invalid frozen outline");
         for (int i = 0; i < outline.size(); i++) {
+            if (outline.get(i).has("outlineLabel")) try {
+                OutlineItems.readLabel(outline.get(i).get("outlineLabel"));
+                if (outline.get(i).has("outlineItems")) throw new IOException("Mutually exclusive frozen outline entries");
+            } catch (ApiException e) { throw new IOException("Invalid frozen outline label"); }
             if (outline.get(i).has("outlineItems")) try { OutlineItems.read(outline.get(i).get("outlineItems")); }
             catch (ApiException e) { throw new IOException("Invalid frozen outline items"); }
             JsonNode entry = record.path("questions").get(i), payload = entry.path("payload"), state = payload.path("state"); String id = payload.at("/question/id").asText();
@@ -159,6 +175,7 @@ final class HistoryRounds {
                 pageKeys.add(key);
             }
             if (!payload.path("draft").isNull()) StateStore.validateDraft(payload.path("draft"));
+            validateOutlineStates(state, state.path("status").asText().equals("submitted"));
             if (state.path("status").asText().equals("submitted")) {
                 JsonNode result = state.path("result");
                 validateResult(result);
@@ -180,6 +197,7 @@ final class HistoryRounds {
             try { Instant.parse(record.path("finishedAt").asText()); } catch (java.time.DateTimeException e) { throw new IOException("Invalid completion timestamp"); }
             for (int i = 0; i < outline.size(); i++) {
                 JsonNode row = summary.path("questions").get(i); boolean answered = record.path("questions").get(i).at("/payload/state/status").asText().equals("submitted");
+                validateOutlineStates(row, answered);
                 if (!row.path("id").asText().equals(outline.get(i).path("id").asText()) || !row.path("score").isNumber() || !row.path("maxScore").isNumber()
                         || !row.path("submitted").isBoolean() || row.path("submitted").asBoolean() != answered
                         || (row.has("gradingStatus") && !row.path("gradingStatus").asText().equals(answered ? "graded" : "unsubmitted"))
@@ -198,5 +216,9 @@ final class HistoryRounds {
                 || !record.path("maxScore").isNumber() || record.path("maxScore").decimalValue().compareTo(maxScore) != 0
                 || (record.path("explicitCompletion").asBoolean() ? (record.path("status").asText().equals("completed") && !record.has("summary"))
                     : (record.path("status").asText().equals("completed") != (submitted == outline.size() && pending == 0)))) throw new IOException("Invalid round totals");
+    }
+    private static void validateOutlineStates(JsonNode value, boolean submitted) throws IOException {
+        if (value.has("outlineStates")) try { OutlineStates.validate(value.get("outlineStates"), submitted); }
+        catch (ApiException e) { throw new IOException("Invalid frozen outline states", e); }
     }
 }

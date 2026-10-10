@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stem", "options", "correctOptionId", "answerAndExplanation", "maxScore"],
+  "properties": {
+    "stem": {"type": "string", "minLength": 1, "maxLength": 20000},
+    "options": {
+      "type": "array", "minItems": 2, "maxItems": 26,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "text"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 64},
+          "text": {"type": "string", "minLength": 1, "maxLength": 10000}
+        }
+      }
+    },
+    "correctOptionId": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 64},
+    "answerAndExplanation": {"type": "string", "minLength": 1, "maxLength": 20000},
+    "maxScore": {"type": "number", "exclusiveMinimum": 0, "maximum": 100000}
+  }
+}

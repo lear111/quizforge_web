@@ -1,4 +1,4 @@
-// Extensions supply task IDs and chosen scores; the host owns every input and revision.
+// Extensions trigger grading; the host owns inputs, persistence and revisions.
 export function createAiClient({request,path,makeRequestId,settled,onConfirmed,confirmations=new Map(),shouldRefreshTask=()=>false}) {
   const taskPath=id=>{
     if(typeof id!=='string'||! /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(id))throw new Error('评分任务编号无效');
@@ -17,8 +17,6 @@ export function createAiClient({request,path,makeRequestId,settled,onConfirmed,c
     if(method==='ai-grade')data=await post(`${path}/ai/grade`,{contentVersion,force:args.force===true});
     else if(method==='ai-task'){
       data=await request(args.taskId?taskPath(args.taskId):`${path}/ai/current`);
-      const task=args.taskId?data:data.task;
-      if(task?.status==='confirmed'&&shouldRefreshTask(task))onConfirmed(await request(path));
     }
     else if(method==='ai-retry')data=await post(`${taskPath(args.taskId)}/retry`,{});
     else if(method==='ai-confirm'){
@@ -29,6 +27,10 @@ export function createAiClient({request,path,makeRequestId,settled,onConfirmed,c
       data=await post(`${taskPath(args.taskId)}/confirm`,body,key);
       if(data.payload)onConfirmed(data.payload);
     }else throw new Error('评分操作不可用');
+    if(method!=='ai-confirm'){
+      const task=method==='ai-task'&&!args.taskId?data.task:data;
+      if(task?.status==='confirmed'&&shouldRefreshTask(task))onConfirmed(await request(path));
+    }
     return {ok:true,data};
   };
 }

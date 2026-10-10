@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "选择题设计小样",
+  "extension": {"id": "example.single-choice-template", "version": "0.1.0"},
+  "questions": [
+    {
+      "id": "sample-division",
+      "title": "整数除法",
+      "outline": {"level": "question", "label": "1"},
+      "data": {
+        "stem": "在 Java 中，表达式 7 / 2 的结果是什么？",
+        "options": [{"id": "A", "text": "3"}, {"id": "B", "text": "3.5"}, {"id": "C", "text": "4"}, {"id": "D", "text": "编译失败"}],
+        "correctOptionId": "A",
+        "answerAndExplanation": "两个整数相除会执行整数除法，舍去小数部分，因此结果是 3。",
+        "maxScore": 1
+      }
+    },
+    {
+      "id": "sample-cache",
+      "title": "缓存更新",
+      "outline": {"level": "question", "label": "2"},
+      "data": {
+        "stem": "手机把常用联系人的信息保存在本地，以便快速查询。\n联系人更换电话号码后，怎样处理原先的缓存最合适？",
+        "options": [{"id": "refresh", "text": "更新本地缓存，或使旧缓存失效后重新获取信息。"}, {"id": "keep", "text": "永久使用旧号码，因为缓存中的数据不会变化。"}, {"id": "disable", "text": "禁止用户查询任何联系人，直到重新安装应用。"}],
+        "correctOptionId": "refresh",
+        "answerAndExplanation": "缓存提升读取效率，但原始内容变化后需要更新缓存或使旧缓存失效，避免使用过期信息。",
+        "maxScore": 2
+      }
+    }
+  ]
+}

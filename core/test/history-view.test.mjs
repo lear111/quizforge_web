@@ -55,6 +55,19 @@ test('mixed history rejects pages from another extension or another version',()=
   }
 });
 
+test('a frozen page matches the independent extension after a physical folder move',()=>{
+  const type={id:'essay',version:'1.0.0',group:'语言题型'},a={...entry('a'),pageKey:'frozen'};a.payload.extension=type;
+  assert.throws(()=>createHistoryView({questions:[a],pages:{frozen:{html:'wrong type',extension:{...type,id:'choice'}}}}),/不匹配/);
+  const view=createHistoryView({questions:[a],pages:{frozen:{html:'essay type',extension:{...type,group:'其他题型'}}}});
+  assert.equal(view.questions[0].type.id,'essay');assert.equal(view.entry('a').page.html,'essay type');
+});
+
+test('old readonly package snapshots still reject a page from another frozen type',()=>{
+  const extension={id:'old-languages',version:'1.0.0',typeId:'essay'},a={...entry('a'),pageKey:'frozen'};a.payload.extension=extension;
+  assert.throws(()=>createHistoryView({questions:[a],pages:{frozen:{html:'wrong',extension:{...extension,typeId:'choice'}}}}),/不匹配/);
+  assert.equal(createHistoryView({questions:[a],pages:{frozen:{html:'old essay',extension}}}).entry('a').page.html,'old essay');
+});
+
 test('duplicate frozen payloads cannot silently replace an earlier question',()=>{
   assert.throws(()=>createHistoryView({questions:[entry('a'),entry('a')],collection:{questions:[{id:'a'}]},page:{html:'shared'}}),/不完整/);
 });
@@ -63,7 +76,7 @@ test('legacy history defaults to v1 and future API pages fail before a view is s
   const legacy={questions:[entry('a')],page:{html:'legacy'}};
   assert.equal(createHistoryView(legacy).entry('a').page,legacy.page);
   assert.equal(createHistoryView({questions:[entry('a')],page:{html:'minor1',apiVersion:{major:1,minor:1}}}).questions.length,1);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:2},null]){
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:3},null]){
     assert.throws(()=>createHistoryView({questions:[entry('a')],page:{html:'future',apiVersion}}),error=>['UNSUPPORTED_API_VERSION','INVALID_API_VERSION'].includes(error.code));
   }
 });

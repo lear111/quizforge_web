@@ -16,12 +16,18 @@ final class RuleBatches {
         run(rules, questions, "validateBank", null, questions.stream().map(Library.Question::data).toList());
     }
     static List<Library.Question> outline(RuleEngine rules, List<Library.Question> questions) {
-        var enabled = questions.stream().filter(question -> question.extension().outlineItemsDeclared()).toList();
-        if (enabled.isEmpty()) return List.copyOf(questions);
-        ArrayNode values = run(rules, enabled, "outlineBatch", "outlineItems", enabled.stream().map(Library.Question::data).toList());
+        var enabled = questions.stream().filter(question -> question.outline() == null && question.extension().outlineItemsDeclared()).toList();
         var byId = new java.util.HashMap<String, List<Library.OutlineItem>>();
-        for (int i = 0; i < enabled.size(); i++) byId.put(enabled.get(i).id(), OutlineItems.read(values.get(i)));
-        return questions.stream().map(question -> byId.containsKey(question.id()) ? new Library.Question(question.id(), question.title(), question.data(), question.fingerprint(), question.extension(), byId.get(question.id())) : question).toList();
+        if (!enabled.isEmpty()) {
+            ArrayNode values = run(rules, enabled, "outlineBatch", "outlineItems", enabled.stream().map(Library.Question::data).toList());
+            for (int i = 0; i < enabled.size(); i++) byId.put(enabled.get(i).id(), OutlineItems.read(values.get(i)));
+        }
+        List<Library.Question> result = questions.stream().map(question -> byId.containsKey(question.id()) ? new Library.Question(question.id(), question.title(), question.data(), question.fingerprint(), question.extension(), byId.get(question.id()), question.outline()) : question).toList();
+        long bytes = 1;
+        for (Library.Question question : result) {
+            var row = Json.object(); OutlineItems.attach(row, question); bytes = OutlineItems.addBytes(bytes, size(row));
+        }
+        return result;
     }
 
     static ArrayNode run(RuleEngine rules, List<Library.Question> questions, String operation, String field, List<? extends JsonNode> inputs) {
@@ -35,12 +41,13 @@ final class RuleBatches {
         }
         ArrayNode result = Json.MAPPER.createArrayNode();
         for (int i = 0; i < questions.size(); i++) result.addNull();
-        int maximumItems = operation.equals("outlineBatch") ? 24 : MAX_ITEMS;
         long outlineBytes = 1; // UTF-8 size of the aligned array of per-parent lists.
         // Sequential chunks bound process fan-out and preserve the existing rule sandbox.
         var ordered = new ArrayList<>(groups.values());
         ordered.sort(java.util.Comparator.comparing(g -> g.extension().id() + "@" + g.extension().version() + ":" + g.extension().fingerprint()));
         for (Group group : ordered) {
+            // Child states can be large; preserve the larger batches for ordinary types.
+            int maximumItems = operation.equals("outlineBatch") || operation.equals("scoreBatch") && group.extension().outlineItemsDeclared() ? 24 : MAX_ITEMS;
             int cursor = 0;
             while (cursor < group.indexes().size()) {
                 ArrayNode batch = Json.MAPPER.createArrayNode(); var indexes = new ArrayList<Integer>(); int bytes = 0;

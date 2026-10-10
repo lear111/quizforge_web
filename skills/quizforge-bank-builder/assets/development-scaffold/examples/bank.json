@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "通用题型设计小样",
+  "extension": {
+    "id": "example.new-question",
+    "version": "0.1.0"
+  },
+  "questions": [
+    {
+      "id": "sample-1",
+      "title": "缓存的生活实例",
+      "outline": {
+        "level": "question",
+        "label": "1"
+      },
+      "data": {
+        "stem": "请用一个生活中的例子说明缓存如何减少等待，并说明原始内容变化后应该怎样处理。\n要求：用两三句话回答。",
+        "answerAndExplanation": "例如把常用联系人保存在手机本地，查询时不必每次访问服务器。联系人信息变化后，需要更新或使旧缓存失效。\n如需评分依据，可直接放在这段答案与解析中，不必另建栏目。",
+        "maxScore": 1
+      }
+    }
+  ]
+}

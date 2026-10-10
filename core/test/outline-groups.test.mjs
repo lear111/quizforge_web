@@ -19,3 +19,15 @@ test('mixed matrices separate adjacent versions and preserve recurring groups an
   assert.deepEqual(groups.map(group=>[group.typeId,group.version,group.items.map(item=>item.number)]),[['same','1',[1]],['same','2',[2,3]],['same','1',[4]]]);
   assert.deepEqual(consecutiveQuestionGroups([{id:'fallback'}],null).map(group=>group.name),['题目']);
 });
+
+test('physical folder groups never merge different question types or split a relocated extension',()=>{
+  const choice={id:'choice',version:'1.0.0',name:'单选',group:'语言题型'},essay={id:'essay',version:'1.0.0',name:'作文',group:'语言题型'};
+  const types=[choice,essay,essay,choice,{...choice,group:'其他分组'},{...choice,development:{folder:'choice-dev'}}];
+  const groups=consecutiveQuestionGroups(types.map((type,index)=>({id:String(index),type})));
+  assert.deepEqual(groups.map(group=>[group.typeId,group.name,group.items.map(item=>item.number)]),[['choice','单选',[1]],['essay','作文',[2,3]],['choice','单选',[4,5]],['choice','单选',[6]]]);
+});
+
+test('old readonly mixed-package metadata keeps its frozen names and original order',()=>{
+  const choice={id:'old-languages',version:'1.0.0',typeId:'choice',name:'单选'},essay={...choice,typeId:'essay',name:'作文'};
+  assert.deepEqual(consecutiveQuestionGroups([choice,essay,choice].map((type,index)=>({id:String(index),type}))).map(group=>[group.name,group.items.map(item=>item.number)]),[['单选',[1]],['作文',[2]],['单选',[3]]]);
+});

@@ -1,6 +1,9 @@
 target/
 node_modules/
 .state/
+/.temp/
+/.development/
+/.vscode/
 *.log
 .env
 .env.*

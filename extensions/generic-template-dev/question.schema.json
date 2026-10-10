@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "stem",
+    "maxScore"
+  ],
+  "properties": {
+    "stem": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answerAndExplanation": {
+      "type": "string"
+    },
+    "maxScore": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

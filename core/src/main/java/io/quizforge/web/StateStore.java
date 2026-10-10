@@ -24,19 +24,34 @@ final class StateStore {
     private final Path directory;
     private final RuleEngine rules;
     private final EditJournal edits;
+    private final boolean memoryOnly;
     private record CachedState(ObjectNode value, long encodedBytes) { }
     private final Map<String, CachedState> cache = new LinkedHashMap<>(8, 0.75f, true);
     private long cachedBytes;
     private final Map<String, Boolean> aiSupport = new LinkedHashMap<>(16, 0.75f, true);
+    private record CachedOutline(String version, JsonNode items, int bytes) { }
+    private final Map<String, CachedOutline> outlineCache = new LinkedHashMap<>(16, 0.75f, true);
+    private long outlineCachedBytes;
     record AiSnapshot(String stateKey, String roundId, String questionFingerprint, String extensionFingerprint,
                       String answerHash, long submissionGeneration, long gradingGeneration, ObjectNode gradingInput) { }
     private final byte[] stampKey = new byte[32];
     StateStore(Path root, RuleEngine rules) throws IOException {
-        directory = root.resolve(".state"); this.rules = rules;
-        new SecureRandom().nextBytes(stampKey);
-        if (Files.isSymbolicLink(directory)) throw new IOException("State directory cannot be a symlink"); Files.createDirectories(directory);
-        edits = new EditJournal(root); edits.recover();
+        this(root, rules, root);
     }
+    StateStore(Path root, RuleEngine rules, Path stateRoot) throws IOException {
+        this(root, rules, stateRoot, false);
+    }
+    static StateStore memory(Path root, RuleEngine rules, Path stateRoot) throws IOException { return new StateStore(root, rules, stateRoot, true); }
+    private StateStore(Path root, RuleEngine rules, Path stateRoot, boolean memoryOnly) throws IOException {
+        directory = stateRoot.resolve(".state"); this.rules = rules;
+        this.memoryOnly = memoryOnly;
+        new SecureRandom().nextBytes(stampKey);
+        if (Files.isSymbolicLink(directory)) throw new IOException("State directory cannot be a symlink"); if (!memoryOnly) Files.createDirectories(directory);
+        edits = new EditJournal(root, stateRoot); if (!memoryOnly) edits.recover();
+    }
+    boolean memoryOnly() { return memoryOnly; }
+    synchronized long memoryBytes() { return cachedBytes + outlineCachedBytes; }
+    synchronized void clearMemory() { cache.clear(); cachedBytes = 0; outlineCache.clear(); outlineCachedBytes = 0; aiSupport.clear(); }
     synchronized ObjectNode overview(Library.Collection collection) {
         return overviewValue(collection, load(collection));
     }
@@ -63,7 +78,13 @@ final class StateStore {
         if (!request.has("roundId") || !(request.path("roundId").isNull() || request.path("roundId").isTextual())) throw ApiException.bad("Invalid roundId");
         if (!request.path("roundId").equals(current.path("roundId")) || !Json.text(request, "summaryVersion", 64).equals(current.path("summaryVersion").asText()))
             throw new ApiException(409, "SUMMARY_CONFLICT", "练习内容已改变，请刷新分值卡后再完成练习。");
-        if (current.path("finished").asBoolean()) return current.put("historyId", current.path("roundId").asText());
+        if (current.path("finished").asBoolean()) {
+            if (memoryOnly) return current.putNull("historyId");
+            String historyId = current.path("roundId").asText();
+            try { history(collection.kind(), collection.id(), historyId); }
+            catch (ApiException error) { if (error.code.equals("HISTORY_NOT_FOUND")) return current.putNull("historyId"); throw error; }
+            return current.put("historyId", historyId);
+        }
         if (current.path("pendingCount").asInt() > 0) throw new ApiException(409, "PENDING_REVIEW", "还有已提交的题目等待评分，请确认评分后再完成练习。");
         ObjectNode replacement = persisted.deepCopy(), round = summaryRound(replacement, collection);
         if (round == null) {
@@ -72,10 +93,11 @@ final class StateStore {
             ArrayNode rounds = replacement.has("historyRounds") ? (ArrayNode) replacement.get("historyRounds") : replacement.putArray("historyRounds"); rounds.add(round);
         } else if (round.path("status").asText().equals("in-progress")) {
             // Preserve the round's submitted answers; capture any newer saved choices and ink.
+            var visible = unsubmittedHistoryStates(collection, replacement, round, null);
             for (int i = 0; i < collection.questions().size(); i++) {
                 ObjectNode payload = (ObjectNode) round.path("questions").get(i).path("payload");
                 ObjectNode state = questionState(replacement, collection, collection.questions().get(i));
-                if (!payload.at("/state/status").asText().equals("submitted")) payload.set("state", publicState(unsubmittedState(state)));
+                if (!payload.at("/state/status").asText().equals("submitted")) payload.set("state", visible.get(collection.questions().get(i).id()));
                 payload.set("draft", state.path("draft").deepCopy());
             }
         }
@@ -85,9 +107,43 @@ final class StateStore {
         ObjectNode saved = current.deepCopy(); saved.remove("summaryVersion"); saved.put("roundId", round.path("id").asText()).put("finished", true).put("status", "completed"); round.set("summary", saved);
         HistoryRounds.summarize(round);
         ObjectNode result = saved.deepCopy().put("historyId", round.path("id").asText()); result.put("summaryVersion", summaryVersion(collection, replacement, saved));
+        if (memoryOnly) result.putNull("historyId");
         ArrayNode receipts = replacement.has("finishReceipts") ? (ArrayNode) replacement.get("finishReceipts") : replacement.putArray("finishReceipts");
         ObjectNode receipt = Json.object().put("id", requestId); receipt.set("request", request.deepCopy()); receipt.set("response", result.deepCopy()); receipts.add(receipt);
         while (receipts.size() > 32) receipts.remove(0);
+        long bytes = persist(collection, replacement); remember(collection, replacement, bytes); return result;
+    }
+    synchronized ObjectNode restart(Library.Collection collection, JsonNode request) {
+        if (request == null || !request.isObject()) throw ApiException.bad("Restart request must be an object");
+        String requestId = Json.id(request, "requestId"); if (requestId.length() < 8) throw ApiException.bad("requestId must have at least 8 characters");
+        ObjectNode persisted = load(collection);
+        for (JsonNode receipt : persisted.path("restartReceipts")) if (receipt.path("id").asText().equals(requestId)) {
+            if (!receipt.path("request").equals(request)) throw new ApiException(409, "REQUEST_ID_REUSED", "Request ID was already used with different data");
+            return (ObjectNode) receipt.path("response").deepCopy();
+        }
+        ObjectNode current = summary(collection);
+        if (!request.has("roundId") || !(request.path("roundId").isNull() || request.path("roundId").isTextual())) throw ApiException.bad("Invalid roundId");
+        if (!request.path("roundId").equals(current.path("roundId")) || !Json.text(request, "summaryVersion", 64).equals(current.path("summaryVersion").asText()))
+            throw new ApiException(409, "SUMMARY_CONFLICT", "练习数据已改变，请刷新分值卡后再开始新一轮。");
+        if (!current.path("finished").asBoolean()) throw new ApiException(409, "PRACTICE_NOT_FINISHED", "请先完成当前练习，再开始新一轮。");
+        ObjectNode replacement = persisted.deepCopy();
+        for (Library.Question question : collection.questions()) {
+            ObjectNode next = questionState(replacement, collection, question).deepCopy();
+            for (String key : List.of("revision", "submissionGeneration", "gradingGeneration")) {
+                long version = next.path(key).asLong();
+                if (version == Long.MAX_VALUE) throw new ApiException(409, "REVISION_LIMIT", "Practice revision limit reached; previous data is preserved");
+                next.put(key, version + 1);
+            }
+            next.put("status", "unanswered"); next.putNull("answer"); next.putNull("result"); next.putNull("draft"); next.putNull("aiTaskId");
+            next.putArray("receipts"); next.remove("outlineStates");
+            ((ObjectNode) replacement.path("questions")).set(question.id(), next);
+        }
+        replacement.remove("upgradedCompletion");
+        ObjectNode result = Json.object().put("restarted", true);
+        ArrayNode receipts = replacement.has("restartReceipts") ? (ArrayNode) replacement.get("restartReceipts") : replacement.putArray("restartReceipts");
+        ObjectNode receipt = Json.object().put("id", requestId); receipt.set("request", request.deepCopy()); receipt.set("response", result.deepCopy()); receipts.add(receipt);
+        while (receipts.size() > 32) receipts.remove(0);
+        // Reset every question in one durable write; frozen rounds are deliberately untouched.
         long bytes = persist(collection, replacement); remember(collection, replacement, bytes); return result;
     }
     private ObjectNode scoreSummary(Library.Collection collection, ObjectNode persisted, ObjectNode round) {
@@ -112,6 +168,8 @@ final class StateStore {
             java.math.BigDecimal earned = answered && !awaiting ? value.path("score").decimalValue() : java.math.BigDecimal.ZERO;
             score = score.add(earned); maxScore = maxScore.add(value.path("maxScore").decimalValue()); if (answered) { submitted++; if (awaiting) pending++; else graded++; }
             ObjectNode row = Json.object().put("id", collection.questions().get(i).id()).put("maxScore", value.path("maxScore").decimalValue()).put("submitted", answered).put("gradingStatus", gradingStatus);
+            cacheOutline(collection, collection.questions().get(i), states.get(i), value);
+            if (value.has("outlineStates") && !collection.questions().get(i).outlineItems().isEmpty()) row.set("outlineStates", OutlineStates.visible(value.get("outlineStates"), collection.questions().get(i), answered));
             if (awaiting) row.putNull("score"); else row.put("score", earned); rows.add(row);
         }
         return summary.put("score", score).put("maxScore", maxScore).put("submittedCount", submitted).put("gradedCount", graded).put("pendingCount", pending);
@@ -127,8 +185,9 @@ final class StateStore {
     }
     private static ObjectNode summaryRound(ObjectNode persisted, Library.Collection collection) {
         ObjectNode active = activeRound(persisted); if (active != null) return roundCompatible(active, collection) ? active : null;
-        JsonNode rounds = persisted.path("historyRounds"); if (!rounds.isArray() || rounds.isEmpty()) return null;
-        ObjectNode last = (ObjectNode) rounds.get(rounds.size() - 1);
+        JsonNode upgraded = persisted.path("upgradedCompletion"), rounds = persisted.path("historyRounds");
+        if (!upgraded.isObject() && (!rounds.isArray() || rounds.isEmpty())) return null;
+        ObjectNode last = upgraded.isObject() ? (ObjectNode) upgraded : (ObjectNode) rounds.get(rounds.size() - 1);
         if (!last.path("status").asText().equals("completed") || !roundCompatible(last, collection)) return null;
         for (int i = 0; i < collection.questions().size(); i++) {
             Library.Question question = collection.questions().get(i); ObjectNode current = questionState(persisted, collection, question);
@@ -149,7 +208,7 @@ final class StateStore {
         return opaqueVersion("summary", collection.stateKey(), versions.toString(), summary.toString());
     }
     synchronized ObjectNode editor(Library library, Library.Collection collection, Library.Question question) {
-        if (!collection.kind().equals("bank")) throw new ApiException(409, "READ_ONLY_COLLECTION", "Extension examples cannot be edited as a bank");
+        collection.features().requireEditing();
         ObjectNode state = questionState(load(collection), collection, question), result = Json.object();
         ObjectNode raw = Json.object().put("id", question.id()).put("title", question.title()); raw.set("data", question.data().deepCopy()); result.set("question", raw);
         Library.Extension extension = collection.extensionFor(question);
@@ -158,7 +217,7 @@ final class StateStore {
         ObjectNode editor = library.editorPage(extension); if (editor == null) result.putNull("editor"); else result.set("editor", editor); return result;
     }
     synchronized ObjectNode edit(Library library, Library.Collection collection, Library.Question question, JsonNode request) {
-        if (!collection.kind().equals("bank")) throw new ApiException(409, "READ_ONLY_COLLECTION", "Extension examples cannot be edited as a bank");
+        collection.features().requireEditing();
         if (request == null || !request.isObject()) throw ApiException.bad("Edit must be an object");
         String requestId = Json.id(request, "requestId"); if (requestId.length() < 8) throw ApiException.bad("requestId must have at least 8 characters");
         ObjectNode persisted = load(collection), current = questionState(persisted, collection, question);
@@ -184,11 +243,12 @@ final class StateStore {
         ArrayNode receipts = replacement.has("editReceipts") ? (ArrayNode) replacement.get("editReceipts") : replacement.putArray("editReceipts");
         ObjectNode receipt = Json.object().put("id", requestId).put("questionId", question.id()); receipt.set("request", request.deepCopy()); receipt.set("response", result.deepCopy()); receipts.add(receipt);
         while (receipts.size() > 32 || (receipts.size() > 1 && encodedSize(receipts) > 16 * 1024 * 1024)) receipts.remove(0);
-        try { byte[] bytes = stateBytes(replacement); edits.commit(plan, file(collection), bytes); remember(plan.collection(), replacement, bytes.length); }
+        try { byte[] bytes = stateBytes(replacement); if (memoryOnly) { checkMemory(plan.collection().stateKey(), bytes.length); edits.commitSource(plan); } else edits.commit(plan, file(collection), bytes); remember(plan.collection(), replacement, bytes.length); }
         catch (IOException e) { cache.clear(); cachedBytes = 0; throw new ApiException(503, "EDIT_PENDING", "Edit could not finish. Recovery journal is preserved; retry the same request after storage is available"); }
         return result;
     }
     synchronized ObjectNode history(String kind, String id, String historyId) {
+        if (memoryOnly) throw new ApiException(403, "HISTORY_DISABLED", "Practice is temporary in this page session");
         recoverEdits(); var records = new java.util.ArrayList<JsonNode>(); String prefix = kind + ":" + id + ":";
         try (var files = Files.list(directory)) {
             for (Path file : files.filter(path -> path.getFileName().toString().matches("[a-f0-9]{64}\\.json")).sorted().toList()) {
@@ -210,6 +270,7 @@ final class StateStore {
         ObjectNode result = Json.object(); result.set("records", summaries); return result;
     }
     synchronized ObjectNode deleteHistory(String kind, String id, String historyId) {
+        if (memoryOnly) throw new ApiException(403, "HISTORY_DISABLED", "Practice is temporary in this page session");
         recoverEdits(); String prefix = kind + ":" + id + ":"; Path target = null; ObjectNode replacement = null;
         try (var files = Files.list(directory)) {
             for (Path file : files.filter(path -> path.getFileName().toString().matches("[a-f0-9]{64}\\.json")).sorted().toList()) {
@@ -238,6 +299,57 @@ final class StateStore {
         return Json.object().put("deleted", historyId);
     }
     synchronized void recover() { recoverEdits(); }
+    /** Same-document scoring UI upgrade. Current grades and frozen history are preserved. */
+    synchronized void upgradeShortAnswerAuto(Library.Collection previous, Library.EditPlan plan) throws IOException {
+        EditorDraftStore drafts = new EditorDraftStore(directory.getParent());
+        for (Library.Question question : previous.questions())
+            if (ShortAnswerAutoUpgrade.eligible(previous.extensionFor(question)) && drafts.get(previous.id(), question.id()).path("changed").asBoolean())
+                throw new ApiException(409, "UPGRADE_EDITOR_DRAFT_PENDING", "Save or cancel the pending short-answer edit before upgrading; the editor draft is preserved");
+        ObjectNode old = load(previous); Library.Collection replacement = plan.collection();
+        Path source = file(previous), target = file(replacement); boolean sameState = source.equals(target);
+        if (!sameState && Files.exists(target, LinkOption.NOFOLLOW_LINKS))
+            throw new ApiException(409, "UPGRADE_STATE_EXISTS", "Target version already has saved practice; preserve both versions instead of overwriting");
+        ObjectNode next = sameState ? old.deepCopy() : Json.object().put("schemaVersion", 1).put("collection", replacement.stateKey());
+        next.put("extensionFingerprint", replacement.extensionFingerprint()).put("upgradedFrom", previous.stateKey());
+        next.remove(List.of("editReceipts", "finishReceipts", "restartReceipts", "upgradedCompletion"));
+        ObjectNode questions = next.putObject("questions"), completed = summaryRound(old, previous);
+        var migrated = new java.util.ArrayList<ObjectNode>(); boolean submitted = false;
+        for (Library.Question question : replacement.questions()) {
+            Library.Question before = previous.question(question.id()); ObjectNode state = questionState(old, previous, before).deepCopy();
+            if (ShortAnswerAutoUpgrade.eligible(previous.extensionFor(before))) {
+                if (!question.data().equals(before.data()) || !question.title().equals(before.title())) throw ApiException.bad("Scoring upgrade cannot change question content");
+                if (state.path("revision").asLong() == Long.MAX_VALUE) throw new ApiException(409, "REVISION_LIMIT", "Saved revision cannot be upgraded");
+                if (!state.path("answer").isNull()) {
+                    ObjectNode input = Json.object().put("op", state.at("/result/gradingStatus").asText().equals("pending") ? "submit" : "validateAnswer");
+                    input.set("data", question.data()); input.set("answer", state.path("answer"));
+                    JsonNode evaluated = rules.run(replacement.extensionFor(question), input);
+                    if (input.path("op").asText().equals("submit")) state.set("result", evaluated.path("result").deepCopy());
+                }
+                state.put("revision", state.path("revision").asLong() + 1).put("fingerprint", question.fingerprint())
+                        .put("gradingGeneration", generation(state, "gradingGeneration") + 1).putNull("aiTaskId");
+                state.set("receipts", Json.MAPPER.createArrayNode());
+            }
+            migrated.add(state); questions.set(question.id(), state); submitted |= state.path("status").asText().equals("submitted");
+        }
+        if (completed != null && completed.path("finishedAt").isTextual()) {
+            // Retain completion without duplicating the old record in the history list.
+            ObjectNode snapshot = completed.deepCopy().put("extensionFingerprint", replacement.extensionFingerprint());
+            ObjectNode fingerprints = snapshot.putObject("fingerprints"), versions = snapshot.putObject("completionVersions");
+            for (int i = 0; i < replacement.questions().size(); i++) {
+                Library.Question question = replacement.questions().get(i); fingerprints.put(question.id(), question.fingerprint());
+                versions.put(question.id(), migrated.get(i).path("revision").asLong());
+            }
+            next.set("upgradedCompletion", snapshot);
+        } else if (submitted) {
+            ObjectNode round = freezeRound(replacement, next, migrated); round.put("upgradedFrom", previous.stateKey());
+            ArrayNode rounds = next.has("historyRounds") ? (ArrayNode) next.get("historyRounds") : next.putArray("historyRounds"); rounds.add(round);
+        }
+        byte[] expected = stateBytes(old), beforeState = Files.exists(source, LinkOption.NOFOLLOW_LINKS) ? Files.readAllBytes(source) : expected;
+        if (!Json.MAPPER.readTree(expected).equals(Json.MAPPER.readTree(beforeState)))
+            throw new ApiException(409, "UPGRADE_STATE_CHANGED", "Saved practice changed before upgrade; restart before trying again");
+        byte[] bytes = stateBytes(next); backupUpgrade(plan, beforeState);
+        edits.commit(plan, target, bytes); remember(replacement, next, bytes.length);
+    }
     /** Explicit compatible upgrade: exact old state survives separately or in a backup. */
     synchronized void upgradeShortAnswer(Library.Collection previous, Library.EditPlan plan) throws IOException {
         EditorDraftStore drafts = new EditorDraftStore(directory.getParent());
@@ -254,7 +366,7 @@ final class StateStore {
             throw new ApiException(409, "UPGRADE_STATE_EXISTS", "Mixed bank already has saved state for different extension bindings; preserve it instead of overwriting");
         ObjectNode next = sameState ? old.deepCopy() : Json.object().put("schemaVersion", 1).put("collection", replacement.stateKey());
         next.put("extensionFingerprint", replacement.extensionFingerprint()).put("upgradedFrom", previous.stateKey());
-        next.remove(java.util.List.of("editReceipts", "finishReceipts"));
+        next.remove(java.util.List.of("editReceipts", "finishReceipts", "restartReceipts"));
         ObjectNode questions = next.putObject("questions");
         ObjectNode oldSummary = summaryRound(old, previous);
         boolean completed = oldSummary != null && oldSummary.has("finishedAt");
@@ -361,12 +473,16 @@ final class StateStore {
                 JsonNode evaluated = rules.run(collection.extensionFor(question), request); rememberAiSupport(collection.extensionFor(question), evaluated); next.set("result", AiGradingProtocol.decorateReview((ObjectNode) evaluated.get("result"), current.path("result"), trustedAi)); projected = evaluated.get("projected");
                 next.put("gradingGeneration", generation(current, "gradingGeneration") + 1); if (trustedAi == null) next.putNull("aiTaskId");
             }
-            case "whiteboard" -> { JsonNode draft = data.get("draft"); validateDraft(draft); next.set("draft", draft.deepCopy()); }
+            case "whiteboard" -> { collection.features().requireWhiteboard(); JsonNode draft = data.get("draft"); validateDraft(draft); next.set("draft", draft.deepCopy()); }
             default -> throw ApiException.bad("Unknown action");
         }
         next.put("revision", current.path("revision").asLong() + 1);
         ObjectNode result = response(collection, question, next, projected);
-        ObjectNode replacement = persisted.deepCopy(); replacement.put("extensionFingerprint", collection.extensionFingerprint()); ((ObjectNode) replacement.get("questions")).set(question.id(), next);
+        ObjectNode replacement = persisted.deepCopy();
+        if (name.equals("whiteboard") && replacement.path("upgradedCompletion").isObject())
+            ((ObjectNode) replacement.at("/upgradedCompletion/completionVersions")).put(question.id(), next.path("revision").asLong());
+        else replacement.remove("upgradedCompletion");
+        replacement.put("extensionFingerprint", collection.extensionFingerprint()); ((ObjectNode) replacement.get("questions")).set(question.id(), next);
         // A submission creates/updates its active round below. Freeze the same capability
         // that will be returned to the caller, while historical frames remain read-only.
         result.set("capabilities", name.equals("submit") ? Json.object().put("canReview", manualResult(next)).put("canAiGrade", manualResult(next) && supportsAi(collection.extensionFor(question))) : reviewCapabilities(collection, question, next, replacement));
@@ -380,13 +496,17 @@ final class StateStore {
         long encodedBytes = persist(collection, replacement); remember(collection, replacement, encodedBytes); return result;
     }
     private ObjectNode response(Library.Collection collection, Library.Question question, ObjectNode state, JsonNode projected) {
+        return response(collection, question, state, projected, publicState(collection, question, state));
+    }
+    private ObjectNode response(Library.Collection collection, Library.Question question, ObjectNode state, JsonNode projected, ObjectNode visibleState) {
         if (projected == null) {
             ObjectNode request = Json.object().put("op", "project").put("withCapabilities", true); request.set("data", question.data());
             ObjectNode ruleState = Json.object().put("submitted", state.path("status").asText().equals("submitted")); ruleState.set("result", state.get("result")); request.set("state", ruleState);
             JsonNode evaluated = rules.run(collection.extensionFor(question), request); rememberAiSupport(collection.extensionFor(question), evaluated); projected = evaluated.get("projected");
         }
         ObjectNode result = Json.object(); ObjectNode publicQuestion = Json.object().put("id", question.id()).put("title", question.title()); publicQuestion.set("data", projected);
-        result.set("question", publicQuestion); result.set("state", publicState(state)); result.set("draft", state.get("draft")); result.set("stamp", stamp(collection, question, state));
+        result.set("features", collection.features().json());
+        result.set("question", publicQuestion); result.set("state", visibleState); result.set("draft", state.get("draft")); result.set("stamp", stamp(collection, question, state));
         CachedState loaded = cache.get(collection.stateKey());
         result.set("capabilities", loaded == null ? Json.object().put("canReview", false).put("canAiGrade", false) : reviewCapabilities(collection, question, state, loaded.value()));
         if (state.path("aiTaskId").isTextual()) result.set("aiTask", Json.object().put("taskId", state.path("aiTaskId").asText())); else result.putNull("aiTask");
@@ -494,24 +614,42 @@ final class StateStore {
             }
             JsonNode projections = runBatch(collection, projectionQuestions, "projectBatch", "projected", input);
             if (!projections.isArray() || projections.size() != input.size()) throw new ApiException(422, "INVALID_PROJECTION", "History projections are invalid; submission was not saved");
+            var projectionStates = new java.util.ArrayList<ObjectNode>();
+            for (int i = 0; i < collection.questions().size(); i++) if (!collection.questions().get(i).id().equals(question.id())) projectionStates.add(states.get(i));
+            var visibleStates = publicStates(collection, projectionQuestions, projectionStates);
             int projectionIndex = 0;
             for (int i = 0; i < collection.questions().size(); i++) {
                 Library.Question item = collection.questions().get(i); ObjectNode entry = historyEntry(collection, item);
-                entry.set("payload", item.id().equals(question.id()) ? submitted.deepCopy() : response(collection, item, states.get(i), projections.get(projectionIndex++))); entries.add(entry);
+                if (item.id().equals(question.id())) entry.set("payload", submitted.deepCopy());
+                else { entry.set("payload", response(collection, item, states.get(i), projections.get(projectionIndex), visibleStates.get(projectionIndex))); projectionIndex++; }
+                entries.add(entry);
             }
             ArrayNode rounds = persisted.has("historyRounds") ? (ArrayNode) persisted.get("historyRounds") : persisted.putArray("historyRounds"); rounds.add(active);
         } else {
+            var visible = unsubmittedHistoryStates(collection, persisted, active, question.id());
             for (JsonNode entry : active.path("questions")) {
                 ObjectNode oldPayload = (ObjectNode) entry.path("payload"); String id = oldPayload.at("/question/id").asText();
                 if (id.equals(question.id())) {
                     ObjectNode frozen = submitted.deepCopy(); ((ObjectNode) frozen.path("question")).put("title", oldPayload.at("/question/title").asText()); ((ObjectNode) entry).set("payload", frozen);
                 } else if (!oldPayload.at("/state/status").asText().equals("submitted")) {
-                    ObjectNode state = unsubmittedState(questionState(persisted, collection, collection.question(id))); oldPayload.set("state", publicState(state)); oldPayload.set("draft", state.path("draft").deepCopy());
+                    ObjectNode state = unsubmittedState(questionState(persisted, collection, collection.question(id))); oldPayload.set("state", visible.get(id)); oldPayload.set("draft", state.path("draft").deepCopy());
                 }
             }
             active.put("updatedAt", now);
         }
         active.put("explicitCompletion", true); HistoryRounds.summarize(active);
+    }
+    private Map<String, ObjectNode> unsubmittedHistoryStates(Library.Collection collection, ObjectNode persisted, ObjectNode round, String skip) {
+        var questions = new java.util.ArrayList<Library.Question>(); var states = new java.util.ArrayList<ObjectNode>();
+        for (JsonNode entry : round.path("questions")) {
+            String id = entry.at("/payload/question/id").asText();
+            if (!id.equals(skip) && !entry.at("/payload/state/status").asText().equals("submitted")) {
+                Library.Question question = collection.question(id); questions.add(question); states.add(unsubmittedState(questionState(persisted, collection, question)));
+            }
+        }
+        var result = new java.util.HashMap<String, ObjectNode>(); var values = publicStates(collection, questions, states);
+        for (int i = 0; i < questions.size(); i++) result.put(questions.get(i).id(), values.get(i));
+        return result;
     }
     private ObjectNode freezeRound(Library.Collection collection, ObjectNode persisted, java.util.List<ObjectNode> states) {
         String now = java.time.Instant.now().toString();
@@ -526,7 +664,8 @@ final class StateStore {
         }
         JsonNode projected = runBatch(collection, collection.questions(), "projectBatch", "projected", input);
         if (!projected.isArray() || projected.size() != input.size()) throw new ApiException(422, "INVALID_PROJECTION", "History projections are invalid");
-        for (int i = 0; i < input.size(); i++) entries.add(historyEntry(collection, collection.questions().get(i)).set("payload", response(collection, collection.questions().get(i), states.get(i), projected.get(i))));
+        var visibleStates = publicStates(collection, collection.questions(), states);
+        for (int i = 0; i < input.size(); i++) entries.add(historyEntry(collection, collection.questions().get(i)).set("payload", response(collection, collection.questions().get(i), states.get(i), projected.get(i), visibleStates.get(i))));
         HistoryRounds.summarize(round); return round;
     }
     private JsonNode runBatch(Library.Collection collection, List<Library.Question> questions, String op, String field, List<? extends JsonNode> inputs) {
@@ -554,7 +693,7 @@ final class StateStore {
         return entry;
     }
     private static ObjectNode unsubmittedState(ObjectNode state) {
-        ObjectNode value = state.deepCopy(); value.put("status", value.path("answer").isNull() ? "unanswered" : "draft"); value.putNull("result"); return value;
+        ObjectNode value = state.deepCopy(); value.put("status", value.path("answer").isNull() ? "unanswered" : "draft"); value.putNull("result"); value.remove("outlineStates"); return value;
     }
     private static ObjectNode activeRound(ObjectNode persisted) {
         JsonNode rounds = persisted.path("historyRounds"); if (!rounds.isArray() || rounds.isEmpty()) return null;
@@ -585,8 +724,10 @@ final class StateStore {
         } catch (java.security.GeneralSecurityException e) { throw new IllegalStateException(e); }
     }
     private ObjectNode load(Library.Collection collection) {
+        if (!memoryOnly && !collection.features().history()) throw new ApiException(409, "PRACTICE_SESSION_REQUIRED", "Temporary practice requires the current page session");
         recoverEdits();
-        CachedState present = cache.get(collection.stateKey()); if (present != null) { verifyCompatibility(present.value(), collection); return present.value(); }
+        CachedState present = cache.get(collection.stateKey()); if (present != null) { ObjectNode value = adaptDevelopmentState(present.value(), collection); verifyCompatibility(value, collection); return value; }
+        if (memoryOnly) { ObjectNode value = Json.object().put("schemaVersion", 1).put("collection", collection.stateKey()).put("extensionFingerprint", collection.extensionFingerprint()); value.putObject("questions"); remember(collection, value, encodedSize(value)); return value; }
         Path file = file(collection);
         try {
             ObjectNode loaded; long encodedBytes;
@@ -598,11 +739,13 @@ final class StateStore {
                 for (JsonNode state : loaded.path("questions")) validateStoredState(state);
                 if (loaded.has("history")) { if (!loaded.path("history").isArray()) throw new IOException("Invalid history"); for (JsonNode record : loaded.path("history")) validateHistory(record); }
                 if (loaded.has("historyRounds")) { if (!loaded.path("historyRounds").isArray()) throw new IOException("Invalid history rounds"); for (JsonNode record : loaded.path("historyRounds")) HistoryRounds.validate(record); }
+                if (loaded.has("upgradedCompletion")) { HistoryRounds.validate(loaded.path("upgradedCompletion")); if (!loaded.at("/upgradedCompletion/completionVersions").isObject() || !loaded.at("/upgradedCompletion/status").asText().equals("completed")) throw new IOException("Invalid upgraded completion"); }
                 if (loaded.has("editReceipts")) { if (!loaded.path("editReceipts").isArray() || loaded.path("editReceipts").size() > 32) throw new IOException("Invalid edit receipts"); for (JsonNode receipt : loaded.path("editReceipts")) if (!receipt.path("id").isTextual() || !receipt.path("questionId").isTextual() || !receipt.path("request").isObject() || !receipt.path("response").isObject()) throw new IOException("Invalid edit receipt"); }
                 if (loaded.has("finishReceipts")) { if (!loaded.path("finishReceipts").isArray() || loaded.path("finishReceipts").size() > 32) throw new IOException("Invalid finish receipts"); for (JsonNode receipt : loaded.path("finishReceipts")) if (!receipt.path("id").isTextual() || !receipt.path("request").isObject() || !receipt.path("response").isObject()) throw new IOException("Invalid finish receipt"); }
+                if (loaded.has("restartReceipts")) { if (!loaded.path("restartReceipts").isArray() || loaded.path("restartReceipts").size() > 32) throw new IOException("Invalid restart receipts"); for (JsonNode receipt : loaded.path("restartReceipts")) if (!receipt.path("id").isTextual() || !receipt.path("request").isObject() || !receipt.path("response").isObject()) throw new IOException("Invalid restart receipt"); }
                 encodedBytes = Files.size(file);
             }
-            verifyCompatibility(loaded, collection); remember(collection, loaded, encodedBytes); return loaded;
+            loaded = adaptDevelopmentState(loaded, collection); verifyCompatibility(loaded, collection); remember(collection, loaded, encodedSize(loaded)); return loaded;
         } catch (ApiException e) { if (e.code.equals("COLLECTION_CHANGED") || ExtensionApi.historyFailure(e)) throw e; throw new ApiException(503, "STATE_UNAVAILABLE", "Saved state cannot be read; preserve the state directory for recovery"); }
         catch (IOException | RuntimeException e) { throw new ApiException(503, "STATE_UNAVAILABLE", "Saved state cannot be read; preserve the state directory for recovery"); }
     }
@@ -610,11 +753,17 @@ final class StateStore {
         remember(collection.stateKey(), value, encodedBytes);
     }
     private void remember(String key, ObjectNode value, long encodedBytes) {
+        if (memoryOnly) checkMemory(key, encodedBytes);
         CachedState previous = cache.put(key, new CachedState(value, encodedBytes));
         cachedBytes += encodedBytes - (previous == null ? 0 : previous.encodedBytes());
+        if (memoryOnly) return;
         while (cache.size() > 8 || cachedBytes > 64L * 1024 * 1024) {
             var iterator = cache.entrySet().iterator(); var oldest = iterator.next(); cachedBytes -= oldest.getValue().encodedBytes(); iterator.remove();
         }
+    }
+    private void checkMemory(String key, long bytes) {
+        CachedState previous = cache.get(key); long proposed = cachedBytes + bytes - (previous == null ? 0 : previous.encodedBytes());
+        if (proposed > 32L * 1024 * 1024 || previous == null && cache.size() >= 32) throw new ApiException(429, "PRACTICE_SESSION_LIMIT", "This page session reached its temporary practice limit");
     }
     private static void verifyCompatibility(ObjectNode state, Library.Collection collection) {
         JsonNode questions = state.path("questions"); if (questions.isEmpty()) return;
@@ -640,8 +789,73 @@ final class StateStore {
         ObjectNode value = Json.object().put("status", "unanswered").put("revision", 0).put("fingerprint", question.fingerprint()); value.putNull("answer"); value.putNull("result"); value.putNull("draft"); value.set("receipts", Json.MAPPER.createArrayNode()); return value;
     }
     private static ObjectNode publicState(ObjectNode state) { ObjectNode value = Json.object().put("status", state.path("status").asText()).put("revision", state.path("revision").asLong()); value.set("answer", state.get("answer")); value.set("result", state.get("result")); return value; }
+    private ObjectNode publicState(Library.Collection collection, Library.Question question, ObjectNode state) {
+        return publicStates(collection, List.of(question), List.of(state)).getFirst();
+    }
+    private ObjectNode adaptDevelopmentState(ObjectNode state, Library.Collection collection) {
+        if (!collection.kind().startsWith("development")) return state;
+        ObjectNode copy = null;
+        for (Library.Question question : collection.questions()) {
+            JsonNode previous = state.path("questions").get(question.id());
+            if (previous == null || previous.path("fingerprint").asText().equals(question.fingerprint())) continue;
+            if (copy == null) copy = state.deepCopy(); ((ObjectNode) copy.path("questions")).remove(question.id());
+        }
+        if (copy == null && state.path("extensionFingerprint").asText().equals(collection.extensionFingerprint())) return state;
+        if (copy == null) copy = state.deepCopy();
+        interruptRound(copy, "development-content-edited"); copy.remove(List.of("finishReceipts", "restartReceipts", "editReceipts"));
+        copy.put("extensionFingerprint", collection.extensionFingerprint());
+        long bytes = persist(collection, copy); remember(collection, copy, bytes); return copy;
+    }
+    private String outlineKey(Library.Collection collection, Library.Question question) { return collection.stateKey() + "\u0000" + question.id(); }
+    private String outlineVersion(Library.Collection collection, Library.Question question, ObjectNode state) {
+        ObjectNode scoringState = publicState(state); scoringState.remove("revision");
+        return Json.fingerprint(scoringState, question.fingerprint() + ":" + collection.extensionFor(question).fingerprint());
+    }
+    private void cacheOutline(Library.Collection collection, Library.Question question, ObjectNode state, JsonNode score) {
+        JsonNode items = score.get("outlineStates");
+        if (items != null) OutlineStates.validate(items, state.path("status").asText().equals("submitted"));
+        if (question.outlineItems().isEmpty()) return;
+        int bytes = items == null ? 0 : encodedSize(items);
+        CachedOutline previous = outlineCache.put(outlineKey(collection, question), new CachedOutline(outlineVersion(collection, question, state), items == null ? null : items.deepCopy(), bytes));
+        outlineCachedBytes += bytes - (previous == null ? 0 : previous.bytes());
+        while (outlineCache.size() > 512 || outlineCachedBytes > 2L * 1024 * 1024) {
+            var iterator = outlineCache.entrySet().iterator(); outlineCachedBytes -= iterator.next().getValue().bytes(); iterator.remove();
+        }
+    }
+    private List<ObjectNode> publicStates(Library.Collection collection, List<Library.Question> questions, List<ObjectNode> states) {
+        var result = new java.util.ArrayList<ObjectNode>(); var missing = new java.util.ArrayList<Library.Question>();
+        var inputs = new java.util.ArrayList<JsonNode>(); var indexes = new java.util.ArrayList<Integer>();
+        for (int i = 0; i < questions.size(); i++) {
+            Library.Question question = questions.get(i); ObjectNode state = states.get(i), visible = publicState(state); result.add(visible);
+            if (question.outlineItems().isEmpty()) continue;
+            CachedOutline cached = outlineCache.get(outlineKey(collection, question));
+            if (cached != null && cached.version().equals(outlineVersion(collection, question, state))) {
+                if (cached.items() != null) visible.set("outlineStates", OutlineStates.visible(cached.items(), question, state.path("status").asText().equals("submitted")));
+            } else {
+                missing.add(question); indexes.add(i); ObjectNode input = Json.object(); input.set("data", question.data()); input.set("state", publicState(state)); inputs.add(input);
+            }
+        }
+        if (!missing.isEmpty()) {
+            JsonNode scores;
+            try { scores = runBatch(collection, missing, "scoreBatch", "scores", inputs); }
+            catch (ApiException error) {
+                // A development question's navigation and page remain usable while
+                // its child scoring hook is unfinished. The score card still reports
+                // the missing operation; no score or child result is fabricated.
+                if (collection.kind().startsWith("development") && error.code.equals("DEVELOPMENT_NOT_IMPLEMENTED")) return result;
+                throw error;
+            }
+            for (int i = 0; i < missing.size(); i++) {
+                int index = indexes.get(i); Library.Question question = missing.get(i); ObjectNode state = states.get(index); JsonNode score = scores.get(i);
+                cacheOutline(collection, question, state, score);
+                if (score.has("outlineStates")) result.get(index).set("outlineStates", OutlineStates.visible(score.get("outlineStates"), question, state.path("status").asText().equals("submitted")));
+            }
+        }
+        return result;
+    }
     private Path file(Library.Collection collection) { try { return directory.resolve(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(collection.stateKey().getBytes(java.nio.charset.StandardCharsets.UTF_8))) + ".json"); } catch (Exception e) { throw new IllegalStateException(e); } }
     private long persist(Library.Collection collection, ObjectNode state) {
+        if (memoryOnly) { long bytes = encodedSize(state); checkMemory(collection.stateKey(), bytes); return bytes; }
         return persist(file(collection), state);
     }
     private long persist(Path target, ObjectNode state) {
@@ -658,16 +872,20 @@ final class StateStore {
     }
     private static int encodedSize(JsonNode value) { try { return Json.MAPPER.writeValueAsBytes(value).length; } catch (IOException e) { throw new IllegalStateException(e); } }
     private static byte[] stateBytes(ObjectNode state) throws IOException { byte[] bytes = Json.MAPPER.writeValueAsBytes(state); if (bytes.length > 32 * 1024 * 1024) throw new ApiException(413, "STATE_SIZE_LIMIT", "Collection state and retained history exceed the size limit; previous data is preserved"); return bytes; }
-    private void recoverEdits() { try { if (edits.recover()) { cache.clear(); cachedBytes = 0; } } catch (IOException | RuntimeException e) { throw new ApiException(503, "EDIT_RECOVERY_REQUIRED", "Pending edit cannot be recovered safely; preserve the bank and state directories for recovery"); } }
-    private static ObjectNode extensionMetadata(Library.Extension extension) { return Json.object().put("id", extension.id()).put("version", extension.version()).put("name", extension.name()); }
+    private void recoverEdits() { if (memoryOnly) return; try { if (edits.recover()) { cache.clear(); cachedBytes = 0; } } catch (IOException | RuntimeException e) { throw new ApiException(503, "EDIT_RECOVERY_REQUIRED", "Pending edit cannot be recovered safely; preserve the bank and state directories for recovery"); } }
+    private static ObjectNode extensionMetadata(Library.Extension extension) { ObjectNode result = Json.object().put("id", extension.id()).put("version", extension.version()).put("name", extension.name()); ObjectNode development = DevelopmentExtensions.runtimeMetadata(extension); if (development != null) result.set("development", development); return result; }
     private static void collectionMetadata(ObjectNode value, Library.Collection collection) {
+        value.set("features", collection.features().json());
+        if (collection.kind().startsWith("development") && collection.extension() != null) value.set("development", DevelopmentExtensions.runtimeMetadata(collection.extension()));
         if (collection.extension() != null) value.set("extension", extensionMetadata(collection.extension())); else value.putNull("extension");
         ArrayNode extensions = value.putArray("extensions"); for (Library.Extension extension : collection.extensions()) extensions.add(extensionMetadata(extension));
     }
     private ObjectNode overviewValue(Library.Collection collection, ObjectNode persisted) {
         ObjectNode result = Json.object().put("id", collection.id()).put("title", collection.title()).put("kind", collection.kind()); collectionMetadata(result, collection);
         ArrayNode questions = result.putArray("questions"); ObjectNode states = result.putObject("states");
-        for (Library.Question question : collection.questions()) { ObjectNode row = Json.object().put("id", question.id()).put("title", question.title()); row.set("type", extensionMetadata(collection.extensionFor(question))); OutlineItems.attach(row, question.outlineItems()); questions.add(row); states.set(question.id(), publicState(questionState(persisted, collection, question))); } return result;
+        var current = collection.questions().stream().map(question -> questionState(persisted, collection, question)).toList();
+        var visible = publicStates(collection, collection.questions(), current);
+        for (int i = 0; i < collection.questions().size(); i++) { Library.Question question = collection.questions().get(i); ObjectNode row = Json.object().put("id", question.id()).put("title", question.title()); row.set("type", extensionMetadata(collection.extensionFor(question))); OutlineItems.attach(row, question); questions.add(row); states.set(question.id(), visible.get(i)); } return result;
     }
     private static void validateHistory(JsonNode record) throws IOException {
         ExtensionApi.requireHistory(record);

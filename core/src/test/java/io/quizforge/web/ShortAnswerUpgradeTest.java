@@ -17,7 +17,9 @@ class ShortAnswerUpgradeTest {
     void prepare(String version) throws Exception {
         ServerTest fixture = new ServerTest(); fixture.root = root; fixture.prepare();
         for (String folder : new String[]{"extensions/short-answer", "extensions/short-answer-1.1.0", "extensions/short-answer-1.2.0", "extensions/short-answer-1.2.1", "extensions/short-answer-1.2.2", "shared/richtext/1.0.0", "shared/richtext/1.1.0", "shared/richtext/1.1.1", "shared/richtext/1.1.2", "question-banks/short-answer-demo"}) {
-            Path source = folder.startsWith("extensions/") || folder.startsWith("question-banks/") ? Path.of("..").resolve(folder) : Path.of(folder);
+            Path source = folder.startsWith("extensions/")
+                    ? Path.of("test/fixtures/legacy-extensions").resolve(folder.substring("extensions/".length()))
+                    : folder.startsWith("question-banks/") ? Path.of("..").resolve(folder) : Path.of(folder);
             try (var walk = Files.walk(source)) { for (Path path : walk.toList()) {
                 Path target = root.resolve(folder).resolve(source.relativize(path)); if (Files.isDirectory(path)) Files.createDirectories(target); else Files.copy(path, target);
             } }
@@ -43,7 +45,7 @@ class ShortAnswerUpgradeTest {
     }
     void prepareMixed(String version) throws Exception {
         prepare(ShortAnswerUpgrade.TARGET_VERSION);
-        Path source=Path.of("../extensions/single-choice");
+        Path source=InstalledExtensionFixtures.find("quizforge.single-choice", "1.0.0");
         try(var paths=Files.walk(source)){for(Path path:paths.toList()){
             Path target=root.resolve("extensions/single-choice").resolve(source.relativize(path));
             if(Files.isDirectory(path))Files.createDirectories(target);else Files.copy(path,target);

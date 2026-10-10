@@ -1,0 +1,23 @@
+<article class="question-card" lang="zh-CN">
+  <section aria-label="题干"><div id="stem" class="content"></div></section>
+  <section aria-label="答题区">
+    <fieldset id="options" aria-label="答案选项"></fieldset>
+    <button id="submit" type="button" disabled>提交答案</button>
+    <button id="retry" type="button" hidden>重新选择</button>
+  </section>
+  <section id="result" aria-label="答案与解析" hidden>
+    <p id="score" hidden></p>
+    <div id="score-slider-area" hidden>
+      <label for="score-slider">评分 <output id="score-value"></output></label>
+      <input id="score-slider" type="range" min="0" step="0.5" value="0">
+    </div>
+    <div id="ai-feedback-area" hidden>
+      <label for="ai-feedback">AI 评价</label>
+      <textarea id="ai-feedback" rows="3" readonly></textarea>
+    </div>
+    <h3>答案与解析</h3>
+    <div id="answer-and-explanation" class="content"></div>
+  </section>
+  <p class="design-note">界面演示 · 选择和提交仅在页面内演示，尚未接入保存、判分和 AI</p>
+  <p id="error" role="alert" hidden></p>
+</article>

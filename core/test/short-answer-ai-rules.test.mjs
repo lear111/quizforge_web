@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {toAiBlocks,prepareAiGrading} from '../../extensions/short-answer-1.1.0/src/ai-document.js';
-const coreRoot=new URL('../',import.meta.url),root=new URL('../../',import.meta.url),sample=JSON.parse(readFileSync(new URL('question-banks/short-answer-ai-demo/bank.json',root),'utf8'));
+import {toAiBlocks,prepareAiGrading} from './fixtures/legacy-extensions/short-answer-1.1.0/src/ai-document.js';
+const coreRoot=new URL('../',import.meta.url),root=new URL('../../',import.meta.url),sample=JSON.parse(readFileSync(new URL('core/test/fixtures/legacy-banks/short-answer-ai-demo/bank.json',root),'utf8'));
 const doc=text=>({type:'doc',content:[{type:'paragraph',content:[{type:'text',text}]}]}),answer={formatVersion:1,document:doc('回答')};
 const copy=value=>JSON.parse(JSON.stringify(value));
 test('pure conversion preserves paragraph, nested list, code and image order without runtime URLs',()=>{
@@ -16,7 +16,7 @@ test('protocol contains private reference only in grading input and rejects empt
   assert.throws(()=>prepareAiGrading(data,{formatVersion:1,document:{type:'doc',content:[{type:'paragraph'}]}}),/文档/);const unsafe=copy(data);unsafe.stem={type:'doc',content:[{type:'image',attrs:{assetId:'b'.repeat(64),src:'https://example.com/picture.png'}}]};assert.throws(()=>prepareAiGrading(unsafe,answer),/文档/);
 });
 test('packaged new extension exposes AI capability through real runner while old public projection stays private',()=>{
-  const extension=fileURLToPath(new URL('extensions/short-answer-1.1.0/',root)),files={rules:extension+'rules.js',questionSchema:extension+'question.schema.json',answerSchema:extension+'answer.schema.json'};
+  const extension=fileURLToPath(new URL('core/test/fixtures/legacy-extensions/short-answer-1.1.0/',root)),files={rules:extension+'rules.js',questionSchema:extension+'question.schema.json',answerSchema:extension+'answer.schema.json'};
   function call(payload){const process=spawnSync(globalThis.process.execPath,[fileURLToPath(new URL('server/rules-runner.cjs',coreRoot))],{input:JSON.stringify({...files,...payload}),encoding:'utf8',timeout:5000,maxBuffer:3*1024*1024});assert.equal(process.error,undefined,process.error?.message);return JSON.parse(process.stdout);}
   assert.equal(call({op:'validateBank',questions:sample.questions.map(row=>row.data)}).ok,true);
   const before=call({op:'project',data:sample.questions[0].data,state:{submitted:false,result:null},withCapabilities:true});assert.equal(before.ok,true);assert.equal(before.data.projected.referenceAnswer,undefined);assert.equal(before.data.projected.rubric,undefined);assert.equal(before.data.capabilities.canAiGrade,true);

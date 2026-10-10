@@ -30,7 +30,7 @@ test('editor restores and exports incomplete draft independently of valid-docume
 
 // Run the actual iframe bootstrap. The fixture supplies message transport and fake
 // timers only, so request tracking, scope checks and flush behavior stay production code.
-function iframeFixture(context={question:{id:'q1'}}) {
+function iframeFixture(context={question:{id:'q1'}},bootOptions={}) {
   const listeners=new Map(),sent=[],timers=new Map();
   let nextTimer=0;
   const parent={postMessage:message=>sent.push(structuredClone(message))};
@@ -42,7 +42,7 @@ function iframeFixture(context={question:{id:'q1'}}) {
     clearTimeout:id=>timers.delete(id),
     addEventListener:(name,callback)=>listeners.set(name,callback),
   };
-  const boot={session:'iframe-session',context,api:resolveExtensionApi().api};
+  const boot={session:'iframe-session',context,api:resolveExtensionApi().api,...bootOptions};
   vm.runInNewContext(`(${bootstrapSource})(${JSON.stringify(boot)});`,sandbox);
   const receive=(value,{source=parent,session='iframe-session'}={})=>listeners.get('message')({source,data:{...value,channel:'quizforge-host',session}});
   return {QF:sandbox.QF,sent,timers,parent,receive,document:sandbox.document,dispatch:name=>listeners.get(name)?.({})};
@@ -423,4 +423,17 @@ test('iframe resize shrinks with body content even when the root scrollHeight is
   fixture.QF.ui.resize();
   assert.equal(fixture.sent.filter(value=>value.kind==='resize').at(-1).height,350,'The old iframe height must not become a permanent minimum after retry or shorter content.');
   assert.equal(fixture.document.documentElement.scrollHeight,800);
+});
+
+
+test('development unsaved-input tracking clears only the exact generation acknowledged by a successful real save',async()=>{
+  const f=iframeFixture({question:{id:'q'}},{development:true});await f.QF.page.register({onLoad(){}});f.dispatch('input');assert.equal(f.sent.at(-1).kind,'input-dirty');assert.equal(f.sent.at(-1).changed,true);
+  const first=f.QF.save({purpose:'draft',data:{answer:'first'}}),request=f.sent.at(-1);f.dispatch('input');f.receive({kind:'reply',id:request.id,reply:{ok:true,data:{}}});await first;assert.equal(f.sent.filter(value=>value.kind==='input-dirty').at(-1).changed,true,'Late acknowledgement cannot discard newer typing.');
+  const second=f.QF.save({purpose:'draft',data:{answer:'second'}}),next=f.sent.at(-1);f.receive({kind:'reply',id:next.id,reply:{ok:true,data:{}}});await second;assert.equal(f.sent.filter(value=>value.kind==='input-dirty').at(-1).changed,false);f.receive({kind:'dispose'});
+});
+
+test('inactive retained frames release host-request timers and reject further operations until resume',async()=>{
+  const f=iframeFixture({question:{id:'q'}},{development:true});await f.QF.page.register({onLoad(){}});const pending=f.QF.save({purpose:'draft',data:{answer:'unfinished'}});assert.equal(f.timers.size,1);
+  f.receive({kind:'visibility',active:false});assert.equal((await pending).error.code,'PAGE_INACTIVE');assert.equal(f.timers.size,0);assert.equal((await f.QF.save({purpose:'submit'})).error.code,'PAGE_INACTIVE');
+  f.receive({kind:'visibility',active:true});const saving=f.QF.save({purpose:'draft',data:{answer:'resumed'}}),request=f.sent.at(-1);f.receive({kind:'reply',id:request.id,reply:{ok:true,data:{}}});assert.equal((await saving).ok,true);f.receive({kind:'dispose'});assert.equal(f.timers.size,0);
 });

@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 const root=new URL('../../',import.meta.url);
 const read=path=>readFileSync(new URL(path,root),'utf8');
 function run(version,payload){
-  const path=fileURLToPath(new URL(`extensions/short-answer-${version}/`,root));
+  const path=fileURLToPath(new URL(`core/test/fixtures/legacy-extensions/short-answer-${version}/`,root));
   const result=spawnSync(process.execPath,[fileURLToPath(new URL('core/server/rules-runner.cjs',root))],{
     input:JSON.stringify({apiVersion:{major:1,minor:0},rules:path+'rules.js',questionSchema:path+'question.schema.json',answerSchema:path+'answer.schema.json',...payload}),
     encoding:'utf8',timeout:5000,maxBuffer:3*1024*1024
@@ -17,16 +17,16 @@ function run(version,payload){
 }
 
 test('new package has exact SDK/API bindings while question and answer schemas stay compatible',()=>{
-  const manifest=JSON.parse(read('extensions/short-answer-1.2.2/manifest.json'));
+  const manifest=JSON.parse(read('core/test/fixtures/legacy-extensions/short-answer-1.2.2/manifest.json'));
   assert.equal(manifest.version,'1.2.2');assert.deepEqual(manifest.dependencies,[{id:'quizforge.richtext',version:'1.1.2'}]);
   assert.equal(manifest.requiresApi.major,1);assert.equal(manifest.requiresApi.minMinor,0);
-  for(const schema of ['question.schema.json','answer.schema.json'])assert.equal(read('extensions/short-answer-1.2.2/'+schema),read('extensions/short-answer-1.2.1/'+schema));
-  const examples=JSON.parse(read('extensions/short-answer-1.2.2/examples.json'));assert.equal(examples.formatVersion,1);assert.equal(examples.extension.version,'1.2.2');
+  for(const schema of ['question.schema.json','answer.schema.json'])assert.equal(read('core/test/fixtures/legacy-extensions/short-answer-1.2.2/'+schema),read('core/test/fixtures/legacy-extensions/short-answer-1.2.1/'+schema));
+  const examples=JSON.parse(read('core/test/fixtures/legacy-extensions/short-answer-1.2.2/examples.json'));assert.equal(examples.formatVersion,1);assert.equal(examples.extension.version,'1.2.2');
   run('1.2.2',{op:'validateBank',questions:examples.questions.map(question=>question.data)});
 });
 
 test('new rules preserve old rich-answer projection, pending grading, manual score and AI content',()=>{
-  const examples=JSON.parse(read('extensions/short-answer-1.2.1/examples.json'));
+  const examples=JSON.parse(read('core/test/fixtures/legacy-extensions/short-answer-1.2.1/examples.json'));
   const data=examples.questions.at(-1).data;
   const answer={formatVersion:1,document:{type:'doc',content:[
     {type:'paragraph',content:[{type:'text',text:'由表格与公式可得：'},{type:'inlineMath',attrs:{latex:'\\bar{x}=4'}}]},

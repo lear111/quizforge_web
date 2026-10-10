@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
 const root=new URL('../../',import.meta.url),read=path=>readFileSync(new URL(path,root),'utf8');
-const sample=JSON.parse(read('question-banks/short-answer-ai-demo/bank.json')).questions[0],plain=value=>JSON.parse(JSON.stringify(value));
+const sample=JSON.parse(read('core/test/fixtures/legacy-banks/short-answer-ai-demo/bank.json')).questions[0],plain=value=>JSON.parse(JSON.stringify(value));
 const tick=()=>new Promise(resolve=>setImmediate(resolve)),deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const candidate=(score=3.5)=>({version:'b'.repeat(64),score,feedback:'依据要点：回答覆盖输入与处理，输出说明不足。'});
 const task=(status='queued',extra={})=>({taskId:'task-first',status,...extra});
 async function fixture(t,{mode='practice',status='submitted',canAiGrade=true,canReview=true,aiTask=null,handlers={}}={}){
-  const dom=new JSDOM(read('extensions/short-answer-1.1.0/practice.html'),{runScripts:'outside-only',url:'http://localhost/'});t.after(()=>dom.window.close());
+  const dom=new JSDOM(read('core/test/fixtures/legacy-extensions/short-answer-1.1.0/practice.html'),{runScripts:'outside-only',url:'http://localhost/'});t.after(()=>dom.window.close());
   const timers=new Map(),aiCalls=[],saved=[],events=[];let nextTimer=0,hooks,editors=0;
   dom.window.setTimeout=(callback,delay)=>{const id=++nextTimer;timers.set(id,{callback,delay});return id;};dom.window.clearTimeout=id=>timers.delete(id);
   const content={isEmpty:doc=>!JSON.stringify(doc).includes('text'),render(host,doc){host.textContent=JSON.stringify(doc);return {ready:Promise.resolve(),destroy(){host.replaceChildren();}};},createEditor(host,{doc}){editors++;return {ready:Promise.resolve(),getDocument:()=>plain(doc),flush:async()=>{},destroy(){editors--;host.replaceChildren();}};}};
   const context={mode,status,question:plain(sample),answer:{formatVersion:1,document:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'我的回答'}]}]}},result:status==='submitted'?{gradingStatus:'pending',score:null,maxScore:5,correct:null,feedback:null}:null,aiTask,capabilities:{canSave:status!=='submitted',canSubmit:status!=='submitted',canRetry:mode!=='history',canReview:mode!=='history'&&canReview,canAiGrade:mode!=='history'&&canAiGrade}};
   const ai={};for(const name of ['grade','getTask','retry','confirm'])ai[name]=async args=>{aiCalls.push({method:name,args:plain(args)});return handlers[name]?handlers[name](args,context,hooks):name==='getTask'&&!args.taskId?{ok:true,data:{task:null}}:{ok:true,data:task()};};
   dom.window.QF={content,ai,page:{register:value=>{hooks=value;}},save:async value=>{saved.push(plain(value));return {ok:true};},requestAction:async()=>({ok:true}),ui:{resize(){}}};
-  dom.window.eval(read('extensions/short-answer-1.1.0/practice-ai.js'));await hooks.onLoad(context);await tick();
+  dom.window.eval(read('core/test/fixtures/legacy-extensions/short-answer-1.1.0/practice-ai.js'));await hooks.onLoad(context);await tick();
   const byId=id=>dom.window.document.getElementById(id);
   return {dom,hooks,context,timers,aiCalls,saved,byId,editors:()=>editors,async click(id){byId(id).dispatchEvent(new dom.window.Event('click'));await tick();},async poll(){const entry=[...timers.entries()].find(([,value])=>value.delay===1500);assert.ok(entry,'Expected one active poll timer');timers.delete(entry[0]);entry[1].callback();await tick();},async reload(value){await hooks.onLoad(value);await tick();}};
 }

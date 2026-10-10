@@ -18,6 +18,51 @@ function call(files, payload, extra=[]) {
   const result=spawnSync(process.execPath,args,{input:JSON.stringify({...files,...payload}),encoding:'utf8',timeout:4000,maxBuffer:3*1024*1024,env:{SystemRoot:process.env.SystemRoot}});
   assert.equal(result.error,undefined,result.error?.message); return {status:result.status,body:JSON.parse(result.stdout)};
 }
+
+test('development partial rules display data without relaxing formal registration', t => {
+  const files=fixture(t,`QF.defineType({project(data){return {prompt:data.secret};}});`);
+  const request={op:'project',data:{secret:'design fixture'},state:{submitted:false,result:null}};
+  assert.equal(call(files,request).body.ok,false,'Formal extensions still require a grade hook.');
+  const preview=call(files,{...request,development:true,questionSchema:null,answerSchema:null}).body;
+  assert.deepEqual(preview.data,{projected:{prompt:'design fixture'}});
+  const submit=call(files,{op:'submit',development:true,data:{secret:'design fixture'},answer:'yes'}).body;
+  assert.equal(submit.ok,false);assert.equal(submit.code,'DEVELOPMENT_NOT_IMPLEMENTED');
+  assert.match(submit.error,/grade/);assert.equal(Object.hasOwn(submit,'data'),false);
+});
+
+test('a development page without rule hooks has no invented score', t => {
+  const files=fixture(t,`QF.defineType({});`);
+  const preview=call(files,{op:'projectBatch',development:true,questions:[{data:{secret:'fixture'},state:{submitted:false,result:null}}]}).body;
+  assert.deepEqual(preview.data,{projected:[{secret:'fixture'}]});
+  const summary=call(files,{op:'scoreBatch',development:true,questions:[{data:{secret:'fixture'},state:{status:'unanswered',answer:null,result:null}}]}).body;
+  assert.equal(summary.ok,false);assert.equal(summary.code,'DEVELOPMENT_NOT_IMPLEMENTED');
+  assert.equal(Object.hasOwn(summary,'data'),false);
+});
+
+test('missing development answer schema cannot pretend to save or submit an answer', t => {
+  const files=fixture(t,normal);
+  for(const op of ['validateAnswer','submit']){
+    const value=call(files,{op,development:true,answerSchema:null,data:{secret:'yes'},answer:'yes'}).body;
+    assert.equal(value.ok,false,op);assert.equal(value.code,'DEVELOPMENT_NOT_IMPLEMENTED',op);
+    assert.match(value.error,/answer schema/);
+  }
+});
+
+test('explicit development placeholders report unsupported operations without valid grade data', t => {
+  const files=fixture(t,`QF.defineType({project(){return {maxScore:1};},grade(){const error=new Error('Grading is unfinished');error.code='DEVELOPMENT_NOT_IMPLEMENTED';throw error;}});`);
+  const request={op:'submit',data:{secret:'yes'},answer:'yes'};
+  const development=call(files,{...request,development:true}).body;
+  assert.equal(development.ok,false);assert.equal(development.code,'DEVELOPMENT_NOT_IMPLEMENTED');
+  const formal=call(files,request).body;
+  assert.equal(formal.ok,false);assert.equal(Object.hasOwn(formal,'code'),false,'No extra public contract for formal extensions.');
+});
+
+test('complete development rules keep formal grading and schema validation', t => {
+  const files=fixture(t,normal),request={op:'submit',data:{secret:'yes'},answer:'yes'};
+  assert.deepEqual(call(files,{...request,development:true}).body,call(files,request).body);
+  const invalid=call(files,{...request,development:true,answer:7}).body;
+  assert.equal(invalid.ok,false);assert.match(invalid.error,/schema/);
+});
 test('draft-07 AJV validates raw questions and answers before rules',t=>{
   const files=fixture(t,normal); assert.equal(require('ajv/package.json').version,'8.20.0');
   assert.equal(call(files,{op:'validateBank',questions:[{secret:'yes'}]}).body.ok,true);
@@ -44,20 +89,60 @@ test('legacy rules and explicit v1 rules share an immutable host contract withou
   const request={op:'project',data:{secret:'yes'},state:{submitted:false,result:null}};
   const legacy=call(files,request).body,declared=call(files,{...request,apiVersion:{major:1,minor:0,description:'v1'}}).body;
   assert.deepEqual(legacy,declared);
-  assert.deepEqual(legacy.data.projected,{major:1,minor:1,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
+  assert.deepEqual(legacy.data.projected,{major:1,minor:2,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
   const submitted=call(files,{op:'submit',data:{secret:'yes'},answer:'yes',apiVersion:{major:1,minor:0}}).body;
   assert.equal(submitted.data.result.score,1);assert.equal(submitted.data.projected.reveal,'yes');
 });
 
 test('invalid and future rule API versions are rejected before reading extension code',t=>{
   const files=fixture(t,normal);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:2}]){
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:3}]){
     const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
     assert.equal(result.ok,false);assert.equal(result.code,'UNSUPPORTED_API_VERSION');
   }
   for(const apiVersion of [null,{major:'1',minor:0},{major:1,minor:-1},{major:1}]){
     const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
     assert.equal(result.ok,false);assert.equal(result.code,'INVALID_API_VERSION');
+  }
+});
+
+test('getScore v1.2 adds bounded child display states without changing aggregate scoring',t=>{
+  const hook=`QF.defineType({project(){return {maxScore:3};},grade(){return {};},
+    getScore(data,state){return {score:state.submitted?state.result.score:0,maxScore:3,
+      outlineStates:state.submitted?state.result.feedback:[{id:'part-a',status:'unanswered'}]};}});`;
+  const files=fixture(t,hook), result={score:1,maxScore:3,correct:false,feedback:[{id:'part-a',status:'correct'},{id:'part-b',status:'incorrect'}]};
+  for(const minor of [0,1,2]){
+    const response=call(files,{op:'scoreBatch',apiVersion:{major:1,minor},questions:[
+      {data:{secret:'x'},state:{status:'unanswered',answer:null,result:null}},
+      {data:{secret:'x'},state:{status:'draft',answer:'saved',result:null}},
+      {data:{secret:'x'},state:{status:'submitted',answer:'saved',result}},
+      {data:{secret:'x'},state:{status:'submitted',answer:'saved',result:{gradingStatus:'pending',score:null,maxScore:3,correct:null,feedback:[{id:'part-a',status:'correct'},{id:'part-b',status:'unanswered'}]}}}
+    ]}).body;
+    assert.equal(response.ok,true,JSON.stringify(response));
+    assert.deepEqual(response.data.scores.map(row=>row.score),[0,0,1,null]);
+    assert.equal(response.data.scores[0].outlineStates[0].status,'unanswered');
+    assert.equal(response.data.scores[1].outlineStates[0].status,'unanswered');
+    assert.deepEqual(response.data.scores[2].outlineStates,result.feedback);
+    assert.equal(response.data.scores[3].outlineStates[1].status,'unanswered');
+  }
+});
+
+test('invalid outline states and pre-submit grading are rejected while absence and empty arrays remain valid',t=>{
+  const payload={op:'scoreBatch',questions:[{data:{secret:'x'},state:{status:'draft',answer:'saved',result:null}}]};
+  for(const expression of ['null','{}',"[{id:'a',status:'wrong'}]","[{id:'a',status:'correct'}]","[{id:'a',status:'incorrect'}]","[{id:'a',status:'unanswered',score:1}]","[{id:'a',status:'unanswered'},{id:'a',status:'unanswered'}]","[{id:'<a>',status:'unanswered'}]","[{id:' a',status:'unanswered'}]","[{id:'x'.repeat(129),status:'unanswered'}]","Array.from({length:101},(_,i)=>({id:String(i),status:'unanswered'}))"]){
+    const files=fixture(t,`QF.defineType({project(){return {};},grade(){return {};},getScore(){return {score:0,maxScore:1,outlineStates:${expression}};}});`);
+    const response=call(files,payload).body;assert.equal(response.ok,false,expression);assert.equal(response.code,'INVALID_OUTLINE_STATES',expression);
+  }
+  for(const addition of ['',',outlineStates:[]']){
+    const files=fixture(t,`QF.defineType({project(){return {};},grade(){return {};},getScore(){return {score:0,maxScore:1${addition}};}});`);
+    const response=call(files,payload).body;assert.equal(response.ok,true);assert.equal(Object.hasOwn(response.data.scores[0],'outlineStates'),!!addition);
+  }
+});
+test('outline status contract stays three-state even after submission',t=>{
+  const payload={op:'scoreBatch',questions:[{data:{secret:'x'},state:{status:'submitted',answer:'saved',result:{score:0.5,maxScore:1,correct:false,feedback:null}}}]};
+  for(const status of ['draft','partial','pending-review','submitted']){
+    const files=fixture(t,`QF.defineType({project(){return {};},grade(){return {};},getScore(){return {score:0.5,maxScore:1,outlineStates:[{id:'a',status:'${status}'}]};}});`);
+    const response=call(files,payload).body;assert.equal(response.ok,false,status);assert.equal(response.code,'INVALID_OUTLINE_STATES',status);
   }
 });
 test('batch projections preserve order and keep unsubmitted answers hidden',t=>{

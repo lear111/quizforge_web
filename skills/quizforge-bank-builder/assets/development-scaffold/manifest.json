@@ -1,0 +1,22 @@
+{
+  "id": "example.new-question",
+  "version": "0.1.0",
+  "name": "通用题型开发模板",
+  "description": "题干、答题区、答案与解析三个区域；评分条和 AI 评价可按需启用",
+  "requiresApi": {
+    "major": 1,
+    "minMinor": 0,
+    "capabilities": [
+      "practice",
+      "score",
+      "editor"
+    ]
+  },
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples/bank.json"
+}

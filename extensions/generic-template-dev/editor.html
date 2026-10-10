@@ -1,0 +1,17 @@
+<article class="question-card">
+  <section aria-label="题干">
+    <label for="stem">题干</label>
+    <textarea id="stem" rows="5" placeholder="题目内容、材料与作答要求放在一起"></textarea>
+  </section>
+  <section aria-label="答题区">
+    <label for="answer-preview">答题区</label>
+    <textarea id="answer-preview" rows="4" disabled placeholder="此处预览实际题型的作答控件"></textarea>
+  </section>
+  <section aria-label="答案与解析">
+    <label for="answer-and-explanation">答案与解析</label>
+    <textarea id="answer-and-explanation" rows="5" placeholder="参考答案、解析；评分标准按需放在这里"></textarea>
+    <label class="inline-score" for="max-score">满分 <input id="max-score" type="text" inputmode="decimal" autocomplete="off"></label>
+  </section>
+  <p class="design-note">编辑界面演示 · 保存尚未实现；使用宿主的编辑与切题按钮</p>
+  <p id="error" role="alert" hidden></p>
+</article>

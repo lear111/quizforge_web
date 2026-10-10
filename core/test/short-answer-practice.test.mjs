@@ -6,7 +6,7 @@ const coreRoot=new URL('../',import.meta.url),root=new URL('../../',import.meta.
 const sample=JSON.parse(read('question-banks/short-answer-demo/bank.json')).questions[1],plain=value=>JSON.parse(JSON.stringify(value));
 const doc=text=>({type:'doc',content:[{type:'paragraph',content:[{type:'text',text}]}]}),tick=()=>new Promise(resolve=>setTimeout(resolve,25));
 async function fixture(t,{mode='practice',status='unanswered',answer=null,result=null,saveFailure=false}={}){
-  const dom=new JSDOM(read('extensions/short-answer/practice.html'),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'});t.after(()=>dom.window.close());dom.window.eval(read('shared/richtext/1.0.0/richtext.js'));const api=dom.window.QFRichText;
+  const dom=new JSDOM(read('core/test/fixtures/legacy-extensions/short-answer/practice.html'),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'});t.after(()=>dom.window.close());dom.window.eval(read('shared/richtext/1.0.0/richtext.js'));const api=dom.window.QFRichText;
   api.configure({resources:{get:async()=>({url:'blob:image',mime:'image/png',size:10}),put:async()=>({id:'a'.repeat(64),mime:'image/png',size:10})},async loadEditor(){dom.window.eval(read('shared/richtext/1.0.0/richtext-editor.js'));}});
   let hooks,editor;const calls=[];const context={mode,status,question:plain(sample),answer:plain(answer),result:plain(result),capabilities:{canSave:mode!=='history'&&status!=='submitted',canSubmit:mode!=='history'&&status!=='submitted',canRetry:mode!=='history'&&status==='submitted',canReview:mode!=='history'&&status==='submitted'}};
   const content={...api,createEditor(container,options){editor=api.createEditor(container,options);return editor;}};
@@ -14,7 +14,7 @@ async function fixture(t,{mode='practice',status='unanswered',answer=null,result
     if(value.purpose==='submit'){context.answer=plain(value.data.answer);context.status='submitted';context.result={gradingStatus:'pending',score:null,maxScore:sample.data.maxScore,correct:null,feedback:null};context.capabilities={canSave:false,canSubmit:false,canRetry:true,canReview:true};}
     if(value.purpose==='review'){context.result={gradingStatus:'graded',score:value.data.review.score,maxScore:sample.data.maxScore,correct:value.data.review.score===sample.data.maxScore,feedback:null};}
     await hooks.onLoad(plain(context));return {ok:true};}
-  dom.window.QF={content,page:{register:value=>{hooks=value;}},save,ui:{resize(){}},requestAction:async()=>({ok:true})};dom.window.eval(read('extensions/short-answer/practice.js'));await hooks.onLoad(plain(context));
+  dom.window.QF={content,page:{register:value=>{hooks=value;}},save,ui:{resize(){}},requestAction:async()=>({ok:true})};dom.window.eval(read('core/test/fixtures/legacy-extensions/short-answer/practice.js'));await hooks.onLoad(plain(context));
   return {dom,api,hooks,context,calls,editor:()=>editor,byId:id=>dom.window.document.getElementById(id),async type(text){const field=dom.window.document.querySelector('.tiptap p');field.textContent=text;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));await tick();},async waitForPurpose(purpose){for(let i=0;i<80&&!calls.some(value=>value.purpose===purpose);i++)await tick();assert.ok(calls.some(value=>value.purpose===purpose));await tick();}};
 }
 test('latest typed answer flushes before navigation and submission reveals a pending self-review',async t=>{

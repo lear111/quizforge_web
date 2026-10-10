@@ -1,0 +1,15 @@
+{
+  "id": "quizforge.short-answer",
+  "version": "1.3.0",
+  "name": "简答题",
+  "requiresApi": {"major": 1, "minMinor": 2, "capabilities": ["practice", "editor", "editor-drafts", "score", "manual-review", "ai-grading", "resources", "richtext", "lifecycle"]},
+  "description": "富文本简答、自动保存人工评分及自动应用 AI 评分。",
+  "requiresRichText": {"major": 1, "minMinor": 0, "documentFormat": 1, "documentProfile": "advanced-v1", "capabilities": ["images", "tables", "math", "image-resize"]},
+  "entry": "practice.html",
+  "script": "practice-ai.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples.json"
+}

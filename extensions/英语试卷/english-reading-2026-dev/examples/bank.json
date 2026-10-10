@@ -1,0 +1,251 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "阅读理解 · UI 原型",
+  "description": "界面演示，真实保存与判分尚未实现。",
+  "extension": {
+    "id": "quizforge.english-reading",
+    "version": "1.0.0"
+  },
+  "features": {
+    "editing": true,
+    "whiteboard": true,
+    "history": true
+  },
+  "questions": [
+    {
+      "id": "sample-reading-2026",
+      "title": "阅读理解 Text 1 · 21–25",
+      "data": {
+        "directions": "Read the text and choose the best answer to each question. (10 points)",
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "For thousands of years, donkeys have been critical for propelling human civilizations forward. They’ve helped pull wheeled vehicles, carry travelers and move goods across the world. But where and when these animals first became intertwined with humans has been a mystery. Now, researchers have used genomes of over 200 donkeys to trace their domestication back to a single event around 7,000 years ago in East Africa—about 3,000 years before humans tamed horses. The team published their findings in the journal Science this month."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "“Through their DNA, the animals are telling their history themselves,” co-author Samantha Brooks, an equine researcher at the University of Florida, says in a statement. “We usually only get the human’s side of history through written accounts, but of course written history does not always record exactly how something happened. Looking at these DNA sequences, we get a biological testimony to the environment these animals lived in and the experiences they survived.”"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "The researchers examined 207 genomes from modern donkeys living in 31 countries across the globe. They also looked at genomes from 15 wild equids and 31 earlier donkeys that lived between about 4,000 and 100 years ago. The team reconstructed the animals’ evolutionary tree and used computer models to pinpoint the domestication event when herders in Kenya and the Horn of Africa tamed wild asses. They then traced how the animals spread across the rest of the continent and into Europe and Asia about 2,500 years later."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Though it’s still unclear why the original domestication happened, Science News’ Freda Kreier reports that the event coincided with the Sahara growing larger and drier. “Donkeys are champions when it comes to carrying stuff and are good at going through deserts,” co-author Ludovic Orlando, an evolutionary biologist at Paul Sabin University in France, tells the publication. Prehistoric humans may have tamed donkeys to help navigate the expanding Sahara."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Researchers say these findings could help put donkeys in the spotlight. The animals could benefit from more research: Currently, there are no published genomes from donkeys located south of the Equator in Africa. But understanding where the animals were first domesticated could guide archaeologists to a narrow region to search for insights about the original tamed donkeys."
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Not only does understanding the equines’ genetic makeup help reveal their contribution to human history, but it also might improve their management in the future, as climate change alters the planet’s environment, write the authors."
+                }
+              ]
+            }
+          ]
+        },
+        "parts": [
+          {
+            "id": "q21",
+            "label": "21",
+            "stem": "What can be learned about donkeys from Paragraph 1",
+            "referenceAnswer": "",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2,
+            "options": [
+              {
+                "id": "A",
+                "text": "They seemed mysterious to human ancestors."
+              },
+              {
+                "id": "B",
+                "text": "They underwent multiple domestication events."
+              },
+              {
+                "id": "C",
+                "text": "They were tamed at an earlier time than horses."
+              },
+              {
+                "id": "D",
+                "text": "They were vividly portrayed by ancient travelers."
+              }
+            ],
+            "correctOptionId": "C"
+          },
+          {
+            "id": "q22",
+            "label": "22",
+            "stem": "What message is conveyed in Brooks’ statement?",
+            "referenceAnswer": "",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2,
+            "options": [
+              {
+                "id": "A",
+                "text": "The earliest habitats of donkeys are hardly traceable."
+              },
+              {
+                "id": "B",
+                "text": "It is increasingly easy to read donkeys’ DNA sequences."
+              },
+              {
+                "id": "C",
+                "text": "Written accounts contain vital clues for donkey research."
+              },
+              {
+                "id": "D",
+                "text": "Genetic analysis offers insight into the history of donkeys."
+              }
+            ],
+            "correctOptionId": "D"
+          },
+          {
+            "id": "q23",
+            "label": "23",
+            "stem": "In their study, the researchers investigated how donkeys",
+            "referenceAnswer": "",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2,
+            "options": [
+              {
+                "id": "A",
+                "text": "dispersed widely in the world."
+              },
+              {
+                "id": "B",
+                "text": "survived with the help of herders."
+              },
+              {
+                "id": "C",
+                "text": "developed certain behavioral traits."
+              },
+              {
+                "id": "D",
+                "text": "adapted to the changing environment."
+              }
+            ],
+            "correctOptionId": "A"
+          },
+          {
+            "id": "q24",
+            "label": "24",
+            "stem": "As to why the original domestication of donkeys happened, Orlando",
+            "referenceAnswer": "",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2,
+            "options": [
+              {
+                "id": "A",
+                "text": "challenges conventional ideas."
+              },
+              {
+                "id": "B",
+                "text": "provides a possible explanation."
+              },
+              {
+                "id": "C",
+                "text": "calls for evidence from the Sahara."
+              },
+              {
+                "id": "D",
+                "text": "holds a different view from Kreier."
+              }
+            ],
+            "correctOptionId": "B"
+          },
+          {
+            "id": "q25",
+            "label": "25",
+            "stem": "The authors think that their research could help with",
+            "referenceAnswer": "",
+            "explanation": "",
+            "rubric": "",
+            "maxScore": 2,
+            "options": [
+              {
+                "id": "A",
+                "text": "greater protection of wildlife."
+              },
+              {
+                "id": "B",
+                "text": "better management of donkeys."
+              },
+              {
+                "id": "C",
+                "text": "recovering early types of donkeys."
+              },
+              {
+                "id": "D",
+                "text": "raising awareness of climate change."
+              }
+            ],
+            "correctOptionId": "B"
+          }
+        ],
+        "maxScore": 10
+      },
+      "outline": {
+        "level": "parts",
+        "items": [
+          {
+            "id": "q21",
+            "label": "21"
+          },
+          {
+            "id": "q22",
+            "label": "22"
+          },
+          {
+            "id": "q23",
+            "label": "23"
+          },
+          {
+            "id": "q24",
+            "label": "24"
+          },
+          {
+            "id": "q25",
+            "label": "25"
+          }
+        ]
+      }
+    }
+  ]
+}

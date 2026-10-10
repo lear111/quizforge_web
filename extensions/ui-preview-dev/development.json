@@ -1,0 +1,10 @@
+{
+  "mode": "ui",
+  "name": "题型界面开发示例",
+  "description": "仅用页面与本地演示脚本预览练习、提交后和编辑界面。",
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "preview.css",
+  "editor": { "entry": "editor.html", "style": "preview.css" },
+  "assets": ["assets/cache.svg"]
+}

@@ -10,24 +10,25 @@ async function waitFor(check){for(let i=0;i<30&&!check();i++)await tick();assert
 
 function fixture(t,folder,mode,context,{richtext=false}={}) {
   const file=mode==='edit'?'editor':'practice';
-  const dom=new JSDOM(read(`../../extensions/${folder}/${file}.html`),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'}),sent=[];
+  const packagePath=folder==='short-answer'?'./fixtures/legacy-extensions/short-answer':`../../extensions/基础题型/${folder}`;
+  const dom=new JSDOM(read(`${packagePath}/${file}.html`),{runScripts:'outside-only',pretendToBeVisual:true,url:'http://localhost/'}),sent=[];
   const parent={postMessage:value=>sent.push(structuredClone(value))};
   Object.defineProperty(dom.window,'parent',{value:parent});
   dom.window.structuredClone=structuredClone;
   dom.window.ResizeObserver=class{observe(){}disconnect(){}};
   const bridge=resolveExtensionApi(); // Unmodified legacy manifests/pages have no version declaration.
-  const dependencies=JSON.parse(read(`../../extensions/${folder}/manifest.json`)).dependencies||[];
+  const dependencies=JSON.parse(read(`${packagePath}/manifest.json`)).dependencies||[];
   const boot={session:'old-extension',context,api:bridge.api,dependencies};
   dom.window.eval(`(${bridge.bootstrap.toString()})(${JSON.stringify(boot)});`);
   if(richtext)dom.window.eval(read('../shared/richtext/1.0.0/richtext.js'));
   const receive=value=>dom.window.dispatchEvent(new dom.window.MessageEvent('message',{source:parent,data:{...value,channel:'quizforge-host',session:boot.session}}));
   t.after(async()=>{receive({kind:'dispose'});await tick();dom.window.close();});
-  dom.window.eval(read(`../../extensions/${folder}/${file}.js`));
+  dom.window.eval(read(`${packagePath}/${file}.js`));
   return {dom,sent,receive,byId:id=>dom.window.document.getElementById(id)};
 }
 
 test('published single-choice 1.0.0 still renders and saves through the v1 bridge without changing its package',async t=>{
-  const question=JSON.parse(read('../../extensions/single-choice/examples.json')).questions[0];
+  const question=JSON.parse(read('../../extensions/基础题型/single-choice/examples.json')).questions[0];
   const context={mode:'practice',question,status:'unanswered',answer:null,result:null,capabilities:{canSave:true,canSubmit:true,canRetry:false}};
   const f=fixture(t,'single-choice','practice',context);
   await waitFor(()=>f.sent.some(value=>value.kind==='registered'));
@@ -45,7 +46,7 @@ test('published single-choice 1.0.0 still renders and saves through the v1 bridg
 });
 
 test('published single-choice editor preserves its document and draft hooks through v1',async t=>{
-  const question=JSON.parse(read('../../extensions/single-choice/examples.json')).questions[0];
+  const question=JSON.parse(read('../../extensions/基础题型/single-choice/examples.json')).questions[0];
   const f=fixture(t,'single-choice','edit',{mode:'edit',question,capabilities:{canEdit:true}});
   await waitFor(()=>f.sent.some(value=>value.kind==='registered'));
   f.byId('edit-title').value='升级宿主后的题名';
@@ -62,7 +63,7 @@ test('published single-choice editor preserves its document and draft hooks thro
 });
 
 test('published short-answer 1.0.0 and its frozen richtext 1.0.0 render old history through v1',async t=>{
-  const question=JSON.parse(read('../../extensions/short-answer/examples.json')).questions.find(value=>!JSON.stringify(value).includes('assetId'));
+  const question=JSON.parse(read('./fixtures/legacy-extensions/short-answer/examples.json')).questions.find(value=>!JSON.stringify(value).includes('assetId'));
   const answer={formatVersion:1,document:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'旧版历史答案'}]}]}};
   const context={mode:'history',question,status:'submitted',answer,result:{gradingStatus:'graded',score:1,maxScore:question.data.maxScore},capabilities:{canSave:false,canSubmit:false,canRetry:false,canReview:false}};
   const f=fixture(t,'short-answer','history',context,{richtext:true});

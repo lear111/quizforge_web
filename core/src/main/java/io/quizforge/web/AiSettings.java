@@ -21,7 +21,10 @@ import java.util.Set;
 
 /** The server owns the single active profile; browser responses never carry credentials. */
 final class AiSettings {
-    record Profile(boolean enabled, URI baseUrl, String model, String apiKey, boolean vision, String outputMode, int maxOutputTokens, int timeoutSeconds) {
+    record Profile(boolean enabled, URI baseUrl, String model, String apiKey, boolean vision, String outputMode, int maxOutputTokens, int timeoutSeconds, boolean autoGrade) {
+        Profile(boolean enabled, URI baseUrl, String model, String apiKey, boolean vision, String outputMode, int maxOutputTokens, int timeoutSeconds) {
+            this(enabled, baseUrl, model, apiKey, vision, outputMode, maxOutputTokens, timeoutSeconds, false);
+        }
         @Override public String toString() { return "AiProfile[enabled=" + enabled + ",apiKeyConfigured=" + !apiKey.isEmpty() + "]"; }
     }
     private final Path root, directory, file;
@@ -37,22 +40,22 @@ final class AiSettings {
     }
     synchronized Profile profile() { return profile; }
     synchronized ObjectNode status() {
-        return Json.object().put("enabled", profile.enabled()).put("provider", "openai-compatible").put("baseUrl", profile.baseUrl() == null ? "" : profile.baseUrl().toString()).put("model", profile.model())
+        return Json.object().put("enabled", profile.enabled()).put("autoGrade", profile.autoGrade()).put("provider", "openai-compatible").put("baseUrl", profile.baseUrl() == null ? "" : profile.baseUrl().toString()).put("model", profile.model())
                 .put("apiKeyConfigured", !profile.apiKey().isEmpty()).put("vision", profile.vision()).put("outputMode", profile.outputMode()).put("maxOutputTokens", profile.maxOutputTokens()).put("timeoutSeconds", profile.timeoutSeconds());
     }
     synchronized ObjectNode update(JsonNode request) throws IOException {
         Profile replacement = parse(request, profile, false); safe(true);
-        ObjectNode stored = Json.object().put("schemaVersion", 1).put("enabled", replacement.enabled()).put("provider", "openai-compatible").put("baseUrl", replacement.baseUrl() == null ? "" : replacement.baseUrl().toString()).put("model", replacement.model())
+        ObjectNode stored = Json.object().put("schemaVersion", 1).put("enabled", replacement.enabled()).put("autoGrade", replacement.autoGrade()).put("provider", "openai-compatible").put("baseUrl", replacement.baseUrl() == null ? "" : replacement.baseUrl().toString()).put("model", replacement.model())
                 .put("apiKey", replacement.apiKey()).put("vision", replacement.vision()).put("outputMode", replacement.outputMode()).put("maxOutputTokens", replacement.maxOutputTokens()).put("timeoutSeconds", replacement.timeoutSeconds());
         EditJournal.replace(file, Json.MAPPER.writeValueAsBytes(stored)); restrict(file, false); profile = replacement; return status();
     }
     private static Profile parse(JsonNode request, Profile previous, boolean stored) {
         if (request == null || !request.isObject()) throw ApiException.bad("Invalid AI settings");
-        Set<String> fields = Set.of("schemaVersion", "enabled", "provider", "baseUrl", "model", "apiKey", "clearApiKey", "vision", "outputMode", "maxOutputTokens", "timeoutSeconds");
+        Set<String> fields = Set.of("schemaVersion", "enabled", "autoGrade", "provider", "baseUrl", "model", "apiKey", "clearApiKey", "vision", "outputMode", "maxOutputTokens", "timeoutSeconds");
         request.fieldNames().forEachRemaining(field -> { if (!fields.contains(field) || (!stored && field.equals("schemaVersion"))) throw ApiException.bad("Invalid AI settings field"); });
         if (stored && request.path("schemaVersion").asInt() != 1) throw ApiException.bad("Invalid AI settings version");
         if (request.has("provider") && (!request.path("provider").isTextual() || !request.path("provider").asText().equals("openai-compatible"))) throw ApiException.bad("Unsupported AI provider");
-        boolean enabled = bool(request, "enabled", previous.enabled()), vision = bool(request, "vision", previous.vision()), clear = bool(request, "clearApiKey", false);
+        boolean enabled = bool(request, "enabled", previous.enabled()), autoGrade = bool(request, "autoGrade", previous.autoGrade()), vision = bool(request, "vision", previous.vision()), clear = bool(request, "clearApiKey", false);
         String url = text(request, "baseUrl", previous.baseUrl() == null ? "" : previous.baseUrl().toString(), 2048), model = text(request, "model", previous.model(), 200), key = text(request, "apiKey", "", 4096);
         if (key.indexOf('\r') >= 0 || key.indexOf('\n') >= 0 || key.chars().anyMatch(c -> c < 32 || c > 126)) throw ApiException.bad("Invalid AI credential");
         if (clear && !key.isEmpty()) throw ApiException.bad("Cannot replace and clear the API key together");
@@ -62,7 +65,7 @@ final class AiSettings {
         if (!List.of("schema", "json", "text").contains(mode)) throw ApiException.bad("Invalid AI output mode");
         URI base = url.isBlank() ? null : baseUri(url);
         if (enabled && (base == null || model.isBlank())) throw ApiException.bad("AI address and model are required when enabled");
-        return new Profile(enabled, base, model, key, vision, mode, number(request, "maxOutputTokens", previous.maxOutputTokens(), 256, 8192), number(request, "timeoutSeconds", previous.timeoutSeconds(), 10, 120));
+        return new Profile(enabled, base, model, key, vision, mode, number(request, "maxOutputTokens", previous.maxOutputTokens(), 256, 8192), number(request, "timeoutSeconds", previous.timeoutSeconds(), 10, 120), autoGrade);
     }
     private static URI baseUri(String value) {
         URI uri;

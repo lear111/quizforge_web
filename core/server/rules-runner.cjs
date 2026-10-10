@@ -8,16 +8,16 @@ const LIMIT = 8 * 1024 * 1024;
 // Public rule contracts evolve independently of application releases. Retain
 // this v1 registration when a later major adds a separate implementation.
 const ruleApis = new Map([[1, {
-  minor: 1,
-  register(run) {
+  minor: 2,
+  register(run, development = false) {
     run(`globalThis.__type = null; globalThis.QF = Object.freeze({
-      api:Object.freeze({major:1,minor:1,capabilities:Object.freeze([
+      api:Object.freeze({major:1,minor:2,capabilities:Object.freeze([
         'practice','editor','editor-drafts','score','manual-review','ai-grading',
         'resources','richtext','navigation','lifecycle','outline-items'
       ])}),
       defineType(type) {
-        if (__type || !type || typeof type.project !== 'function' || typeof type.grade !== 'function') throw Error('Invalid rule registration');
-        for (const name of ['validateQuestion','validateAnswer','getScore','review','prepareAiGrading']) if (type[name] != null && typeof type[name] !== 'function') throw Error('Invalid validator');
+        if (__type || !type || typeof type !== 'object' || Array.isArray(type) || (${development ? 'false' : "typeof type.project !== 'function' || typeof type.grade !== 'function'"})) throw Error('Invalid rule registration');
+        for (const name of ['project','grade','validateQuestion','validateAnswer','getScore','review','prepareAiGrading']) if (type[name] != null && typeof type[name] !== 'function') throw Error('Invalid validator');
         if (type.getOutlineItems != null && typeof type.getOutlineItems !== 'function') { const error = new Error('Invalid outline hook'); error.code = 'INVALID_OUTLINE_ITEMS'; throw error; }
         globalThis.__type = type;
       }
@@ -33,11 +33,12 @@ function selectRuleApi(value) {
   }
   const api = ruleApis.get(value.major);
   if (!api || value.minor > api.minor) {
-    const error = new Error('Unsupported rule API version; this runner supports v1.1 and v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
+    const error = new Error('Unsupported rule API version; this runner supports v1.2, v1.1 and v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
   }
   return api;
 }
 let input = '';
+let development = false;
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => {
   input += chunk;
@@ -46,6 +47,7 @@ process.stdin.on('data', chunk => {
 process.stdin.on('end', () => {
   try {
     const request = JSON.parse(input);
+    development = request.development === true;
     const api = selectRuleApi(request.apiVersion);
     const requestedMinor = request.apiVersion === undefined ? 0 : request.apiVersion.minor;
     const read = path => {
@@ -54,11 +56,11 @@ process.stdin.on('end', () => {
       return fs.readFileSync(path, 'utf8');
     };
     const ajv = new Ajv({ allErrors: false, strict: true, validateFormats: false });
-    const validQuestion = ajv.compile(JSON.parse(read(request.questionSchema)));
-    const validAnswer = ajv.compile(JSON.parse(read(request.answerSchema)));
+    const validQuestion = ajv.compile(development && !request.questionSchema ? true : JSON.parse(read(request.questionSchema)));
+    const validAnswer = ajv.compile(development && !request.answerSchema ? true : JSON.parse(read(request.answerSchema)));
     const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
     const run = code => vm.runInContext(code, context, { timeout: 650, displayErrors: false });
-    api.register(run);
+    api.register(run, development);
     new vm.Script(read(request.rules), { filename: 'extension-rules.js' }).runInContext(context, { timeout: 650, displayErrors: false });
     if (!run('Boolean(__type)')) throw new Error('Missing rule registration');
     const canOutlineItems = run('typeof __type.getOutlineItems === "function"');
@@ -66,6 +68,15 @@ process.stdin.on('end', () => {
     if (canOutlineItems && (request.outlineItemsDeclared !== true || requestedMinor < 1)) outlineError();
     const set = value => run(`globalThis.__input = JSON.parse(${JSON.stringify(JSON.stringify(value))});`);
     const invoke = expression => JSON.parse(run(`JSON.stringify(${expression})`));
+    const notImplemented = name => {
+      const error = new Error(`Development extension has not implemented ${name}`);
+      error.code = 'DEVELOPMENT_NOT_IMPLEMENTED'; throw error;
+    };
+    const requireHook = name => {
+      if (development && !run(`typeof __type[${JSON.stringify(name)}] === "function"`)) notImplemented(name);
+    };
+    const project = expression => development && !run('typeof __type.project === "function"')
+      ? invoke('__input.data') : invoke(expression);
     const validateQ = data => {
       if (!validQuestion(data)) throw new Error('Question schema validation failed');
       set({ data });
@@ -84,6 +95,21 @@ process.stdin.on('end', () => {
           || Object.hasOwn(score, 'gradingStatus') && score.gradingStatus !== (result.gradingStatus ?? 'graded')) {
         const error = new Error('AI grading getScore must match the submitted result'); error.code = 'SCORE_UNAVAILABLE'; throw error;
       }
+      if (Object.hasOwn(score, 'outlineStates')) validateOutlineStates(score.outlineStates, true);
+    };
+    const validateOutlineStates = (items, submitted) => {
+      const invalid = () => { const error = new Error('Invalid outlineStates returned by getScore'); error.code = 'INVALID_OUTLINE_STATES'; throw error; };
+      if (!Array.isArray(items) || items.length > 100) invalid();
+      const ids = new Set(), statuses = new Set(['unanswered','correct','incorrect']);
+      for (const item of items) {
+        if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).length !== 2
+            || !Object.hasOwn(item, 'id') || !Object.hasOwn(item, 'status')
+            || typeof item.id !== 'string' || item.id.length === 0 || item.id.length > 128 || item.id !== item.id.trim()
+            || /[\u0000-\u001f\u007f-\u009f<>]/u.test(item.id) || ids.has(item.id)
+            || !statuses.has(item.status) || !submitted && item.status !== 'unanswered') invalid();
+        ids.add(item.id);
+      }
+      return items;
     };
     let output;
     if (request.op === 'capabilities') {
@@ -125,11 +151,14 @@ process.stdin.on('end', () => {
         const score = run('typeof __type.getScore === "function"')
           ? invoke('__type.getScore(__input.data, __input.state)')
           : state.submitted ? { score: state.result?.score, maxScore: state.result?.maxScore }
-          : { score: 0, maxScore: invoke('__type.project(__input.data, {submitted:false,result:null})')?.maxScore };
-        if (!score || !Number.isFinite(score.maxScore) || score.maxScore < 0 || (gradingStatus === 'pending' ? score.score !== null : !Number.isFinite(score.score) || score.score < 0 || score.score > score.maxScore)) {
+          : { score: 0, maxScore: project('__type.project(__input.data, {submitted:false,result:null})')?.maxScore };
+        if (!score || typeof score !== 'object' || Array.isArray(score) || !Number.isFinite(score.maxScore) || score.maxScore < 0 || (gradingStatus === 'pending' ? score.score !== null : !Number.isFinite(score.score) || score.score < 0 || score.score > score.maxScore)) {
+          if (development && !run('typeof __type.getScore === "function"')) notImplemented('getScore');
           const error = new Error('Extension must provide finite score and maxScore through getScore'); error.code = 'SCORE_UNAVAILABLE'; throw error;
         }
-        scores.push({ score: score.score, maxScore: score.maxScore, gradingStatus });
+        const value = { score: score.score, maxScore: score.maxScore, gradingStatus };
+        if (Object.hasOwn(score, 'outlineStates')) value.outlineStates = validateOutlineStates(score.outlineStates, state.submitted);
+        scores.push(value);
       }
       output = { scores };
     } else if (request.op === 'projectBatch') {
@@ -138,7 +167,7 @@ process.stdin.on('end', () => {
       for (const question of request.questions) {
         if (!question || !question.state || typeof question.state.submitted !== 'boolean') throw new Error('Invalid projection state');
         validateQ(question.data); set({ data: question.data, state: question.state });
-        const value = invoke('__type.project(__input.data, __input.state)');
+        const value = project('__type.project(__input.data, __input.state)');
         bytes += Buffer.byteLength(JSON.stringify(value)) + 1;
         if (bytes > 2 * 1024 * 1024) throw new Error('Output limit exceeded');
         projected.push(value);
@@ -147,6 +176,10 @@ process.stdin.on('end', () => {
     } else {
       validateQ(request.data);
       if (request.op === 'submit' || request.op === 'validateAnswer' || request.op === 'review' || request.op === 'prepareAiGrading') {
+        if (development && !request.answerSchema) notImplemented('answer schema');
+        if (request.op === 'submit') requireHook('grade');
+        if (request.op === 'review') requireHook('review');
+        if (request.op === 'prepareAiGrading') requireHook('prepareAiGrading');
         if (!validAnswer(request.answer)) throw new Error('Answer schema validation failed');
         set({ data: request.data, answer: request.answer });
         if (run('__type.validateAnswer ? __type.validateAnswer(__input.answer, __input.data) === false : false')) throw new Error('Answer validation failed');
@@ -169,10 +202,10 @@ process.stdin.on('end', () => {
           const score = run('typeof __type.getScore === "function"') ? invoke('__type.getScore(__input.data, __input.state)') : result;
           validateAiScore(score, result);
         }
-        output = { result, projected: invoke('__type.project(__input.data, __input.state)') };
+        output = { result, projected: project('__type.project(__input.data, __input.state)') };
       } else if (request.op === 'project') {
         set({ data: request.data, state: request.state });
-        output = { projected: invoke('__type.project(__input.data, __input.state)') };
+        output = { projected: project('__type.project(__input.data, __input.state)') };
       } else if (request.op === 'validateAnswer') output = { valid: true };
       else throw new Error('Unknown rule operation');
     }
@@ -182,7 +215,7 @@ process.stdin.on('end', () => {
     process.stdout.write(encoded);
   } catch (error) {
     // Error stacks and paths stay inside the process. Java returns a bounded generic error.
-    process.stdout.write(JSON.stringify({ ok: false, code: ['SCORE_UNAVAILABLE','INVALID_API_VERSION','UNSUPPORTED_API_VERSION','INVALID_OUTLINE_ITEMS'].includes(error.code) ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
+    process.stdout.write(JSON.stringify({ ok: false, code: ['SCORE_UNAVAILABLE','INVALID_API_VERSION','UNSUPPORTED_API_VERSION','INVALID_OUTLINE_ITEMS','INVALID_OUTLINE_STATES', ...(development ? ['DEVELOPMENT_NOT_IMPLEMENTED'] : [])].includes(error.code) ? error.code : undefined, error: String(error.message || error).slice(0, 200) }));
     process.exitCode = 1;
   }
 });

@@ -1,0 +1,39 @@
+{
+  "id": "quizforge.english-translation",
+  "version": "1.0.0",
+  "name": "组合翻译",
+  "description": "开发中的 UI 原型：真实动作明确拒绝；本地交互仅界面演示。",
+  "requiresApi": {
+    "major": 1,
+    "minMinor": 2,
+    "capabilities": [
+      "practice",
+      "editor",
+      "editor-drafts",
+      "score",
+      "outline-items",
+      "resources",
+      "richtext",
+      "lifecycle",
+      "manual-review",
+      "ai-grading"
+    ]
+  },
+  "requiresRichText": {
+    "major": 1,
+    "minMinor": 0,
+    "documentFormat": 1,
+    "documentProfile": "advanced-v1",
+    "capabilities": [
+      "images",
+      "advanced-formatting"
+    ]
+  },
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples/bank.json"
+}

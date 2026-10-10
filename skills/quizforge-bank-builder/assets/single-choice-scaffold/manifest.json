@@ -1,0 +1,14 @@
+{
+  "id": "example.single-choice-template",
+  "version": "0.1.0",
+  "name": "选择题开发模板",
+  "description": "单选界面小样：题干、选项、提交后答案与解析；真实保存和判分待实现",
+  "requiresApi": {"major": 1, "minMinor": 0, "capabilities": ["practice", "score", "editor"]},
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples/bank.json"
+}
