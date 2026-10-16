@@ -63,3 +63,43 @@ export function popupPosition(side, area, toolbar, anchor, size) {
     top: clamp(top, POPUP_MARGIN, area.height - size.height - POPUP_MARGIN),
   };
 }
+
+// A press becomes a drag only after this much movement, so taps stay taps.
+export const TOOLBAR_DRAG_THRESHOLD = 6;
+export const isToolbarDrag = (dx, dy) => Math.hypot(dx, dy) >= TOOLBAR_DRAG_THRESHOLD;
+
+// Pointer velocity in px/ms from the samples of the last `window` ms ({x,y,t}, oldest first).
+export function releaseVelocity(samples, window = 100) {
+  if (samples.length < 2) return { x: 0, y: 0 };
+  const last = samples[samples.length - 1];
+  let first = last;
+  for (let index = samples.length - 1; index >= 0 && last.t - samples[index].t <= window; index--) first = samples[index];
+  const elapsed = last.t - first.t;
+  return elapsed > 0 ? { x: (last.x - first.x) / elapsed, y: (last.y - first.y) / elapsed } : { x: 0, y: 0 };
+}
+
+// A fling is judged by where it would coast to, so the toolbar goes the way it was thrown.
+export const TOOLBAR_FLING_SPEED = 0.5;
+const FLING_PROJECTION_MS = 250;
+export function releaseDock(point, velocity, area) {
+  if (Math.hypot(velocity.x, velocity.y) < TOOLBAR_FLING_SPEED) return dockFromPoint(point, area);
+  const projected = {
+    x: clamp(point.x + velocity.x * FLING_PROJECTION_MS, 0, area.width),
+    y: clamp(point.y + velocity.y * FLING_PROJECTION_MS, 0, area.height),
+  };
+  // Throwing never tucks the toolbar away; that needs a deliberate drop at the edge.
+  return { ...dockFromPoint(projected, area), collapsed: false };
+}
+
+// One damped spring channel moving towards 0; slightly under-damped for a small overshoot.
+export const TOOLBAR_SPRING = Object.freeze({ stiffness: 380, damping: 26 });
+export function springStep(state, elapsedMs, { stiffness, damping } = TOOLBAR_SPRING) {
+  let { value, velocity } = state;
+  for (let left = Math.min(elapsedMs, 64); left > 0; left -= 8) {
+    const step = Math.min(8, left) / 1000;
+    velocity += (-stiffness * value - damping * velocity) * step;
+    value += velocity * step;
+  }
+  return { value, velocity };
+}
+export const springSettled = (state, precision = 0.3) => Math.abs(state.value) < precision && Math.abs(state.velocity) < precision * 20;

@@ -1,7 +1,7 @@
 import { WhiteboardModel, DRAFT_LIMITS, normalizeViewport, screenToWorld, zoomAt, translateCamera, strokeTouchesPath } from './whiteboard-model.js';
 import { rectangle, strokeBounds, containsPoint, enclosedStrokes, translateStrokes } from './whiteboard-selection.js';
 import { copyCaptureImage } from './whiteboard-capture.js';
-import { DEFAULT_TOOLBAR_DOCK, dockFromPoint, normalizeDock, dockedPosition, popupPosition } from './whiteboard-dock.js';
+import { DEFAULT_TOOLBAR_DOCK, normalizeDock, dockedPosition, popupPosition, isToolbarDrag, releaseVelocity, releaseDock, springStep, springSettled } from './whiteboard-dock.js';
 
 const INK_COLORS = [['#334155','深灰'],['#000000','黑色'],['#386db6','蓝色'],['#d04444','红色'],['#25865a','绿色'],['#8055bd','紫色']];
 const PAPER_COLORS = [['#ffffff','白色'],['#fff8e7','米黄'],['#f0f7f0','浅绿'],['#edf4fc','浅蓝'],['#f5f1fa','浅紫']];
@@ -124,7 +124,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   let viewWidth = 1, viewHeight = 1, pixelRatio = 1, strokeSequence = 0;
   let gesture = null, cameraBefore = null, interaction = false, eraserCursor = null;
   let selectedIds = [], clipboard = [], capturing = false, captureGeneration = 0;
-  let toolbarDrag = null, suppressClickUntil = 0, snapTimer = 0, dock = readDock(), expandIcon = '', interactiveClip = '';
+  let toolbarDrag = null, suppressClickUntil = 0, settle = null, dock = readDock(), expandIcon = '', interactiveClip = '';
   let captureUrl=null,captureBlob=null;
   const pointers = new Map();
 
@@ -326,7 +326,9 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     expandButton.hidden = !dock.collapsed;
     if (dock.collapsed) { closeSettings(); closePalette(); }
     if (toolbar.hidden) return;
-    const area = toolbarArea(), box = relativeBox(toolbar, area);
+    // Offset sizes ignore any transform still settling from the last move.
+    const area = toolbarArea(), rect = relativeBox(toolbar, area);
+    const box = { width: toolbar.offsetWidth || rect.width, height: toolbar.offsetHeight || rect.height };
     const obstacles = [...toolbarObstacles()].map(element => relativeBox(element, area)).filter(item => item.width && item.height);
     const position = dockedPosition(dock, { width: area.width, height: area.height }, { width: box.width, height: box.height }, obstacles);
     toolbar.style.left = `${position.left}px`; toolbar.style.top = `${position.top}px`;
@@ -341,49 +343,133 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       popup.style.left = `${position.left}px`; popup.style.top = `${position.top}px`;
     }
   }
-  function setDock(next) {
+  function prefersReducedMotion() { return !!win.matchMedia?.('(prefers-reduced-motion: reduce)').matches; }
+  function toolbarBox() {
+    const rect = toolbar.offsetWidth ? null : toolbar.getBoundingClientRect();
+    return { left: parseFloat(toolbar.style.left) || 0, top: parseFloat(toolbar.style.top) || 0, width: toolbar.offsetWidth || rect.width, height: toolbar.offsetHeight || rect.height };
+  }
+  function toolbarTransform(x, y, sx = 1, sy = 1) { return `translate3d(${x}px, ${y}px, 0) scale(${sx}, ${sy})`; }
+  function stopSettle() {
+    if (settle) win.cancelAnimationFrame(settle.frame);
+    settle = null;
+    delete toolbar.dataset.settling;
+    toolbar.style.removeProperty('transform');
+  }
+  // FLIP: the toolbar is already laid out at its new place; spring it there
+  // from where it was on screen, growing from the old size.
+  function settleFrom(from) {
+    stopSettle();
+    const to = toolbarBox();
+    if (prefersReducedMotion() || !from || !to.width || !to.height || toolbar.hidden) { positionPopups(); return; }
+    const channels = {
+      x: { value: from.left + from.width / 2 - (to.left + to.width / 2), velocity: from.velocity?.x || 0 },
+      y: { value: from.top + from.height / 2 - (to.top + to.height / 2), velocity: from.velocity?.y || 0 },
+      // Scale is tracked in hundredths so it shares the spring's settle precision.
+      sx: { value: (from.width / to.width - 1) * 100, velocity: 0 },
+      sy: { value: (from.height / to.height - 1) * 100, velocity: 0 },
+    };
+    const write = () => { toolbar.style.transform = toolbarTransform(channels.x.value, channels.y.value, 1 + channels.sx.value / 100, 1 + channels.sy.value / 100); };
+    toolbar.dataset.settling = 'true';
+    settle = { time: null, frame: 0 };
+    const step = time => {
+      if (!settle) return;
+      if (typeof time !== 'number') time = (settle.time ?? 0) + 16;
+      const elapsed = settle.time === null ? 16 : time - settle.time;
+      settle.time = time;
+      let done = true;
+      for (const key of Object.keys(channels)) { channels[key] = springStep(channels[key], elapsed); done = done && springSettled(channels[key]); }
+      if (done) { stopSettle(); positionPopups(); return; }
+      write();
+      settle.frame = win.requestAnimationFrame(step);
+    };
+    write();
+    settle.frame = win.requestAnimationFrame(step);
+  }
+  function setDock(next, from = toolbar.hidden ? null : toolbarBox()) {
     dock = normalizeDock(next);
     saveDock();
-    // Slide into place only after a user move, never on first display.
-    toolbar.dataset.snapping = 'true';
-    win.clearTimeout(snapTimer); snapTimer = win.setTimeout(() => { delete toolbar.dataset.snapping; }, 250);
     layoutToolbar();
+    settleFrom(from);
   }
   function stopToolbarDrag() {
-    const drag=toolbarDrag;toolbarDrag=null;
-    if (!drag) return;
+    const drag = toolbarDrag; toolbarDrag = null;
+    if (!drag) return null;
+    if (drag.frame) win.cancelAnimationFrame(drag.frame);
     delete toolbar.dataset.dragging;
-    try{drag.handle.releasePointerCapture(drag.id);}catch{}
+    toolbar.style.removeProperty('transform');
+    try { toolbar.releasePointerCapture(drag.id); } catch {}
+    return drag;
   }
   function startToolbarDrag(event) {
-    if (event.button !== 0 || !confirmation.hidden) return;
-    const area = toolbarArea(), box = relativeBox(toolbar, area);
-    toolbarDrag = { id: event.pointerId, handle: event.currentTarget || event.target, x: event.clientX, y: event.clientY, left: box.left, top: box.top, moved: false };
-    try { toolbarDrag.handle.setPointerCapture(event.pointerId); } catch {}
+    if (event.button !== 0 || !confirmation.hidden || toolbarDrag) return;
+    toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, samples: [], frame: 0 };
+    // Hold the pointer from the start so a quick first move off the small grip still counts;
+    // a tap still ends on the grip and clicks it.
+    try { (event.currentTarget || event.target).setPointerCapture(event.pointerId); } catch {}
+  }
+  // Pointer moves only record input; one frame per display refresh writes a
+  // transform, so dragging never lays out the page or repaints the whiteboard.
+  function applyDragFrame() {
+    const drag = toolbarDrag;
+    if (!drag?.moved) return;
+    drag.frame = 0;
+    const x = Math.max(drag.bounds.minX, Math.min(drag.bounds.maxX, drag.pointer.x - drag.x));
+    const y = Math.max(drag.bounds.minY, Math.min(drag.bounds.maxY, drag.pointer.y - drag.y));
+    drag.offset = { x, y };
+    toolbar.style.transform = toolbarTransform(x, y);
+  }
+  function beginBallDrag(drag) {
+    stopSettle();
+    closeSettings(); closePalette();
+    // Capture on the toolbar itself: the grip disappears inside the ball, and
+    // moves over the question frame must keep arriving here.
+    try { toolbar.setPointerCapture(drag.id); } catch {}
+    drag.moved = true;
+    drag.previous = { ...dock };
+    drag.area = toolbarArea();
+    expandButton.hidden = false;
+    toolbar.dataset.dragging = 'true';
+    // One layout read at the start: the ball is centred under the finger and stays in the pane.
+    const width = toolbar.offsetWidth || 44, height = toolbar.offsetHeight || 44;
+    const left = drag.x - drag.area.left - width / 2, top = drag.y - drag.area.top - height / 2;
+    toolbar.style.left = `${left}px`; toolbar.style.top = `${top}px`;
+    drag.ball = { left, top, width, height };
+    drag.bounds = { minX: -left, minY: -top, maxX: drag.area.width - width - left, maxY: drag.area.height - height - top };
   }
   function moveToolbarDrag(event) {
     const drag = toolbarDrag;
     if (drag?.id !== event.pointerId) return;
-    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    drag.pointer = { x: event.clientX, y: event.clientY };
+    drag.samples.push({ x: event.clientX, y: event.clientY, t: event.timeStamp || Date.now() });
+    if (drag.samples.length > 12) drag.samples.shift();
+    if (!drag.moved && !isToolbarDrag(event.clientX - drag.x, event.clientY - drag.y)) return;
     event.preventDefault();
-    if (!drag.moved) { drag.moved = true; toolbar.dataset.dragging = 'true'; closeSettings(); closePalette(); }
-    const area = toolbarArea(), box = relativeBox(toolbar, area);
-    drag.position = {
-      left: Math.max(0, Math.min(drag.left + dx, area.width - box.width)),
-      top: Math.max(0, Math.min(drag.top + dy, area.height - box.height)),
-    };
-    toolbar.style.left = `${drag.position.left}px`; toolbar.style.top = `${drag.position.top}px`;
+    if (!drag.moved) beginBallDrag(drag);
+    if (!drag.frame) drag.frame = win.requestAnimationFrame(applyDragFrame);
+  }
+  function ballBox(drag) {
+    return { left: drag.ball.left + (drag.offset?.x || 0), top: drag.ball.top + (drag.offset?.y || 0), width: drag.ball.width, height: drag.ball.height };
   }
   function endToolbarDrag(event) {
-    const drag = toolbarDrag;
-    if (drag?.id !== event.pointerId) return;
-    stopToolbarDrag();
+    if (toolbarDrag?.id !== event.pointerId) return;
+    if (toolbarDrag.moved) { toolbarDrag.pointer = { x: event.clientX, y: event.clientY }; applyDragFrame(); }
+    const drag = stopToolbarDrag();
     if (!drag.moved) return;
     // The click that follows a drag must not also collapse or expand the toolbar.
     suppressClickUntil = Date.now() + 400;
-    const area = toolbarArea();
-    setDock(dockFromPoint({ x: event.clientX - area.left, y: event.clientY - area.top }, { width: area.width, height: area.height }));
+    const from = ballBox(drag), velocity = releaseVelocity(drag.samples);
+    const centre = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+    // The spring keeps the throw's momentum (px/ms to px/s).
+    setDock(releaseDock(centre, velocity, { width: drag.area.width, height: drag.area.height }), { ...from, velocity: { x: velocity.x * 1000, y: velocity.y * 1000 } });
+  }
+  function cancelToolbarDrag(event) {
+    if (toolbarDrag?.id !== event.pointerId) return;
+    const drag = stopToolbarDrag();
+    if (!drag.moved) return;
+    // An interrupted drag returns to where the toolbar was docked.
+    dock = drag.previous;
+    layoutToolbar();
+    settleFrom(ballBox(drag));
   }
   async function exportRegion(value) {
     const x=Math.max(0,Math.min(viewWidth,value.x)),y=Math.max(0,Math.min(viewHeight,value.y));
@@ -658,13 +744,13 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }, { passive: false });
   for (const scope of [toolbar, ...popups]) listen(scope, 'click', event => controlClick(event, scope));
   listen(selectionActions,'click',event=>{const button=event.target.closest('button');if(button&&selectionActions.contains(button)&&confirmation.hidden)perform(button.dataset.action);});
-  for (const handle of [grip, expandButton]) {
-    listen(handle, 'pointerdown', startToolbarDrag);
-    listen(handle, 'pointermove', moveToolbarDrag);
-    listen(handle, 'pointerup', endToolbarDrag);
-    listen(handle, 'pointercancel', () => { stopToolbarDrag(); layoutToolbar(); });
-    listen(handle, 'lostpointercapture', event => { if (toolbarDrag?.id === event.pointerId) endToolbarDrag(event); });
-  }
+  for (const handle of [grip, expandButton]) listen(handle, 'pointerdown', startToolbarDrag);
+  // Before the threshold the pressed handle holds the capture; afterwards the
+  // toolbar does, because the grip is hidden inside the ball. Both reach these listeners.
+  listen(toolbar, 'pointermove', moveToolbarDrag);
+  listen(toolbar, 'pointerup', endToolbarDrag);
+  listen(toolbar, 'pointercancel', cancelToolbarDrag);
+  listen(toolbar, 'lostpointercapture', event => { if (event.target === toolbar && toolbarDrag?.moved) cancelToolbarDrag(event); });
   listen(grip,'keydown',event=>{
     const side={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'}[event.key];
     if(!side)return;event.preventDefault();setDock({...dock,side,collapsed:false});grip.focus({preventScroll:true});
@@ -711,7 +797,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     if (event.target.closest('button')?.dataset.tool) toolShortcut(event);
   });
   listen(win, 'pointerdown', event => { if (![toolbar, ...popups].some(scope => scope.contains(event.target))) {closeSettings();closePalette();} });
-  listen(win, 'blur', () => {cancelInteraction();stopToolbarDrag();layoutToolbar();});
+  listen(win, 'blur', () => {cancelInteraction();if(toolbarDrag)cancelToolbarDrag({pointerId:toolbarDrag.id});});
   listen(container, 'scroll', () => { syncScroll(); requestPaint(); onScroll(); }, { passive: true });
   listen(container, 'qf-interactive-regions', requestPaint);
   const observer = win.ResizeObserver ? new win.ResizeObserver(resize) : null;
@@ -832,7 +918,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       observer?.disconnect();
       for (const cleanup of listeners) cleanup();
       if (frame) win.cancelAnimationFrame(frame);
-      win.clearTimeout(snapTimer);
+      stopSettle();
       for (const { name, value, priority } of previousCameraProperties) {
         if (value) container.style.setProperty(name, value, priority);
         else container.style.removeProperty(name);

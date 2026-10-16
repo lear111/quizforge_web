@@ -785,3 +785,40 @@ test('dragging the toolbar snaps it to an edge, collapses it at the edge and kee
   assert.equal(toolbar.dataset.side, 'left'); assert.equal(toolbar.dataset.collapsed, 'false');
   board.destroy();
 });
+
+test('toolbar drags move a ball by transform only, fling to an edge, spring into place and cancel back', () => {
+  const { board, toolbarContainer, window, paint, click } = fixture({ externalToolbar: true });
+  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), grip = toolbar.querySelector('.qf-whiteboard-grip');
+  board.setMode('draft');
+  const at = (type, x, y, t, extra = {}) => grip.dispatch(type, { pointerId: 9, button: 0, clientX: x, clientY: y, timeStamp: t, preventDefault() {}, ...extra });
+  // A press that moves less than the threshold is still a tap.
+  at('pointerdown', 400, 300, 0); at('pointermove', 403, 302, 10); at('pointerup', 403, 302, 20); grip.dispatch('click');
+  assert.equal(toolbar.dataset.collapsed, 'true', 'tap on the grip collapses');
+  click('[data-action="expand-toolbar"]'); paint(); paint();
+  at('pointerdown', 400, 300, 100); at('pointermove', 420, 300, 116);
+  assert.equal(toolbar.dataset.dragging, 'true'); assert.ok(toolbar.captures.has(9), 'the toolbar holds the pointer');
+  assert.equal(toolbar.querySelector('.qf-whiteboard-expand').hidden, false, 'the ball shows the current tool');
+  const ballLeft = toolbar.style.left, ballTop = toolbar.style.top;
+  at('pointermove', 450, 320, 132); at('pointermove', 470, 330, 148);
+  assert.equal(toolbar.style.transform, undefined, 'moves wait for the next frame');
+  paint();
+  assert.equal(toolbar.style.transform, 'translate3d(70px, 30px, 0) scale(1, 1)');
+  assert.equal(toolbar.style.left, ballLeft); assert.equal(toolbar.style.top, ballTop, 'dragging never changes layout properties');
+  // Released mid-pane while moving fast upwards: the throw decides the edge.
+  at('pointermove', 470, 270, 164); at('pointermove', 470, 200, 180); at('pointerup', 470, 190, 184);
+  assert.equal(toolbar.dataset.side, 'top'); assert.equal(toolbar.dataset.collapsed, 'false');
+  assert.equal(toolbar.dataset.dragging, undefined); assert.equal(toolbar.dataset.settling, 'true');
+  for (let frame = 0; frame < 120 && toolbar.dataset.settling; frame++) paint();
+  assert.equal(toolbar.dataset.settling, undefined, 'the spring settles'); assert.equal(toolbar.style.transform, undefined);
+  // An interrupted drag returns to the previous dock.
+  at('pointerdown', 400, 300, 300); at('pointermove', 600, 500, 316); paint();
+  toolbar.dispatch('pointercancel', { pointerId: 9 });
+  assert.equal(toolbar.dataset.side, 'top'); assert.equal(toolbar.dataset.dragging, undefined);
+  for (let frame = 0; frame < 120 && toolbar.dataset.settling; frame++) paint();
+  assert.equal(toolbar.style.transform, undefined);
+  // Reduced motion lands at once.
+  window.matchMedia = query => ({ matches: query.includes('reduce') });
+  at('pointerdown', 400, 300, 500); at('pointermove', 400, 560, 516); at('pointermove', 400, 590, 600); at('pointerup', 400, 590, 700);
+  assert.equal(toolbar.dataset.side, 'bottom'); assert.equal(toolbar.dataset.settling, undefined); assert.equal(toolbar.style.transform, undefined);
+  board.destroy();
+});

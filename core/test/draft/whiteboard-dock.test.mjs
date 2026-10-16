@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_TOOLBAR_DOCK, TOOLBAR_EDGE_MARGIN, dockFromPoint, dockedPosition, normalizeDock, popupPosition } from '../../web/draft/whiteboard-dock.js';
+import { DEFAULT_TOOLBAR_DOCK, TOOLBAR_DRAG_THRESHOLD, TOOLBAR_EDGE_MARGIN, dockFromPoint, dockedPosition, isToolbarDrag, normalizeDock, popupPosition, releaseDock, releaseVelocity, springSettled, springStep } from '../../web/draft/whiteboard-dock.js';
 
 const area = { width: 1000, height: 700 };
 
@@ -46,4 +46,32 @@ test('docked toolbars keep clear of host controls on the same edge', () => {
   assert.deepEqual(dockedPosition({ side: 'right', along: 0.5, collapsed: true }, area, { width: 44, height: 44 }, [arrow]), { left: 956, top: 324 - 6 - 44 });
   assert.deepEqual(dockedPosition({ side: 'right', along: 0, collapsed: true }, area, { width: 44, height: 44 }, [{ ...arrow, top: 12 }]), { left: 956, top: 70 });
   assert.deepEqual(dockedPosition({ side: 'left', along: 0.5, collapsed: false }, area, size, [arrow]), { left: TOOLBAR_EDGE_MARGIN, top: 150 }, 'controls on the other edge are ignored');
+});
+
+test('small movements stay taps and only a real move starts a drag', () => {
+  assert.equal(isToolbarDrag(3, 4), false);
+  assert.equal(isToolbarDrag(0, TOOLBAR_DRAG_THRESHOLD), true);
+});
+
+test('release velocity uses only the most recent pointer samples', () => {
+  assert.deepEqual(releaseVelocity([]), { x: 0, y: 0 });
+  assert.deepEqual(releaseVelocity([{ x: 0, y: 0, t: 0 }, { x: 500, y: 0, t: 400 }, { x: 520, y: 10, t: 450 }, { x: 600, y: 50, t: 490 }]), { x: 100 / 90, y: 50 / 90 });
+  assert.deepEqual(releaseVelocity([{ x: 10, y: 10, t: 5 }, { x: 10, y: 10, t: 5 }]), { x: 0, y: 0 });
+});
+
+test('a fling docks where the throw is heading, while a slow drop uses the release point', () => {
+  const centre = { x: 500, y: 350 };
+  assert.equal(releaseDock({ x: 300, y: 350 }, { x: 0.1, y: 0 }, area).side, 'left', 'slow drops use the nearest edge');
+  assert.deepEqual(releaseDock(centre, { x: 3, y: 0 }, area), { side: 'right', along: 0.5, collapsed: false });
+  assert.deepEqual(releaseDock(centre, { x: 0, y: -2 }, area), { side: 'top', along: 0.5, collapsed: false });
+  assert.equal(releaseDock({ x: 995, y: 350 }, { x: 2, y: 0 }, area).collapsed, false, 'throwing never collapses');
+  assert.equal(releaseDock({ x: 995, y: 350 }, { x: 0, y: 0 }, area).collapsed, true);
+});
+
+test('the spring overshoots slightly and settles at its target', () => {
+  let state = { value: 100, velocity: 0 }, lowest = 100, frames = 0;
+  while (!springSettled(state) && frames < 200) { state = springStep(state, 16); lowest = Math.min(lowest, state.value); frames++; }
+  assert.ok(frames < 60, `settles within a second (${frames} frames)`);
+  assert.ok(lowest < 0 && lowest > -15, `small overshoot (${lowest})`);
+  assert.deepEqual(springStep({ value: 0, velocity: 0 }, 16), { value: 0, velocity: 0 });
 });
