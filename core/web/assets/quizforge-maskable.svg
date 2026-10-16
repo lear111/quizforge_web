@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="24" y1="12" x2="232" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8968e8"/>
+      <stop offset="1" stop-color="#6546c8"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed tile; the mark stays inside the central 80% safe zone of maskable icons. -->
+  <rect width="256" height="256" fill="url(#tile)"/>
+  <g transform="translate(130 128) scale(0.78) translate(-125.5 -127.5)">
+    <circle cx="118" cy="118" r="62" fill="none" stroke="#fff" stroke-width="18"/>
+    <path d="m160 163 34 35" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round"/>
+    <path d="m88 119 21 21 40-41" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

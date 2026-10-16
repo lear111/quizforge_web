@@ -8,6 +8,8 @@
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" type="image/svg+xml" href="/assets/quizforge-icon.svg" sizes="any">
   <link rel="apple-touch-icon" href="/assets/quizforge-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff">
   <link rel="stylesheet" href="/shell/app.css">
   <link rel="stylesheet" href="/draft/whiteboard.css">
   <link rel="stylesheet" href="/draft/camera.css">
@@ -198,6 +200,12 @@
           <p>优先显示正在使用的物理网卡地址。同一网络的设备打开对应地址，输入共用密码；公网使用配置的公网地址。</p>
         </section>
         <p class="network-settings-firewall">此设置不会自动修改 Windows 防火墙。连接不上时，请允许 Node.js 的专用网络访问，或放行上方端口。</p>
+        <details id="network-settings-install-help" class="network-settings-public-help">
+          <summary>在手机上安装为应用</summary>
+          <p class="network-settings-hint">Chrome、Edge 只在 HTTPS 地址（或本机 localhost）提供“安装应用”。用
+            http://局域网IP 打开时，“添加到主屏幕”只会创建在浏览器标签页中打开的快捷方式。需要独立窗口时，请用 Caddy、Nginx
+            等反向代理为连接端口配置手机信任的证书，在公网访问地址填写该 https:// 地址，再用手机打开它安装。安装后的应用关闭再打开时需要重新输入连接密码。</p>
+        </details>
       </div>
       <p id="network-settings-error" class="network-settings-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="network-settings-cancel" type="button">关闭</button><button

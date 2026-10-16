@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "QuizForge 题库",
+  "short_name": "QuizForge",
+  "description": "本地题库练习：题库和作答保存在运行 QuizForge 的电脑上。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#f8f9fc",
+  "icons": [
+    { "src": "/assets/quizforge-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/quizforge-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/quizforge-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/quizforge-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

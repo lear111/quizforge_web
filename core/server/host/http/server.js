@@ -27,7 +27,7 @@ import { hostKey, sameHost, url as addressUrl, privateAddress, ipv6Bytes, sameIp
 const loopback = host => hostKey(host) === hostKey('::1') || hostKey(host)?.startsWith('127.');
 const equal = (left, right) => typeof left === 'string' && typeof right === 'string' && Buffer.byteLength(left) === Buffer.byteLength(right) && timingSafeEqual(Buffer.from(left), Buffer.from(right));
 const forwarded = request => Object.keys(request.headers).some(name => name === 'forwarded' || name.startsWith('x-forwarded-'));
-const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2' })[path.extname(file).toLowerCase()];
+const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json; charset=utf-8' })[path.extname(file).toLowerCase()];
 const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
 export function queryValue(context, name) {
   const values = context.url.searchParams.getAll(name); if (values.length > 1) throw bad('Invalid query');
@@ -149,7 +149,11 @@ export class QuizForgeServer {
       if (bytes && (bytes[0] & 0xe0) === 0x20) { this.publicIpv6Hosts.add(host); const prefix = Number(entry.cidr?.split('/')[1]); if (prefix >= 64 && prefix <= 128) this.subnets.push({ host, prefix }); }
     }
   }
-  publicHost(uri) { const settings = this.networkSettings.config; if (!settings.publicEnabled) return false; const target = new URL(settings.publicUrl); return sameHost(uri.hostname, target.hostname) && (uri.port || '80') === (target.port || (target.protocol === 'https:' ? '443' : '80')); }
+  publicHost(uri) {
+    const settings = this.networkSettings.config; if (!settings.publicEnabled) return false; const target = new URL(settings.publicUrl), standard = target.protocol === 'https:' ? '443' : '80';
+    // A Host header omits the default port of the public scheme (an HTTPS proxy forwards plain "quiz.example.com").
+    return sameHost(uri.hostname, target.hostname) && (uri.port || standard) === (target.port || standard);
+  }
   validateHost(context) {
     const uri = authority(context.request.headers.host); context.authority = uri; let accepted;
     if (context.remote) {
