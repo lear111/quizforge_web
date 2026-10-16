@@ -37,6 +37,11 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
     else if(value.kind==='document'){const item=documents.get(value.id);if(item){clearTimeout(item.timer);documents.delete(value.id);if(value.ok){dirty=!!value.changed;item.resolve({document:value.document,changed:!!value.changed});}else item.reject(Object.assign(new Error(value.error?.message||'题目内容不完整'),{code:value.error?.code||'INVALID_DOCUMENT'}));}}
     else if(value.kind==='outline-navigated'){const item=outlineNavigations.get(value.id);if(item){clearTimeout(item.timer);outlineNavigations.delete(value.id);if(value.ok===true)item.resolve();else item.reject(Object.assign(new Error(value.error?.message||'子题定位失败，请重试'),{code:value.error?.code||'OUTLINE_NAVIGATION_FAILED'}));}}
     else if(value.kind==='captured-region'){const item=captures.get(value.id);if(item){clearTimeout(item.timer);captures.delete(value.id);if(value.ok===true&&typeof value.html==='string'&&value.html.length<=8000000&&Number.isFinite(value.width)&&value.width>0&&value.width<=10000&&Number.isFinite(value.height)&&value.height>=0&&value.height<=20000)item.resolve({html:value.html,width:value.width,height:value.height});else item.reject(new Error(String(value.error||'题目内容截图失败').slice(0,200)));}}
+    else if(value.kind==='interactive-regions'){
+      // Geometry only: the draft hand tool leaves these frame areas to the page.
+      const valid=Array.isArray(value.rects)&&value.rects.length<=600&&value.rects.every(rect=>Array.isArray(rect)&&rect.length===4&&rect.every(Number.isFinite)&&rect[2]>=0&&rect[3]>=0&&Math.abs(rect[0])<=20000&&Math.abs(rect[1])<=20000&&rect[2]<=20000&&rect[3]<=20000);
+      if(valid){frame.qfInteractiveRegions=value.rects.map(rect=>[...rect]);frame.dispatchEvent?.(new (frame.ownerDocument?.defaultView?.CustomEvent||CustomEvent)('qf-interactive-regions',{bubbles:true}));}
+    }
     else if(value.kind==='editor-dirty'){dirty=!!value.changed;onDirty?.(dirty);}
     else if(value.kind==='input-dirty'){inputDirty=!!value.changed;}
     else if(value.kind==='request'&&value.method==='editor-layout'&&typeof value.id==='string'){

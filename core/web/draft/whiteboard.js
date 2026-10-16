@@ -1,20 +1,23 @@
 import { WhiteboardModel, DRAFT_LIMITS, normalizeViewport, screenToWorld, zoomAt, translateCamera, strokeTouchesPath } from './whiteboard-model.js';
 import { rectangle, strokeBounds, containsPoint, enclosedStrokes, translateStrokes } from './whiteboard-selection.js';
 import { copyCaptureImage } from './whiteboard-capture.js';
+import { DEFAULT_TOOLBAR_DOCK, dockFromPoint, normalizeDock, dockedPosition, popupPosition } from './whiteboard-dock.js';
 
 const INK_COLORS = [['#334155','深灰'],['#000000','黑色'],['#386db6','蓝色'],['#d04444','红色'],['#25865a','绿色'],['#8055bd','紫色']];
 const PAPER_COLORS = [['#ffffff','白色'],['#fff8e7','米黄'],['#f0f7f0','浅绿'],['#edf4fc','浅蓝'],['#f5f1fa','浅紫']];
 const swatches = (colors, kind) => colors.map(([color,label]) => `<button type="button" data-${kind}="${color}" aria-label="${kind==='ink'?'笔色':'纸色'}：${label}" title="${label}" aria-pressed="false" class="qf-whiteboard-swatch" style="--swatch:${color}"></button>`).join('');
+const TOOLBAR_STORAGE_KEY = 'quizforge.whiteboard.toolbar';
+// The question tool and the old pan tool are one tool now; keep their names working.
+const TOOL_ALIASES = { select: 'hand', pan: 'hand' };
+const READ_ONLY_TOOLS = ['hand', 'capture'];
+const TOOL_LABELS = { hand: '操作／移动', pen: '画笔', eraser: '整笔擦除', 'select-ink': '框选笔迹', capture: '区域截图' };
 
 const icons = {
-  select: '<path d="m4 3 6 17 3-7 7-3L4 3Z"></path><path d="m13 13 5 7"></path>',
-  pen: '<path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"></path><path d="m14 5 5 5M4 15l5 5"></path>',
+  hand: '<path d="M18 11V6a2 2 0 0 0-4 0v4"></path><path d="M14 10V4a2 2 0 0 0-4 0v6"></path><path d="M10 10.5V6a2 2 0 0 0-4 0v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.3l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"></path>',
+  pen: '<path d="m16 3 5 5-12 12-6 1 1-6L16 3Z"></path><path d="m14 5 5 5"></path>',
   eraser: '<path d="m14 3 7 7-10 10H6l-4-4L14 3Z"></path><path d="m7 11 7 7M11 20h11"></path>',
-  pan: '<path d="M12 2v20M2 12h20M9 5l3-3 3 3M9 19l3 3 3-3M5 9l-3 3 3 3M19 9l3 3-3 3"></path>',
-  undo: '<path d="m8 4-5 5 5 5M3 9h11a7 7 0 0 1 0 14"></path>',
-  redo: '<path d="m16 4 5 5-5 5M21 9H10a7 7 0 0 0 0 14"></path>',
-  minus: '<path d="M5 12h14"></path>',
-  plus: '<path d="M5 12h14M12 5v14"></path>',
+  undo: '<path d="M9 14 4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-3"></path>',
+  redo: '<path d="m15 14 5-5-5-5"></path><path d="M20 9H9a5 5 0 0 0 0 10h3"></path>',
   settings: '<path d="M4 6h16M4 12h16M4 18h16"></path><circle cx="9" cy="6" r="2"></circle><circle cx="15" cy="12" r="2"></circle><circle cx="8" cy="18" r="2"></circle>',
   fullscreen: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"></path>',
   exitFullscreen: '<path d="M3 8h5V3M16 3v5h5M21 16h-5v5M8 21v-5H3"></path>',
@@ -24,14 +27,15 @@ const icons = {
   stylus: '<path d="m15 3 6 6-10 10-7 2 2-7L15 3Z"></path><path d="m13 5 6 6M3 5v4M1 7h4"></path>',
   clear: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"></path>',
   close: '<path d="m6 6 12 12M6 18 18 6"></path>',
-  box: '<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 3"></rect>',
+  'select-ink': '<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 3"></rect>',
   capture: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect>',
   copy: '<rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V3H3v13h5"></path>',
-  grip: '<circle cx="9" cy="5" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="19" r="1"></circle>',
+  grip: '<circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="6" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="18" r="1"></circle>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
+const toolIcon = (name, color) => name === 'pen' ? `${icon('pen')}<span class="qf-whiteboard-pen-color" style="--swatch:${color}"></span>` : icon(name);
 
-export function mountWhiteboard(container, { onChange = () => {}, onViewChange = () => {}, onInteractionChange = () => {}, onFullscreen = () => {}, onCapture = null, toolbarContainer = null } = {}) {
+export function mountWhiteboard(container, { onChange = () => {}, onViewChange = () => {}, onInteractionChange = () => {}, onFullscreen = () => {}, onScroll = () => {}, onCapture = null, toolbarContainer = null, toolbarObstacles = () => [] } = {}) {
   if (!container?.ownerDocument) throw new TypeError('Whiteboard requires a DOM container');
   const doc = container.ownerDocument, win = doc.defaultView;
   if (toolbarContainer && (toolbarContainer.ownerDocument !== doc || typeof toolbarContainer.append !== 'function')) {
@@ -47,37 +51,33 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   root.innerHTML = `
     <div class="qf-whiteboard-paper" aria-hidden="true"></div>
     <canvas class="qf-whiteboard-ink" aria-label="题目草稿白板" tabindex="-1"></canvas>
-    <div class="qf-whiteboard-toolbar" role="toolbar" aria-label="白板工具">
-      <button type="button" class="qf-whiteboard-grip" data-action="drag-toolbar" aria-label="移动工具栏" title="拖动工具栏，双击恢复位置；方向键也可移动">${icon('grip')}</button>
+    <div class="qf-whiteboard-toolbar" role="toolbar" aria-label="白板工具" aria-orientation="vertical" data-side="right" data-collapsed="false">
+      <button type="button" class="qf-whiteboard-grip" data-action="collapse-toolbar" aria-label="移动或收起工具栏" title="拖动到任意位置，松手后贴靠最近的边缘，拖到边缘会收起；点按收起，方向键换边">${icon('grip')}</button>
+      <button type="button" class="qf-whiteboard-expand" data-action="expand-toolbar" aria-label="展开白板工具" aria-expanded="false" title="展开白板工具，也可拖动" hidden></button>
       <div class="qf-whiteboard-group">
-        <button type="button" data-tool="select" title="操作题卡 (V)" aria-label="操作题卡" aria-pressed="false">${icon('select')}</button>
-        <button type="button" data-tool="pen" title="画笔 (P)" aria-label="画笔" aria-pressed="true">${icon('pen')}</button>
+        <button type="button" data-tool="hand" title="操作／移动 (V / H)：点题目选项、输入框等可作答，拖动其他位置移动白板" aria-label="操作题目或移动白板" aria-pressed="false">${icon('hand')}</button>
+        <button type="button" data-tool="pen" title="画笔 (P)，选中后再点一次选择颜色" aria-label="画笔，选中后再次点击选择颜色" aria-pressed="true" aria-expanded="false">${toolIcon('pen','#334155')}</button>
         <button type="button" data-tool="eraser" title="整笔擦除 (E)" aria-label="整笔擦除" aria-pressed="false">${icon('eraser')}</button>
-        <button type="button" data-tool="pan" title="移动画布 (H)" aria-label="移动画布" aria-pressed="false">${icon('pan')}</button>
-        <button type="button" data-tool="select-ink" title="框选笔迹 (S)" aria-label="框选笔迹" aria-pressed="false">${icon('box')}</button>
+        <button type="button" data-tool="select-ink" title="框选笔迹 (S)" aria-label="框选笔迹" aria-pressed="false">${icon('select-ink')}</button>
         <button type="button" data-tool="capture" title="区域截图 (C)" aria-label="区域截图" aria-pressed="false">${icon('capture')}</button>
-        <span class="qf-whiteboard-color"><input data-control="ink-color" type="hidden" value="#334155"><button type="button" data-action="ink-palette" aria-label="笔迹颜色" title="笔迹颜色" aria-expanded="false"><span class="qf-whiteboard-current-color" style="--swatch:#334155"></span></button></span>
       </div>
-      <div class="qf-whiteboard-palette" role="group" aria-label="常用笔色" hidden>${swatches(INK_COLORS,'ink')}</div>
-      <div class="qf-whiteboard-group">
+      <div class="qf-whiteboard-group" data-group="history">
         <button type="button" data-action="undo" title="撤销 (Ctrl / ⌘ Z)" aria-label="撤销">${icon('undo')}</button>
         <button type="button" data-action="redo" title="重做 (Ctrl / ⌘ Shift Z)" aria-label="重做">${icon('redo')}</button>
       </div>
-      <button type="button" data-action="settings" title="白板设置" aria-label="白板设置" aria-expanded="false">${icon('settings')}</button>
-      <button type="button" data-action="fullscreen" title="进入全屏" aria-label="进入全屏" aria-pressed="false" hidden>${icon('fullscreen')}</button>
-      <div class="qf-whiteboard-settings" role="group" aria-label="白板设置" hidden>
-        <div class="qf-whiteboard-setting-head"><span>白板设置</span><button type="button" data-action="close-settings" title="关闭设置" aria-label="关闭设置">${icon('close')}</button></div>
-        <label title="笔迹粗细">${icon('width')}<span class="qf-whiteboard-setting-label">粗细</span><input data-control="width" type="range" min="1" max="16" value="3" step="0.5" aria-label="笔迹粗细"><output data-control="width-value">3</output></label>
-        <div class="qf-whiteboard-paper-colors"><span>纸色</span><input data-control="paper-color" type="hidden" value="#ffffff"><div role="group" aria-label="常用纸色">${swatches(PAPER_COLORS,'paper')}</div></div>
-        <label title="纸张样式">${icon('grid')}<span class="qf-whiteboard-setting-label">纸面</span><select data-control="pattern" aria-label="纸张样式"><option value="plain">空白</option><option value="grid">方格</option><option value="dots">点阵</option></select></label>
-        <label class="qf-whiteboard-touch" title="仅笔书写：鼠标可用，手指移动；关闭后手指也可书写">${icon('stylus')}<span class="qf-whiteboard-setting-label">仅笔书写</span><input data-control="pen-only" type="checkbox" aria-label="仅笔书写" checked></label>
-        <button type="button" class="qf-whiteboard-clear" data-action="clear" title="清空本题笔迹" aria-label="清空本题笔迹">${icon('clear')}</button>
+      <div class="qf-whiteboard-group">
+        <button type="button" data-action="settings" title="白板设置" aria-label="白板设置" aria-expanded="false">${icon('settings')}</button>
+        <button type="button" data-action="fullscreen" title="进入全屏" aria-label="进入全屏" aria-pressed="false" hidden>${icon('fullscreen')}</button>
       </div>
     </div>
-    <div class="qf-whiteboard-zoom-controls" role="group" aria-label="画布缩放" hidden>
-      <button type="button" data-action="zoom-out" title="缩小" aria-label="缩小">${icon('minus')}</button>
-      <button type="button" data-action="zoom-reset" class="qf-whiteboard-zoom" title="恢复 100%" aria-label="恢复 100%">100%</button>
-      <button type="button" data-action="zoom-in" title="放大" aria-label="放大">${icon('plus')}</button>
+    <div class="qf-whiteboard-popup qf-whiteboard-palette" role="group" aria-label="笔迹颜色" hidden><input data-control="ink-color" type="hidden" value="#334155">${swatches(INK_COLORS,'ink')}</div>
+    <div class="qf-whiteboard-popup qf-whiteboard-settings" role="group" aria-label="白板设置" hidden>
+      <div class="qf-whiteboard-setting-head"><span>白板设置</span><button type="button" data-action="close-settings" title="关闭设置" aria-label="关闭设置">${icon('close')}</button></div>
+      <label title="笔迹粗细">${icon('width')}<span class="qf-whiteboard-setting-label">粗细</span><input data-control="width" type="range" min="1" max="16" value="3" step="0.5" aria-label="笔迹粗细"><output data-control="width-value">3</output></label>
+      <div class="qf-whiteboard-paper-colors"><span>纸色</span><input data-control="paper-color" type="hidden" value="#ffffff"><div role="group" aria-label="常用纸色">${swatches(PAPER_COLORS,'paper')}</div></div>
+      <label title="纸张样式">${icon('grid')}<span class="qf-whiteboard-setting-label">纸面</span><select data-control="pattern" aria-label="纸张样式"><option value="plain">空白</option><option value="grid">方格</option><option value="dots">点阵</option></select></label>
+      <label class="qf-whiteboard-touch" title="仅笔书写：鼠标可用，手指移动；关闭后手指也可书写">${icon('stylus')}<span class="qf-whiteboard-setting-label">仅笔书写</span><input data-control="pen-only" type="checkbox" aria-label="仅笔书写" checked></label>
+      <button type="button" class="qf-whiteboard-clear" data-action="clear" title="清空本题笔迹" aria-label="清空本题笔迹">${icon('clear')}</button>
     </div>
     <div class="qf-whiteboard-selection-actions" role="group" aria-label="选中笔迹" hidden><span data-control="selection-count"></span><button type="button" data-action="copy-selection" aria-label="复制选中笔迹" title="复制一份">${icon('copy')}</button><button type="button" data-action="delete-selection" aria-label="删除选中笔迹" title="删除">${icon('clear')}</button><button type="button" data-action="cancel-selection" aria-label="取消选择" title="取消选择">${icon('close')}</button></div>
     <dialog class="qf-whiteboard-capture-preview" aria-label="区域截图预览"><div class="qf-whiteboard-capture-head"><strong>区域截图</strong><button type="button" data-action="close-capture" aria-label="关闭截图预览">${icon('close')}</button></div><img alt="选定区域的题目与草稿截图"><div class="qf-whiteboard-capture-footer"><span class="qf-whiteboard-capture-status" role="status">只截取选定区域，不包含工具栏</span><div class="qf-whiteboard-capture-actions"><button type="button" data-action="copy-capture">复制图片</button><a download>下载 PNG</a></div></div></dialog>
@@ -86,8 +86,8 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     </div>
     <div class="qf-whiteboard-status" role="status" aria-live="polite"></div>`;
   container.append(root);
-  let toolbarElement = null;
-  const select = selector => root.querySelector(selector) || toolbarContainer?.querySelector(selector) || toolbarElement?.querySelector(selector);
+  const toolbarParent = toolbarContainer || root;
+  const select = selector => root.querySelector(selector) || toolbarContainer?.querySelector(selector);
   const canvas = select('canvas'), paperElement = select('.qf-whiteboard-paper');
   canvas.hidden = true;
   const context = canvas.getContext('2d');
@@ -96,19 +96,20 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   paperElement.hidden = true;
   container.append(paperElement);
   const toolbar = select('.qf-whiteboard-toolbar'), confirmation = select('.qf-whiteboard-confirm');
-  const zoomControls = select('.qf-whiteboard-zoom-controls'), selectionActions = select('.qf-whiteboard-selection-actions');
-  toolbarElement = toolbar;
+  const selectionActions = select('.qf-whiteboard-selection-actions');
+  const palette = select('.qf-whiteboard-palette'), settings = select('.qf-whiteboard-settings');
   toolbar.hidden = true;
-  if (toolbarContainer) { toolbarContainer.append(toolbar); toolbarContainer.append(zoomControls); }
+  // Popups sit beside the toolbar, not inside it, so a scrolling toolbar never clips them.
+  if (toolbarContainer) for (const element of [toolbar, palette, settings]) toolbarContainer.append(element);
+  const popups = [palette, settings];
   const inkColor = select('[data-control="ink-color"]'), widthInput = select('[data-control="width"]');
   const widthValue = select('[data-control="width-value"]'), penOnly = select('[data-control="pen-only"]');
   const paperColor = select('[data-control="paper-color"]'), pattern = select('[data-control="pattern"]');
   const undoButton = select('[data-action="undo"]'), redoButton = select('[data-action="redo"]');
-  const zoomButton = select('[data-action="zoom-reset"]'), status = select('.qf-whiteboard-status');
+  const status = select('.qf-whiteboard-status');
   const toolButtons = [...toolbar.querySelectorAll('[data-tool]')];
-  const settings = select('.qf-whiteboard-settings'), settingsButton = select('[data-action="settings"]');
-  const fullscreenButton = select('[data-action="fullscreen"]');
-  const palette = select('.qf-whiteboard-palette'), paletteButton = select('[data-action="ink-palette"]'), grip = select('.qf-whiteboard-grip');
+  const settingsButton = select('[data-action="settings"]'), fullscreenButton = select('[data-action="fullscreen"]');
+  const penButton = select('[data-tool="pen"]'), grip = select('.qf-whiteboard-grip'), expandButton = select('.qf-whiteboard-expand');
   const capturePreview=select('.qf-whiteboard-capture-preview'), captureImage=capturePreview.querySelector('img'),captureLink=capturePreview.querySelector('a');
   const query = selector => [...root.querySelectorAll(selector), ...(toolbarContainer ? toolbarContainer.querySelectorAll(selector) : [])];
   const listeners = [];
@@ -116,23 +117,34 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     target.addEventListener(type, listener, options);
     listeners.push(() => target.removeEventListener(type, listener, options));
   };
-  let mode = 'practice', tool = 'pen', destroyed = false, frame = 0;
+  let mode = 'practice', tool = 'pen', destroyed = false, frame = 0, loadGeneration = 0;
   let fullscreenActive = false;
   let viewCamera = null;
   let readOnly = false, readOnlyCamera = null, writableTool = tool;
   let viewWidth = 1, viewHeight = 1, pixelRatio = 1, strokeSequence = 0;
   let gesture = null, cameraBefore = null, interaction = false, eraserCursor = null;
-  let selectedIds = [], clipboard = [], toolbarDrag = null, toolbarPosition = null, capturing = false, captureGeneration = 0;
+  let selectedIds = [], clipboard = [], capturing = false, captureGeneration = 0;
+  let toolbarDrag = null, suppressClickUntil = 0, snapTimer = 0, dock = readDock(), expandIcon = '', interactiveClip = '';
   let captureUrl=null,captureBlob=null;
   const pointers = new Map();
 
+  function readDock() {
+    try { return normalizeDock(JSON.parse(win.localStorage.getItem(TOOLBAR_STORAGE_KEY))); }
+    catch { return { ...DEFAULT_TOOLBAR_DOCK }; }
+  }
+  function saveDock() {
+    try { win.localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(dock)); } catch { /* Position is a per-device convenience. */ }
+  }
   function report(message = '') { status.textContent = message; }
   function closeSettings({ focus = false } = {}) {
     settings.hidden = true;
     settingsButton.setAttribute('aria-expanded', 'false');
     if (focus) settingsButton.focus({ preventScroll: true });
   }
-  function closePalette() { palette.hidden = true; paletteButton.setAttribute('aria-expanded','false'); }
+  function closePalette({ focus = false } = {}) {
+    palette.hidden = true; penButton.setAttribute('aria-expanded','false');
+    if (focus) penButton.focus({ preventScroll: true });
+  }
   function nextStrokeId() { return `ink-${Date.now().toString(36)}-${(++strokeSequence).toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
   function selectedStrokes() { const ids = new Set(selectedIds); return model.strokes.filter(stroke => ids.has(stroke.id)); }
   function selectionBounds() { return strokeBounds(selectedStrokes()); }
@@ -152,21 +164,21 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   function emitChange() { updateControls(); if (readOnly) onViewChange(draftCamera()); else onChange(model.getDraft()); }
   function emitViewChange() { updateControls(); onViewChange(draftCamera()); }
   function updateControls() {
-    for (const button of toolButtons) button.hidden = readOnly && !['select', 'pan', 'capture'].includes(button.dataset.tool);
-    inkColor.parentElement.hidden = readOnly;
+    for (const button of toolButtons) button.hidden = readOnly && !READ_ONLY_TOOLS.includes(button.dataset.tool);
     undoButton.parentElement.hidden = readOnly;
     settingsButton.hidden = readOnly;
     undoButton.disabled = readOnly || !model.canUndo;
     redoButton.disabled = readOnly || !model.canRedo;
     select('[data-action="clear"]').disabled = model.strokes.length === 0;
-    const viewport = draftCamera();
-    zoomButton.textContent = `${Math.round(viewport.zoom * 100)}%`;
-    select('[data-action="zoom-out"]').disabled = viewport.zoom <= DRAFT_LIMITS.minZoom;
-    select('[data-action="zoom-in"]').disabled = viewport.zoom >= DRAFT_LIMITS.maxZoom;
     paperColor.value = model.paper.color;
     pattern.value = model.paper.pattern;
     for (const button of query('[data-ink]')) button.setAttribute('aria-pressed',String(button.dataset.ink === inkColor.value));
     for (const button of query('[data-paper]')) button.setAttribute('aria-pressed',String(button.dataset.paper === model.paper.color));
+    const nextIcon = toolIcon(tool, inkColor.value);
+    if (nextIcon !== expandIcon) {
+      expandIcon = nextIcon; expandButton.innerHTML = nextIcon;
+      expandButton.setAttribute('aria-label', `展开白板工具（当前：${TOOL_LABELS[tool]}）`);
+    }
     selectedIds = selectedIds.filter(id => model.strokes.some(stroke => stroke.id === id));
     selectionActions.hidden = readOnly || mode !== 'draft' || tool !== 'select-ink' || !selectedIds.length || !!gesture;
     select('[data-control="selection-count"]').textContent = `${selectedIds.length} 笔 · 拖动选区可移动`;
@@ -192,6 +204,35 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }
   function requestPaint() {
     if (!frame && !destroyed) frame = win.requestAnimationFrame(() => { frame = 0; paint(); });
+  }
+  // Question frames report the controls a learner can use, in frame pixels.
+  // The hand tool leaves those areas to the frame and pans everywhere else.
+  function interactiveRects() {
+    if (mode !== 'draft' || tool !== 'hand') return [];
+    const origin = canvas.getBoundingClientRect(), rects = [];
+    for (const element of container.querySelectorAll('iframe')) {
+      const regions = element.qfInteractiveRegions;
+      if (!regions?.length) continue;
+      const bounds = element.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) continue;
+      const scaleX = bounds.width / (element.offsetWidth || bounds.width), scaleY = bounds.height / (element.offsetHeight || bounds.height);
+      for (const [x, y, width, height] of regions) {
+        rects.push({ x: bounds.left - origin.left + x * scaleX, y: bounds.top - origin.top + y * scaleY, width: width * scaleX, height: height * scaleY });
+      }
+    }
+    return rects;
+  }
+  function syncInteractiveClip() {
+    const round = value => Math.round(value * 10) / 10;
+    const holes = interactiveRects().filter(rect => rect.x < viewWidth && rect.y < viewHeight && rect.x + rect.width > 0 && rect.y + rect.height > 0);
+    // Regions are disjoint, so even-odd turns each one into a hole that hit testing skips.
+    const next = holes.length ? `path(evenodd, "M0 0H${round(viewWidth)}V${round(viewHeight)}H0Z${holes.map(rect => `M${round(rect.x)} ${round(rect.y)}h${round(rect.width)}v${round(rect.height)}h${round(-rect.width)}Z`).join('')}")` : '';
+    if (next === interactiveClip) return;
+    interactiveClip = next;
+    if (next) canvas.style.setProperty('clip-path', next); else canvas.style.removeProperty('clip-path');
+  }
+  function insideInteractiveRegion(point) {
+    return interactiveRects().some(rect => point.x >= rect.x && point.y >= rect.y && point.x <= rect.x + rect.width && point.y <= rect.y + rect.height);
   }
   function strokeWidth(stroke, point) { return stroke.width * (0.35 + 0.65 * point.pressure); }
   function paintStroke(stroke) {
@@ -224,6 +265,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     const camera = displayCamera(), scroll = scrollOffset();
     syncCamera();
     syncScroll();
+    syncInteractiveClip();
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (mode === 'practice') return;
@@ -263,22 +305,85 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     const width = Math.round(viewWidth * pixelRatio), height = Math.round(viewHeight * pixelRatio);
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
     requestPaint();
-    clampToolbar();
+    layoutToolbar();
+  }
+  function toolbarArea() {
+    const bounds = toolbarParent.getBoundingClientRect();
+    return { left: bounds.left, top: bounds.top, width: toolbarParent.clientWidth || bounds.width, height: toolbarParent.clientHeight || bounds.height };
+  }
+  function relativeBox(element, area = toolbarArea()) {
+    const bounds = element.getBoundingClientRect();
+    return { left: bounds.left - area.left, top: bounds.top - area.top, width: bounds.width, height: bounds.height };
+  }
+  // The toolbar always rests against one edge: expanded with a small margin,
+  // or collapsed to a tab that shows only the current tool.
+  function layoutToolbar() {
+    if (toolbarDrag?.moved) return;
+    const vertical = dock.side === 'left' || dock.side === 'right';
+    toolbar.dataset.side = dock.side;
+    toolbar.dataset.collapsed = String(dock.collapsed);
+    toolbar.setAttribute('aria-orientation', vertical ? 'vertical' : 'horizontal');
+    expandButton.hidden = !dock.collapsed;
+    if (dock.collapsed) { closeSettings(); closePalette(); }
+    if (toolbar.hidden) return;
+    const area = toolbarArea(), box = relativeBox(toolbar, area);
+    const obstacles = [...toolbarObstacles()].map(element => relativeBox(element, area)).filter(item => item.width && item.height);
+    const position = dockedPosition(dock, { width: area.width, height: area.height }, { width: box.width, height: box.height }, obstacles);
+    toolbar.style.left = `${position.left}px`; toolbar.style.top = `${position.top}px`;
+    positionPopups();
   }
   function positionPopups() {
-    const bounds=toolbar.getBoundingClientRect(), parent=(toolbarContainer||root).getBoundingClientRect();
-    toolbar.dataset.popupSide = bounds.top-parent.top < 290 ? 'below' : 'above';
+    const area = toolbarArea(), bar = relativeBox(toolbar, area);
+    for (const [popup, anchor] of [[palette, penButton], [settings, settingsButton]]) {
+      if (popup.hidden) continue;
+      const own = relativeBox(popup, area);
+      const position = popupPosition(dock.side, { width: area.width, height: area.height }, bar, relativeBox(anchor, area), { width: own.width, height: own.height });
+      popup.style.left = `${position.left}px`; popup.style.top = `${position.top}px`;
+    }
   }
-  function clampToolbar() {
-    if (!toolbarPosition) return;
-    const parent=toolbarContainer||root, bounds=toolbar.getBoundingClientRect();
-    toolbarPosition.x=Math.max(6,Math.min(toolbarPosition.x,Math.max(6,parent.clientWidth-bounds.width-6)));
-    toolbarPosition.y=Math.max(6,Math.min(toolbarPosition.y,Math.max(6,parent.clientHeight-bounds.height-6)));
-    toolbar.style.left=`${toolbarPosition.x}px`;toolbar.style.top=`${toolbarPosition.y}px`;toolbar.style.right='auto';toolbar.style.bottom='auto';toolbar.style.margin='0';positionPopups();
+  function setDock(next) {
+    dock = normalizeDock(next);
+    saveDock();
+    // Slide into place only after a user move, never on first display.
+    toolbar.dataset.snapping = 'true';
+    win.clearTimeout(snapTimer); snapTimer = win.setTimeout(() => { delete toolbar.dataset.snapping; }, 250);
+    layoutToolbar();
   }
   function stopToolbarDrag() {
     const drag=toolbarDrag;toolbarDrag=null;
-    if (drag) try{grip.releasePointerCapture(drag.id);}catch{}
+    if (!drag) return;
+    delete toolbar.dataset.dragging;
+    try{drag.handle.releasePointerCapture(drag.id);}catch{}
+  }
+  function startToolbarDrag(event) {
+    if (event.button !== 0 || !confirmation.hidden) return;
+    const area = toolbarArea(), box = relativeBox(toolbar, area);
+    toolbarDrag = { id: event.pointerId, handle: event.currentTarget || event.target, x: event.clientX, y: event.clientY, left: box.left, top: box.top, moved: false };
+    try { toolbarDrag.handle.setPointerCapture(event.pointerId); } catch {}
+  }
+  function moveToolbarDrag(event) {
+    const drag = toolbarDrag;
+    if (drag?.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    event.preventDefault();
+    if (!drag.moved) { drag.moved = true; toolbar.dataset.dragging = 'true'; closeSettings(); closePalette(); }
+    const area = toolbarArea(), box = relativeBox(toolbar, area);
+    drag.position = {
+      left: Math.max(0, Math.min(drag.left + dx, area.width - box.width)),
+      top: Math.max(0, Math.min(drag.top + dy, area.height - box.height)),
+    };
+    toolbar.style.left = `${drag.position.left}px`; toolbar.style.top = `${drag.position.top}px`;
+  }
+  function endToolbarDrag(event) {
+    const drag = toolbarDrag;
+    if (drag?.id !== event.pointerId) return;
+    stopToolbarDrag();
+    if (!drag.moved) return;
+    // The click that follows a drag must not also collapse or expand the toolbar.
+    suppressClickUntil = Date.now() + 400;
+    const area = toolbarArea();
+    setDock(dockFromPoint({ x: event.clientX - area.left, y: event.clientY - area.top }, { width: area.width, height: area.height }));
   }
   async function exportRegion(value) {
     const x=Math.max(0,Math.min(viewWidth,value.x)),y=Math.max(0,Math.min(viewHeight,value.y));
@@ -373,12 +478,14 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     }
   }
   function pointerDown(event) {
-    if (mode !== 'draft' || tool === 'select' || capturing || !confirmation.hidden || (event.pointerType === 'mouse' && ![0, 1, 2].includes(event.button))) return;
+    if (mode !== 'draft' || capturing || !confirmation.hidden || (event.pointerType === 'mouse' && ![0, 1, 2].includes(event.button))) return;
+    const screen = screenPoint(event);
+    // Browsers that ignore clip-path hit testing still leave question controls alone.
+    if (tool === 'hand' && !gesture && insideInteractiveRegion(screen)) return;
     event.preventDefault();
     // A resting palm cannot replace an active stylus gesture.
     if (event.pointerType === 'touch' && gesture?.pointerType === 'pen') return;
     if (event.pointerType === 'pen' && gesture && gesture.pointerType !== 'pen') cancelInteraction();
-    const screen = screenPoint(event);
     pointers.set(event.pointerId, { type: event.pointerType, screen });
     capture(event);
     if (!interaction) { cameraBefore = draftCamera(); notifyInteraction(true); report(); }
@@ -387,14 +494,14 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       return;
     }
     if (gesture) return;
-    const selectedTool = event.pointerType === 'mouse' && event.button !== 0 ? 'pan' : tool;
+    const selectedTool = event.pointerType === 'mouse' && event.button !== 0 ? 'hand' : tool;
     if (selectedTool === 'capture') { selectedIds=[]; gesture={kind:'capture',pointerId:event.pointerId,pointerType:event.pointerType,from:screen,to:screen}; }
     else if (selectedTool === 'select-ink' && !readOnly) {
       const point = inkPoint(event);
       if (containsPoint(selectionBounds(),point)) gesture={kind:'move-selection',pointerId:event.pointerId,pointerType:event.pointerType,from:point,dx:0,dy:0};
       else { selectedIds=[]; gesture={kind:'box',pointerId:event.pointerId,pointerType:event.pointerType,from:point,to:point}; }
     }
-    else if (selectedTool === 'pan' || (event.pointerType === 'touch' && penOnly.checked)) beginPan(event.pointerId, screen);
+    else if (selectedTool === 'hand' || (event.pointerType === 'touch' && penOnly.checked)) beginPan(event.pointerId, screen);
     else if (selectedTool === 'eraser') {
       gesture = { kind: 'erase', pointerId: event.pointerId, pointerType: event.pointerType, radius: eraserRadius(), points: [inkPoint(event)], erasedIds: new Set() };
       previewErase(gesture.points);
@@ -419,7 +526,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     }
   }
   function pointerMove(event) {
-    if (mode !== 'draft' || tool === 'select') return;
+    if (mode !== 'draft') return;
     eraserCursor = inkPoint(event);
     const pointer = pointers.get(event.pointerId);
     if (!pointer) { if (tool === 'eraser') requestPaint(); return; }
@@ -457,42 +564,55 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     } else if (gesture?.pointerId === event.pointerId) finishInteraction();
     try { if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); } catch {}
   }
-  function setTool(next) {
-    if (readOnly && !['select', 'pan', 'capture'].includes(next)) return;
+  function setTool(value) {
+    const next = TOOL_ALIASES[value] || value;
+    if (!TOOL_LABELS[next] || (readOnly && !READ_ONLY_TOOLS.includes(next))) return;
     finishInteraction();
     tool = next;
     if (tool !== 'select-ink') selectedIds=[];
     closeSettings();closePalette();report(tool==='capture'?'从一个角拖到对角，松开即可截取区域。':tool==='select-ink'?'拖出矩形框选完整笔迹；拖动选区可移动。':'');
     root.dataset.tool = tool;
     toolButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.tool === tool)));
-    canvas.tabIndex = mode === 'draft' && tool !== 'select' ? 0 : -1;
-    if (tool === 'select' && doc.activeElement === canvas) select('[data-tool="select"]').focus({ preventScroll: true });
+    canvas.tabIndex = mode === 'draft' ? 0 : -1;
     eraserCursor = null;
+    updateControls();
     requestPaint();
   }
+  function chooseTool(next) {
+    // Pressing the active pen again opens its colors, like an annotation toolbar.
+    if (next === 'pen' && tool === 'pen' && !readOnly) {
+      const open = palette.hidden;
+      closeSettings();
+      palette.hidden = !open; penButton.setAttribute('aria-expanded', String(open));
+      positionPopups();
+      if (open) palette.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      return;
+    }
+    setTool(next);
+  }
   function toolShortcut(event) {
-    const next = { v: 'select', p: 'pen', e: 'eraser', h: 'pan', s:'select-ink',c:'capture' }[event.key.toLowerCase()];
+    const next = { v: 'hand', h: 'hand', p: 'pen', e: 'eraser', s:'select-ink',c:'capture' }[event.key.toLowerCase()];
     if (mode === 'draft' && confirmation.hidden && !event.ctrlKey && !event.metaKey && !event.altKey && next) {
       event.preventDefault();
       setTool(next);
     }
   }
-  function focusTool() {
-    (tool === 'select' ? select('[data-tool="select"]') : canvas).focus({ preventScroll: true });
-  }
+  function focusTool() { canvas.focus({ preventScroll: true }); }
   function perform(action) {
-    if (readOnly && !['zoom-in', 'zoom-out', 'zoom-reset', 'fullscreen'].includes(action)) return;
+    if (readOnly && !['fullscreen', 'collapse-toolbar', 'expand-toolbar'].includes(action)) return;
     finishInteraction();
     report();
     let changed = false;
     if (action === 'settings') {
-      closePalette();positionPopups();
+      closePalette();
       settings.hidden = !settings.hidden;
       settingsButton.setAttribute('aria-expanded', String(!settings.hidden));
+      positionPopups();
       if (!settings.hidden) widthInput.focus({ preventScroll: true });
     }
     else if (action === 'close-settings') closeSettings({ focus: true });
-    else if (action === 'ink-palette') { closeSettings();positionPopups();palette.hidden=!palette.hidden;paletteButton.setAttribute('aria-expanded',String(!palette.hidden)); }
+    else if (action === 'collapse-toolbar') { setDock({ ...dock, collapsed: true }); expandButton.focus({ preventScroll: true }); }
+    else if (action === 'expand-toolbar') { setDock({ ...dock, collapsed: false }); toolbar.querySelector(`[data-tool="${tool}"]`)?.focus({ preventScroll: true }); }
     else if (action === 'cancel-selection') selectedIds=[];
     else if (action === 'delete-selection' && selectedIds.length) { changed=model.editStrokes(model.strokes.filter(stroke=>!selectedIds.includes(stroke.id)));selectedIds=[]; }
     else if (action === 'copy-selection' && selectedIds.length) {
@@ -504,15 +624,20 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     else if (action === 'cancel-clear') { confirmation.hidden = true; focusTool(); }
     else if (action === 'confirm-clear') { changed = model.clear(); confirmation.hidden = true; focusTool(); }
     else if (action === 'fullscreen' && mode === 'draft') { closeSettings(); onFullscreen(); }
-    else if (action.startsWith('zoom-')) {
-      const camera = draftCamera();
-      const zoom = action === 'zoom-reset' ? 1 : camera.zoom * (action === 'zoom-in' ? 1.25 : 0.8);
-      changed = setDraftCamera(zoomAt(camera, zoom, cameraPoint({ x: viewWidth / 2, y: viewHeight / 2 })));
-    }
     toolbar.inert = !confirmation.hidden;
-    if (changed) { if (action.startsWith('zoom-')) emitViewChange(); else emitChange(); }
+    if (changed) emitChange();
     syncCamera();
     requestPaint();
+  }
+  function controlClick(event, scope) {
+    if (!confirmation.hidden) return;
+    const button = event.target.closest('button');
+    if (!button || !scope.contains(button)) return;
+    if ((button === grip || button === expandButton) && Date.now() < suppressClickUntil) { suppressClickUntil = 0; return; }
+    if (button.dataset.ink && !readOnly) { inkColor.value=button.dataset.ink;closePalette({focus:true});updateControls();penButton.querySelector('.qf-whiteboard-pen-color')?.style.setProperty('--swatch',inkColor.value); }
+    else if (button.dataset.paper && !readOnly) { finishInteraction();if(model.setPaper({color:button.dataset.paper,pattern:pattern.value}))emitChange();requestPaint(); }
+    else if (button.dataset.tool) chooseTool(button.dataset.tool);
+    else if (button.dataset.action) perform(button.dataset.action);
   }
   listen(canvas, 'pointerdown', pointerDown);
   listen(canvas, 'pointermove', pointerMove);
@@ -520,9 +645,9 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   listen(canvas, 'pointercancel', event => { if (pointers.has(event.pointerId)) cancelInteraction(); });
   listen(canvas, 'lostpointercapture', event => { if (pointers.has(event.pointerId)) cancelInteraction(); });
   listen(canvas, 'pointerleave', () => { eraserCursor = null; requestPaint(); });
-  listen(canvas, 'contextmenu', event => { if (mode === 'draft' && tool !== 'select') event.preventDefault(); });
+  listen(canvas, 'contextmenu', event => { if (mode === 'draft') event.preventDefault(); });
   listen(canvas, 'wheel', event => {
-    if (mode !== 'draft' || tool === 'select') return;
+    if (mode !== 'draft') return;
     event.preventDefault();
     finishInteraction();
     const amount = Math.max(-100, Math.min(100, event.deltaY));
@@ -531,21 +656,19 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     syncCamera();
     requestPaint();
   }, { passive: false });
-  listen(toolbar, 'click', event => {
-    if (!confirmation.hidden) return;
-    const button = event.target.closest('button');
-    if (!button || !toolbar.contains(button)) return;
-    if (button.dataset.ink && !readOnly) { inkColor.value=button.dataset.ink;select('.qf-whiteboard-current-color').style.setProperty('--swatch',inkColor.value);closePalette();updateControls(); }
-    else if (button.dataset.paper && !readOnly) { finishInteraction();if(model.setPaper({color:button.dataset.paper,pattern:pattern.value}))emitChange();requestPaint(); }
-    else if (button.dataset.tool) setTool(button.dataset.tool);
-    else if (button.dataset.action) perform(button.dataset.action);
+  for (const scope of [toolbar, ...popups]) listen(scope, 'click', event => controlClick(event, scope));
+  listen(selectionActions,'click',event=>{const button=event.target.closest('button');if(button&&selectionActions.contains(button)&&confirmation.hidden)perform(button.dataset.action);});
+  for (const handle of [grip, expandButton]) {
+    listen(handle, 'pointerdown', startToolbarDrag);
+    listen(handle, 'pointermove', moveToolbarDrag);
+    listen(handle, 'pointerup', endToolbarDrag);
+    listen(handle, 'pointercancel', () => { stopToolbarDrag(); layoutToolbar(); });
+    listen(handle, 'lostpointercapture', event => { if (toolbarDrag?.id === event.pointerId) endToolbarDrag(event); });
+  }
+  listen(grip,'keydown',event=>{
+    const side={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'}[event.key];
+    if(!side)return;event.preventDefault();setDock({...dock,side,collapsed:false});grip.focus({preventScroll:true});
   });
-  for (const controls of [zoomControls,selectionActions]) listen(controls,'click',event=>{const button=event.target.closest('button');if(button&&controls.contains(button)&&confirmation.hidden)perform(button.dataset.action);});
-  listen(grip,'pointerdown',event=>{if(event.button!==0)return;event.preventDefault();closeSettings();closePalette();const bounds=toolbar.getBoundingClientRect(),parent=(toolbarContainer||root).getBoundingClientRect();toolbarDrag={id:event.pointerId,x:event.clientX,y:event.clientY,left:bounds.left-parent.left,top:bounds.top-parent.top};try{grip.setPointerCapture(event.pointerId);}catch{}});
-  listen(grip,'pointermove',event=>{if(toolbarDrag?.id!==event.pointerId)return;event.preventDefault();toolbarPosition={x:toolbarDrag.left+event.clientX-toolbarDrag.x,y:toolbarDrag.top+event.clientY-toolbarDrag.y};clampToolbar();});
-  listen(grip,'pointerup',stopToolbarDrag);listen(grip,'pointercancel',stopToolbarDrag);listen(grip,'lostpointercapture',()=>{toolbarDrag=null;});
-  listen(grip,'dblclick',()=>{stopToolbarDrag();toolbarPosition=null;for(const name of ['left','top','right','bottom','margin'])toolbar.style.removeProperty(name);positionPopups();});
-  listen(grip,'keydown',event=>{const delta={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]}[event.key];if(!delta)return;event.preventDefault();const bounds=toolbar.getBoundingClientRect(),parent=(toolbarContainer||root).getBoundingClientRect();toolbarPosition={x:bounds.left-parent.left+delta[0],y:bounds.top-parent.top+delta[1]};clampToolbar();});
   listen(select('[data-action="copy-capture"]'),'click',async event=>{
     const blob=captureBlob;if(!blob||event.target.disabled)return;
     const button=select('[data-action="copy-capture"]'),status=select('.qf-whiteboard-capture-status');button.disabled=true;
@@ -579,13 +702,18 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     else if (!readOnly&&tool==='select-ink'&&(event.ctrlKey||event.metaKey)&&key==='v'&&clipboard.length) { event.preventDefault();try{const copies=translateStrokes(clipboard,clipboard.map(stroke=>stroke.id),24/draftCamera().zoom,24/draftCamera().zoom,nextStrokeId);if(model.editStrokes([...model.strokes,...copies])){selectedIds=copies.map(stroke=>stroke.id);emitChange();requestPaint();}}catch(error){report(error.message);} }
     else toolShortcut(event);
   });
-  listen(toolbar, 'keydown', event => {
-    if (event.key === 'Escape') { if (!fullscreenActive) event.preventDefault();closeSettings({focus:!settings.hidden});closePalette(); }
+  for (const scope of [toolbar, ...popups]) listen(scope, 'keydown', event => {
+    if (event.key === 'Escape') {
+      if (!fullscreenActive) event.preventDefault();
+      if (!settings.hidden) closeSettings({focus:true});
+      if (!palette.hidden) closePalette({focus:true});
+    }
     if (event.target.closest('button')?.dataset.tool) toolShortcut(event);
   });
-  listen(win, 'pointerdown', event => { if (!toolbar.contains(event.target)) {closeSettings();closePalette();} });
-  listen(win, 'blur', () => {cancelInteraction();stopToolbarDrag();});
-  listen(container, 'scroll', () => { syncScroll(); requestPaint(); }, { passive: true });
+  listen(win, 'pointerdown', event => { if (![toolbar, ...popups].some(scope => scope.contains(event.target))) {closeSettings();closePalette();} });
+  listen(win, 'blur', () => {cancelInteraction();stopToolbarDrag();layoutToolbar();});
+  listen(container, 'scroll', () => { syncScroll(); requestPaint(); onScroll(); }, { passive: true });
+  listen(container, 'qf-interactive-regions', requestPaint);
   const observer = win.ResizeObserver ? new win.ResizeObserver(resize) : null;
   if (observer) observer.observe(container);
   else listen(win, 'resize', resize);
@@ -602,11 +730,12 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       if (value) writableTool = tool;
       readOnly = !!value;
       readOnlyCamera = readOnly ? model.viewport : null;
-      setTool(readOnly ? 'pan' : writableTool);
+      setTool(readOnly ? 'hand' : writableTool);
       confirmation.hidden = true;
       toolbar.inert = false;
       closeSettings();
       updateControls();
+      layoutToolbar(); // Read-only hides tools, so recentre the shorter bar.
       syncCamera();
       requestPaint();
     },
@@ -620,6 +749,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       fullscreenButton.setAttribute('aria-label', label);
       fullscreenButton.setAttribute('aria-pressed', String(!!active));
       fullscreenButton.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
+      layoutToolbar();
     },
     load(draft) {
       if (destroyed) return;
@@ -629,6 +759,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       selectedIds=[];captureGeneration++;closePalette();
       if(capturePreview.open)capturePreview.close();
       model.load(next);
+      loadGeneration++;
       localCamera = model.viewport;
       if (readOnly) readOnlyCamera = model.viewport;
       syncCamera();
@@ -639,6 +770,8 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       updateControls();
       requestPaint();
     },
+    // Changes whenever load() resets the camera, so hosts can restore their view.
+    get loadGeneration() { return loadGeneration; },
     getDraft() { return model.getDraft(); },
     getLayout() { return model.layout; },
     initializeLayout(width) {
@@ -680,9 +813,9 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       root.classList.toggle('qf-whiteboard--practice', mode === 'practice');
       root.classList.toggle('qf-whiteboard--draft', mode === 'draft');
       toolbar.hidden = mode === 'practice';
-      zoomControls.hidden = mode === 'practice';selectedIds=[];closePalette();stopToolbarDrag();clampToolbar();
+      selectedIds=[];closePalette();stopToolbarDrag();layoutToolbar();
       paperElement.hidden = mode === 'practice';
-      canvas.tabIndex = mode === 'draft' && tool !== 'select' ? 0 : -1;
+      canvas.tabIndex = mode === 'draft' ? 0 : -1;
       confirmation.hidden = true;
       toolbar.inert = false;
       closeSettings();
@@ -699,12 +832,13 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       observer?.disconnect();
       for (const cleanup of listeners) cleanup();
       if (frame) win.cancelAnimationFrame(frame);
+      win.clearTimeout(snapTimer);
       for (const { name, value, priority } of previousCameraProperties) {
         if (value) container.style.setProperty(name, value, priority);
         else container.style.removeProperty(name);
       }
       toolbar.remove();
-      zoomControls.remove();
+      for (const popup of popups) popup.remove();
       paperElement.remove();
       root.remove();
     },

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
 import {mountWhiteboard} from '../../web/draft/whiteboard.js';
 import {emptyDraft} from '../../web/draft/whiteboard-model.js';
-import {syncQuestionLayout} from '../../web/practice/question-layout.js';
+import {syncQuestionLayout,draftHomeView,rememberDraftView,LEGACY_DRAFT_LAYOUT} from '../../web/practice/question-layout.js';
 import {createHistoryView,historyProgress} from '../../web/history/history-view.js';
 import * as context from '../../web/practice/practice-context.js';
 
@@ -37,7 +37,7 @@ function fixture(t){
   const record=frozen({id:'round',collectionTitle:'历史题库',createdAt:'2026-10-10T00:00:00Z',status:'completed',submittedCount:2,questionCount:2,summary:{},collection:{questions:[{id:'a'},{id:'b'}]},questions});
   const changes=[],mounts=[],calls=[];
   const pane={view:'history',kind:'bank',collection:{title:'当前题库',questions:[{id:'live'}],states:{}},historyEntry:record,historyView:createHistoryView(record),node,viewport,tools,stage,world,frameHost,loading:false,draftMode:true,historyDraftMode:false,questionId:'live',payload:null};
-  pane.whiteboard=mountWhiteboard(viewport,{toolbarContainer:tools,onChange:value=>changes.push(value),onViewChange:camera=>sandbox.host.resizeStage(pane,camera)});t.after(()=>pane.whiteboard.destroy());
+  pane.whiteboard=mountWhiteboard(viewport,{toolbarContainer:tools,onChange:value=>changes.push(value),onViewChange:camera=>{rememberDraftView(pane,camera);sandbox.host.resizeStage(pane,camera);}});t.after(()=>pane.whiteboard.destroy());
   const sandbox={catalog:{banks:[],extensions:[]},...context,document,structuredClone,syncQuestionLayout,createHistoryView,historyProgress,phoneLayout:{matches:false},active:()=>pane,$:selector=>document.querySelector(selector),draftFullscreen:{sync(){}},historyTime:()=> '时间',developmentTitle:()=> '',prepareAssets:async value=>structuredClone(value),disposeEditorSession(){},disposeScoreSummary(target){target.summaryShown=false;target.node.classList.remove('is-summary');},allowDiscardEditor:async()=>true,allowLeaveDevelopmentInput:()=>true,flushPane:async()=>{calls.push('flush');},historyPath:()=>'/history',request:async()=>{calls.push('request');return record;},renderOutline(){},saveStatus(){},setEditorLayout(){},pageRequest(){},notice(){},el:(tag,classes,text)=>{const element=document.createElement(tag);element.className=classes;if(text!=null)element.textContent=text;return element;},mountExtension:(container,_page,ctx)=>{
     const frame=document.createElement('iframe');Object.defineProperty(frame,'offsetHeight',{value:400});container.append(frame);mounts.push(ctx);return {frame,ready:Promise.resolve(),destroy(){frame.remove();}};
   }};
@@ -52,7 +52,7 @@ test('history switches to the saved draft and back without writes, iframe reload
   assert.notDeepEqual(f.pane.whiteboard.getViewCamera(),draft.viewport);
   await f.toggleDraftMode();
   assert.equal(f.pane.node.classList.contains('is-draft'),true);assert.equal(f.pane.tools.hidden,false);
-  assert.deepEqual(f.pane.whiteboard.getViewCamera(),draft.viewport);
+  assert.deepEqual(f.pane.whiteboard.getViewCamera(),draftHomeView(1000,LEGACY_DRAFT_LAYOUT),'history opens at the same home view as practice');
   assert.equal(button.getAttribute('aria-pressed'),'true');assert.match(button.textContent,/返回练习/);
   f.pane.whiteboard.setViewport({x:30,y:80,zoom:2});assert.equal(f.pane.stage.style.height,'1160px');
   for(const capability of Object.values(f.mounts[0].capabilities))assert.equal(capability,false);
@@ -62,15 +62,18 @@ test('history switches to the saved draft and back without writes, iframe reload
   assert.deepEqual(f.pane.whiteboard.getDraft(),draft);
 });
 
-test('history retains draft mode across question navigation and restores each camera even on phones',async t=>{
+test('history retains draft mode across question navigation and keeps each question view even on phones',async t=>{
   const f=fixture(t);f.phone.matches=true;f.setWidth(390);
   await f.showHistoryQuestion(f.pane,'a');assert.deepEqual(f.pane.whiteboard.getViewCamera(),{x:0,y:0,zoom:1});
   await f.toggleDraftMode();await f.showHistoryQuestion(f.pane,'b');
+  const home=draftHomeView(390,LEGACY_DRAFT_LAYOUT);
   assert.equal(f.pane.historyDraftMode,true);assert.equal(f.pane.node.classList.contains('is-draft'),true);
-  assert.deepEqual(f.pane.whiteboard.getViewCamera(),f.record.questions[1].payload.draft.viewport);
+  assert.deepEqual(f.pane.whiteboard.getViewCamera(),home);
+  f.pane.whiteboard.setViewport({x:12,y:34,zoom:1.5});
   f.pane.summaryShown=true;f.updateChrome();assert.equal(f.document.querySelector('#draft-toggle').hidden,true);
   await f.showHistoryQuestion(f.pane,'a');assert.equal(f.pane.summaryShown,false);assert.equal(f.document.querySelector('#draft-toggle').hidden,false);
-  assert.deepEqual(f.pane.whiteboard.getViewCamera(),f.record.questions[0].payload.draft.viewport);
+  assert.deepEqual(f.pane.whiteboard.getViewCamera(),home);
+  await f.showHistoryQuestion(f.pane,'b');assert.deepEqual(f.pane.whiteboard.getViewCamera(),{x:12,y:34,zoom:1.5});
   assert.deepEqual(f.changes,[]);assert.deepEqual(f.calls,[]);
 });
 

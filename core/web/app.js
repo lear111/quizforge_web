@@ -9,7 +9,7 @@ import {captureDraftRegion} from './draft/whiteboard-capture.js';
 import {createWriteQueue,createDraftBuffer} from './shared/write-queue.js';
 import {createQuestionCache} from './practice/question-cache.js';
 import {navigateOutlineTarget} from './outline/outline-navigation.js';
-import {syncQuestionLayout} from './practice/question-layout.js';
+import {syncQuestionLayout,rememberDraftView,rememberDraftScroll} from './practice/question-layout.js';
 import {createHistoryView,historyProgress} from './history/history-view.js';
 import {createEditorSession} from './editor/editor-session.js';
 import {mountPracticeSummary} from './practice/practice-summary.js';
@@ -260,6 +260,7 @@ function resizeStage(pane,camera=pane.whiteboard?.getViewCamera()){
   const fluid=!draftViewActive(pane)&&pane.view!=='edit';
   const height=fluid?Math.max(pane.viewport.clientHeight,pane.world.offsetHeight):pane.view==='edit'?pane.world.offsetHeight:draftViewActive(pane)?pane.world.offsetHeight*camera.zoom+Math.max(0,camera.y*camera.zoom):Math.max(pane.viewport.clientHeight,(34+(pane.plugin?.frame.offsetHeight||pane.frameHost.offsetHeight)+camera.y)*camera.zoom+24);
   pane.stage.style.height=`${Math.max(1,height)}px`;
+  if(pane.draftScrollRestore!=null&&!pane.loading){pane.viewport.scrollTop=pane.draftScrollRestore;pane.draftScrollRestore=null;}
 }
 async function allowDiscardEditor(pane){
   if(pane?.view!=='edit')return true;
@@ -631,7 +632,7 @@ async function openCollection(kind,id){
   }
 }
 function activate(key){const selected=collections.get(key);if(selected){collections.delete(key);collections.set(key,selected);}activeKey=key;notice('');for(const pane of collections.values()){pane.node.hidden=pane.key!==key;pane.plugin?.setActive?.(pane.key===key);pane.developmentWatcher?.setActive(pane.key===key);}$('#welcome').hidden=!!selected;renderLibrary();renderOutline();updateChrome();renderRecovery();closeDrawers();const pane=active();saveStatus(pane?.writes.hasFailures?'仍有内容未保存':pane?.view==='history'?'只读快照':pane?.view==='edit'?'编辑中':pane?.payload&&pane.payload.state.status!=='unanswered'?practiceSaveLabel(pane):'',pane?.writes.hasFailures?'error':'');}
-function attachRuntime(pane){if(pane.whiteboard)return;pane.whiteboard=mountWhiteboard(pane.viewport,{toolbarContainer:pane.tools,onChange:value=>enqueueInk(pane,value),onViewChange:camera=>resizeStage(pane,camera),onFullscreen:()=>draftFullscreen.toggle(),onCapture:value=>captureDraftRegion(value,{viewport:pane.viewport,frame:pane.plugin?.frame,capture:pane.plugin?.captureRegion?.bind(pane.plugin)})});pane.whiteboard.setFullscreenState(draftFullscreen.getState());pane.sizeObserver?.observe(pane.viewport);pane.worldObserver?.observe(pane.world);}
+function attachRuntime(pane){if(pane.whiteboard)return;pane.whiteboard=mountWhiteboard(pane.viewport,{toolbarContainer:pane.tools,toolbarObstacles:()=>document.querySelectorAll('.question-arrow'),onChange:value=>enqueueInk(pane,value),onViewChange:camera=>{rememberDraftView(pane,camera);resizeStage(pane,camera);},onScroll:()=>rememberDraftScroll(pane),onFullscreen:()=>draftFullscreen.toggle(),onCapture:value=>captureDraftRegion(value,{viewport:pane.viewport,frame:pane.plugin?.frame,capture:pane.plugin?.captureRegion?.bind(pane.plugin)})});pane.whiteboard.setFullscreenState(draftFullscreen.getState());pane.sizeObserver?.observe(pane.viewport);pane.worldObserver?.observe(pane.world);}
 async function suspendPane(pane){
   if(!pane||pane.closed||!pane.whiteboard)return;
   const saved=await flushPane(pane);clearTimeout(pane.editorTimer);

@@ -96,6 +96,7 @@ function fixture({ externalToolbar = false, onFullscreen = () => {} } = {}) {
   window.cancelAnimationFrame = id => frames.delete(id);
   const paint = () => { const callbacks = [...frames.values()]; frames.clear(); for (const callback of callbacks) callback(); };
   window.devicePixelRatio = 2;
+  window.setTimeout = () => 0; window.clearTimeout = () => {};
   window.ResizeObserver = class { observe() {} disconnect() {} };
   document.defaultView = window;
   const container = document.createElement('section');
@@ -137,7 +138,11 @@ test('selection uses world coordinates after zoom and scroll, while readonly rej
   const before=f.board.getDraft();f.board.setReadOnly(true);f.click('[data-tool="select-ink"]');f.click('[data-action="copy-selection"]');f.click('[data-action="delete-selection"]');assert.deepEqual(f.board.getDraft(),before);f.board.destroy();
 });
 test('common colors update the selected palette and paper persists without the native color picker',()=>{
-  const f=fixture();f.board.setMode('draft');f.click('[data-action="ink-palette"]');f.click('[data-ink="#d04444"]');f.pointer('pointerdown',10,10);f.pointer('pointerup',20,20);
+  const f=fixture();f.board.setMode('draft');const pen=f.root.querySelector('[data-tool="pen"]'),palette=f.root.querySelector('.qf-whiteboard-palette');
+  f.click('[data-tool="eraser"]');f.click('[data-tool="pen"]');assert.equal(palette.hidden,true,'Selecting the pen does not open colors yet.');
+  f.click('[data-tool="pen"]');assert.equal(palette.hidden,false);assert.equal(pen.attributes['aria-expanded'],'true');
+  f.click('[data-tool="pen"]');assert.equal(palette.hidden,true);f.click('[data-tool="pen"]');f.click('[data-ink="#d04444"]');
+  assert.equal(pen.attributes['aria-expanded'],'false');assert.equal(pen.querySelector('.qf-whiteboard-pen-color').style['--swatch'],'#d04444');f.pointer('pointerdown',10,10);f.pointer('pointerup',20,20);
   assert.equal(f.board.getDraft().strokes[0].color,'#d04444');assert.equal(f.root.querySelector('.qf-whiteboard-palette').hidden,true);
   f.click('[data-action="settings"]');f.click('[data-paper="#fff8e7"]');assert.equal(f.board.getDraft().paper.color,'#fff8e7');assert.equal(f.root.querySelector('[data-control="ink-color"]').attributes.type,'hidden');f.board.destroy();
 });
@@ -150,21 +155,19 @@ test('readonly history restores paper and camera, allows pan and zoom, and never
   draft.strokes.push({ id: 'saved', color: '#334155', width: 3, points: [{ x: 40, y: 50, pressure: 0.5 }] });
   board.setReadOnly(true); board.load(draft); board.setMode('draft'); paint();
   assert.deepEqual(board.getViewCamera(), draft.viewport);
-  assert.equal(root.dataset.tool, 'pan');
-  for (const tool of ['pen', 'eraser']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, true);
-  for (const tool of ['select', 'pan']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, false);
+  assert.equal(root.dataset.tool, 'hand');
+  for (const tool of ['pen', 'eraser', 'select-ink']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, true);
+  for (const tool of ['hand', 'capture']) assert.equal(toolbarContainer.querySelector(`[data-tool="${tool}"]`).hidden, false);
   assert.equal(toolbarContainer.querySelector('[data-action="settings"]').hidden, true);
   assert.equal(toolbarContainer.querySelector('[data-action="undo"]').parentElement.hidden, true);
-  assert.equal(toolbarContainer.querySelector('[data-control="ink-color"]').parentElement.hidden, true);
+  assert.equal(toolbarContainer.querySelector('.qf-whiteboard-zoom-controls'), null, 'Zoom uses wheel and pinch, without corner buttons.');
   const paper = container.querySelector('.qf-whiteboard-paper');
   assert.equal(paper.hidden, false); assert.equal(paper.dataset.pattern, 'grid');
   assert.equal(paper.style.backgroundColor, draft.paper.color);
   pointer('pointerdown', 10, 20); pointer('pointerup', 50, 80);
   assert.deepEqual(board.getViewCamera(), { x: 40, y: 60, zoom: 2 });
-  click('[data-action="zoom-in"]');
-  assert.equal(board.getViewCamera().zoom, 2.5);
   canvas.dispatch('wheel', { clientX: 40, clientY: 60, deltaY: -50 });
-  assert.ok(board.getViewCamera().zoom > 2.5);
+  assert.ok(board.getViewCamera().zoom > 2);
   pointer('pointerdown', 10, 20, 'touch', 1); pointer('pointerdown', 50, 20, 'touch', 2);
   pointer('pointermove', 70, 20, 'touch', 2); pointer('pointerup', 70, 20, 'touch', 2); pointer('pointerup', 10, 20, 'touch', 1);
   assert.deepEqual(board.flush(), draft);
@@ -185,13 +188,15 @@ test('readonly tool, keyboard and paper actions cannot mutate history; returning
   for (const action of ['undo', 'redo', 'clear', 'confirm-clear', 'settings']) click(`[data-action="${action}"]`);
   for (const tool of ['pen', 'eraser']) click(`[data-tool="${tool}"]`);
   for (const key of ['p', 'e', 'z', 'y']) canvas.dispatch('keydown', { key, ctrlKey: ['z', 'y'].includes(key) });
-  assert.equal(root.dataset.tool, 'pan');
+  assert.equal(root.dataset.tool, 'hand');
+  click('[data-tool="pen"]'); click('[data-tool="pen"]');
+  assert.equal(root.querySelector('.qf-whiteboard-palette').hidden, true, 'Readonly history cannot open pen colors.');
   const paperControl = root.querySelector('[data-control="paper-color"]');
   paperControl.value = '#000000'; paperControl.dispatch('change');
   assert.equal(paperControl.value, '#ffffff');
   assert.equal(root.querySelector('.qf-whiteboard-confirm').hidden, true);
   assert.equal(root.querySelector('.qf-whiteboard-settings').hidden, true);
-  click('[data-tool="select"]'); pointer('pointerdown', 10, 20); pointer('pointerup', 20, 30);
+  click('[data-tool="hand"]'); pointer('pointerdown', 10, 20); pointer('pointerup', 20, 30);
   assert.deepEqual(board.getDraft(), draft); assert.equal(changes.length, 0);
   board.setReadOnly(false);
   assert.equal(root.dataset.tool, 'pen');
@@ -256,7 +261,7 @@ test('writing and panning after scroll use world coordinates and count scroll of
   assert.deepEqual(board.getDraft().strokes[0].points, [
     { x: 10, y: 200, pressure: 0.8 }, { x: 20, y: 210, pressure: 0.8 },
   ]);
-  click('[data-tool="pan"]');
+  click('[data-tool="hand"]');
   pointer('pointerdown', 40, 60, 'mouse'); pointer('pointerup', 60, 90, 'mouse');
   assert.deepEqual(board.getViewCamera(), { x: 20, y: -5, zoom: 2 });
 });
@@ -356,41 +361,44 @@ test('fullscreen toolbar action is limited to draft and follows browser state wi
   board.destroy();
 });
 
-test('selection tool passes question input through without changing ink or camera and pen resumes writing', () => {
-  const { board, root, canvas, toolbarContainer, changes, interactions, pointer, click } = fixture({ externalToolbar: true });
+test('hand tool leaves reported question controls to the frame and pans everywhere else', () => {
+  const { board, root, canvas, container, toolbarContainer, changes, interactions, pointer, click, paint } = fixture({ externalToolbar: true });
   const draft = emptyDraft();
   draft.viewport = { x: -30, y: 40, zoom: 1.5 };
   draft.strokes.push({ id: 'saved', color: '#334155', width: 4, points: [{ x: 10, y: 20, pressure: 0.5 }] });
   board.load(draft); board.setMode('draft');
-  click('[data-tool="select"]');
-  assert.equal(root.dataset.tool, 'select');
-  assert.equal(toolbarContainer.querySelector('[data-tool="select"]').attributes['aria-pressed'], 'true');
+  const frame = container.ownerDocument.createElement('iframe');
+  frame.qfInteractiveRegions = [[100, 100, 50, 40]];
+  container.append(frame);
+  click('[data-tool="hand"]');
+  assert.equal(root.dataset.tool, 'hand');
+  assert.equal(toolbarContainer.querySelector('[data-tool="hand"]').attributes['aria-pressed'], 'true');
   assert.equal(toolbarContainer.querySelector('[data-tool="pen"]').attributes['aria-pressed'], 'false');
-  assert.equal(canvas.tabIndex, -1);
+  assert.equal(canvas.tabIndex, 0);
+  container.dispatch('qf-interactive-regions'); paint();
+  assert.equal(canvas.style['clip-path'], 'path(evenodd, "M0 0H800V600H0ZM100 100h50v40h-50Z")');
   for (const pointerType of ['pen', 'mouse', 'touch']) {
-    const down = pointer('pointerdown', 20, 30, pointerType);
-    pointer('pointermove', 100, 120, pointerType); pointer('pointerup', 100, 120, pointerType);
+    const down = pointer('pointerdown', 120, 120, pointerType);
+    pointer('pointermove', 200, 220, pointerType); pointer('pointerup', 200, 220, pointerType);
     assert.ok(!down.defaultPrevented);
   }
-  const wheel = canvas.dispatch('wheel', { clientX: 100, clientY: 100, deltaY: -50 });
-  const menu = canvas.dispatch('contextmenu');
-  assert.ok(!wheel.defaultPrevented);
-  assert.ok(!menu.defaultPrevented);
   assert.equal(canvas.captures.size, 0);
-  assert.deepEqual(board.getDraft(), draft);
   assert.deepEqual(interactions, []);
+  assert.deepEqual(board.getViewCamera(), draft.viewport);
+  pointer('pointerdown', 300, 300, 'pen'); pointer('pointermove', 330, 360, 'pen'); pointer('pointerup', 330, 360, 'pen');
+  assert.deepEqual(board.getViewCamera(), { x: -10, y: 80, zoom: 1.5 });
+  assert.deepEqual(board.getDraft(), draft);
   assert.equal(changes.length, 0);
-  click('[data-tool="pen"]');
-  assert.equal(canvas.tabIndex, 0);
-  pointer('pointerdown', 20, 30); pointer('pointerup', 100, 120);
+  click('[data-tool="pen"]'); paint();
+  assert.equal(canvas.style['clip-path'], undefined, 'Writing tools cover the whole card.');
+  pointer('pointerdown', 120, 120); pointer('pointerup', 150, 150);
   assert.equal(board.getDraft().strokes.length, 2);
   assert.deepEqual(board.getDraft().strokes[0], draft.strokes[0]);
-  assert.deepEqual(board.getViewCamera(), draft.viewport);
   assert.equal(changes.length, 1);
   board.destroy();
 });
 
-test('V selects from the draft canvas without consuming input field, modified or practice shortcuts', () => {
+test('V and H choose the hand tool from the draft canvas without consuming input field, modified or practice shortcuts', () => {
   const { board, root, canvas, toolbarContainer, click } = fixture({ externalToolbar: true });
   const practiceKey = canvas.dispatch('keydown', { key: 'v' });
   assert.equal(root.dataset.tool, 'pen');
@@ -404,11 +412,13 @@ test('V selects from the draft canvas without consuming input field, modified or
   assert.equal(root.dataset.tool, 'pen');
   assert.ok(!fieldKey.defaultPrevented);
   const key = canvas.dispatch('keydown', { key: 'V' });
-  assert.equal(root.dataset.tool, 'select');
+  assert.equal(root.dataset.tool, 'hand');
   assert.equal(key.defaultPrevented, true);
-  assert.equal(canvas.tabIndex, -1);
-  board.setMode('practice'); board.setMode('draft');
-  assert.equal(canvas.tabIndex, -1);
+  assert.equal(canvas.tabIndex, 0, 'The hand tool keeps keyboard shortcuts on the canvas.');
+  canvas.dispatch('keydown', { key: 'p' }); assert.equal(root.dataset.tool, 'pen');
+  canvas.dispatch('keydown', { key: 'h' }); assert.equal(root.dataset.tool, 'hand');
+  board.setMode('practice'); assert.equal(canvas.tabIndex, -1);
+  board.setMode('draft'); assert.equal(canvas.tabIndex, 0);
   click('[data-tool="pen"]');
   assert.equal(canvas.tabIndex, 0);
   board.destroy();
@@ -417,17 +427,18 @@ test('V selects from the draft canvas without consuming input field, modified or
 test('floating settings preserve tool behavior, close on Escape and outside input, and reset between questions', () => {
   const { board, toolbarContainer, container, window, pointer, click } = fixture({ externalToolbar: true });
   const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar');
-  const panel = toolbar.querySelector('.qf-whiteboard-settings');
+  const panel = toolbarContainer.querySelector('.qf-whiteboard-settings');
+  assert.equal(toolbar.contains(panel), false, 'Popups sit beside the toolbar so a scrolling toolbar cannot clip them.');
   const toggle = toolbar.querySelector('[data-action="settings"]');
   board.setMode('draft');
   click('[data-action="settings"]');
   assert.equal(panel.hidden, false);
   assert.equal(toggle.attributes['aria-expanded'], 'true');
-  const width = toolbar.querySelector('[data-control="width"]');
+  const width = toolbarContainer.querySelector('[data-control="width"]');
   assert.equal(container.ownerDocument.activeElement, width);
   width.value = '8'; width.dispatch('input');
-  toolbar.querySelector('[data-control="pattern"]').value = 'grid';
-  toolbar.querySelector('[data-control="pattern"]').dispatch('change');
+  toolbarContainer.querySelector('[data-control="pattern"]').value = 'grid';
+  toolbarContainer.querySelector('[data-control="pattern"]').dispatch('change');
   assert.equal(board.getDraft().paper.pattern, 'grid');
   width.dispatch('keydown', { key: 'Escape' });
   assert.equal(panel.hidden, true);
@@ -745,4 +756,32 @@ test('load cancels pending ink and resets history; destroy removes scoped DOM an
   pointer('pointerup', 9, 10);
   assert.equal(board.getDraft().strokes.length, 0);
   assert.equal(changes.length, 1);
+});
+
+test('dragging the toolbar snaps it to an edge, collapses it at the edge and keeps tools reachable', () => {
+  const { board, toolbarContainer, click } = fixture({ externalToolbar: true });
+  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), grip = toolbar.querySelector('.qf-whiteboard-grip'), expand = toolbar.querySelector('.qf-whiteboard-expand');
+  board.setMode('draft');
+  assert.equal(toolbar.dataset.side, 'right'); assert.equal(toolbar.attributes['aria-orientation'], 'vertical');
+  assert.equal(toolbar.dataset.collapsed, 'false'); assert.equal(expand.hidden, true);
+  const drag = (from, to) => {
+    grip.dispatch('pointerdown', { pointerId: 7, button: 0, clientX: from[0], clientY: from[1] });
+    grip.dispatch('pointermove', { pointerId: 7, clientX: to[0], clientY: to[1] });
+    grip.dispatch('pointerup', { pointerId: 7, clientX: to[0], clientY: to[1] });
+    grip.dispatch('click');
+  };
+  drag([700, 300], [400, 560]);
+  assert.equal(toolbar.dataset.side, 'bottom'); assert.equal(toolbar.attributes['aria-orientation'], 'horizontal');
+  assert.equal(toolbar.dataset.collapsed, 'false', 'the click ending a drag does not collapse the toolbar');
+  drag([400, 560], [796, 200]);
+  assert.equal(toolbar.dataset.side, 'right'); assert.equal(toolbar.dataset.collapsed, 'true'); assert.equal(expand.hidden, false);
+  click('[data-tool="eraser"]');
+  assert.match(expand.attributes['aria-label'], /整笔擦除/);
+  click('[data-action="expand-toolbar"]');
+  assert.equal(toolbar.dataset.collapsed, 'false'); assert.equal(expand.hidden, true);
+  click('[data-action="collapse-toolbar"]');
+  assert.equal(toolbar.dataset.collapsed, 'true');
+  grip.dispatch('keydown', { key: 'ArrowLeft', preventDefault() {} });
+  assert.equal(toolbar.dataset.side, 'left'); assert.equal(toolbar.dataset.collapsed, 'false');
+  board.destroy();
 });
