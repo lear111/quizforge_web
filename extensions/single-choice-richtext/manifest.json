@@ -5,7 +5,7 @@
   "description": "富文本单选题，支持题干、选项、答案与解析编辑及自动评分。",
   "requiresApi": {
     "major": 1,
-    "minMinor": 3,
+    "minMinor": 4,
     "capabilities": [
       "practice",
       "editor",
@@ -14,7 +14,8 @@
       "resources",
       "lifecycle",
       "answer-state",
-      "editor-drafts"
+      "editor-drafts",
+      "appearance"
     ]
   },
   "requiresRichText": {

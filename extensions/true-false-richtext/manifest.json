@@ -5,7 +5,7 @@
   "description": "富文本判断题，支持正确或错误判断与自动评分。",
   "requiresApi": {
     "major": 1,
-    "minMinor": 3,
+    "minMinor": 4,
     "capabilities": [
       "practice",
       "editor",
@@ -14,7 +14,8 @@
       "resources",
       "lifecycle",
       "answer-state",
-      "editor-drafts"
+      "editor-drafts",
+      "appearance"
     ]
   },
   "requiresRichText": {

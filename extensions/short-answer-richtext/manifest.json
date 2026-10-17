@@ -5,7 +5,7 @@
   "description": "富文本简答题，支持单问、共享材料、多小问、人工评分与 AI 评分。",
   "requiresApi": {
     "major": 1,
-    "minMinor": 3,
+    "minMinor": 4,
     "capabilities": [
       "practice",
       "editor",
@@ -17,7 +17,8 @@
       "answer-state",
       "editor-drafts",
       "manual-review",
-      "ai-grading"
+      "ai-grading",
+      "appearance"
     ]
   },
   "requiresRichText": {

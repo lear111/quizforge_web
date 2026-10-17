@@ -5,7 +5,7 @@
   "description": "富文本多选题，全部选对得满分，漏选或错选不得分。",
   "requiresApi": {
     "major": 1,
-    "minMinor": 3,
+    "minMinor": 4,
     "capabilities": [
       "practice",
       "editor",
@@ -14,7 +14,8 @@
       "resources",
       "lifecycle",
       "answer-state",
-      "editor-drafts"
+      "editor-drafts",
+      "appearance"
     ]
   },
   "requiresRichText": {
