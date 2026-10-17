@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_TOOLBAR_DOCK, TOOLBAR_ANCHORS, TOOLBAR_DRAG_THRESHOLD, TOOLBAR_EDGE_MARGIN, anchorLayout, dockedPosition, isToolbarDrag, nearestAnchor, normalizeDock, popupPosition, releaseDock, releaseVelocity, springSettled, springStep, stepAnchor } from '../../web/draft/whiteboard-dock.js';
+import { DEFAULT_TOOLBAR_DOCK, TOOLBAR_ANCHORS, TOOLBAR_DRAG_THRESHOLD, TOOLBAR_EDGE_MARGIN, anchorLayout, dockedPosition, isToolbarDrag, nearestAnchor, normalizeDock, popupPosition, releaseDock, releaseVelocity, springSettled, springStep, stepAnchor, TOOLBAR_SHAPE_SPRING } from '../../web/draft/whiteboard-dock.js';
 
 const area = { width: 1000, height: 700 };
 const bar = { width: 46, height: 400 }, ball = { width: 44, height: 44 };
@@ -38,6 +38,7 @@ test('docked toolbars keep clear of host controls', () => {
   assert.deepEqual(dockedPosition({ anchor: 'left' }, area, bar, [arrow]), { left: TOOLBAR_EDGE_MARGIN, top: 150 }, 'controls elsewhere are ignored');
   const corner = { left: 946, top: 640, width: 44, height: 52 };
   assert.deepEqual(dockedPosition({ anchor: 'bottom-right' }, area, ball, [corner]), { left: 944, top: 640 - 6 - 44 }, 'a corner ball slides along its edge');
+  assert.deepEqual(dockedPosition({ anchor: 'top-right' }, area, bar, [arrow], { open: true }), { left: 946 - 6 - 46, top: TOOLBAR_EDGE_MARGIN }, 'a bar opened from a corner stays by its corner and moves inward');
 });
 
 test('popups open towards the page beside their button and remain visible', () => {
@@ -88,4 +89,11 @@ test('the spring overshoots slightly and settles at its target', () => {
   assert.ok(frames < 60, `settles within a second (${frames} frames)`);
   assert.ok(lowest < 0 && lowest > -15, `small overshoot (${lowest})`);
   assert.deepEqual(springStep({ value: 0, velocity: 0 }, 16), { value: 0, velocity: 0 });
+});
+
+test('shape changes settle without overshoot so the ball is never squashed', () => {
+  let state = { value: 720, velocity: 0 }, lowest = 720, frames = 0;
+  while (!springSettled(state) && frames < 200) { state = springStep(state, 16, TOOLBAR_SHAPE_SPRING); lowest = Math.min(lowest, state.value); frames++; }
+  assert.ok(lowest > -0.3, `no overshoot (${lowest})`);
+  assert.ok(frames < 60, `settles within a second (${frames} frames)`);
 });

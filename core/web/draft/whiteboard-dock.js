@@ -61,7 +61,7 @@ export function stepAnchor(anchor, dx, dy) {
 }
 
 // Obstacles are host controls such as the question arrows. A bar on that edge
-// moves inward past them; a corner ball or a bar opened from a corner slides away along the edge.
+// moves inward past them, even when opened from a corner; a corner ball slides away along the edge.
 export function dockedPosition(dock, area, size, obstacles = [], { open = false } = {}) {
   const layout = anchorLayout(dock.anchor, open), corner = isCornerAnchor(dock.anchor), margin = TOOLBAR_EDGE_MARGIN;
   const place = (index, extent, length) => index === 0 ? margin : index === 2 ? extent - length - margin : extent / 2 - length / 2;
@@ -75,7 +75,7 @@ export function dockedPosition(dock, area, size, obstacles = [], { open = false 
     && item[side] < position[side] + size[depth] && item[side] + item[depth] > position[side];
   for (const item of obstacles) {
     if (!hits(item)) continue;
-    if (corner) {
+    if (corner && !open) {
       const atStart = (vertical ? layout.row : layout.column) === 0;
       position[start] = atStart ? Math.min(item[start] + item[length] + OBSTACLE_GAP, extent - size[length] - margin)
         : Math.max(margin, item[start] - OBSTACLE_GAP - size[length]);
@@ -128,6 +128,8 @@ export function releaseDock(point, velocity, area) {
 
 // One damped spring channel moving towards 0; slightly under-damped for a small overshoot.
 export const TOOLBAR_SPRING = Object.freeze({ stiffness: 380, damping: 26 });
+// Shape changes must not overshoot: a squashed ball looks broken.
+export const TOOLBAR_SHAPE_SPRING = Object.freeze({ stiffness: 380, damping: 2 * Math.sqrt(380) });
 export function springStep(state, elapsedMs, { stiffness, damping } = TOOLBAR_SPRING) {
   let { value, velocity } = state;
   for (let left = Math.min(elapsedMs, 64); left > 0; left -= 8) {

@@ -1,7 +1,7 @@
 import { WhiteboardModel, DRAFT_LIMITS, normalizeViewport, screenToWorld, zoomAt, translateCamera, strokeTouchesPath } from './whiteboard-model.js';
 import { rectangle, strokeBounds, containsPoint, enclosedStrokes, translateStrokes } from './whiteboard-selection.js';
 import { copyCaptureImage } from './whiteboard-capture.js';
-import { DEFAULT_TOOLBAR_DOCK, normalizeDock, dockedPosition, popupPosition, anchorLayout, isCornerAnchor, stepAnchor, isToolbarDrag, releaseVelocity, releaseDock, springStep, springSettled, TOOLBAR_SHRINK_MS } from './whiteboard-dock.js';
+import { DEFAULT_TOOLBAR_DOCK, normalizeDock, dockedPosition, popupPosition, anchorLayout, isCornerAnchor, stepAnchor, isToolbarDrag, releaseVelocity, releaseDock, springStep, springSettled, TOOLBAR_SHRINK_MS, TOOLBAR_SPRING, TOOLBAR_SHAPE_SPRING } from './whiteboard-dock.js';
 
 const INK_COLORS = [['#334155','深灰'],['#000000','黑色'],['#386db6','蓝色'],['#d04444','红色'],['#25865a','绿色'],['#8055bd','紫色']];
 const PAPER_COLORS = [['#ffffff','白色'],['#fff8e7','米黄'],['#f0f7f0','浅绿'],['#edf4fc','浅蓝'],['#f5f1fa','浅紫']];
@@ -377,7 +377,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       const elapsed = settle.time === null ? 16 : time - settle.time;
       settle.time = time;
       let done = true;
-      for (const key of Object.keys(channels)) { channels[key] = springStep(channels[key], elapsed); done = done && springSettled(channels[key]); }
+      for (const key of Object.keys(channels)) { channels[key] = springStep(channels[key], elapsed, key.startsWith('s') ? TOOLBAR_SHAPE_SPRING : TOOLBAR_SPRING); done = done && springSettled(channels[key]); }
       if (done) { stopSettle(); positionPopups(); return; }
       write();
       settle.frame = win.requestAnimationFrame(step);

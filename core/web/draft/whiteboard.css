@@ -90,6 +90,10 @@
    Moving and settling animate on the compositor; nothing else is laid out. */
 .qf-whiteboard-toolbar[data-dragging="true"], .qf-whiteboard-toolbar[data-settling="true"] { will-change: transform; transform-origin: 50% 50%; }
 .qf-whiteboard-toolbar[data-settling="true"] { overflow: hidden; }
+/* The shape morph stretches the toolbar with scale(); a shadow would stretch into a
+   long smear, so it is hidden while morphing and fades back once the shape settles. */
+.qf-whiteboard-toolbar { transition: box-shadow .2s ease-out; }
+.qf-whiteboard-toolbar:is([data-settling="true"], [data-shrinking="true"]) { box-shadow: 0 0 0 0 #2b204000, 0 0 0 0 #2b204000 !important; transition: none; }
 .qf-whiteboard-toolbar[data-dragging="true"] { cursor: grabbing; box-shadow: 0 12px 28px -8px #2b204047, 0 2px 8px #2b204026; }
 .qf-whiteboard-toolbar[data-dragging="true"] > :not(.qf-whiteboard-expand) { display: none !important; }
 .qf-whiteboard-toolbar[data-dragging="true"] .qf-whiteboard-expand { cursor: grabbing; }
