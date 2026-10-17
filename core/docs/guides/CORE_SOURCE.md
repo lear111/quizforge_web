@@ -62,6 +62,12 @@ Windows 也可运行 `Start-QuizForge-Web.cmd`，自动安装依赖并打开浏�
 
 普通练习提供整个中间视口宽度，拓展自行排版；笔迹只在草稿模式显示。草稿固定初次布局宽度，题目与笔迹一起缩放和平移，窗口变化不重新排版。布局持久化及旧坐标兼容见 [兼容说明](../reference/COMPATIBILITY.md#草稿布局)。
 
+## 安装为应用
+
+`web/manifest.webmanifest` 由静态服务以 `application/manifest+json` 返回，与其他页面资源一样无需访问口令、带 `Cache-Control: no-store`。`start_url`、`scope` 和 `id` 均为 `/`，不含 `#token=`；`shared/api.js` 读取口令后立即从地址中移除，并只存入当前窗口的 `sessionStorage`，所以安装的应用每次启动都需要重新登录。图标为 `web/assets/` 中的 192／512 PNG，maskable 版本由 `quizforge-maskable.svg` 生成。
+
+应用刻意不注册 Service Worker：Chrome（移动版 108、桌面版 112 起）和 Edge 安装不再需要它，加了离线缓存反而可能让旧页面或旧拓展资源继续写入数据。浏览器只在 HTTPS 或 localhost 上提供安装，HTTP 局域网地址只能添加快捷方式；可开启下节的局域网 HTTPS，或用外部反向代理提供 HTTPS，部署说明见 [使用手册](USER_GUIDE.md#安装到手机主屏幕)。
+
 ## 局域网 HTTPS
 
 `server/host/http/lan-certificates.js` 生成并维护本机根证书和服务器证书，文件在数据目录 `.state/lan-https/`（`root-ca.key`、`root-ca.crt`、`root-ca.json`、`server.key`、`server.crt`）。目录首次创建时，POSIX 设为 `0700`、Windows 用 `icacls` 去掉继承权限只授权当前用户；文件经 `replaceFile` 以 `0600` 写入。

@@ -81,6 +81,8 @@ Draft has `{schemaVersion:1,viewport:{x,y,zoom},strokes:[{id,color,width,points:
 
 For rendering, tools and layout compatibility see [draft layout](COMPATIBILITY.md#草稿布局). History permits view changes but rejects ink edits; ordinary practice hides saved ink without changing it.
 
+The draft camera is never saved: each question opens at a home view (card centred horizontally, 24px top margin, width-fitted up to 100%), and the host keeps each question's pan, zoom and scroll for the session. The draft "hand" tool lets learners use the question and pan the board with one tool. The host frame script reports, as geometry only (`interactive-regions`, at most 600 disjoint frame-pixel boxes), the visible boxes of links, buttons, inputs, selects, textareas, labels, summaries, editable content, interactive ARIA roles, focusable `[tabindex]`, `[data-qf-interactive]` and elements with `cursor:pointer`; disabled controls and anything inside `[data-qf-interactive="false"]` are skipped. Pointer input on those boxes goes to the page; elsewhere it pans. Pages need no API change; mark custom clickable elements with `data-qf-interactive` (or `cursor:pointer`) and large non-interactive wrappers with `data-qf-interactive="false"` when the default detection is wrong.
+
 
 ## Rich text, resources and manual review
 

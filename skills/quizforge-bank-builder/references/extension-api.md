@@ -289,7 +289,7 @@ await editor.ready;
 
 iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问宿主 DOM；仅 `sandbox="allow-scripts"`，图片允许 data/blob。规则执行环境也没有网络/文件 API，不能获取凭据。不要用 localStorage/父窗口内部对象作为保存通道，也不要自行组装宿主 postMessage 私有协议。
 
-普通练习使用整个中间视口的 CSS 宽度，拓展自行控制内容最大宽度与留白，宿主不再固定为 760px；笔迹只在草稿模式显示。草稿使用首次保存的 layout 宽度，题目与笔迹一起缩放、平移，窗口或侧栏变化不重新排版；无 layout 的旧草稿仍按 760px、左右 26px、顶部 34px 的旧坐标读取，见 [草稿布局](../../../core/docs/reference/COMPATIBILITY.md#草稿布局)。新 UI 使用响应式宽度、`min-width:0`、一致的正文 padding，避免固定最小宽度或大量横向溢出。练习、结果、题目编辑的正文宽度保持一致；`createEditor({contentWidth})` 指**正文内容宽度**，可省略交由组件测量，高级模式会保留此宽度。`setAdvanced(true)` 展开当前同一编辑器，由宿主提供全屏布局，不创建另一套 editor；不要误用不存在的 `QF.ui.expand/setWidth`。
+普通练习使用整个中间视口的 CSS 宽度，拓展自行控制内容最大宽度与留白，宿主不再固定为 760px；笔迹只在草稿模式显示。草稿使用首次保存的 layout 宽度，题目与笔迹一起缩放、平移，窗口或侧栏变化不重新排版；无 layout 的旧草稿仍按 760px、左右 26px、顶部 34px 的旧坐标读取，见 [草稿布局](../../../core/docs/reference/COMPATIBILITY.md#草稿布局)。草稿的“操作／移动”工具只把可交互位置交给页面，其余位置拖动白板：链接、按钮、输入框、下拉、文本域、label、可编辑内容、交互 ARIA 角色、可聚焦 tabindex、`cursor:pointer` 和 `[data-qf-interactive]` 视为可交互，禁用控件及 `[data-qf-interactive="false"]` 内部除外。只靠 click 监听的自定义选项请加 `data-qf-interactive` 或 `cursor:pointer`；不要给整张题卡外层设置 pointer 光标。新 UI 使用响应式宽度、`min-width:0`、一致的正文 padding，避免固定最小宽度或大量横向溢出。练习、结果、题目编辑的正文宽度保持一致；`createEditor({contentWidth})` 指**正文内容宽度**，可省略交由组件测量，高级模式会保留此宽度。`setAdvanced(true)` 展开当前同一编辑器，由宿主提供全屏布局，不创建另一套 editor；不要误用不存在的 `QF.ui.expand/setWidth`。
 
 资源限制：manifest/editor.json 最多 256 KiB；声明的页面 HTML、JS、CSS、rules、schema 各最多 1 MiB；examples 和单份题库最多 8 MiB。规则输入最多 8 MiB、输出最多 2 MiB、单次 VM 执行限 650ms，子进程堆限 96 MiB，宿主总执行期限 8 秒。编写线性、纯同步规则，不用大规模枚举/递归或在投影中返回重复大资源。
 

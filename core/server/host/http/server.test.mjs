@@ -165,6 +165,41 @@ test('shared network password protects remote listener and blocks remote setting
   await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: false, port } });
   assert.equal(service.networkServer, null);
 });
+test('web app manifest is served as a static asset with installable fields and existing icons', async t => {
+  const { api } = await fixture(t, { token: 'manifest-token-123456789' });
+  const page = (await api('/')).data.toString(); assert.match(page, /<link rel="manifest" href="\/manifest\.webmanifest">/); assert.doesNotMatch(page, /serviceWorker/);
+  const response = await api('/manifest.webmanifest'); assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'application/manifest+json; charset=utf-8'); assert.equal(response.headers.get('cache-control'), 'no-store'); assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal((await api('/api/health')).status, 401);
+  const manifest = JSON.parse(response.data.toString());
+  assert.equal(manifest.name, 'QuizForge 题库'); assert.equal(manifest.short_name, 'QuizForge'); assert.equal(manifest.display, 'standalone');
+  // The start URL never carries the #token= hash, so installing cannot copy an access token into the launcher.
+  assert.equal(manifest.start_url, '/'); assert.equal(manifest.scope, '/'); assert.equal(manifest.id, '/'); assert.notEqual(manifest.prefer_related_applications, true);
+  assert.match(manifest.theme_color, /^#[0-9a-f]{6}$/); assert.match(manifest.background_color, /^#[0-9a-f]{6}$/);
+  const covered = new Set();
+  for (const icon of manifest.icons) {
+    const image = await api(icon.src); assert.equal(image.status, 200, icon.src); assert.equal(image.headers.get('content-type'), icon.type);
+    assert.equal(image.data.subarray(1, 4).toString(), 'PNG'); assert.equal(`${image.data.readUInt32BE(16)}x${image.data.readUInt32BE(20)}`, icon.sizes);
+    covered.add(icon.purpose + ':' + icon.sizes);
+  }
+  assert.deepEqual([...covered].sort(), ['any:192x192', 'any:512x512', 'maskable:192x192', 'maskable:512x512']);
+});
+test('HTTPS public address accepts a forwarded Host without the default port', async t => {
+  const { api } = await fixture(t);
+  const probe = net.createServer(); await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
+  assert.equal((await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: true, publicUrl: 'https://quiz.example.test/', port, password: 'shared-password' } })).status, 200);
+  for (const host of ['quiz.example.test', 'quiz.example.test:443']) {
+    assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host, 'X-Forwarded-Proto': 'https' })).status, 200, host);
+    assert.equal((await rawGet(port, '/api/health', { Host: host })).status, 401, host);
+  }
+  for (const host of ['quiz.example.test:8443', 'other.example.test']) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 403, host);
+  const login = await new Promise((resolve, reject) => {
+    const body = JSON.stringify({ password: 'shared-password' });
+    const request = http.request({ host: '127.0.0.1', port, path: '/api/auth/login', method: 'POST', headers: { Host: 'quiz.example.test', Origin: 'https://quiz.example.test', 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, response => { response.resume(); response.on('end', () => resolve(response.statusCode)); });
+    request.on('error', reject); request.end(body);
+  });
+  assert.equal(login, 200);
+});
 
 test('HTTP group export and import transport the native qbank stream and installed versions', async t => {
   const { api, root, raw } = await fixture(t); fs.renameSync(path.join(root, 'question-banks', 'bank.json'), path.join(root, 'question-banks', 'bank1.json'));

@@ -17,96 +17,120 @@
 .qf-whiteboard-paper[data-pattern="dots"] { background-image: radial-gradient(#47556922 1.5px, transparent 1.5px); }
 .qf-whiteboard-ink { z-index: 1; outline: none; pointer-events: none; }
 .qf-whiteboard--draft .qf-whiteboard-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
-.qf-whiteboard--draft[data-tool="select"] .qf-whiteboard-ink { pointer-events: none; touch-action: auto; }
-.qf-whiteboard--draft[data-tool="pan"] .qf-whiteboard-ink { cursor: grab; }
-.qf-whiteboard--draft[data-tool="pan"] .qf-whiteboard-ink:active { cursor: grabbing; }
-.qf-whiteboard-toolbar {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
-  z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 5px;
-  align-items: center;
-  width: fit-content;
-  max-width: calc(100% - 24px);
-  margin-inline: auto;
-  padding: 6px;
-  border: 1px solid #e1dceb;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, .97);
-  box-shadow: 0 5px 24px #3e335824;
-  pointer-events: auto;
-  user-select: none;
-  color: #6e617d;
-  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-.qf-whiteboard-toolbar[hidden] { display: none !important; }
+/* Question controls are clipped out of the ink layer, so they keep their own cursor. */
+.qf-whiteboard--draft[data-tool="hand"] .qf-whiteboard-ink { cursor: grab; }
+.qf-whiteboard--draft[data-tool="hand"] .qf-whiteboard-ink:active { cursor: grabbing; }
+
 /* This sibling layer floats over the pane instead of taking a layout row. */
 .qf-whiteboard-tool-row { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-.qf-whiteboard-tool-row .qf-whiteboard-toolbar { max-width: calc(100% - 24px); }
+.qf-whiteboard-tool-row [hidden], .qf-whiteboard [hidden] { display: none !important; }
+
+/* Annotation toolbar: a white capsule resting against one edge of the pane. */
+.qf-whiteboard-toolbar {
+  --qf-tool: 34px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-height: calc(100% - 24px);
+  max-width: calc(100% - 24px);
+  padding: 6px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  border: 1px solid #ebe7f1;
+  border-radius: calc(var(--qf-tool) / 2 + 6px);
+  background: linear-gradient(#fff, #fcfbfe);
+  box-shadow: 0 10px 28px -6px #2b204026, 0 2px 6px #2b20401a, inset 0 1px 0 #fff;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  color: #4b4458;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.qf-whiteboard-toolbar::-webkit-scrollbar { display: none; }
+.qf-whiteboard-toolbar[data-side="top"], .qf-whiteboard-toolbar[data-side="bottom"] { flex-direction: row; }
+.qf-whiteboard-toolbar :is(button, .qf-whiteboard-expand) { touch-action: none; }
 .qf-whiteboard--practice .qf-whiteboard-toolbar { display: none; }
-.qf-whiteboard-group { display: flex; align-items: center; gap: 3px; padding-right: 5px; border-right: 1px solid #ede8f3; }
-.qf-whiteboard-toolbar label { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; font-size: 12px; }
+.qf-whiteboard-group { display: flex; flex-direction: inherit; align-items: center; gap: 2px; }
+.qf-whiteboard-group:empty, .qf-whiteboard-group:not(:has(> :not([hidden]))) { display: none; }
+.qf-whiteboard-group + .qf-whiteboard-group::before { content: ""; flex: none; width: 60%; height: 1px; margin: 3px 0; background: #ece8f2; }
+:is([data-side="top"], [data-side="bottom"]) .qf-whiteboard-group + .qf-whiteboard-group::before { width: 1px; height: 60%; margin: 0 3px; }
+
 :is(.qf-whiteboard, .qf-whiteboard-tool-row) button, :is(.qf-whiteboard, .qf-whiteboard-tool-row) select {
-  min-height: 36px;
+  min-height: 34px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: inherit;
   font: inherit;
 }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) button { min-width: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 7px; cursor: pointer; touch-action: manipulation; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:hover { background: #f1edf8; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-pressed="true"], :is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-expanded="true"] { border-color: #d9cbee; background: #eee8fb; color: #7358bf; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:disabled { opacity: .35; cursor: default; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) input:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) select:focus-visible { outline: 2px solid #9576d6; outline-offset: 2px; }
-.qf-whiteboard-toolbar svg,.qf-whiteboard-zoom-controls svg,.qf-whiteboard-selection-actions svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.qf-whiteboard-zoom-controls .qf-whiteboard-zoom { min-width: 52px; padding-inline: 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) input[type="color"] { width: 30px; height: 30px; padding: 3px; border: 1px solid #ded5e9; border-radius: 50%; background: white; cursor: pointer; }
-.qf-whiteboard-color { min-width: 36px; min-height: 36px; justify-content: center; }
-.qf-whiteboard-color input::-webkit-color-swatch-wrapper { padding: 0; }
-.qf-whiteboard-color input::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.qf-whiteboard-color input::-moz-color-swatch { border: 0; border-radius: 50%; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) input[type="range"] { min-width: 50px; width: 100%; accent-color: #8461c4; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) output { min-width: 22px; font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
-:is(.qf-whiteboard, .qf-whiteboard-tool-row) select { padding: 5px 8px; min-width: 76px; background: #f6f3fb; font-size: 12px; }
-.qf-whiteboard-settings { position: absolute; right: 0; bottom: calc(100% + 10px); display: flex; flex-direction: column; gap: 10px; width: 270px; max-width: min(270px, calc(100vw - 28px)); max-height: min(370px, calc(100dvh - 180px)); overflow: auto; padding: 14px; border: 1px solid #e1dceb; border-radius: 13px; background: #fff; box-shadow: 0 7px 28px #3e335824; }
-.qf-whiteboard-settings[hidden] { display: none !important; }
-.qf-whiteboard-settings > label { display: flex; min-height: 32px; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) button { min-width: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 7px; cursor: pointer; touch-action: manipulation; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:hover { background: #f3f0f8; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-pressed="true"], :is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-expanded="true"] { background: #ede7fa; color: #6a4fc0; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:disabled { opacity: .32; cursor: default; background: transparent; }
+/* Disabled buttons let presses through, so the toolbar can be dragged from them too. */
+.qf-whiteboard-toolbar button:disabled { pointer-events: none; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) button:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) input:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) select:focus-visible { outline: 2px solid #9576d6; outline-offset: 1px; }
+.qf-whiteboard-toolbar > button, .qf-whiteboard-toolbar .qf-whiteboard-group > button { position: relative; flex: none; width: var(--qf-tool); height: var(--qf-tool); min-width: 0; min-height: 0; padding: 0; }
+.qf-whiteboard-toolbar svg, .qf-whiteboard-popup svg, .qf-whiteboard-selection-actions svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.qf-whiteboard-pen-color { position: absolute; right: 5px; bottom: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--swatch); box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #0000001f; pointer-events: none; }
+
+/* Collapsed in a corner, and while dragging: one round ball showing the current tool. */
+.qf-whiteboard-toolbar:is([data-collapsed="true"], [data-dragging="true"]) { padding: 4px !important; border: 1px solid #ebe7f1 !important; border-radius: 50% !important; overflow: visible; background: #fff; box-shadow: 0 6px 16px -4px #2b20402e, 0 1px 4px #2b20401f; }
+.qf-whiteboard-toolbar[data-collapsed="true"] > :not(.qf-whiteboard-expand) { display: none !important; }
+.qf-whiteboard-toolbar .qf-whiteboard-expand { color: #6a4fc0; background: transparent; border-radius: 50%; cursor: pointer; }
+
+/* Dragging: the toolbar becomes a ball under the finger that only moves by transform.
+   Moving and settling animate on the compositor; nothing else is laid out. */
+.qf-whiteboard-toolbar[data-dragging="true"], .qf-whiteboard-toolbar[data-settling="true"] { will-change: transform; transform-origin: 50% 50%; }
+.qf-whiteboard-toolbar[data-settling="true"] { overflow: hidden; }
+.qf-whiteboard-toolbar[data-dragging="true"] { cursor: grabbing; box-shadow: 0 12px 28px -8px #2b204047, 0 2px 8px #2b204026; }
+.qf-whiteboard-toolbar[data-dragging="true"] > :not(.qf-whiteboard-expand) { display: none !important; }
+.qf-whiteboard-toolbar[data-dragging="true"] .qf-whiteboard-expand { cursor: grabbing; }
+/* While the bar shrinks into the ball (240ms, transform only) the tool icon fades in. */
+.qf-whiteboard-toolbar[data-shrinking="true"] .qf-whiteboard-expand > * { animation: qf-toolbar-unfold .24s ease-out; }
+.qf-whiteboard-toolbar[data-settling="true"] > * { animation: qf-toolbar-unfold .2s ease-out; }
+@keyframes qf-toolbar-unfold { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .qf-whiteboard-toolbar[data-shrinking="true"] .qf-whiteboard-expand > *, .qf-whiteboard-toolbar[data-settling="true"] > * { animation: none; }
+}
+
+/* Popups open beside the toolbar, towards the page. */
+.qf-whiteboard-popup { position: absolute; z-index: 5; top: 0; left: 0; border: 1px solid #ebe7f1; border-radius: 14px; background: #fff; box-shadow: 0 14px 36px -8px #2b204033, 0 2px 8px #2b20401a; pointer-events: auto; color: #4b4458; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.qf-whiteboard-palette { display: grid; grid-template-columns: repeat(3, 30px); gap: 8px; padding: 10px; }
+.qf-whiteboard-popup .qf-whiteboard-swatch { width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; border: 3px solid #fff; border-radius: 50%; background: var(--swatch); box-shadow: 0 0 0 1px #ddd5e8; }
+.qf-whiteboard-popup .qf-whiteboard-swatch:hover { background: var(--swatch); box-shadow: 0 0 0 1px #b9a8d6; }
+.qf-whiteboard-popup .qf-whiteboard-swatch[aria-pressed="true"] { background: var(--swatch); box-shadow: 0 0 0 2px #8a68c8; }
+.qf-whiteboard-settings { display: flex; flex-direction: column; gap: 10px; width: 260px; max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow: auto; padding: 14px; }
+.qf-whiteboard-settings > label { display: flex; align-items: center; gap: 9px; min-height: 32px; white-space: nowrap; font-size: 12px; }
 .qf-whiteboard-setting-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; }
 .qf-whiteboard-setting-head button { min-width: 30px; min-height: 30px; padding: 5px; }
 .qf-whiteboard-setting-label { min-width: 48px; }
-.qf-whiteboard-settings input[type="color"], .qf-whiteboard-settings select, .qf-whiteboard-touch input { margin-left: auto; }
+.qf-whiteboard-settings select, .qf-whiteboard-touch input { margin-left: auto; }
 .qf-whiteboard-touch input { width: 18px; height: 18px; accent-color: #8461c4; }
-.qf-whiteboard-toolbar .qf-whiteboard-clear { align-self: flex-end; border: 1px solid #f0dfda; color: #b17467; }
+.qf-whiteboard-settings .qf-whiteboard-clear { align-self: flex-end; border: 1px solid #f0dfda; color: #b17467; }
+.qf-whiteboard-paper-colors { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.qf-whiteboard-paper-colors > div { display: flex; gap: 10px; padding: 2px; }
+.qf-whiteboard-paper-colors .qf-whiteboard-swatch { width: 28px; height: 28px; min-width: 28px; min-height: 28px; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) input[type="range"] { min-width: 50px; width: 100%; accent-color: #8461c4; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) output { min-width: 22px; font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
+:is(.qf-whiteboard, .qf-whiteboard-tool-row) select { padding: 5px 8px; min-width: 76px; background: #f6f3fb; font-size: 12px; }
+
 .qf-whiteboard-confirm { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: #1e293b40; pointer-events: auto; }
 .qf-whiteboard-confirm > div { max-width: 300px; margin: 16px; padding: 22px; border-radius: 15px; background: white; box-shadow: 0 12px 40px #0f172a30; }
 .qf-whiteboard-confirm p { margin: 0 0 15px; }
 .qf-whiteboard-confirm button { margin-right: 7px; }
 .qf-whiteboard-confirm [data-action="confirm-clear"] { background: #fee2e2; color: #991b1b; }
-.qf-whiteboard [hidden] { display: none !important; }
-.qf-whiteboard-status { position: absolute; z-index: 3; bottom: 78px; left: 12px; max-width: calc(100% - 24px); border-radius: 8px; background: #fff3ce; color: #714b16; padding: 6px 10px; pointer-events: none; }
+.qf-whiteboard-status { position: absolute; z-index: 3; bottom: calc(16px + env(safe-area-inset-bottom)); left: 12px; max-width: calc(100% - 24px); border-radius: 8px; background: #fff3ce; color: #714b16; padding: 6px 10px; pointer-events: none; }
 .qf-whiteboard-status:empty { display: none; }
-.qf-whiteboard-zoom-controls,.qf-whiteboard-selection-actions { display:flex;align-items:center;gap:3px;position:absolute;z-index:3;padding:5px;border:1px solid #e1dceb;border-radius:12px;background:#fffffff5;box-shadow:0 4px 16px #3e33581a;pointer-events:auto;color:#6e617d;font:12px/1.4 system-ui,sans-serif; }
-.qf-whiteboard-zoom-controls { left:max(12px,env(safe-area-inset-left));bottom:calc(12px + env(safe-area-inset-bottom)); }
-.qf-whiteboard-selection-actions { top:12px;left:50%;transform:translateX(-50%);white-space:nowrap; }
+.qf-whiteboard-selection-actions { display:flex;align-items:center;gap:3px;position:absolute;z-index:3;top:12px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:5px;border:1px solid #ebe7f1;border-radius:12px;background:#fffffff5;box-shadow:0 4px 16px #3e33581a;pointer-events:auto;color:#6e617d;font:12px/1.4 system-ui,sans-serif; }
 .qf-whiteboard-selection-actions span { padding:0 8px;font-size:11px; }
-.qf-whiteboard-zoom-controls[hidden],.qf-whiteboard-selection-actions[hidden] { display:none!important; }
-.qf-whiteboard-toolbar .qf-whiteboard-grip { min-width:24px;padding:4px;touch-action:none;cursor:move;color:#b6a9c8; }
-.qf-whiteboard-current-color { display:block;width:23px;height:23px;border-radius:50%;background:var(--swatch);box-shadow:0 0 0 2px white,0 0 0 3px #dfd6ec; }
-.qf-whiteboard-palette { position:absolute;bottom:calc(100% + 10px);left:32px;display:flex;gap:6px;padding:12px;background:white;border:1px solid #e1dceb;border-radius:12px;box-shadow:0 7px 28px #3e335824; }
-.qf-whiteboard-palette[hidden] { display:none!important; }
-.qf-whiteboard-toolbar .qf-whiteboard-swatch { width:28px;height:28px;min-width:28px;min-height:28px;padding:0;border:3px solid white;border-radius:50%;background:var(--swatch);box-shadow:0 0 0 1px #ded5e9; }
-.qf-whiteboard-toolbar .qf-whiteboard-swatch[aria-pressed=true] { background:var(--swatch);border-color:white;box-shadow:0 0 0 2px #8a68c8; }
-.qf-whiteboard-paper-colors { display:flex;flex-direction:column;gap:10px;font-size:12px; }
-.qf-whiteboard-paper-colors>div { display:flex;gap:10px;padding:2px; }
-.qf-whiteboard-toolbar[data-popup-side=below] :is(.qf-whiteboard-palette,.qf-whiteboard-settings) { top:calc(100% + 10px);bottom:auto; }
-.qf-whiteboard-toolbar[data-popup-side=below] .qf-whiteboard-settings { max-height:calc(100dvh - 240px); }
-.qf-whiteboard-toolbar { bottom:70px; }
 .qf-whiteboard-capture-preview { pointer-events:auto;width:min(720px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:18px;border:1px solid #e1dceb;border-radius:16px;color:#6e617d;background:white;box-shadow:0 12px 48px #3e335830; }
 .qf-whiteboard-capture-preview::backdrop { background:#33274466; }
 .qf-whiteboard-capture-head,.qf-whiteboard-capture-footer { display:flex;justify-content:space-between;align-items:center;gap:12px; }
@@ -117,23 +141,13 @@
 .qf-whiteboard-capture-actions button { padding:10px 16px;border:1px solid #d9cbee;border-radius:8px;background:#f5f1fa;color:#7358bf;font-size:12px; }
 @media (max-width:600px) { .qf-whiteboard-capture-footer { flex-wrap:wrap; } .qf-whiteboard-capture-actions { margin-left:auto; } }
 .qf-whiteboard-capture-footer a { flex:none;padding:10px 16px;border-radius:8px;background:#8055bd;color:white;text-decoration:none;font-size:12px; }
+/* Touch targets stay usable without the toolbar taking over a tablet screen. */
 @media (pointer: coarse) {
-  :is(.qf-whiteboard, .qf-whiteboard-tool-row) button, :is(.qf-whiteboard, .qf-whiteboard-tool-row) select { min-height: 42px; }
-  :is(.qf-whiteboard, .qf-whiteboard-tool-row) button { min-width: 42px; }
-  .qf-whiteboard-color { min-width: 42px; min-height: 42px; }
-  .qf-whiteboard-color input { width: 34px; height: 34px; }
+  .qf-whiteboard-toolbar { --qf-tool: 38px; }
+  .qf-whiteboard-toolbar svg { width: 20px; height: 20px; }
 }
 @media (max-width: 600px) {
-  .qf-whiteboard-toolbar { left: 6px; right: 6px; bottom: calc(12px + env(safe-area-inset-bottom)); max-width: calc(100% - 12px); gap: 2px; padding: 4px; border-radius: 10px; }
-  .qf-whiteboard-tool-row .qf-whiteboard-toolbar { max-width: calc(100% - 12px); }
-  .qf-whiteboard-toolbar > button,
-  .qf-whiteboard-toolbar .qf-whiteboard-group > button,
-  .qf-whiteboard-toolbar .qf-whiteboard-color > button { min-width: 28px; min-height: 28px; padding: 4px; border-radius: 6px; }
-  .qf-whiteboard-toolbar > .qf-whiteboard-grip { min-width: 18px; width: 18px; padding: 1px; }
-  .qf-whiteboard-toolbar svg { width: 16px; height: 16px; }
-  .qf-whiteboard-toolbar .qf-whiteboard-color { min-width: 28px; min-height: 28px; }
-  .qf-whiteboard-current-color { width: 18px; height: 18px; }
-  .qf-whiteboard-zoom-controls { display: none; }
+  .qf-whiteboard-toolbar { --qf-tool: 34px; padding: 4px; }
+  .qf-whiteboard-toolbar svg { width: 18px; height: 18px; }
   .qf-whiteboard-selection-actions span { max-width:130px;white-space:normal; }
-  .qf-whiteboard-group { padding-right: 2px; gap: 1px; }
 }
