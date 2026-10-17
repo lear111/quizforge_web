@@ -251,3 +251,19 @@ test('HTTP exams keep saved draft choices until hand-in and join ordinary histor
   const history = (await api(prefix + '/history')).data.records.find(row => row.mode === 'exam'); assert.ok(history);
   assert.equal((await api(prefix + '/history/' + history.id)).data.questions[0].payload.state.result.correct, true);
 });
+
+test('unused and malformed connections get Node default replies, so browsers retry a timed-out preconnect', async t => {
+  const { service } = await fixture(t);
+  service.listenerTimeouts = { headersTimeout: 300, requestTimeout: 300, connectionsCheckingInterval: 50, keepAliveTimeout: 1000 };
+  const listener = service.newListener(false); await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise(resolve => { listener.close(resolve); listener.closeAllConnections(); }));
+  const exchange = (...writes) => new Promise((resolve, reject) => {
+    const socket = net.connect(listener.address().port, '127.0.0.1'), bytes = []; socket.on('data', chunk => bytes.push(chunk)); socket.on('error', reject);
+    socket.on('close', () => resolve(Buffer.concat(bytes).toString())); for (const data of writes) socket.write(data);
+  });
+  // A browser preconnect that is never used must not look like a real 400 to the navigation that later picks it up.
+  assert.match(await exchange(), /^HTTP\/1\.1 408 Request Timeout\r\n/);
+  assert.match(await exchange('GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Large: ' + 'a'.repeat(17 * 1024) + '\r\n\r\n'), /^HTTP\/1\.1 431 /);
+  assert.match(await exchange('NOT A REQUEST\r\n\r\n'), /^HTTP\/1\.1 400 Bad Request\r\nConnection: close\r\n\r\n$/);
+  const served = await exchange('GET / HTTP/1.1\r\nHost: 127.0.0.1:' + listener.address().port + '\r\n\r\n');
+  assert.match(served, /^HTTP\/1\.1 200 OK\r\n/); assert.doesNotMatch(served, /HTTP\/1\.1 4\d\d/);
+});

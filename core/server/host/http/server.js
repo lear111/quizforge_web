@@ -92,12 +92,14 @@ export class QuizForgeServer {
   }
   newListener(remote, tls = null) {
     this.handlers ??= new Set();
-    const options = { maxHeaderSize: 16 * 1024, requestTimeout: 120000, headersTimeout: 15000 }, secure = tls !== null;
+    const options = { maxHeaderSize: 16 * 1024, requestTimeout: 120000, headersTimeout: 15000, ...this.listenerTimeouts }, secure = tls !== null;
     const server = (secure ? https : http).createServer(secure ? { ...options, key: tls.key, cert: tls.cert, minVersion: 'TLSv1.2' } : options, (request, response) => {
       const operation = this.handle({ request, response, remote, secure }); this.handlers.add(operation);
       operation.finally(() => this.handlers.delete(operation)).catch(() => {});
     });
-    server.on('clientError', (_error, socket) => socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n')); return server;
+    // Keep Node's default clientError reply: an unused browser preconnect that hits headersTimeout gets 408, which
+    // Chromium retries on a new connection. A blanket 400 here reached the next navigation as an empty error page.
+    return server;
   }
   claimRoot() {
     const directory = safeDirectory(path.join(this.root, '.state'), true); this.lockFile = path.join(directory, 'host.lock');
