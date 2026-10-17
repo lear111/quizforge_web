@@ -1,49 +1,86 @@
 // Toolbar docking geometry. All boxes are in pixels relative to the toolbar area.
+// Like a tablet annotation toolbar it rests at one of eight fixed stops: the
+// middle of each edge (open bar) or a corner (a small ball, opened on tap).
 export const TOOLBAR_EDGE_MARGIN = 12;
-// Releasing the toolbar with the pointer this close to an edge tucks it away as a tab.
-export const TOOLBAR_COLLAPSE_DISTANCE = 24;
 const POPUP_GAP = 10, POPUP_MARGIN = 8, OBSTACLE_GAP = 6;
-const SIDES = ['left', 'right', 'top', 'bottom'];
-export const DEFAULT_TOOLBAR_DOCK = Object.freeze({ side: 'right', along: 0.5, collapsed: false });
+// Stops on a 3 x 3 grid without its centre: [column, row].
+const ANCHORS = Object.freeze({
+  'top-left': [0, 0], top: [1, 0], 'top-right': [2, 0],
+  left: [0, 1], right: [2, 1],
+  'bottom-left': [0, 2], bottom: [1, 2], 'bottom-right': [2, 2],
+});
+export const TOOLBAR_ANCHORS = Object.freeze(Object.keys(ANCHORS));
+export const DEFAULT_TOOLBAR_DOCK = Object.freeze({ anchor: 'right' });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(Math.max(min, max), value));
+export const isCornerAnchor = anchor => anchor.includes('-');
+
+// How a stop is drawn. Corners open as a vertical bar along their left or right edge.
+export function anchorLayout(anchor, open = false) {
+  const [column, row] = ANCHORS[anchor];
+  const corner = isCornerAnchor(anchor);
+  const side = corner ? (column === 0 ? 'left' : 'right') : anchor;
+  return { side, vertical: side === 'left' || side === 'right', collapsed: corner && !open, column, row };
+}
 
 export function normalizeDock(value) {
-  if (!value || typeof value !== 'object' || !SIDES.includes(value.side)) return { ...DEFAULT_TOOLBAR_DOCK };
-  const along = Number.isFinite(value.along) ? clamp(value.along, 0, 1) : DEFAULT_TOOLBAR_DOCK.along;
-  return { side: value.side, along, collapsed: value.collapsed === true };
+  if (value && typeof value === 'object' && Object.hasOwn(ANCHORS, value.anchor)) return { anchor: value.anchor };
+  // Positions saved before the fixed stops: a collapsed tab goes to the nearer corner.
+  if (value && typeof value === 'object' && ['left', 'right', 'top', 'bottom'].includes(value.side)) {
+    if (value.collapsed !== true) return { anchor: value.side };
+    const late = Number.isFinite(value.along) && value.along > 0.5;
+    if (value.side === 'left' || value.side === 'right') return { anchor: `${late ? 'bottom' : 'top'}-${value.side}` };
+    return { anchor: `${value.side}-${late ? 'right' : 'left'}` };
+  }
+  return { ...DEFAULT_TOOLBAR_DOCK };
 }
 
-// Snap a dropped toolbar to the edge nearest the release point, keeping its place along that edge.
-export function dockFromPoint(point, area) {
-  const distances = { left: point.x, right: area.width - point.x, top: point.y, bottom: area.height - point.y };
-  const side = SIDES.reduce((best, next) => distances[next] < distances[best] ? next : best);
-  const vertical = side === 'left' || side === 'right';
-  const along = vertical ? point.y / (area.height || 1) : point.x / (area.width || 1);
-  return normalizeDock({ side, along, collapsed: distances[side] <= TOOLBAR_COLLAPSE_DISTANCE });
+export function anchorPoint(anchor, area) {
+  const [column, row] = ANCHORS[anchor];
+  return { x: column / 2 * area.width, y: row / 2 * area.height };
 }
 
-// Obstacles are host controls on the same edge, such as the question arrows. An
-// expanded toolbar moves inward past them; a collapsed tab slides along the edge.
-export function dockedPosition(dock, area, size, obstacles = []) {
-  const margin = dock.collapsed ? 0 : TOOLBAR_EDGE_MARGIN, vertical = dock.side === 'left' || dock.side === 'right';
-  const position = vertical ? {
-    left: dock.side === 'left' ? margin : Math.max(0, area.width - size.width - margin),
-    top: clamp(dock.along * area.height - size.height / 2, TOOLBAR_EDGE_MARGIN, area.height - size.height - TOOLBAR_EDGE_MARGIN),
-  } : {
-    left: clamp(dock.along * area.width - size.width / 2, TOOLBAR_EDGE_MARGIN, area.width - size.width - TOOLBAR_EDGE_MARGIN),
-    top: dock.side === 'top' ? margin : Math.max(0, area.height - size.height - margin),
+// The stop nearest a release point, measured in proportion to the pane so the
+// stops act like a 3 x 3 grid on wide and tall screens alike.
+export function nearestAnchor(point, area) {
+  let best = null, distance = Infinity;
+  for (const anchor of TOOLBAR_ANCHORS) {
+    const stop = anchorPoint(anchor, area);
+    const next = Math.hypot((stop.x - point.x) / (area.width || 1), (stop.y - point.y) / (area.height || 1));
+    if (next < distance) { best = anchor; distance = next; }
+  }
+  return { anchor: best };
+}
+
+// Keyboard moves: one step on the grid, jumping over the empty centre.
+export function stepAnchor(anchor, dx, dy) {
+  const [column, row] = ANCHORS[anchor];
+  let nextColumn = clamp(column + dx, 0, 2), nextRow = clamp(row + dy, 0, 2);
+  if (nextColumn === 1 && nextRow === 1) { nextColumn = clamp(nextColumn + dx, 0, 2); nextRow = clamp(nextRow + dy, 0, 2); }
+  return TOOLBAR_ANCHORS.find(name => ANCHORS[name][0] === nextColumn && ANCHORS[name][1] === nextRow) || anchor;
+}
+
+// Obstacles are host controls such as the question arrows. A bar on that edge
+// moves inward past them; a corner ball or a bar opened from a corner slides away along the edge.
+export function dockedPosition(dock, area, size, obstacles = [], { open = false } = {}) {
+  const layout = anchorLayout(dock.anchor, open), corner = isCornerAnchor(dock.anchor), margin = TOOLBAR_EDGE_MARGIN;
+  const place = (index, extent, length) => index === 0 ? margin : index === 2 ? extent - length - margin : extent / 2 - length / 2;
+  const position = {
+    left: clamp(place(layout.column, area.width, size.width), 0, area.width - size.width),
+    top: clamp(place(layout.row, area.height, size.height), 0, area.height - size.height),
   };
-  const [start, length, across, depth, extent] = vertical ? ['top', 'height', 'left', 'width', area.height] : ['left', 'width', 'top', 'height', area.width];
+  const vertical = layout.vertical;
+  const [start, length, side, depth, extent] = vertical ? ['top', 'height', 'left', 'width', area.height] : ['left', 'width', 'top', 'height', area.width];
   const hits = item => item[start] < position[start] + size[length] + OBSTACLE_GAP && item[start] + item[length] > position[start] - OBSTACLE_GAP
-    && item[across] < position[across] + size[depth] && item[across] + item[depth] > position[across];
+    && item[side] < position[side] + size[depth] && item[side] + item[depth] > position[side];
   for (const item of obstacles) {
     if (!hits(item)) continue;
-    if (dock.collapsed) {
-      const before = item[start] - OBSTACLE_GAP - size[length], after = item[start] + item[length] + OBSTACLE_GAP;
-      position[start] = before >= TOOLBAR_EDGE_MARGIN ? before : Math.min(after, extent - size[length] - TOOLBAR_EDGE_MARGIN);
-    } else if (dock.side === 'right' || dock.side === 'bottom') position[across] = Math.max(0, item[across] - OBSTACLE_GAP - size[depth]);
-    else position[across] = item[across] + item[depth] + OBSTACLE_GAP;
+    if (corner) {
+      const atStart = (vertical ? layout.row : layout.column) === 0;
+      position[start] = atStart ? Math.min(item[start] + item[length] + OBSTACLE_GAP, extent - size[length] - margin)
+        : Math.max(margin, item[start] - OBSTACLE_GAP - size[length]);
+    } else if (layout.side === 'right' || layout.side === 'bottom') position[side] = Math.max(0, item[side] - OBSTACLE_GAP - size[depth]);
+    else position[side] = item[side] + item[depth] + OBSTACLE_GAP;
   }
   return position;
 }
@@ -82,13 +119,11 @@ export function releaseVelocity(samples, window = 100) {
 export const TOOLBAR_FLING_SPEED = 0.5;
 const FLING_PROJECTION_MS = 250;
 export function releaseDock(point, velocity, area) {
-  if (Math.hypot(velocity.x, velocity.y) < TOOLBAR_FLING_SPEED) return dockFromPoint(point, area);
-  const projected = {
+  if (Math.hypot(velocity.x, velocity.y) < TOOLBAR_FLING_SPEED) return nearestAnchor(point, area);
+  return nearestAnchor({
     x: clamp(point.x + velocity.x * FLING_PROJECTION_MS, 0, area.width),
     y: clamp(point.y + velocity.y * FLING_PROJECTION_MS, 0, area.height),
-  };
-  // Throwing never tucks the toolbar away; that needs a deliberate drop at the edge.
-  return { ...dockFromPoint(projected, area), collapsed: false };
+  }, area);
 }
 
 // One damped spring channel moving towards 0; slightly under-damped for a small overshoot.
@@ -103,3 +138,6 @@ export function springStep(state, elapsedMs, { stiffness, damping } = TOOLBAR_SP
   return { value, velocity };
 }
 export const springSettled = (state, precision = 0.3) => Math.abs(state.value) < precision && Math.abs(state.velocity) < precision * 20;
+
+// The bar shrinks into the drag ball over this long (transform only).
+export const TOOLBAR_SHRINK_MS = 240;

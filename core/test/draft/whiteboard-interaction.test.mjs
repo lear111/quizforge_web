@@ -758,43 +758,50 @@ test('load cancels pending ink and resets history; destroy removes scoped DOM an
   assert.equal(changes.length, 1);
 });
 
-test('dragging the toolbar snaps it to an edge, collapses it at the edge and keeps tools reachable', () => {
-  const { board, toolbarContainer, click } = fixture({ externalToolbar: true });
-  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), grip = toolbar.querySelector('.qf-whiteboard-grip'), expand = toolbar.querySelector('.qf-whiteboard-expand');
+test('the toolbar snaps to fixed stops: open bars on edges, balls in corners that open on tap', () => {
+  const { board, root, toolbarContainer, window, click } = fixture({ externalToolbar: true });
+  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), eraser = toolbar.querySelector('[data-tool="eraser"]'), expand = toolbar.querySelector('.qf-whiteboard-expand');
+  assert.equal(toolbar.querySelector('.qf-whiteboard-grip'), null, 'there is no separate drag handle');
   board.setMode('draft');
-  assert.equal(toolbar.dataset.side, 'right'); assert.equal(toolbar.attributes['aria-orientation'], 'vertical');
+  assert.equal(toolbar.dataset.anchor, 'right'); assert.equal(toolbar.attributes['aria-orientation'], 'vertical');
   assert.equal(toolbar.dataset.collapsed, 'false'); assert.equal(expand.hidden, true);
   const drag = (from, to) => {
-    grip.dispatch('pointerdown', { pointerId: 7, button: 0, clientX: from[0], clientY: from[1] });
-    grip.dispatch('pointermove', { pointerId: 7, clientX: to[0], clientY: to[1] });
-    grip.dispatch('pointerup', { pointerId: 7, clientX: to[0], clientY: to[1] });
-    grip.dispatch('click');
+    eraser.dispatch('pointerdown', { pointerId: 7, button: 0, clientX: from[0], clientY: from[1] });
+    eraser.dispatch('pointermove', { pointerId: 7, clientX: to[0], clientY: to[1] });
+    toolbar.dispatch('pointerup', { pointerId: 7, clientX: to[0], clientY: to[1] });
+    toolbar.dispatch('click'); // A mouse drag ends with a click on the toolbar; it belongs to the drag.
   };
-  drag([700, 300], [400, 560]);
-  assert.equal(toolbar.dataset.side, 'bottom'); assert.equal(toolbar.attributes['aria-orientation'], 'horizontal');
-  assert.equal(toolbar.dataset.collapsed, 'false', 'the click ending a drag does not collapse the toolbar');
-  drag([400, 560], [796, 200]);
-  assert.equal(toolbar.dataset.side, 'right'); assert.equal(toolbar.dataset.collapsed, 'true'); assert.equal(expand.hidden, false);
-  click('[data-tool="eraser"]');
-  assert.match(expand.attributes['aria-label'], /整笔擦除/);
+  drag([700, 300], [400, 590]);
+  assert.equal(toolbar.dataset.anchor, 'bottom'); assert.equal(toolbar.attributes['aria-orientation'], 'horizontal');
+  assert.equal(toolbar.dataset.collapsed, 'false');
+  drag([400, 560], [760, 40]);
+  assert.equal(toolbar.dataset.anchor, 'top-right'); assert.equal(toolbar.dataset.collapsed, 'true'); assert.equal(expand.hidden, false);
+  assert.equal(root.dataset.tool, 'pen', 'dragging by the eraser never selected it');
   click('[data-action="expand-toolbar"]');
-  assert.equal(toolbar.dataset.collapsed, 'false'); assert.equal(expand.hidden, true);
-  click('[data-action="collapse-toolbar"]');
-  assert.equal(toolbar.dataset.collapsed, 'true');
-  grip.dispatch('keydown', { key: 'ArrowLeft', preventDefault() {} });
-  assert.equal(toolbar.dataset.side, 'left'); assert.equal(toolbar.dataset.collapsed, 'false');
+  assert.equal(toolbar.dataset.collapsed, 'false'); assert.equal(toolbar.dataset.side, 'right'); assert.equal(expand.attributes['aria-expanded'], 'true');
+  click('[data-tool="eraser"]');
+  assert.equal(root.dataset.tool, 'eraser'); assert.equal(toolbar.dataset.collapsed, 'true', 'choosing a tool folds the corner back');
+  assert.match(expand.attributes['aria-label'], /整笔擦除/);
+  click('[data-action="expand-toolbar"]'); click('[data-action="undo"]');
+  assert.equal(toolbar.dataset.collapsed, 'false', 'undo and redo keep it open');
+  window.dispatch('pointerdown', { target: root });
+  assert.equal(toolbar.dataset.collapsed, 'true', 'a tap outside folds it back');
+  toolbar.dispatch('keydown', { key: 'ArrowLeft', altKey: true, target: expand, preventDefault() {} });
+  assert.equal(toolbar.dataset.anchor, 'top'); assert.equal(toolbar.dataset.collapsed, 'false');
+  toolbar.dispatch('keydown', { key: 'ArrowLeft', target: eraser, preventDefault() {} });
+  assert.equal(toolbar.dataset.anchor, 'top', 'plain arrows are left alone');
   board.destroy();
 });
 
-test('toolbar drags move a ball by transform only, fling to an edge, spring into place and cancel back', () => {
-  const { board, toolbarContainer, window, paint, click } = fixture({ externalToolbar: true });
-  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), grip = toolbar.querySelector('.qf-whiteboard-grip');
+test('toolbar drags move a ball by transform only, fling to a stop, spring into place and cancel back', () => {
+  const { board, root, toolbarContainer, window, paint } = fixture({ externalToolbar: true });
+  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), grip = toolbar.querySelector('[data-tool="eraser"]');
   board.setMode('draft');
+  let clock = 0; window.performance = { now: () => clock };
   const at = (type, x, y, t, extra = {}) => grip.dispatch(type, { pointerId: 9, button: 0, clientX: x, clientY: y, timeStamp: t, preventDefault() {}, ...extra });
   // A press that moves less than the threshold is still a tap.
   at('pointerdown', 400, 300, 0); at('pointermove', 403, 302, 10); at('pointerup', 403, 302, 20); grip.dispatch('click');
-  assert.equal(toolbar.dataset.collapsed, 'true', 'tap on the grip collapses');
-  click('[data-action="expand-toolbar"]'); paint(); paint();
+  assert.equal(root.dataset.tool, 'eraser', 'a tap that barely moves selects the tool');
   at('pointerdown', 400, 300, 100); at('pointermove', 420, 300, 116);
   assert.equal(toolbar.dataset.dragging, 'true'); assert.ok(toolbar.captures.has(9), 'the toolbar holds the pointer');
   assert.equal(toolbar.querySelector('.qf-whiteboard-expand').hidden, false, 'the ball shows the current tool');
@@ -802,11 +809,18 @@ test('toolbar drags move a ball by transform only, fling to an edge, spring into
   at('pointermove', 450, 320, 132); at('pointermove', 470, 330, 148);
   assert.equal(toolbar.style.transform, undefined, 'moves wait for the next frame');
   paint();
+  // The ball first covers the bar (fixture boxes are 800x600, the ball 44px) and shrinks by transform.
+  assert.match(toolbar.style.transform, /scale\(18\.18\d*, 13\.63\d*\)/);
+  assert.equal(toolbar.dataset.shrinking, 'true');
+  clock = 120; paint();
+  const [, sx] = toolbar.style.transform.match(/scale\(([\d.]+),/); assert.ok(sx > 1 && sx < 18, `half-way scale ${sx}`);
+  clock = 240; paint();
   assert.equal(toolbar.style.transform, 'translate3d(70px, 30px, 0) scale(1, 1)');
+  assert.equal(toolbar.dataset.shrinking, undefined);
   assert.equal(toolbar.style.left, ballLeft); assert.equal(toolbar.style.top, ballTop, 'dragging never changes layout properties');
   // Released mid-pane while moving fast upwards: the throw decides the edge.
-  at('pointermove', 470, 270, 164); at('pointermove', 470, 200, 180); at('pointerup', 470, 190, 184);
-  assert.equal(toolbar.dataset.side, 'top'); assert.equal(toolbar.dataset.collapsed, 'false');
+  at('pointermove', 470, 270, 400); at('pointermove', 470, 200, 416); at('pointerup', 470, 190, 420);
+  assert.equal(toolbar.dataset.anchor, 'top'); assert.equal(toolbar.dataset.collapsed, 'false');
   assert.equal(toolbar.dataset.dragging, undefined); assert.equal(toolbar.dataset.settling, 'true');
   for (let frame = 0; frame < 120 && toolbar.dataset.settling; frame++) paint();
   assert.equal(toolbar.dataset.settling, undefined, 'the spring settles'); assert.equal(toolbar.style.transform, undefined);
@@ -819,6 +833,27 @@ test('toolbar drags move a ball by transform only, fling to an edge, spring into
   // Reduced motion lands at once.
   window.matchMedia = query => ({ matches: query.includes('reduce') });
   at('pointerdown', 400, 300, 500); at('pointermove', 400, 560, 516); at('pointermove', 400, 590, 600); at('pointerup', 400, 590, 700);
-  assert.equal(toolbar.dataset.side, 'bottom'); assert.equal(toolbar.dataset.settling, undefined); assert.equal(toolbar.style.transform, undefined);
+  assert.equal(toolbar.dataset.anchor, 'bottom'); assert.equal(toolbar.dataset.settling, undefined); assert.equal(toolbar.style.transform, undefined);
+  board.destroy();
+});
+
+test('the whole toolbar drags; a press that becomes a drag never clicks the button under it', () => {
+  const { board, root, toolbarContainer, paint } = fixture({ externalToolbar: true });
+  const toolbar = toolbarContainer.querySelector('.qf-whiteboard-toolbar'), eraser = toolbar.querySelector('[data-tool="eraser"]');
+  board.setMode('draft');
+  const at = (type, x, y, t) => eraser.dispatch(type, { pointerId: 4, button: 0, clientX: x, clientY: y, timeStamp: t, preventDefault() {} });
+  // A tap on a tool selects it as usual.
+  at('pointerdown', 300, 300, 0); at('pointerup', 302, 301, 30); eraser.dispatch('click');
+  assert.equal(root.dataset.tool, 'eraser');
+  toolbar.querySelector('[data-tool="pen"]').dispatch('click'); assert.equal(root.dataset.tool, 'pen');
+  // Pressing the eraser and moving drags the toolbar instead.
+  at('pointerdown', 300, 300, 100);
+  assert.ok(eraser.captures.has(4), 'the pressed button holds the pointer until the drag starts');
+  at('pointermove', 330, 300, 116);
+  assert.equal(toolbar.dataset.dragging, 'true'); assert.ok(toolbar.captures.has(4)); assert.equal(eraser.captures.has(4), false);
+  at('pointermove', 400, 560, 200); paint(); at('pointermove', 400, 590, 450); at('pointerup', 400, 590, 460); // a slow drop
+  eraser.dispatch('click'); // Whatever the browser sends after the drag belongs to the drag.
+  assert.equal(root.dataset.tool, 'pen', 'the drag does not select the pressed tool');
+  assert.equal(toolbar.dataset.anchor, 'bottom');
   board.destroy();
 });

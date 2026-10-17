@@ -1,7 +1,7 @@
 import { WhiteboardModel, DRAFT_LIMITS, normalizeViewport, screenToWorld, zoomAt, translateCamera, strokeTouchesPath } from './whiteboard-model.js';
 import { rectangle, strokeBounds, containsPoint, enclosedStrokes, translateStrokes } from './whiteboard-selection.js';
 import { copyCaptureImage } from './whiteboard-capture.js';
-import { DEFAULT_TOOLBAR_DOCK, normalizeDock, dockedPosition, popupPosition, isToolbarDrag, releaseVelocity, releaseDock, springStep, springSettled } from './whiteboard-dock.js';
+import { DEFAULT_TOOLBAR_DOCK, normalizeDock, dockedPosition, popupPosition, anchorLayout, isCornerAnchor, stepAnchor, isToolbarDrag, releaseVelocity, releaseDock, springStep, springSettled, TOOLBAR_SHRINK_MS } from './whiteboard-dock.js';
 
 const INK_COLORS = [['#334155','深灰'],['#000000','黑色'],['#386db6','蓝色'],['#d04444','红色'],['#25865a','绿色'],['#8055bd','紫色']];
 const PAPER_COLORS = [['#ffffff','白色'],['#fff8e7','米黄'],['#f0f7f0','浅绿'],['#edf4fc','浅蓝'],['#f5f1fa','浅紫']];
@@ -30,7 +30,6 @@ const icons = {
   'select-ink': '<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="3 3"></rect>',
   capture: '<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect>',
   copy: '<rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V3H3v13h5"></path>',
-  grip: '<circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="6" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="18" r="1"></circle>',
 };
 const icon = name => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
 const toolIcon = (name, color) => name === 'pen' ? `${icon('pen')}<span class="qf-whiteboard-pen-color" style="--swatch:${color}"></span>` : icon(name);
@@ -51,9 +50,8 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   root.innerHTML = `
     <div class="qf-whiteboard-paper" aria-hidden="true"></div>
     <canvas class="qf-whiteboard-ink" aria-label="题目草稿白板" tabindex="-1"></canvas>
-    <div class="qf-whiteboard-toolbar" role="toolbar" aria-label="白板工具" aria-orientation="vertical" data-side="right" data-collapsed="false">
-      <button type="button" class="qf-whiteboard-grip" data-action="collapse-toolbar" aria-label="移动或收起工具栏" title="拖动到任意位置，松手后贴靠最近的边缘，拖到边缘会收起；点按收起，方向键换边">${icon('grip')}</button>
-      <button type="button" class="qf-whiteboard-expand" data-action="expand-toolbar" aria-label="展开白板工具" aria-expanded="false" title="展开白板工具，也可拖动" hidden></button>
+    <div class="qf-whiteboard-toolbar" role="toolbar" aria-label="白板工具：按住任意位置可拖动，拖到角落收起；Alt 加方向键换位置" aria-orientation="vertical" data-side="right" data-collapsed="false">
+      <button type="button" class="qf-whiteboard-expand" data-action="expand-toolbar" aria-label="展开白板工具" aria-expanded="false" title="点按展开白板工具；拖动可换位置" hidden></button>
       <div class="qf-whiteboard-group">
         <button type="button" data-tool="hand" title="操作／移动 (V / H)：点题目选项、输入框等可作答，拖动其他位置移动白板" aria-label="操作题目或移动白板" aria-pressed="false">${icon('hand')}</button>
         <button type="button" data-tool="pen" title="画笔 (P)，选中后再点一次选择颜色" aria-label="画笔，选中后再次点击选择颜色" aria-pressed="true" aria-expanded="false">${toolIcon('pen','#334155')}</button>
@@ -109,7 +107,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   const status = select('.qf-whiteboard-status');
   const toolButtons = [...toolbar.querySelectorAll('[data-tool]')];
   const settingsButton = select('[data-action="settings"]'), fullscreenButton = select('[data-action="fullscreen"]');
-  const penButton = select('[data-tool="pen"]'), grip = select('.qf-whiteboard-grip'), expandButton = select('.qf-whiteboard-expand');
+  const penButton = select('[data-tool="pen"]'), expandButton = select('.qf-whiteboard-expand');
   const capturePreview=select('.qf-whiteboard-capture-preview'), captureImage=capturePreview.querySelector('img'),captureLink=capturePreview.querySelector('a');
   const query = selector => [...root.querySelectorAll(selector), ...(toolbarContainer ? toolbarContainer.querySelectorAll(selector) : [])];
   const listeners = [];
@@ -124,7 +122,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   let viewWidth = 1, viewHeight = 1, pixelRatio = 1, strokeSequence = 0;
   let gesture = null, cameraBefore = null, interaction = false, eraserCursor = null;
   let selectedIds = [], clipboard = [], capturing = false, captureGeneration = 0;
-  let toolbarDrag = null, suppressClickUntil = 0, settle = null, dock = readDock(), expandIcon = '', interactiveClip = '';
+  let toolbarDrag = null, suppressClickUntil = 0, settle = null, dock = readDock(), cornerOpen = false, expandIcon = '', interactiveClip = '';
   let captureUrl=null,captureBlob=null;
   const pointers = new Map();
 
@@ -315,22 +313,24 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     const bounds = element.getBoundingClientRect();
     return { left: bounds.left - area.left, top: bounds.top - area.top, width: bounds.width, height: bounds.height };
   }
-  // The toolbar always rests against one edge: expanded with a small margin,
-  // or collapsed to a tab that shows only the current tool.
+  // The toolbar rests at one of eight fixed stops: an open bar in the middle of
+  // an edge, or a ball in a corner that opens along its edge when tapped.
   function layoutToolbar() {
     if (toolbarDrag?.moved) return;
-    const vertical = dock.side === 'left' || dock.side === 'right';
-    toolbar.dataset.side = dock.side;
-    toolbar.dataset.collapsed = String(dock.collapsed);
-    toolbar.setAttribute('aria-orientation', vertical ? 'vertical' : 'horizontal');
-    expandButton.hidden = !dock.collapsed;
-    if (dock.collapsed) { closeSettings(); closePalette(); }
+    const layout = anchorLayout(dock.anchor, cornerOpen);
+    toolbar.dataset.side = layout.side;
+    toolbar.dataset.anchor = dock.anchor;
+    toolbar.dataset.collapsed = String(layout.collapsed);
+    toolbar.setAttribute('aria-orientation', layout.vertical ? 'vertical' : 'horizontal');
+    expandButton.hidden = !layout.collapsed;
+    expandButton.setAttribute('aria-expanded', String(!layout.collapsed));
+    if (layout.collapsed) { closeSettings(); closePalette(); }
     if (toolbar.hidden) return;
     // Offset sizes ignore any transform still settling from the last move.
     const area = toolbarArea(), rect = relativeBox(toolbar, area);
     const box = { width: toolbar.offsetWidth || rect.width, height: toolbar.offsetHeight || rect.height };
     const obstacles = [...toolbarObstacles()].map(element => relativeBox(element, area)).filter(item => item.width && item.height);
-    const position = dockedPosition(dock, { width: area.width, height: area.height }, { width: box.width, height: box.height }, obstacles);
+    const position = dockedPosition(dock, { width: area.width, height: area.height }, { width: box.width, height: box.height }, obstacles, { open: cornerOpen });
     toolbar.style.left = `${position.left}px`; toolbar.style.top = `${position.top}px`;
     positionPopups();
   }
@@ -339,7 +339,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     for (const [popup, anchor] of [[palette, penButton], [settings, settingsButton]]) {
       if (popup.hidden) continue;
       const own = relativeBox(popup, area);
-      const position = popupPosition(dock.side, { width: area.width, height: area.height }, bar, relativeBox(anchor, area), { width: own.width, height: own.height });
+      const position = popupPosition(anchorLayout(dock.anchor, cornerOpen).side, { width: area.width, height: area.height }, bar, relativeBox(anchor, area), { width: own.width, height: own.height });
       popup.style.left = `${position.left}px`; popup.style.top = `${position.top}px`;
     }
   }
@@ -387,7 +387,16 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }
   function setDock(next, from = toolbar.hidden ? null : toolbarBox()) {
     dock = normalizeDock(next);
+    cornerOpen = false;
     saveDock();
+    layoutToolbar();
+    settleFrom(from);
+  }
+  // A corner ball opens for a quick choice and folds back afterwards.
+  function setCornerOpen(open) {
+    if (!isCornerAnchor(dock.anchor) || cornerOpen === open) return;
+    const from = toolbar.hidden ? null : toolbarBox();
+    cornerOpen = open;
     layoutToolbar();
     settleFrom(from);
   }
@@ -396,16 +405,37 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     if (!drag) return null;
     if (drag.frame) win.cancelAnimationFrame(drag.frame);
     delete toolbar.dataset.dragging;
+    delete toolbar.dataset.shrinking;
     toolbar.style.removeProperty('transform');
     try { toolbar.releasePointerCapture(drag.id); } catch {}
+    try { drag.target.releasePointerCapture(drag.id); } catch {}
     return drag;
   }
   function startToolbarDrag(event) {
     if (event.button !== 0 || !confirmation.hidden || toolbarDrag) return;
-    toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, samples: [], frame: 0 };
-    // Hold the pointer from the start so a quick first move off the small grip still counts;
-    // a tap still ends on the grip and clicks it.
-    try { (event.currentTarget || event.target).setPointerCapture(event.pointerId); } catch {}
+    // Any part of the toolbar can be dragged. Until the pointer moves past the
+    // threshold the press belongs to the button under it, so a tap still clicks it.
+    const target = event.target?.closest?.('button') || toolbar;
+    toolbarDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, samples: [], frame: 0, target };
+    // Holding the pointer from the start keeps a quick first move off a small button.
+    try { target.setPointerCapture(event.pointerId); } catch {}
+  }
+  function now() { return win.performance?.now?.() ?? Date.now(); }
+  // How far the bar-to-ball shrink has got, eased; 1 when it is finished.
+  function shrinkProgress(drag) {
+    if (!drag.shrink) return 1;
+    const linear = Math.min(1, (now() - drag.shrink.start) / TOOLBAR_SHRINK_MS);
+    return 1 - (1 - linear) ** 3;
+  }
+  // The ball as drawn: it starts as the bar and shrinks into place around the
+  // finger, so the drag starts without a jump.
+  function ballVisual(drag) {
+    const eased = shrinkProgress(drag), rest = 1 - eased, shrink = drag.shrink || { dx: 0, dy: 0, sx: 1, sy: 1 };
+    const offset = drag.offset || { x: 0, y: 0 };
+    return {
+      x: offset.x + shrink.dx * rest, y: offset.y + shrink.dy * rest,
+      sx: 1 + (shrink.sx - 1) * rest, sy: 1 + (shrink.sy - 1) * rest, done: eased >= 1,
+    };
   }
   // Pointer moves only record input; one frame per display refresh writes a
   // transform, so dragging never lays out the page or repaints the whiteboard.
@@ -413,16 +443,23 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     const drag = toolbarDrag;
     if (!drag?.moved) return;
     drag.frame = 0;
-    const x = Math.max(drag.bounds.minX, Math.min(drag.bounds.maxX, drag.pointer.x - drag.x));
-    const y = Math.max(drag.bounds.minY, Math.min(drag.bounds.maxY, drag.pointer.y - drag.y));
-    drag.offset = { x, y };
-    toolbar.style.transform = toolbarTransform(x, y);
+    drag.offset = {
+      x: Math.max(drag.bounds.minX, Math.min(drag.bounds.maxX, drag.pointer.x - drag.x)),
+      y: Math.max(drag.bounds.minY, Math.min(drag.bounds.maxY, drag.pointer.y - drag.y)),
+    };
+    const visual = ballVisual(drag);
+    toolbar.style.transform = toolbarTransform(visual.x, visual.y, visual.sx, visual.sy);
+    if (!visual.done) drag.frame = win.requestAnimationFrame(applyDragFrame);
+    else if (drag.shrink) { drag.shrink = null; delete toolbar.dataset.shrinking; }
   }
   function beginBallDrag(drag) {
+    const from = toolbarBox();
     stopSettle();
     closeSettings(); closePalette();
-    // Capture on the toolbar itself: the grip disappears inside the ball, and
-    // moves over the question frame must keep arriving here.
+    // Capture on the toolbar itself: the pressed button disappears inside the
+    // ball, and moves over the question frame must keep arriving here. The
+    // button loses the press, so it is not clicked.
+    if (drag.target !== toolbar) try { drag.target.releasePointerCapture(drag.id); } catch {}
     try { toolbar.setPointerCapture(drag.id); } catch {}
     drag.moved = true;
     drag.previous = { ...dock };
@@ -435,6 +472,15 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     toolbar.style.left = `${left}px`; toolbar.style.top = `${top}px`;
     drag.ball = { left, top, width, height };
     drag.bounds = { minX: -left, minY: -top, maxX: drag.area.width - width - left, maxY: drag.area.height - height - top };
+    // FLIP: draw the ball over the bar first, then let it shrink with transform only.
+    if (!prefersReducedMotion() && from.width && from.height) {
+      toolbar.dataset.shrinking = 'true';
+      drag.shrink = {
+        start: now(),
+        dx: from.left + from.width / 2 - (left + width / 2), dy: from.top + from.height / 2 - (top + height / 2),
+        sx: from.width / width, sy: from.height / height,
+      };
+    }
   }
   function moveToolbarDrag(event) {
     const drag = toolbarDrag;
@@ -448,28 +494,42 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     if (!drag.frame) drag.frame = win.requestAnimationFrame(applyDragFrame);
   }
   function ballBox(drag) {
-    return { left: drag.ball.left + (drag.offset?.x || 0), top: drag.ball.top + (drag.offset?.y || 0), width: drag.ball.width, height: drag.ball.height };
+    const visual = ballVisual(drag), width = drag.ball.width * visual.sx, height = drag.ball.height * visual.sy;
+    return {
+      left: drag.ball.left + visual.x + (drag.ball.width - width) / 2, top: drag.ball.top + visual.y + (drag.ball.height - height) / 2,
+      width, height,
+    };
   }
   function endToolbarDrag(event) {
     if (toolbarDrag?.id !== event.pointerId) return;
-    if (toolbarDrag.moved) { toolbarDrag.pointer = { x: event.clientX, y: event.clientY }; applyDragFrame(); }
+    if (toolbarDrag.moved) {
+      toolbarDrag.pointer = { x: event.clientX, y: event.clientY };
+      toolbarDrag.offset = {
+        x: Math.max(toolbarDrag.bounds.minX, Math.min(toolbarDrag.bounds.maxX, toolbarDrag.pointer.x - toolbarDrag.x)),
+        y: Math.max(toolbarDrag.bounds.minY, Math.min(toolbarDrag.bounds.maxY, toolbarDrag.pointer.y - toolbarDrag.y)),
+      };
+    }
+    // Read the drawn ball before the drag state is cleared.
+    const from = toolbarDrag.moved ? ballBox(toolbarDrag) : null;
     const drag = stopToolbarDrag();
     if (!drag.moved) return;
-    // The click that follows a drag must not also collapse or expand the toolbar.
+    // Any click that follows a drag belongs to the drag, not to a button.
     suppressClickUntil = Date.now() + 400;
-    const from = ballBox(drag), velocity = releaseVelocity(drag.samples);
-    const centre = { x: from.left + from.width / 2, y: from.top + from.height / 2 };
+    const velocity = releaseVelocity(drag.samples), ball = drag.ball;
+    const centre = { x: ball.left + drag.offset.x + ball.width / 2, y: ball.top + drag.offset.y + ball.height / 2 };
     // The spring keeps the throw's momentum (px/ms to px/s).
     setDock(releaseDock(centre, velocity, { width: drag.area.width, height: drag.area.height }), { ...from, velocity: { x: velocity.x * 1000, y: velocity.y * 1000 } });
   }
   function cancelToolbarDrag(event) {
     if (toolbarDrag?.id !== event.pointerId) return;
+    const from = toolbarDrag.moved ? ballBox(toolbarDrag) : null;
     const drag = stopToolbarDrag();
     if (!drag.moved) return;
     // An interrupted drag returns to where the toolbar was docked.
     dock = drag.previous;
+    cornerOpen = false;
     layoutToolbar();
-    settleFrom(ballBox(drag));
+    settleFrom(from);
   }
   async function exportRegion(value) {
     const x=Math.max(0,Math.min(viewWidth,value.x)),y=Math.max(0,Math.min(viewHeight,value.y));
@@ -685,7 +745,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }
   function focusTool() { canvas.focus({ preventScroll: true }); }
   function perform(action) {
-    if (readOnly && !['fullscreen', 'collapse-toolbar', 'expand-toolbar'].includes(action)) return;
+    if (readOnly && !['fullscreen', 'expand-toolbar'].includes(action)) return;
     finishInteraction();
     report();
     let changed = false;
@@ -697,8 +757,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       if (!settings.hidden) widthInput.focus({ preventScroll: true });
     }
     else if (action === 'close-settings') closeSettings({ focus: true });
-    else if (action === 'collapse-toolbar') { setDock({ ...dock, collapsed: true }); expandButton.focus({ preventScroll: true }); }
-    else if (action === 'expand-toolbar') { setDock({ ...dock, collapsed: false }); toolbar.querySelector(`[data-tool="${tool}"]`)?.focus({ preventScroll: true }); }
+    else if (action === 'expand-toolbar') { setCornerOpen(true); toolbar.querySelector(`[data-tool="${tool}"]`)?.focus({ preventScroll: true }); }
     else if (action === 'cancel-selection') selectedIds=[];
     else if (action === 'delete-selection' && selectedIds.length) { changed=model.editStrokes(model.strokes.filter(stroke=>!selectedIds.includes(stroke.id)));selectedIds=[]; }
     else if (action === 'copy-selection' && selectedIds.length) {
@@ -717,12 +776,13 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }
   function controlClick(event, scope) {
     if (!confirmation.hidden) return;
+    // A click that a drag produced must not switch tools, open a panel or collapse.
+    if (scope === toolbar && Date.now() < suppressClickUntil) { suppressClickUntil = 0; return; }
     const button = event.target.closest('button');
     if (!button || !scope.contains(button)) return;
-    if ((button === grip || button === expandButton) && Date.now() < suppressClickUntil) { suppressClickUntil = 0; return; }
-    if (button.dataset.ink && !readOnly) { inkColor.value=button.dataset.ink;closePalette({focus:true});updateControls();penButton.querySelector('.qf-whiteboard-pen-color')?.style.setProperty('--swatch',inkColor.value); }
+    if (button.dataset.ink && !readOnly) { inkColor.value=button.dataset.ink;closePalette({focus:true});setCornerOpen(false);updateControls();penButton.querySelector('.qf-whiteboard-pen-color')?.style.setProperty('--swatch',inkColor.value); }
     else if (button.dataset.paper && !readOnly) { finishInteraction();if(model.setPaper({color:button.dataset.paper,pattern:pattern.value}))emitChange();requestPaint(); }
-    else if (button.dataset.tool) chooseTool(button.dataset.tool);
+    else if (button.dataset.tool) { chooseTool(button.dataset.tool); if (palette.hidden) setCornerOpen(false); }
     else if (button.dataset.action) perform(button.dataset.action);
   }
   listen(canvas, 'pointerdown', pointerDown);
@@ -744,16 +804,21 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
   }, { passive: false });
   for (const scope of [toolbar, ...popups]) listen(scope, 'click', event => controlClick(event, scope));
   listen(selectionActions,'click',event=>{const button=event.target.closest('button');if(button&&selectionActions.contains(button)&&confirmation.hidden)perform(button.dataset.action);});
-  for (const handle of [grip, expandButton]) listen(handle, 'pointerdown', startToolbarDrag);
-  // Before the threshold the pressed handle holds the capture; afterwards the
-  // toolbar does, because the grip is hidden inside the ball. Both reach these listeners.
+  listen(toolbar, 'pointerdown', startToolbarDrag);
+  // Before the threshold the pressed button holds the capture; afterwards the
+  // toolbar does, because the button is hidden inside the ball. Both reach these listeners.
   listen(toolbar, 'pointermove', moveToolbarDrag);
   listen(toolbar, 'pointerup', endToolbarDrag);
   listen(toolbar, 'pointercancel', cancelToolbarDrag);
   listen(toolbar, 'lostpointercapture', event => { if (event.target === toolbar && toolbarDrag?.moved) cancelToolbarDrag(event); });
-  listen(grip,'keydown',event=>{
-    const side={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'top',ArrowDown:'bottom'}[event.key];
-    if(!side)return;event.preventDefault();setDock({...dock,side,collapsed:false});grip.focus({preventScroll:true});
+  // Alt + arrow keys move the toolbar to the next stop, from any of its buttons.
+  listen(toolbar, 'keydown', event => {
+    const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+    if (!step || !event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    const focused = doc.activeElement;
+    setDock({ anchor: stepAnchor(dock.anchor, ...step) });
+    if (focused?.hidden || !toolbar.contains(focused)) (expandButton.hidden ? toolbar.querySelector('button:not([hidden])') : expandButton)?.focus({ preventScroll: true });
   });
   listen(select('[data-action="copy-capture"]'),'click',async event=>{
     const blob=captureBlob;if(!blob||event.target.disabled)return;
@@ -796,7 +861,7 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
     }
     if (event.target.closest('button')?.dataset.tool) toolShortcut(event);
   });
-  listen(win, 'pointerdown', event => { if (![toolbar, ...popups].some(scope => scope.contains(event.target))) {closeSettings();closePalette();} });
+  listen(win, 'pointerdown', event => { if (![toolbar, ...popups].some(scope => scope.contains(event.target))) {closeSettings();closePalette();setCornerOpen(false);} });
   listen(win, 'blur', () => {cancelInteraction();if(toolbarDrag)cancelToolbarDrag({pointerId:toolbarDrag.id});});
   listen(container, 'scroll', () => { syncScroll(); requestPaint(); onScroll(); }, { passive: true });
   listen(container, 'qf-interactive-regions', requestPaint);

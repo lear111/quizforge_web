@@ -55,7 +55,7 @@
 }
 .qf-whiteboard-toolbar::-webkit-scrollbar { display: none; }
 .qf-whiteboard-toolbar[data-side="top"], .qf-whiteboard-toolbar[data-side="bottom"] { flex-direction: row; }
-.qf-whiteboard-toolbar :is(.qf-whiteboard-grip, .qf-whiteboard-expand) { touch-action: none; }
+.qf-whiteboard-toolbar :is(button, .qf-whiteboard-expand) { touch-action: none; }
 .qf-whiteboard--practice .qf-whiteboard-toolbar { display: none; }
 .qf-whiteboard-group { display: flex; flex-direction: inherit; align-items: center; gap: 2px; }
 .qf-whiteboard-group:empty, .qf-whiteboard-group:not(:has(> :not([hidden]))) { display: none; }
@@ -74,36 +74,31 @@
 :is(.qf-whiteboard, .qf-whiteboard-tool-row) button:hover { background: #f3f0f8; }
 :is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-pressed="true"], :is(.qf-whiteboard, .qf-whiteboard-tool-row) button[aria-expanded="true"] { background: #ede7fa; color: #6a4fc0; }
 :is(.qf-whiteboard, .qf-whiteboard-tool-row) button:disabled { opacity: .32; cursor: default; background: transparent; }
+/* Disabled buttons let presses through, so the toolbar can be dragged from them too. */
+.qf-whiteboard-toolbar button:disabled { pointer-events: none; }
 :is(.qf-whiteboard, .qf-whiteboard-tool-row) button:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) input:focus-visible, :is(.qf-whiteboard, .qf-whiteboard-tool-row) select:focus-visible { outline: 2px solid #9576d6; outline-offset: 1px; }
 .qf-whiteboard-toolbar > button, .qf-whiteboard-toolbar .qf-whiteboard-group > button { position: relative; flex: none; width: var(--qf-tool); height: var(--qf-tool); min-width: 0; min-height: 0; padding: 0; }
 .qf-whiteboard-toolbar svg, .qf-whiteboard-popup svg, .qf-whiteboard-selection-actions svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.qf-whiteboard-toolbar .qf-whiteboard-grip { height: 18px; color: #b9aec8; cursor: grab; touch-action: none; }
-:is([data-side="top"], [data-side="bottom"]) > .qf-whiteboard-grip { width: 18px; height: var(--qf-tool); }
-:is([data-side="left"], [data-side="right"]) > .qf-whiteboard-grip svg { transform: rotate(90deg); }
-.qf-whiteboard-toolbar .qf-whiteboard-grip svg { width: 16px; height: 16px; }
 .qf-whiteboard-pen-color { position: absolute; right: 5px; bottom: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--swatch); box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px #0000001f; pointer-events: none; }
 
-/* Collapsed: a tab flush with the edge that shows only the current tool. */
-.qf-whiteboard-toolbar[data-collapsed="true"] { padding: 5px; overflow: visible; }
+/* Collapsed in a corner, and while dragging: one round ball showing the current tool. */
+.qf-whiteboard-toolbar:is([data-collapsed="true"], [data-dragging="true"]) { padding: 4px !important; border: 1px solid #ebe7f1 !important; border-radius: 50% !important; overflow: visible; background: #fff; box-shadow: 0 6px 16px -4px #2b20402e, 0 1px 4px #2b20401f; }
 .qf-whiteboard-toolbar[data-collapsed="true"] > :not(.qf-whiteboard-expand) { display: none !important; }
-.qf-whiteboard-toolbar[data-collapsed="true"][data-side="right"] { border-right: 0; border-radius: 22px 0 0 22px; padding-right: 3px; }
-.qf-whiteboard-toolbar[data-collapsed="true"][data-side="left"] { border-left: 0; border-radius: 0 22px 22px 0; padding-left: 3px; }
-.qf-whiteboard-toolbar[data-collapsed="true"][data-side="top"] { border-top: 0; border-radius: 0 0 22px 22px; padding-top: 3px; }
-.qf-whiteboard-toolbar[data-collapsed="true"][data-side="bottom"] { border-bottom: 0; border-radius: 22px 22px 0 0; padding-bottom: 3px; }
-.qf-whiteboard-toolbar .qf-whiteboard-expand { color: #6a4fc0; background: #f4f0fc; border-radius: 50%; cursor: pointer; touch-action: none; }
+.qf-whiteboard-toolbar .qf-whiteboard-expand { color: #6a4fc0; background: transparent; border-radius: 50%; cursor: pointer; }
 
 /* Dragging: the toolbar becomes a ball under the finger that only moves by transform.
    Moving and settling animate on the compositor; nothing else is laid out. */
 .qf-whiteboard-toolbar[data-dragging="true"], .qf-whiteboard-toolbar[data-settling="true"] { will-change: transform; transform-origin: 50% 50%; }
 .qf-whiteboard-toolbar[data-settling="true"] { overflow: hidden; }
-.qf-whiteboard-toolbar[data-dragging="true"] { padding: 5px !important; border: 1px solid #ebe7f1 !important; border-radius: 50% !important; overflow: visible; cursor: grabbing; box-shadow: 0 16px 36px -8px #2b204052, 0 3px 10px #2b20402e; animation: qf-toolbar-ball .16s ease-out; }
+.qf-whiteboard-toolbar[data-dragging="true"] { cursor: grabbing; box-shadow: 0 12px 28px -8px #2b204047, 0 2px 8px #2b204026; }
 .qf-whiteboard-toolbar[data-dragging="true"] > :not(.qf-whiteboard-expand) { display: none !important; }
 .qf-whiteboard-toolbar[data-dragging="true"] .qf-whiteboard-expand { cursor: grabbing; }
-@keyframes qf-toolbar-ball { from { opacity: .6; } }
+/* While the bar shrinks into the ball (240ms, transform only) the tool icon fades in. */
+.qf-whiteboard-toolbar[data-shrinking="true"] .qf-whiteboard-expand > * { animation: qf-toolbar-unfold .24s ease-out; }
 .qf-whiteboard-toolbar[data-settling="true"] > * { animation: qf-toolbar-unfold .2s ease-out; }
 @keyframes qf-toolbar-unfold { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .qf-whiteboard-toolbar[data-dragging="true"], .qf-whiteboard-toolbar[data-settling="true"] > * { animation: none; }
+  .qf-whiteboard-toolbar[data-shrinking="true"] .qf-whiteboard-expand > *, .qf-whiteboard-toolbar[data-settling="true"] > * { animation: none; }
 }
 
 /* Popups open beside the toolbar, towards the page. */
