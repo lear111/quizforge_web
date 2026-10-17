@@ -1,0 +1,81 @@
+/* Appearance themes. The default look has no data-qf-theme attribute and is
+   unchanged. Themes repaint only the host shell and the space around question
+   cards: extension pages keep a transparent body and paint their own cards,
+   draft mode keeps the whiteboard paper, and dialogs stay as they are. */
+html[data-qf-theme="mist"]{
+  --qf-base:#f1eef8;
+  --qf-page:linear-gradient(140deg,#e9e7fa 0%,#f4ecf8 36%,#fbeee9 64%,#e5f2ef 100%);
+  --qf-panel:rgba(255,255,255,.62);--qf-panel-solid:#f8f6fc;
+  --qf-bar:rgba(255,255,255,.55);--qf-around:transparent;--qf-line:rgba(112,100,160,.14);
+}
+html[data-qf-theme="paper"]{
+  --qf-base:#f6f1e6;
+  --qf-page:radial-gradient(rgba(120,95,50,.045) 1px,transparent 1.2px) 0 0/7px 7px,#f6f1e6;
+  --qf-panel:#faf6ec;--qf-panel-solid:#faf6ec;
+  --qf-bar:rgba(250,246,236,.94);
+  --qf-around:repeating-linear-gradient(180deg,transparent 0 31px,rgba(150,125,80,.09) 31px 32px);
+  --qf-line:#e7dcc6;
+}
+html[data-qf-theme="sepia"]{
+  --qf-base:#f1e8d2;--qf-page:#f1e8d2;
+  --qf-panel:#f6efdd;--qf-panel-solid:#f6efdd;
+  --qf-bar:#f6efdd;--qf-around:transparent;--qf-line:#e3d6b6;
+}
+html[data-qf-theme="green"]{
+  --qf-base:#e2eddb;--qf-page:#e2eddb;
+  --qf-panel:#ebf3e5;--qf-panel-solid:#ebf3e5;
+  --qf-bar:#ebf3e5;--qf-around:transparent;--qf-line:#cfdfc4;
+}
+html[data-qf-theme="image"]{
+  --qf-base:#ece8f6;
+  --qf-page:linear-gradient(rgba(248,247,252,var(--qf-dim,.3)),rgba(248,247,252,var(--qf-dim,.3))),var(--qf-image,url("/assets/backgrounds/dawn-lake.svg")) center/cover no-repeat,#ece8f6;
+  --qf-panel:rgba(255,255,255,.7);--qf-panel-solid:#f8f6fc;
+  --qf-bar:rgba(255,255,255,.62);--qf-around:transparent;--qf-line:rgba(255,255,255,.55);
+}
+
+html[data-qf-theme],html[data-qf-theme] body{background:var(--qf-base)}
+html[data-qf-theme] .app-shell{background:var(--qf-page)}
+html[data-qf-theme] :is(.main,.panes,.welcome){background:transparent}
+html[data-qf-theme] .library{background:var(--qf-panel);border-right-color:var(--qf-line)}
+html[data-qf-theme] .outline{background:var(--qf-panel);border-left-color:var(--qf-line)}
+html[data-qf-theme] :is(.library-footer,.outline-heading,.outline-legend){border-color:var(--qf-line)}
+html[data-qf-theme] .document-header{background:var(--qf-bar);border-bottom-color:var(--qf-line)}
+html[data-qf-theme] .practice-footer{background:var(--qf-bar);border-top-color:var(--qf-line)}
+/* The navigation layer spans the whole pane and only becomes a bottom bar on phones. */
+@media(max-width:600px){
+  html[data-qf-theme] .app-shell:not(.draft-fullscreen) .question-navigation{background:var(--qf-panel-solid);border-top-color:var(--qf-line)}
+}
+html[data-qf-theme] .question-pane:not(.is-draft) .question-viewport{background:var(--qf-around)}
+html[data-qf-theme] .question-loading{background:var(--qf-panel-solid)}
+html[data-qf-theme] .library-switch{background:rgba(255,255,255,.45)}
+html[data-qf-theme] .welcome-icon{background:rgba(255,255,255,.7)}
+html[data-qf-theme] .welcome h2{color:#5d5470}
+
+/* Drawers float over the question on narrow screens and must stay readable. */
+@media(max-width:800px){
+  html[data-qf-theme] .library,html[data-qf-theme] .outline{background:var(--qf-panel-solid)}
+}
+/* Phone cards fill the width on a white page; keep the whole question area white.
+   This must follow the general question-viewport rule above. */
+@media(max-width:600px){
+  html[data-qf-theme] .question-pane:not(.is-draft) .question-viewport{background:#fff}
+}
+
+/* Theme swatches in the appearance settings. */
+.appearance-themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:4px 0 16px}
+.appearance-theme{display:flex;flex-direction:column;gap:6px;padding:6px;border:1px solid #e6dfef;border-radius:10px;background:#fff;color:#6f6680;font-size:12px;text-align:center}
+.appearance-theme[aria-checked="true"]{border-color:var(--accent);box-shadow:0 0 0 2px #d9cdf4;color:#5d42ad}
+.appearance-swatch{height:54px;border-radius:7px;border:1px solid rgba(60,50,90,.08);position:relative;overflow:hidden}
+.appearance-swatch::after{content:"";position:absolute;left:28%;right:12%;top:22%;bottom:22%;border-radius:4px;background:#fff;border:1px solid #ebe6f1}
+.appearance-swatch[data-swatch="default"]{background:#f8f9fc}
+.appearance-swatch[data-swatch="mist"]{background:linear-gradient(140deg,#e9e7fa 0%,#f4ecf8 36%,#fbeee9 64%,#e5f2ef 100%)}
+.appearance-swatch[data-swatch="paper"]{background:repeating-linear-gradient(180deg,transparent 0 7px,rgba(150,125,80,.14) 7px 8px),#f6f1e6}
+.appearance-swatch[data-swatch="sepia"]{background:#f1e8d2}
+.appearance-swatch[data-swatch="green"]{background:#e2eddb}
+.appearance-swatch[data-swatch="image"]{background:var(--qf-image,url("/assets/backgrounds/dawn-lake.svg")) center/cover no-repeat,#ece8f6}
+.appearance-image{display:flex;flex-direction:column;gap:10px;margin:0 0 14px;padding:12px;border:1px solid #ece6f3;border-radius:10px;background:#fbfaff}
+.appearance-image-actions{display:flex;gap:8px;flex-wrap:wrap}
+.appearance-image-actions button{padding:7px 12px;border:1px solid #e0d6ed;border-radius:7px;font-size:12px;color:#6f5a96;background:#fff}
+.appearance-dim{display:flex!important;flex-direction:row!important;align-items:center;gap:10px!important}
+.appearance-dim input{flex:1;padding:0;border:0}
+.appearance-dim output{min-width:38px;text-align:right;font-variant-numeric:tabular-nums;color:#6f5a96}

@@ -29,6 +29,7 @@ import {bindLibraryManagement} from './library/library-management.js';
 import {bindLibraryTransfer} from './library/library-transfer.js';
 import {bindLibraryResize} from './library/library-resize.js';
 import {bindSaveRecovery} from './practice/save-recovery.js';
+import {bindAppearanceSettings} from './shell/appearance.js';
 import {createQuestionStepper,stepTarget,adjacentQuestionIds,navigationShortcut,scheduleIdle} from './practice/question-navigation.js';
 
 const $=selector=>document.querySelector(selector);
@@ -45,6 +46,8 @@ const libraryDrawer=matchMedia('(max-width:800px)'),outlineDrawer=matchMedia('(m
 const phoneLayout=matchMedia('(max-width:600px)');
 let listMode='bank',activeKey=null,pendingLibraryKey=null,transition=Promise.resolve(),pendingWrites=0;
 const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;};
+// Apply the saved appearance before the first question renders.
+bindAppearanceSettings({document});
 function notice(message){$('#notice').textContent=message||'';$('#notice').hidden=!message;}
 function failure(error){notice(error.message||String(error));}
 function transitionTo(fn){const run=transition.then(async()=>{notice('');$('#previous').disabled=true;$('#next').disabled=true;try{return await fn();}finally{for(const pane of collections.values())pane.node.inert=false;updateChrome();renderRecovery();}});transition=run.catch(()=>{});run.catch(failure);return run;}

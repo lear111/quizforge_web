@@ -30,6 +30,7 @@ Windows 也可运行 `Start-QuizForge-Web.cmd`，自动安装依赖并打开浏�
 | 功能 | 后端 | 浏览器 |
 | --- | --- | --- |
 | 入口与网络 | `server/main.mjs`、`server/host/http/` | `web/app.js`、`web/shell/` |
+| 外观主题 | 无（只在浏览器中保存） | `web/shell/appearance.js`、`web/shell/themes.css`、`web/assets/backgrounds/` |
 | 题库、分组、导入导出 | `server/host/library/` | `web/library/` |
 | 拓展解析与规则执行 | `server/host/extensions/`、`server/rules-runner.cjs` | `web/bridge/`、`web/development/` |
 | 作答、草稿与大纲 | `server/host/practice/` | `web/practice/`、`web/draft/`、`web/outline/` |

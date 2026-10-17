@@ -21,7 +21,7 @@ core/
       ai/                     # 模型设置、评分任务、诊断与凭据保护
   web/
     index.html, app.js        # 页面入口与宿主协调
-    shell/                    # 外壳样式与网络设置
+    shell/                    # 外壳样式、网络设置与外观主题
     bridge/                   # iframe、拓展接口与页面资源
     practice/                 # 作答反馈、缓存、加载、汇总和保存恢复
     draft/                    # 白板笔迹、选择、截图、比例布局与全屏

@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1200" preserveAspectRatio="xMidYMid slice">
+  <title>晨光湖畔</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9bdf0"/>
+      <stop offset=".34" stop-color="#d9cff2"/>
+      <stop offset=".58" stop-color="#f6d9e0"/>
+      <stop offset=".74" stop-color="#fde4d4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="1360" cy="610" r="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff6e8" stop-opacity=".95"/>
+      <stop offset=".22" stop-color="#ffe7cf" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#ffe0cc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c7bfe9"/>
+      <stop offset="1" stop-color="#ddd2ee"/>
+    </linearGradient>
+    <linearGradient id="mid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a698dc"/>
+      <stop offset="1" stop-color="#c3b6e6"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7f6dc6"/>
+      <stop offset="1" stop-color="#9c8cd5"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e4ea8"/>
+      <stop offset="1" stop-color="#6c5cb4"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9d6ea"/>
+      <stop offset=".45" stop-color="#cbc2ec"/>
+      <stop offset="1" stop-color="#a99fe0"/>
+    </linearGradient>
+    <linearGradient id="shore" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b3f8c"/>
+      <stop offset="1" stop-color="#3b3175"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="haze" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="30"/></filter>
+  </defs>
+
+  <rect width="1920" height="1200" fill="url(#sky)"/>
+  <rect width="1920" height="1200" fill="url(#glow)"/>
+  <circle cx="1360" cy="610" r="92" fill="#fff8ef"/>
+
+  <g fill="#ffffff" opacity=".42" filter="url(#soft)">
+    <ellipse cx="420" cy="230" rx="300" ry="46"/>
+    <ellipse cx="640" cy="290" rx="220" ry="34"/>
+    <ellipse cx="1500" cy="300" rx="280" ry="40"/>
+    <ellipse cx="1180" cy="200" rx="200" ry="30"/>
+  </g>
+
+  <path fill="url(#far)" d="M0 690 L120 640 L250 668 L390 590 L520 650 L640 612 L760 660 L900 600 L1040 652 L1180 604 L1310 646 L1440 598 L1580 640 L1720 606 L1840 636 L1920 618 V780 H0Z"/>
+  <path fill="url(#mid)" d="M0 735 L110 690 L210 712 L330 640 L460 708 L560 676 L700 728 L820 668 L930 716 L1060 680 L1170 724 L1290 662 L1420 718 L1560 676 L1700 726 L1820 690 L1920 708 V800 H0Z"/>
+  <rect y="690" width="1920" height="90" fill="#efe1ec" opacity=".45" filter="url(#haze)"/>
+  <path fill="url(#near)" d="M0 790 L90 752 L200 774 L310 716 L420 772 L520 744 L610 782 L760 726 L880 780 L990 752 L1110 790 L1240 742 L1360 784 L1500 748 L1620 786 L1760 744 L1920 776 V830 H0Z"/>
+
+  <rect y="812" width="1920" height="388" fill="url(#lake)"/>
+  <g fill="#ffffff" opacity=".5">
+    <rect x="1250" y="840" width="220" height="3" rx="1.5"/>
+    <rect x="1290" y="870" width="150" height="3" rx="1.5"/>
+    <rect x="1230" y="902" width="250" height="2" rx="1"/>
+    <rect x="1305" y="934" width="110" height="2" rx="1"/>
+    <rect x="1270" y="968" width="180" height="2" rx="1"/>
+  </g>
+  <g fill="#ffffff" opacity=".28">
+    <rect x="180" y="880" width="260" height="2" rx="1"/>
+    <rect x="560" y="930" width="320" height="2" rx="1"/>
+    <rect x="300" y="1010" width="380" height="2" rx="1"/>
+    <rect x="1560" y="1040" width="300" height="2" rx="1"/>
+  </g>
+  <path fill="#9b8ed8" opacity=".35" d="M0 812 L120 846 L260 822 L400 858 L540 830 L680 852 L820 826 H0Z"/>
+
+  <path fill="url(#front)" d="M0 1040 C160 1000 300 1012 430 1050 C540 1082 640 1092 760 1080 L760 1200 H0Z"/>
+  <path fill="url(#shore)" d="M0 1110 C200 1080 380 1094 560 1130 C700 1158 860 1166 1020 1150 C1200 1132 1380 1160 1560 1150 C1720 1142 1840 1124 1920 1118 V1200 H0Z"/>
+  <path fill="url(#front)" opacity=".85" d="M1340 1080 C1500 1056 1660 1050 1800 1062 C1860 1067 1900 1074 1920 1078 V1200 H1340Z"/>
+
+  <g fill="none" stroke="#6b5aa8" stroke-width="3.2" stroke-linecap="round" opacity=".55">
+    <path d="M980 420 q14 -12 26 0 q12 -12 26 0"/>
+    <path d="M1056 452 q10 -9 19 0 q9 -9 19 0"/>
+    <path d="M928 468 q8 -7 15 0 q7 -7 15 0"/>
+  </g>
+</svg>
