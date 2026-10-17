@@ -8,12 +8,12 @@ const LIMIT = 8 * 1024 * 1024;
 // Public rule contracts evolve independently of application releases. Retain
 // this v1 registration when a later major adds a separate implementation.
 const ruleApis = new Map([[1, {
-  minor: 3,
+  minor: 4,
   register(run, development = false) {
     run(`globalThis.__type = null; globalThis.QF = Object.freeze({
-      api:Object.freeze({major:1,minor:3,capabilities:Object.freeze([
+      api:Object.freeze({major:1,minor:4,capabilities:Object.freeze([
         'practice','editor','editor-drafts','score','manual-review','ai-grading',
-        'resources','richtext','navigation','lifecycle','outline-items','answer-state'
+        'resources','richtext','navigation','lifecycle','outline-items','answer-state','appearance'
       ])}),
       defineType(type) {
         if (__type || !type || typeof type !== 'object' || Array.isArray(type) || (${development ? 'false' : "typeof type.project !== 'function' || typeof type.grade !== 'function'"})) throw Error('Invalid rule registration');
@@ -33,7 +33,7 @@ function selectRuleApi(value) {
   }
   const api = ruleApis.get(value.major);
   if (!api || value.minor > api.minor) {
-    const error = new Error('Unsupported rule API version; this runner supports v1.3, v1.2, v1.1 and v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
+    const error = new Error('Unsupported rule API version; this runner supports v1.4, v1.3, v1.2, v1.1 and v1.0'); error.code = 'UNSUPPORTED_API_VERSION'; throw error;
   }
   return api;
 }

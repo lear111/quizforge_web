@@ -4,6 +4,8 @@ export function bootstrapV1(boot) {
   const outlineSupported=boot.api.capabilities.includes('outline-items');
   const resourceCache=new Map(),resourceUrls=new Set();let resourceBytes=0,editorLoading=null,contentFacade=null;
   const requests=new Map(),pending=new Set();
+  // API 1.4: host theme and panel transparency, mirrored on <html> for CSS.
+  let appearance=boot.appearance?Object.freeze({...boot.appearance}):null;const appearanceListeners=new Set();
   const send=message=>parent.postMessage({...message,channel:'quizforge-extension',session:boot.session},'*');
   const fail=(code,message)=>({ok:false,error:{code,message}});
   const track=value=>{const promise=Promise.resolve(value);pending.add(promise);promise.finally(()=>pending.delete(promise)).catch(()=>{});return promise;};
@@ -60,13 +62,20 @@ export function bootstrapV1(boot) {
     contentFacade=Object.freeze(facade);return contentFacade;
   }
   const api=Object.freeze({...boot.api,capabilities:Object.freeze([...boot.api.capabilities])});
+  // A live getter: spreading it would copy only the first value.
+  const ui={resize};
+  if(appearance){
+    Object.defineProperty(ui,'appearance',{enumerable:true,get:()=>appearance});
+    ui.onAppearanceChange=callback=>{if(typeof callback!=='function')throw new TypeError('onAppearanceChange 需要一个函数');appearanceListeners.add(callback);return()=>{appearanceListeners.delete(callback);};};
+  }
+  Object.freeze(ui);
   globalThis.QF=Object.freeze({
     api,
     page:Object.freeze({register,...(boot.api.capabilities.includes('answer-state')?{reportAnswerState:value=>invoke('answer-state',value)}:{})}),
     editor:Object.freeze({register(value){if(context.mode!=='edit')throw new Error('当前页面不是编辑模式');if(typeof value?.getDocument!=='function')throw new TypeError('必须提供 getDocument');editorHooks=value;return register(value);}}),
     save:value=>invoke('save',value),requestAction:value=>invoke('action',value),
     ai:Object.freeze({grade:(value={})=>invoke('ai-grade',value),getTask:(value={})=>invoke('ai-task',value),retry:(value={})=>invoke('ai-retry',value),confirm:(value={})=>invoke('ai-confirm',value)}),
-    ui:Object.freeze({resize}),resources,get content(){return content();}
+    ui,resources,get content(){return content();}
   });
   let inputGeneration=0;
   if(boot.legacyPage){
@@ -92,6 +101,13 @@ export function bootstrapV1(boot) {
       });
     }
     else if(value.kind==='visibility'){inactive=value.active!==true;if(inactive){sizeObserver.disconnect?.();for(const item of requests.values()){clearTimeout(item.timer);item.resolve(fail('PAGE_INACTIVE','题卡已暂停，当前输入保留'));}requests.clear();}else{sizeObserver.observe(document.body);sizeObserver.observe(document.documentElement);resize();}}
+    else if(value.kind==='appearance'&&appearance&&!closed){
+      const next=value.appearance;
+      if(typeof next?.theme!=='string'||!/^[a-z][a-z-]{0,31}$/.test(next.theme)||!Number.isFinite(next.transparency)||next.transparency<0||next.transparency>1)return;
+      appearance=Object.freeze({theme:next.theme,transparency:next.transparency});
+      document.documentElement.dataset.qfTheme=appearance.theme;document.documentElement.style.setProperty('--qf-transparency',String(appearance.transparency));
+      for(const callback of [...appearanceListeners]){try{callback(appearance);}catch(error){send({kind:'error',message:error?.message||'外观更新处理失败'});}}
+    }
     else if(value.kind==='context')load(value.context).catch(error=>send({kind:'error',message:error.message}));
     else if(value.kind==='flush'){(async()=>{try{await hooks?.onFlush?.();while(pending.size)await Promise.allSettled([...pending]);send({kind:'flushed',id:value.id,ok:true});}catch(error){send({kind:'flushed',id:value.id,ok:false,error:{message:error.message||'编辑内容尚未保存'}});}})();}
     else if(value.kind==='read-draft'&&!closed){(async()=>{try{await hooks?.onFlush?.();const supported=typeof editorHooks?.exportDraft==='function';const changed=editorHooks?.hasChanges?!!(await editorHooks.hasChanges()):true;const draft=supported?structuredClone(await editorHooks.exportDraft()):null;send({kind:'editor-draft',id:value.id,ok:true,supported,draft,changed});}catch(error){send({kind:'editor-draft',id:value.id,ok:false,error:{message:error.message||'编辑草稿读取失败'}});}})();}

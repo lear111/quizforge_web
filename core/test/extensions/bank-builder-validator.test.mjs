@@ -205,7 +205,7 @@ test('API 1.2 score states validate without a new capability and fail on pre-sub
   const rules=`QF.defineType({project(data){return {stem:data.stem,maxScore:1};},grade(){return {};},getScore(){return {score:0,maxScore:1,outlineStates:[{id:'part-21',status:'unanswered'}]};}});`;
   f.write('staged/custom/rules.js',rules);const before=readFileSync(path.join(f.root,'bank/bank.json')),valid=f.run();assert.equal(valid.code,0,JSON.stringify(valid.report));assert.equal(valid.report.summary.maxScore,3);assert.deepEqual(readFileSync(path.join(f.root,'bank/bank.json')),before);
   f.write('staged/custom/rules.js',rules.replace("status:'unanswered'","status:'correct'"));const bad=f.run();assert.equal(bad.code,1);assert.equal(bad.report.errors[0].code,'INVALID_OUTLINE_STATES');
-  f.write('staged/custom/manifest.json',{...f.manifest,requiresApi:{major:1,minMinor:4,capabilities:['score']}});const future=f.run();assert.equal(future.report.errors[0].code,'UNSUPPORTED_EXTENSION_API');assert.equal(future.report.summary.ruleBatches,0);
+  f.write('staged/custom/manifest.json',{...f.manifest,requiresApi:{major:1,minMinor:5,capabilities:['score']}});const future=f.run();assert.equal(future.report.errors[0].code,'UNSUPPORTED_EXTENSION_API');assert.equal(future.report.summary.ruleBatches,0);
 });
 
 test('explicit and generated navigation metadata share the bank aggregate size limit',t=>{
@@ -262,7 +262,7 @@ test('preview still rejects malformed schemas, incompatible API, bad data and re
   cpSync(path.join(singleChoice,'question.schema.json'),path.join(f.root,'extensions/custom-dev/question.schema.json'));
   bank.questions[0].data={};f.write('bank/bank.json',bank);assert.equal(f.run('--allow-development','--preview-only').report.errors[0].code,'INVALID_QUESTION_SCHEMA_DATA');
   f.write('bank/bank.json',{...bank,questions:readFixture(f,'staged/custom/examples.json').questions});
-  f.write('extensions/custom-dev/manifest.json',{...manifest,requiresApi:{major:1,minMinor:4}});assert.equal(f.run('--allow-development','--preview-only').report.errors[0].code,'UNSUPPORTED_EXTENSION_API');
+  f.write('extensions/custom-dev/manifest.json',{...manifest,requiresApi:{major:1,minMinor:5}});assert.equal(f.run('--allow-development','--preview-only').report.errors[0].code,'UNSUPPORTED_EXTENSION_API');
   f.write('extensions/custom-dev/manifest.json',{...manifest,entry:'../outside.html'});assert.equal(f.run('--allow-development','--preview-only').report.errors[0].code,'PATH_ESCAPES_PACKAGE');
 });
 

@@ -135,3 +135,11 @@ test('themes give panel colours and one rule mixes in the transparency',()=>{
   assert.match(css,/--qf-panel:color-mix\(in srgb,var\(--qf-panel-color\) calc\(100% - var\(--qf-clear,0\) \* 100%\),transparent\)/);
   assert.match(css,/@media\(max-width:800px\)\{\s*html\[data-qf-theme\] \.library,html\[data-qf-theme\] \.outline\{background:var\(--qf-panel-solid\)\}/,'Narrow-screen drawers stay solid');
 });
+
+test('white controls on themed panels and the loading layer follow the background',()=>{
+  for(const rule of ['.library-switch button[aria-selected=true]{background:var(--qf-control)}','.draft-toggle:not([aria-pressed=true]):not(:hover){background:var(--qf-control)}','.question-arrow:not(:hover){background:color-mix('])
+    assert.ok(css.includes(`html[data-qf-theme] ${rule}`),rule);
+  assert.match(css,/--qf-control:color-mix\(in srgb,#fff calc\(100% - var\(--qf-clear,0\) \* 80%\),transparent\)/);
+  assert.ok(css.includes('html[data-qf-theme] :is(.question-loading,.collection-loading){background:var(--qf-page);background-attachment:fixed}'),'Loading shows the page background, not a white sheet');
+  assert.ok(css.indexOf(':is(.question-loading,.collection-loading){background:#fff}')>css.indexOf(':is(.question-loading,.collection-loading){background:var(--qf-page)'),'Phones keep the white question area while loading');
+});

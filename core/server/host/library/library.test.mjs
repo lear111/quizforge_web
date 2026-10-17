@@ -53,7 +53,7 @@ test('on-demand collection and page load keep ordinary extension identity', asyn
   assert.equal(collection.stateKey(), 'extension:quizforge.single-choice:quizforge.single-choice:1.0.0');
   assert.ok(collection.questions.length);
   const page = await library.page('quizforge.single-choice', '1.0.0');
-  assert.ok(page.script.includes('QF')); assert.deepEqual(page.apiVersion, { major: 1, minor: 3 });
+  assert.ok(page.script.includes('QF')); assert.deepEqual(page.apiVersion, { major: 1, minor: 4 });
   const ready = library.index().extensions[0]; assert.equal(ready.validationStatus, 'ready');
 });
 test('external source changes invalidate an already loaded question collection', async t => {

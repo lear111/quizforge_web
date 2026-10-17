@@ -169,14 +169,14 @@ test('legacy rules and explicit v1 rules share an immutable host contract withou
   const request={op:'project',data:{secret:'yes'},state:{submitted:false,result:null}};
   const legacy=call(files,request).body,declared=call(files,{...request,apiVersion:{major:1,minor:0,description:'v1'}}).body;
   assert.deepEqual(legacy,declared);
-  assert.deepEqual(legacy.data.projected,{major:1,minor:3,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
+  assert.deepEqual(legacy.data.projected,{major:1,minor:4,protectedMetadata:true,frozen:true,canReview:true,reveal:null});
   const submitted=call(files,{op:'submit',data:{secret:'yes'},answer:'yes',apiVersion:{major:1,minor:0}}).body;
   assert.equal(submitted.data.result.score,1);assert.equal(submitted.data.projected.reveal,'yes');
 });
 
 test('invalid and future rule API versions are rejected before reading extension code',t=>{
   const files=fixture(t,normal);
-  for(const apiVersion of [{major:2,minor:0},{major:1,minor:4}]){
+  for(const apiVersion of [{major:2,minor:0},{major:1,minor:5}]){
     const result=call(files,{rules:path.join(path.dirname(files.rules),'missing.js'),op:'capabilities',apiVersion}).body;
     assert.equal(result.ok,false);assert.equal(result.code,'UNSUPPORTED_API_VERSION');
   }

@@ -35,6 +35,13 @@ export function applyAppearance(root,value,imageUrl=null){
   if(imageUrl)root.style.setProperty('--qf-image',`url("${imageUrl}")`);else root.style.removeProperty('--qf-image');
 }
 
+// What extension pages see through API 1.4: the theme name and how transparent
+// the shell panels are (0-0.7). The default look has no transparency.
+export function readHostAppearance(root){
+  const theme=root?.dataset?.qfTheme||'default',clear=Number.parseFloat(root?.style?.getPropertyValue('--qf-clear'));
+  return {theme,transparency:theme!=='default'&&Number.isFinite(clear)?Math.min(1,Math.max(0,clear)):0};
+}
+
 export function createImageStore(indexedDB=globalThis.indexedDB){
   if(!indexedDB)return null;
   const open=()=>new Promise((resolve,reject)=>{

@@ -9,7 +9,7 @@ import {spawn} from 'node:child_process';
 
 const MiB=1024*1024, ID=/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/, ASSET_ID=/^[a-f0-9]{64}$/;
 const FIELDS=['entry','script','style','rules','questionSchema','answerSchema','examples'];
-const API={major:1,minor:3,capabilities:new Set(['practice','editor','editor-drafts','score','manual-review','ai-grading','resources','richtext','navigation','lifecycle','outline-items','answer-state'])};
+const API={major:1,minor:4,capabilities:new Set(['practice','editor','editor-drafts','score','manual-review','ai-grading','resources','richtext','navigation','lifecycle','outline-items','answer-state','appearance'])};
 const STRUCTURAL_KEYS=new Set(['stem','referenceAnswer','rubric','document','content','attrs','marks','type','text','assetId','options','answer','feedback']);
 const report={ok:false,summary:{questions:0,questionTypes:0,images:0,referencedImages:0,ruleBatches:0,exampleQuestions:0,exampleRuleBatches:0,outlineItems:0,outlineRuleBatches:0,outlineBytes:0,exampleOutlineItems:0,exampleOutlineRuleBatches:0,maxScore:0},errors:[],warnings:[]};
 class Invalid extends Error {constructor(location,code){super(code);this.location=location;this.code=code;}}
@@ -107,6 +107,7 @@ function apiRequirements(manifest,location){
     if(!API.capabilities.has(name))fail(where+'/capabilities/'+i,'UNSUPPORTED_API_CAPABILITY');
     if(name==='outline-items'&&value.minMinor<1)fail(where,'INVALID_API_REQUIREMENT');
     if(name==='answer-state'&&value.minMinor<3)fail(where,'INVALID_API_REQUIREMENT');
+    if(name==='appearance'&&value.minMinor<4)fail(where,'INVALID_API_REQUIREMENT');
   }
 }
 

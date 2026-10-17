@@ -22,7 +22,12 @@ const v1AnswerState=Object.freeze({
   api:Object.freeze({...v1ScoreOutline.api,minor:3,capabilities:Object.freeze([...v1ScoreOutline.api.capabilities,'answer-state'])}),
   bootstrap:bootstrapV1,
 });
-const bridges=new Map([[1,[v1,v1Outline,v1ScoreOutline,v1AnswerState]]]);
+// API 1.4 tells pages the host theme and panel transparency (read-only).
+const v1Appearance=Object.freeze({
+  api:Object.freeze({...v1AnswerState.api,minor:4,capabilities:Object.freeze([...v1AnswerState.api.capabilities,'appearance'])}),
+  bootstrap:bootstrapV1,
+});
+const bridges=new Map([[1,[v1,v1Outline,v1ScoreOutline,v1AnswerState,v1Appearance]]]);
 
 export function resolveExtensionApi(version) {
   if(version===undefined)version={major:1,minor:0};

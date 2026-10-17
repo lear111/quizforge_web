@@ -66,5 +66,5 @@ test('unchanged legacy packages load and validate through the native collection 
   assert.equal(result.collection.stateKey(), 'extension:quizforge.single-choice:quizforge.single-choice:1.0.0');
   assert.ok(result.successfulCheck); assert.ok(result.collection.questions.length > 0);
   const page = snapshotPage(extension);
-  assert.deepEqual(page.apiVersion, { major: 1, minor: 3 }); assert.ok(page.html.includes('<'));
+  assert.deepEqual(page.apiVersion, { major: 1, minor: 4 }); assert.ok(page.html.includes('<'));
 });

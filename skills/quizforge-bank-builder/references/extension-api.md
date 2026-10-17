@@ -138,6 +138,7 @@ if (!reply?.ok) throw new Error(reply?.error?.message || "保存失败");
 | `QF.requestAction({action:"previous"})` / `({action:"next"})` | 练习切题；最后一题 next 打开汇总。 |
 | `QF.requestAction({action:"goToQuestion",params:{questionId}})` | 跳到本集合中存在的题目。 |
 | `QF.ui.resize()` | 请求宿主按 body 高度调整 iframe；不接收布局参数。 |
+| `QF.ui.appearance` / `QF.ui.onAppearanceChange(callback)` | API 1.4：只读的宿主主题与面板透明度，以及变化订阅；见 [宿主外观](#宿主外观api-14)。 |
 
 API 1.3 的 answer-state 要求 Manifest 声明 requiresApi.minMinor:3。输入时每次上报一个目标：targetId 为当前大纲小题 ID，省略表示当前大题；仅允许 unanswered/draft，其他小题不变，初始缺省为 unanswered，清空已有答案必须上报 unanswered。宿主不猜私有答案结构。上报与保存须关联**同一份答案快照**，处理 envelope 错误，并在 onFlush 等待最终保存：
 
@@ -297,9 +298,26 @@ iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问
 
 宿主 JSON 缓存已受 LRU 数量、字节及 5 分钟空闲期限制：题目 12 条/16 MiB、页面 4 条/4 MiB、SDK 4 条/8 MiB。拓展不扩容、不建立绕过这些限制的全局长期缓存、不改宿主清理逻辑。
 
+## 宿主外观（API 1.4）
+
+用户在设置 → 外观里选的主题和“面板透明度”会告诉题型页面，让题卡可以跟着变成半透明。宿主**不会**替拓展改题卡样式；不读取这些信息的拓展外观不变。
+
+- 读取：`QF.ui.appearance` 返回冻结对象 `{theme, transparency}`。`theme` 为 `default`、`mist`、`paper`、`sepia`、`green`、`image` 之一（以后可能增加，未知值按默认处理）；`transparency` 为 0–0.7 的数字，表示宿主面板透出背景的程度。
+- 订阅：`QF.ui.onAppearanceChange(value => …)` 在值变化时调用，参数与 `QF.ui.appearance` 相同，返回取消订阅函数。回调抛错会作为页面错误上报，不影响其他回调。
+- CSS：宿主同时在 iframe 的 `<html>` 上设置 `data-qf-theme` 和 `--qf-transparency`，首帧即可用，变化时同步更新。纯 CSS 写法示例：
+
+```css
+.my-card{background:color-mix(in srgb,#fff calc(100% - var(--qf-transparency,0) * 100%),transparent)}
+html[data-qf-theme="sepia"] .my-card{background:#fbf6e9}
+```
+
+- 宿主已处理的场景：默认主题、草稿模式（白板纸张）和手机宽度（≤600px，题目区域白底）下 `transparency` 恒为 0；切换主题、拖动滑块、进出草稿、窗口跨过手机宽度时都会推送新值。拓展只需按 `transparency` 决定透明度，不要自行判断草稿或屏幕宽度。
+- 建议：只让题卡底色和大面积浅色块透明，输入框、选项、按钮保持足够不透明以保证可读；`transparency` 很高时可配合 `backdrop-filter: blur()`，但 iframe 内的模糊只作用于 iframe 自身内容，**看不到宿主背景**，真正的背景模糊做不到。文字对比度不能低于不透明时的效果。
+- 声明：当前宿主对所有新页面都提供 API 1.4，拓展可用 `typeof QF.ui.onAppearanceChange === 'function'` 检测后再用。若拓展必须依赖它，在 Manifest 写 `requiresApi:{major:1,minMinor:4,capabilities:["appearance"]}`，旧宿主会拒绝安装而不是显示错误外观。API 1.3 及更早冻结的历史页面不会注入这些接口。
+
 ## 版本与历史兼容
 
-当前支持 API 1.0／1.1／1.2／1.3，缺 requiresApi 按 1.0 读。显式声明只允许 major、minMinor、capabilities：前两项是整数，当前 major=1、minMinor 为 0–3；capabilities 可省略，不重复、不含空字符串。能力为 practice、editor、editor-drafts、score、manual-review、ai-grading、resources、richtext、navigation、lifecycle，子题定位另用 outline-items（minMinor>=1），评分后的子题状态用已有 score（minMinor>=2），输入当下的主动上报用 answer-state（minMinor>=3）。见 [子题接口](#子题导航与状态) 和 [作答协议](#作答协议)。未知版本／能力在执行规则前拒绝，不能只提高声明假装实现 API v2。
+当前支持 API 1.0／1.1／1.2／1.3／1.4，缺 requiresApi 按 1.0 读。显式声明只允许 major、minMinor、capabilities：前两项是整数，当前 major=1、minMinor 为 0–4；capabilities 可省略，不重复、不含空字符串。能力为 practice、editor、editor-drafts、score、manual-review、ai-grading、resources、richtext、navigation、lifecycle，子题定位另用 outline-items（minMinor>=1），评分后的子题状态用已有 score（minMinor>=2），输入当下的主动上报用 answer-state（minMinor>=3），宿主外观用 appearance（minMinor>=4）。见 [子题接口](#子题导航与状态) 和 [作答协议](#作答协议)。未知版本／能力在执行规则前拒绝，不能只提高声明假装实现 API v2。
 
 requiresRichText 独立声明公共服务 API、文档格式、配置与实际能力；与应用、拓展和 Tiptap 版本分别独立。富文本声明细则见 [清单](#清单与公共服务声明)。
 

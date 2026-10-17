@@ -3,14 +3,21 @@ import {resolveExtensionApi} from './api-bridges.js';
 import {validateContentApi} from './page-assets.js';
 import {inlinePageAssets,prepareLegacyPage} from '../development/development-preview.js';
 import {installFrameCapture} from './frame-capture.js';
+import {readHostAppearance} from '../shell/appearance.js';
 const escapeScript = value => value.replace(/<\/script/gi, '<\\/script');
 export function mountExtension(container,assets,context,{onRequest,onError,onDirty,onLayout,editorDraft=null}) {
   if(assets.legacyPage)assets=prepareLegacyPage(assets,{document:container.ownerDocument||document});
   else if(assets.assets?.length)assets=inlinePageAssets(assets,{document:container.ownerDocument||document});
   const bridge=resolveExtensionApi(assets.apiVersion);
   if(Object.hasOwn(assets,'contentApi'))validateContentApi(assets.contentApi);
+  // Draft paper and the phone layout keep a white question area, so pages are
+  // told to stay opaque there even when the theme panels are transparent.
+  const hostDocument=container.ownerDocument||document,phoneLayout=hostDocument.defaultView?.matchMedia?.('(max-width:600px)');
+  const appearanceSupported=bridge.api.capabilities.includes('appearance');
+  const currentAppearance=()=>{const value=readHostAppearance(hostDocument.documentElement),opaque=!!phoneLayout?.matches||!!container.closest?.('.is-draft');return {theme:/^[a-z][a-z-]{0,31}$/.test(value.theme)?value.theme:'default',transparency:opaque?0:value.transparency};};
+  let appearance=appearanceSupported?currentAppearance():null;
   const session=makeRequestId(),frame=document.createElement('iframe');frame.className='question-frame';frame.title='题型练习页面';frame.setAttribute('sandbox','allow-scripts');frame.referrerPolicy='no-referrer';
-  const nonce=makeRequestId().replace(/[^a-zA-Z0-9]/g,'');const boot={session,context,nonce,dependencies:assets.dependencies||[],contentApi:assets.contentApi,editorDraft,api:bridge.api,legacyPage:assets.legacyPage===true,development:!!context.development&&context.mode!=='history'};
+  const nonce=makeRequestId().replace(/[^a-zA-Z0-9]/g,'');const boot={session,context,nonce,dependencies:assets.dependencies||[],contentApi:assets.contentApi,editorDraft,api:bridge.api,legacyPage:assets.legacyPage===true,...(appearance?{appearance}:{}),development:!!context.development&&context.mode!=='history'};
   const policy=`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'`;
   const captureBoot={session};
   const start=`(${bridge.bootstrap.toString()})(${JSON.stringify(boot).replace(/</g,'\\u003c')});(${installFrameCapture.toString()})(${JSON.stringify(captureBoot).replace(/</g,'\\u003c')});`;
@@ -20,7 +27,8 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
   const examSelectors=['[data-qf-action="submit"]','[data-qf-action="retry"]',...(assets.examActionSelectors||[]).filter(selector=>/^#[a-z][a-z0-9-]*$/.test(selector))];
   const examStyle=context.mode==='exam'?`${examSelectors.join(',')}{display:none!important}`:'';
   const libraries=assets.libraries||[];
-  frame.srcdoc=`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${policy}"><style>html,body{margin:0;overflow:hidden}*{box-sizing:border-box}${libraries.map(value=>value.style||'').join('\n').replace(/<\/style/gi,'<\\/style')}${assets.style.replace(/<\/style/gi,'<\\/style')}${phoneStyle}${examStyle}</style></head>${assets.bodyTag||'<body>'}${assets.html}<script nonce="${nonce}">${escapeScript(start)}</script>${libraries.map(value=>`<script nonce="${nonce}">${escapeScript(value.script)}</script>`).join('')}<script nonce="${nonce}">${escapeScript(assets.script)}</script></body></html>`;
+  const rootAttributes=appearance?` data-qf-theme="${appearance.theme}" style="--qf-transparency:${appearance.transparency}"`:'';
+  frame.srcdoc=`<!doctype html><html lang="zh-CN"${rootAttributes}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${policy}"><style>html,body{margin:0;overflow:hidden}*{box-sizing:border-box}${libraries.map(value=>value.style||'').join('\n').replace(/<\/style/gi,'<\\/style')}${assets.style.replace(/<\/style/gi,'<\\/style')}${phoneStyle}${examStyle}</style></head>${assets.bodyTag||'<body>'}${assets.html}<script nonce="${nonce}">${escapeScript(start)}</script>${libraries.map(value=>`<script nonce="${nonce}">${escapeScript(value.script)}</script>`).join('')}<script nonce="${nonce}">${escapeScript(assets.script)}</script></body></html>`;
   let disposed=false,dirty=false,inputDirty=false,readyDone=false,faulted=false,expanded=false,normalHeight='100px',viewContext=context,resolveReady,rejectReady;
   const ready=new Promise((resolve,reject)=>{resolveReady=resolve;rejectReady=reject;});
   ready.catch(()=>{});
@@ -63,6 +71,16 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
     }
   }
   window.addEventListener('message',listener);container.append(frame);
+  const appearanceWatchers=[];
+  if(appearanceSupported){
+    const refresh=()=>{const next=currentAppearance();if(next.theme===appearance.theme&&next.transparency===appearance.transparency)return;appearance=next;send({kind:'appearance',appearance});};
+    const Observer=hostDocument.defaultView?.MutationObserver;
+    if(Observer){
+      const root=new Observer(refresh);root.observe(hostDocument.documentElement,{attributes:true,attributeFilter:['data-qf-theme','style']});appearanceWatchers.push(()=>root.disconnect());
+      const pane=container.closest?.('.question-pane');if(pane){const draft=new Observer(refresh);draft.observe(pane,{attributes:true,attributeFilter:['class']});appearanceWatchers.push(()=>draft.disconnect());}
+    }
+    if(phoneLayout?.addEventListener){phoneLayout.addEventListener('change',refresh);appearanceWatchers.push(()=>phoneLayout.removeEventListener('change',refresh));}
+  }
   return {
     frame,ready,get isDirty(){return dirty;},get hasUnsavedInput(){return inputDirty;},get hasError(){return faulted;},setActive(active){send({kind:'visibility',active:!!active});},update(next){viewContext=next;dirty=false;send({kind:'context',context:next});},
     async captureRegion(region){if(disposed)throw new Error('题目页面已关闭');await ready;if(disposed)throw new Error('题目页面已关闭');const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{captures.delete(id);reject(new Error('截图等待超时，请重试'));},20000);captures.set(id,{resolve,reject,timer});send({kind:'capture-region',id,region});});},
@@ -81,6 +99,6 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
     getDocument({checkOnly=false}={}){if(disposed)return Promise.reject(new Error('编辑页面已关闭'));const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{documents.delete(id);reject(new Error('编辑页面读取超时，当前修改仍保留'));},10000);documents.set(id,{resolve,reject,timer});send({kind:'read-document',id,checkOnly});});},
     exportDraft(){if(disposed)return Promise.reject(new Error('编辑页面已关闭'));const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{drafts.delete(id);reject(new Error('编辑草稿读取超时，当前输入仍保留'));},16000);drafts.set(id,{resolve,reject,timer});send({kind:'read-draft',id});});},
     flush(){if(disposed||faulted&&!readyDone)return Promise.resolve();const id=makeRequestId();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{flushes.delete(id);reject(new Error('题型页面仍在保存，请稍后重试'));},16000);flushes.set(id,{resolve,reject,timer});send({kind:'flush',id});});},
-    destroy(){if(disposed)return;send({kind:'dispose'});disposed=true;if(expanded){expanded=false;try{onLayout?.({expanded:false},frame);}catch{}}clearTimeout(readyTimer);rejectReady(new Error('题型页面已关闭'));window.removeEventListener('message',listener);for(const item of flushes.values()){clearTimeout(item.timer);item.resolve();}flushes.clear();for(const map of [documents,drafts,captures]){for(const item of map.values()){clearTimeout(item.timer);item.reject(new Error('编辑页面已关闭'));}map.clear();}for(const item of outlineNavigations.values()){clearTimeout(item.timer);item.reject(Object.assign(new Error('题目页面已关闭'),{code:'PAGE_CLOSED'}));}outlineNavigations.clear();frame.remove();}
+    destroy(){if(disposed)return;send({kind:'dispose'});disposed=true;if(expanded){expanded=false;try{onLayout?.({expanded:false},frame);}catch{}}clearTimeout(readyTimer);rejectReady(new Error('题型页面已关闭'));window.removeEventListener('message',listener);appearanceWatchers.forEach(stop=>stop());for(const item of flushes.values()){clearTimeout(item.timer);item.resolve();}flushes.clear();for(const map of [documents,drafts,captures]){for(const item of map.values()){clearTimeout(item.timer);item.reject(new Error('编辑页面已关闭'));}map.clear();}for(const item of outlineNavigations.values()){clearTimeout(item.timer);item.reject(Object.assign(new Error('题目页面已关闭'),{code:'PAGE_CLOSED'}));}outlineNavigations.clear();frame.remove();}
   };
 }

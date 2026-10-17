@@ -38,6 +38,8 @@ html[data-qf-theme="image"]{
 html[data-qf-theme]{
   --qf-panel:color-mix(in srgb,var(--qf-panel-color) calc(100% - var(--qf-clear,0) * 100%),transparent);
   --qf-bar:color-mix(in srgb,var(--qf-bar-color) max(0%,calc(100% - var(--qf-clear,0) * 112%)),transparent);
+  /* White controls on those panels fade more slowly so they stay visible. */
+  --qf-control:color-mix(in srgb,#fff calc(100% - var(--qf-clear,0) * 80%),transparent);
 }
 
 html[data-qf-theme],html[data-qf-theme] body{background:var(--qf-base)}
@@ -53,8 +55,16 @@ html[data-qf-theme] .practice-footer{background:var(--qf-bar);border-top-color:v
   html[data-qf-theme] .app-shell:not(.draft-fullscreen) .question-navigation{background:var(--qf-panel-solid);border-top-color:var(--qf-line)}
 }
 html[data-qf-theme] .question-pane:not(.is-draft) .question-viewport{background:var(--qf-around)}
-html[data-qf-theme] .question-loading{background:var(--qf-panel-solid)}
-html[data-qf-theme] .library-switch{background:rgba(255,255,255,.45)}
+/* The loading layer hides the previous card. It repaints the page background,
+   pinned to the viewport so it lines up with the shell, instead of a white sheet. */
+html[data-qf-theme] :is(.question-loading,.collection-loading){background:var(--qf-page);background-attachment:fixed}
+@media(max-width:600px){
+  html[data-qf-theme] .app-shell:not(.draft-fullscreen) :is(.question-loading,.collection-loading){background:#fff}
+}
+html[data-qf-theme] .library-switch{background:color-mix(in srgb,#fff calc(45% - var(--qf-clear,0) * 45%),transparent)}
+html[data-qf-theme] .library-switch button[aria-selected=true]{background:var(--qf-control)}
+html[data-qf-theme] .draft-toggle:not([aria-pressed=true]):not(:hover){background:var(--qf-control)}
+html[data-qf-theme] .question-arrow:not(:hover){background:color-mix(in srgb,#fff calc(86% - var(--qf-clear,0) * 80%),transparent)}
 html[data-qf-theme] .welcome-icon{background:rgba(255,255,255,.7)}
 html[data-qf-theme] .welcome h2{color:#5d5470}
 

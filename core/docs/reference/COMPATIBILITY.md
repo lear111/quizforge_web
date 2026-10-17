@@ -2,7 +2,7 @@
 
 ## 版本声明
 
-应用版本、拓展 `id@version`、Extension API、题库格式及富文本接口独立管理。当前支持 Extension API 1.0–1.3、题库格式 1；未实现 API 2、题库格式 2 或通用题型迁移。
+应用版本、拓展 `id@version`、Extension API、题库格式及富文本接口独立管理。当前支持 Extension API 1.0–1.4、题库格式 1；未实现 API 2、题库格式 2 或通用题型迁移。
 
 ```json
 "requiresApi": {
@@ -24,6 +24,7 @@
 | `navigation`、`lifecycle` | 切题请求、flush/dispose |
 | `outline-items` | 小题定位，minMinor 至少 1 |
 | `answer-state` | 即时作答进度，minMinor 至少 3 |
+| `appearance` | 只读宿主主题与面板透明度（`QF.ui.appearance`），minMinor 至少 4 |
 
 能力声明不授予写权限，页面仍须检查 `context.capabilities`。页面响应与 `QF.api` 提供实际 API 版本；历史使用冻结页面自己的版本，缺省按 1.0 读取。完整参数见[API 文档](API.md)。
 
