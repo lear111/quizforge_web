@@ -16,7 +16,7 @@ export function hostKey(host) {
   return bytes.toString('hex');
 }
 export const sameHost = (left, right) => hostKey(left) !== null && hostKey(left) === hostKey(right);
-export const url = (host, port) => `http://${host.includes(':') ? '[' + host.replace(/^\[|\]$/g, '') + ']' : host}:${port}/`;
+export const url = (host, port, scheme = 'http') => `${scheme}://${host.includes(':') ? '[' + host.replace(/^\[|\]$/g, '') + ']' : host}:${port}/`;
 export function privateAddress(address) {
   const value = hostKey(address); if (!value) return false;
   if (net.isIP(value) === 4) { const [a, b] = value.split('.').map(Number); return a === 127 || a === 10 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168 || a === 169 && b === 254; }

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
@@ -22,6 +23,8 @@ import { CollectionRoutes } from '../practice/collection-routes.js';
 import { PracticeSessions } from '../practice/practice-sessions.js';
 import { ExamSessions } from '../exam/exam-sessions.js';
 import { MIME as archiveMime } from '../library/library-archive.js';
+import { LanCertificates, hostNames, permittedAddress } from './lan-certificates.js';
+import qrcode from 'qrcode-generator';
 import { hostKey, sameHost, url as addressUrl, privateAddress, ipv6Bytes, sameIpv6Subnet, interfaceAddresses, ipv6Available,displayAdapterMetadata,recommendedAddresses } from './network-addresses.js';
 
 const loopback = host => hostKey(host) === hostKey('::1') || hostKey(host)?.startsWith('127.');
@@ -35,10 +38,12 @@ export function queryValue(context, name) {
   for (const item of context.url.search.slice(1).split('&')) if (decodeURIComponent(item.split('=')[0].replaceAll('+', ' ')) === name && !item.includes('=')) throw bad('Invalid query');
   return values[0];
 }
-function authority(value) {
+export const CA_PATH = '/quizforge-lan-ca.crt';
+const qrImage = value => { const code = qrcode(0, 'M'); code.addData(value); code.make(); return 'data:image/svg+xml;base64,' + Buffer.from(code.createSvgTag({ cellSize: 4, margin: 16, scalable: true })).toString('base64'); };
+function authority(value, secure = false) {
   try {
     if (typeof value !== 'string' || /[\s\\/?#@]/.test(value)) throw new Error();
-    const uri = new URL('http://' + value); if (!hostKey(uri.hostname) || uri.username || uri.password) throw new Error();
+    const uri = new URL((secure ? 'https://' : 'http://') + value); if (!hostKey(uri.hostname) || uri.username || uri.password) throw new Error();
     return uri;
   } catch { throw new ApiError(403, 'HOST_REJECTED', 'Use an enabled connection address'); }
 }
@@ -80,14 +85,16 @@ export class QuizForgeServer {
       const bound = service.server.address().address;
       if (bound === '0.0.0.0' || bound === '::') for (const local of interfaceAddresses()) service.allowedHosts.add(hostKey(local.address.split('%')[0]));
       else service.allowedHosts.add(hostKey(bound));
+      service.certificates = new LanCertificates(service.root);
       service.networkSettings = new NetworkSettings(service.root, Math.max(1024, service.port() === 65535 ? 8788 : service.port() + 1));
       service.refreshAddresses(); return service;
     } catch (error) { await service.close(); throw error; }
   }
-  newListener(remote) {
+  newListener(remote, tls = null) {
     this.handlers ??= new Set();
-    const server = http.createServer({ maxHeaderSize: 16 * 1024, requestTimeout: 120000, headersTimeout: 15000 }, (request, response) => {
-      const operation = this.handle({ request, response, remote }); this.handlers.add(operation);
+    const options = { maxHeaderSize: 16 * 1024, requestTimeout: 120000, headersTimeout: 15000 }, secure = tls !== null;
+    const server = (secure ? https : http).createServer(secure ? { ...options, key: tls.key, cert: tls.cert, minVersion: 'TLSv1.2' } : options, (request, response) => {
+      const operation = this.handle({ request, response, remote, secure }); this.handlers.add(operation);
       operation.finally(() => this.handlers.delete(operation)).catch(() => {});
     });
     server.on('clientError', (_error, socket) => socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n')); return server;
@@ -111,6 +118,9 @@ export class QuizForgeServer {
   async start() {
     if (this.started || this.closed) return; this.started = true;
     if (loopback(this.server.address().address) && this.networkSettings.config.remoteEnabled) try { this.networkServer = await listen(this.newListener(true), this.networkSettings.config.port, this.ipv6Supported ? '::' : '0.0.0.0'); } catch { this.networkError = 'Saved connection port is unavailable; select another port in settings'; }
+    if (this.networkServer && this.networkSettings.config.enabled && this.networkSettings.config.httpsEnabled) try { this.httpsServer = await this.secureListener(this.networkSettings.config.httpsPort); } catch { this.networkError = 'Saved HTTPS port is unavailable or the certificate could not be prepared; select another port in settings'; }
+    // Reissue the server certificate soon after LAN addresses change; the root stays the same.
+    this.certificateTimer = setInterval(() => { if (this.httpsServer && !this.closed) this.networkSettings.transactions.run(() => this.renewCertificate()).catch(() => {}); }, 60000); this.certificateTimer.unref();
     this.ready = true;
     let ticking = false; this.timer = setInterval(async () => { if (ticking || this.closed) return; ticking = true; try { await this.exams.tick(); } finally { ticking = false; } }, 1000); this.timer.unref();
     // Metadata is listed immediately; collections validate only when opened.
@@ -120,11 +130,11 @@ export class QuizForgeServer {
   }
   close({ graceful = false } = {}) {
     if (this.closing) return this.closing;
-    this.closed = true; this.ready = false; clearInterval(this.timer);
+    this.closed = true; this.ready = false; clearInterval(this.timer); clearInterval(this.certificateTimer);
     const dispose = () => { this.library?.close(); this.exams?.close(); this.practiceSessions?.close(); this.ai?.close(); this.developmentAi?.close(); this.networkSettings?.invalidateSessions(); this.engine?.close(); };
     this.closing = (async () => {
       if (!graceful) dispose();
-      await Promise.all([closeServer(this.server, graceful), closeServer(this.networkServer, graceful)]);
+      await Promise.all([closeServer(this.server, graceful), closeServer(this.networkServer, graceful), closeServer(this.httpsServer, graceful)]);
       await Promise.allSettled([...this.handlers ?? [], this.states?.transactions.drain(), this.developmentStates?.transactions.drain(), this.exams?.transactions.drain(), this.library?.managementTransactions.drain()]);
       if (graceful) dispose();
       if (this.ownsLock && exists(this.lockFile)) { checkPath(this.lockFile); if (readJson(this.lockFile, 4096).nonce === this.lockNonce) fs.unlinkSync(this.lockFile); this.ownsLock = false; }
@@ -151,13 +161,14 @@ export class QuizForgeServer {
   }
   publicHost(uri) { const settings = this.networkSettings.config; if (!settings.publicEnabled) return false; const target = new URL(settings.publicUrl); return sameHost(uri.hostname, target.hostname) && (uri.port || '80') === (target.port || (target.protocol === 'https:' ? '443' : '80')); }
   validateHost(context) {
-    const uri = authority(context.request.headers.host); context.authority = uri; let accepted;
+    const uri = authority(context.request.headers.host, context.secure); context.authority = uri; let accepted;
     if (context.remote) {
-      if (this.publicHost(uri)) return;
+      if (!context.secure && this.publicHost(uri)) return;
       const peer = context.request.socket.remoteAddress, settings = this.networkSettings.config;
-      accepted = settings.enabled && (privateAddress(peer) || this.subnets.some(subnet => sameIpv6Subnet(subnet.host, peer, subnet.prefix))) && this.lanHosts.has(hostKey(uri.hostname));
+      // HTTPS is LAN-only: it shares the LAN switch, peer check and password, and also accepts the host names in its certificate.
+      accepted = settings.enabled && (!context.secure || settings.httpsEnabled) && (privateAddress(peer) || this.subnets.some(subnet => sameIpv6Subnet(subnet.host, peer, subnet.prefix))) && (this.lanHosts.has(hostKey(uri.hostname)) || context.secure && hostNames().includes(uri.hostname.toLowerCase()));
     } else accepted = this.allowedHosts.has(hostKey(uri.hostname)) && !(loopback(this.server.address().address) && forwarded(context.request));
-    if (!accepted || Number(uri.port || 80) !== context.request.socket.localPort) throw new ApiError(403, 'HOST_REJECTED', 'Use an enabled connection address');
+    if (!accepted || Number(uri.port || (context.secure ? 443 : 80)) !== context.request.socket.localPort) throw new ApiError(403, 'HOST_REJECTED', 'Use an enabled connection address');
   }
   validateOrigin(context) {
     const site = context.request.headers['sec-fetch-site'], origin = context.request.headers.origin;
@@ -182,19 +193,45 @@ export class QuizForgeServer {
     for await (const chunk of context.request) { size += chunk.length; if (size > 8 * 1024 * 1024) throw new ApiError(413, 'BODY_TOO_LARGE', 'Request exceeds the size limit'); chunks.push(chunk); }
     try { context.body = parseJson(Buffer.concat(chunks), { maxStringLength: resource ? Math.ceil(MAX_IMAGE_BYTES / 3) * 4 : 2 * 1024 * 1024 }); return context.body; } catch { throw bad('Malformed JSON'); }
   }
+  async secureListener(port) {
+    this.refreshAddresses(); const material = await this.certificates.ensure([...this.lanUrls]);
+    return listen(this.newListener(true, material), port, this.ipv6Supported ? '::' : '0.0.0.0');
+  }
+  async renewCertificate() {
+    if (!this.httpsServer) return; this.refreshAddresses(); const material = await this.certificates.ensure([...this.lanUrls]);
+    if (material.changed) this.httpsServer.setSecureContext({ key: material.key, cert: material.cert, minVersion: 'TLSv1.2' });
+  }
+  regenerateCertificates() {
+    return this.networkSettings.transactions.run(async () => {
+      if (!this.httpsServer) throw new ApiError(409, 'HTTPS_DISABLED', '请先开启局域网 HTTPS');
+      this.refreshAddresses(); const material = await this.certificates.regenerate([...this.lanUrls]);
+      this.httpsServer.setSecureContext({ key: material.key, cert: material.cert, minVersion: 'TLSv1.2' }); return this.networkStatus(true);
+    });
+  }
+  httpsStatus(display) {
+    const settings = this.networkSettings.config, running = !!this.httpsServer, status = running ? this.certificates.status() : null;
+    const certificateUrls = running ? display.map(host => addressUrl(host, settings.port) + CA_PATH.slice(1)) : [], urls = running ? display.filter(permittedAddress).map(host => addressUrl(host, settings.httpsPort, 'https')) : [];
+    return { enabled: running, configured: settings.httpsEnabled, port: settings.httpsPort, urls, certificateUrls, ...status, ...certificateUrls.length ? { certificateQr: qrImage(certificateUrls[0]) } : {}, ...urls.length ? { urlQr: qrImage(urls[0]) } : {} };
+  }
   networkStatus(canManage) {
     this.refreshAddresses(); const settings = this.networkSettings.config;
     const display=recommendedAddresses(interfaceAddresses(),this.displayAdapters).map(entry=>entry.address).filter(host=>this.lanUrls.has(host));
-    return { canManage, enabled: !!this.networkServer && settings.enabled, publicEnabled: !!this.networkServer && settings.publicEnabled, publicUrl: settings.publicUrl, port: settings.port, passwordConfigured: settings.passwordConfigured, ipv6Supported: this.ipv6Supported, urls: this.networkServer && settings.enabled ? display.map(host=>addressUrl(host,settings.port)) : [], publicIpv6Urls: display.filter(host=>this.publicIpv6Hosts.has(host)).map(host=>addressUrl(host,settings.port)), ...(!canManage ? { error: 'Network settings can only be changed through the local-only server' } : this.networkError ? { error: this.networkError } : {}) };
+    return { canManage, https: this.httpsStatus(display), enabled: !!this.networkServer && settings.enabled, publicEnabled: !!this.networkServer && settings.publicEnabled, publicUrl: settings.publicUrl, port: settings.port, passwordConfigured: settings.passwordConfigured, ipv6Supported: this.ipv6Supported, urls: this.networkServer && settings.enabled ? display.map(host=>addressUrl(host,settings.port)) : [], publicIpv6Urls: display.filter(host=>this.publicIpv6Hosts.has(host)).map(host=>addressUrl(host,settings.port)), ...(!canManage ? { error: 'Network settings can only be changed through the local-only server' } : this.networkError ? { error: this.networkError } : {}) };
   }
   updateNetwork(request) {
     return this.networkSettings.transactions.run(async () => {
-      const replacement = await this.networkSettings.candidate(request, this.port()), previous = this.networkServer; let candidate = previous;
+      const replacement = await this.networkSettings.candidate(request, this.port()), previous = this.networkServer, previousSecure = this.httpsServer, secureWanted = replacement.enabled && replacement.httpsEnabled; let candidate = previous, secure = previousSecure;
       try {
         if (replacement.remoteEnabled && (!previous || previous.address().port !== replacement.port)) { this.refreshAddresses(); candidate = await listen(this.newListener(true), replacement.port, this.ipv6Supported ? '::' : '0.0.0.0'); }
+        if (secureWanted && (!previousSecure || previousSecure.address().port !== replacement.httpsPort)) secure = await this.secureListener(replacement.httpsPort);
         this.networkSettings.save(replacement);
-      } catch { if (candidate && candidate !== previous) await closeServer(candidate); throw new ApiError(409, 'LAN_SETTINGS_UNAVAILABLE', 'Could not save connection settings or open this port; current settings remain active'); }
+      } catch {
+        if (candidate && candidate !== previous) await closeServer(candidate); if (secure && secure !== previousSecure) await closeServer(secure);
+        throw new ApiError(409, 'LAN_SETTINGS_UNAVAILABLE', 'Could not save connection settings or open this port; current settings remain active');
+      }
       this.networkServer = replacement.remoteEnabled ? candidate : null; if (previous && previous !== this.networkServer) await closeServer(previous);
+      // Turning HTTPS off stops its listener; certificates stay on disk so phones need not reinstall the root.
+      this.httpsServer = secureWanted ? secure : null; if (previousSecure && previousSecure !== this.httpsServer) await closeServer(previousSecure);
       this.networkError = null; return this.networkStatus(true);
     });
   }
@@ -210,9 +247,10 @@ export class QuizForgeServer {
     if (pathname === '/api/auth/login' && method === 'POST') { const password = text(await this.writeRequest(context), 'password', 256); if (context.remote) return { token: await this.networkSettings.login(password, context.request.socket.remoteAddress) }; this.networkSettings.limitLogin(context.request.socket.remoteAddress); if (this.token === null || !equal(password, this.token)) throw new ApiError(401, 'PASSWORD_REQUIRED', 'Incorrect access password'); return { token: this.token }; }
     if (pathname === '/api/settings/network') {
       if (context.remote || !loopback(this.server.address().address) && !loopback(context.request.socket.remoteAddress)) throw new ApiError(403, 'LOCAL_SETTINGS_ONLY', 'Open settings on the host computer using its local address');
-      if (method === 'GET') {this.refreshAddresses();this.displayAdapters=await displayAdapterMetadata();return this.networkStatus(this.canManage(context));}
+      if (method === 'GET') {this.refreshAddresses();this.displayAdapters=await displayAdapterMetadata();await this.networkSettings.transactions.run(() => this.renewCertificate()).catch(() => {});return this.networkStatus(this.canManage(context));}
       if (method === 'PUT') { this.requireLocal(context); return this.updateNetwork(await this.writeRequest(context)); }
     }
+    if (pathname === '/api/settings/network/https/regenerate' && method === 'POST') { this.requireLocal(context); await this.writeRequest(context); return this.regenerateCertificates(); }
     if (pathname === '/api/settings/ai' || pathname === '/api/settings/ai/test' || pathname === '/api/settings/ai/credential') {
       if (pathname === '/api/settings/ai' && method === 'GET') return { ...this.aiSettings.status(), canManage: this.canManage(context) };
       this.requireLocal(context);
@@ -312,6 +350,11 @@ export class QuizForgeServer {
           this.requireLocal(context); const group = text(await this.writeRequest(context), 'group', 120), download = await this.namespaceTransaction(() => this.library.exportGroup(group));
           try { response.writeHead(200, { 'Content-Type': archiveMime, 'Content-Length': fs.statSync(download.file).size, 'Content-Disposition': "attachment; filename=quizforge-group.qbank; filename*=UTF-8''" + encodeURIComponent(group + '.qbank') }); await pipeline(fs.createReadStream(download.file), response); } finally { download.close(); }
         } else this.send(response, 200, 'application/json; charset=utf-8', jsonBytes(await this.api(context, pathname)));
+      } else if (pathname === CA_PATH) {
+        // Public root certificate for phones; it is the only file served from .state and never includes a key.
+        if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Only GET is supported for pages');
+        const der = this.httpsServer ? this.certificates.rootDer() : null; if (!der) throw new ApiError(404, 'NOT_FOUND', 'Page not found');
+        if (!response.headersSent) { response.writeHead(200, { 'Content-Type': 'application/x-x509-ca-cert', 'Content-Length': der.length, 'Content-Disposition': 'attachment; filename="QuizForge-LAN-CA.crt"' }); response.end(der); }
       } else {
         if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Only GET is supported for pages');
         let file = pathname === '/' ? 'index.html' : pathname.slice(1); if (file.startsWith('web/')) file = file.slice(4); const type = mime(file);

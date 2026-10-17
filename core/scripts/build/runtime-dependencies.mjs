@@ -24,6 +24,6 @@ export function copyRuntimeDependencies(root, target) {
       } });
     for (const name of Object.keys(metadata.dependencies ?? {})) includeModule(resolvePackage(name, directory));
   }
-  for (const name of ['ajv', 'yauzl', 'yazl']) includeModule(path.join(moduleRoot, name));
+  for (const name of ['ajv', 'qrcode-generator', 'yauzl', 'yazl']) includeModule(path.join(moduleRoot, name));
   return [...modules.values()];
 }

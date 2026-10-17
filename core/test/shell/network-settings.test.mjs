@@ -131,3 +131,32 @@ test('IPv6 unavailable and no global IPv6 address are distinct states',async()=>
   assert.match(v6.node('ipv6-status').textContent,/未检测到本机公网 IPv6 地址/);assert.equal(v6.node('ipv6-addresses').hidden,true);
   v4.view.destroy();v6.view.destroy();
 });
+
+test('LAN HTTPS shows the root fingerprint and QR codes, follows the LAN switch and confirms regeneration',async()=>{
+  const https={enabled:true,configured:true,port:8789,urls:['https://192.168.1.2:8789/'],certificateUrls:['http://192.168.1.2:8788/quizforge-lan-ca.crt'],fingerprint:'AB:CD',rootValidTo:'2036-10-16T12:00:00.000Z',serverValidTo:'2027-11-17T00:00:00.000Z',certificateQr:'data:image/svg+xml;base64,PHN2Zy8+',urlQr:'javascript:alert(1)'};
+  const state={canManage:true,enabled:true,publicEnabled:false,publicUrl:'',port:8788,passwordConfigured:true,urls:['http://192.168.1.2:8788/'],https};
+  const calls=[];let confirmed=0;
+  const f=fixture(async(path,options)=>{calls.push({path,options});if(!options)return state;if(path.endsWith('/regenerate'))return {...state,https:{...https,fingerprint:'EF:01'}};const body=JSON.parse(options.body);return {...state,...body,https:{...https,enabled:body.httpsEnabled,configured:body.httpsEnabled,port:body.httpsPort}};},{confirm:()=>{confirmed++;return confirmed>1;}});
+  await f.view.open();
+  assert.equal(f.node('https').hidden,false);assert.equal(f.node('https-enabled').checked,true);assert.equal(f.node('https-port').value,'8789');assert.equal(f.node('https-details').hidden,false);
+  assert.equal(f.node('https-fingerprint').textContent,'AB:CD');assert.equal(f.node('https-certificate-urls').children[0].textContent,'http://192.168.1.2:8788/quizforge-lan-ca.crt');
+  assert.equal(f.node('https-certificate-qr').src,https.certificateQr);assert.equal(f.node('https-url-qr').hidden,true,'only inline SVG data is shown');
+  assert.match(f.node('https-validity').textContent,/2036-10-16/);
+  f.node('https-port').value='8788';await f.node('form').emit('submit');assert.equal(calls.length,1,'HTTPS port must differ from the LAN port');
+  f.node('https-port').value='8790';f.node('enabled').checked=false;f.node('enabled').emit('change');
+  assert.equal(f.node('https-enabled').checked,false);assert.equal(f.node('https-enabled').disabled,true);
+  await f.node('form').emit('submit');assert.deepEqual(JSON.parse(calls.at(-1).options.body),{enabled:false,publicEnabled:false,publicUrl:'',port:8788,httpsEnabled:false,httpsPort:8790});
+  f.node('enabled').checked=true;f.node('enabled').emit('change');f.node('https-enabled').checked=true;await f.node('form').emit('submit');
+  assert.equal(JSON.parse(calls.at(-1).options.body).httpsEnabled,true);
+  const before=calls.length;await f.node('https-regenerate').emit('click');assert.equal(calls.length,before,'cancelled confirmation keeps the root');
+  await f.node('https-regenerate').emit('click');assert.equal(calls.at(-1).path,'/api/settings/network/https/regenerate');assert.equal(calls.at(-1).options.method,'POST');
+  assert.equal(f.node('https-fingerprint').textContent,'EF:01');assert.match(f.node('https-status').textContent,/删除旧的 QuizForge 证书/);
+  f.view.destroy();
+});
+
+test('HTTPS panel stays hidden for an older backend and on remote devices',async()=>{
+  const f=fixture(async()=>({canManage:true,enabled:false,port:8790,passwordConfigured:false,urls:[]}));
+  await f.view.open();assert.equal(f.node('https').hidden,true);f.view.destroy();
+  const remote=fixture(async()=>({canManage:false,enabled:true,port:8790,passwordConfigured:true,urls:[],https:{enabled:true,configured:true,port:8791}}));
+  await remote.view.open();assert.equal(remote.node('https').hidden,true);remote.view.destroy();
+});

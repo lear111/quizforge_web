@@ -1,18 +1,23 @@
 const SETTINGS_PATH='/api/settings/network';
+const REGENERATE_PATH='/api/settings/network/https/regenerate';
+const QR_PREFIX='data:image/svg+xml;base64,';
+const day=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'':`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;};
 const PUBLIC_URL_MESSAGE='请填写有效的公网根地址，如 http://quiz.example.com/ 或 http://[IPv6地址]:端口/，不包含路径、账号或查询参数。';
 
-export function bindNetworkSettings({request,beforeSave,onSaved,document=globalThis.document}) {
+export function bindNetworkSettings({request,beforeSave,onSaved,document=globalThis.document,confirm=globalThis.confirm}) {
   const get=id=>document.getElementById(`network-settings-${id}`);
   const openButton=get('open'),dialog=get('dialog'),form=get('form');
   const closeButton=get('close'),cancelButton=get('cancel'),saveButton=get('save');
   const fields=get('fields'),enabled=get('enabled'),publicEnabled=get('public-enabled'),publicFields=get('public-fields'),publicUrl=get('public-url'),port=get('port'),password=get('password');
   const status=get('status'),passwordHint=get('password-hint'),addresses=get('addresses'),urls=get('urls'),error=get('error');
   const ipv6Status=get('ipv6-status'),ipv6Addresses=get('ipv6-addresses'),ipv6Urls=get('ipv6-urls');
+  const https=get('https'),httpsEnabled=get('https-enabled'),httpsPort=get('https-port'),httpsStatus=get('https-status'),httpsDetails=get('https-details');
+  const certificateQr=get('https-certificate-qr'),urlQr=get('https-url-qr'),certificateUrls=get('https-certificate-urls'),httpsUrls=get('https-urls'),fingerprint=get('https-fingerprint'),validity=get('https-validity'),regenerateButton=get('https-regenerate');
   let settings=null,loading=false,saving=false,epoch=0;
   const listeners=[];
   const listen=(node,event,handler)=>{node.addEventListener(event,handler);listeners.push(()=>node.removeEventListener(event,handler));};
   function showError(cause) {
-    const messages={LOCAL_SETTINGS_ONLY:'网络设置只能在本机修改。请在运行 QuizForge 的电脑上打开本机地址。',LAN_SETTINGS_UNAVAILABLE:'端口被占用或设置保存失败，当前连接保留。',INVALID_NETWORK_SETTINGS:'请检查连接端口、密码和公网地址。',INVALID_PUBLIC_URL:PUBLIC_URL_MESSAGE};
+    const messages={LOCAL_SETTINGS_ONLY:'网络设置只能在本机修改。请在运行 QuizForge 的电脑上打开本机地址。',LAN_SETTINGS_UNAVAILABLE:'端口被占用或设置保存失败，当前连接保留。',INVALID_NETWORK_SETTINGS:'请检查连接端口、密码和公网地址。',INVALID_PUBLIC_URL:PUBLIC_URL_MESSAGE,HTTPS_DISABLED:'请先开启并保存局域网 HTTPS。'};
     error.textContent=messages[cause?.code]||cause?.message||'设置操作失败，请重试。';
     error.hidden=false;
   }
@@ -21,6 +26,7 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
     enabled.disabled=unavailable;publicEnabled.disabled=unavailable||typeof settings?.publicEnabled!=='boolean';publicUrl.disabled=publicEnabled.disabled;port.disabled=unavailable;password.disabled=unavailable;
     saveButton.disabled=unavailable;closeButton.disabled=saving;cancelButton.disabled=saving;
     for(const button of ipv6Urls.children)button.disabled=unavailable;
+    httpsEnabled.disabled=unavailable||!enabled.checked;httpsPort.disabled=unavailable;regenerateButton.disabled=unavailable||!settings?.https?.enabled;
     saveButton.textContent=saving?'正在保存…':'保存设置';
     form.setAttribute('aria-busy',String(loading||saving));
   }
@@ -31,6 +37,23 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
   function updateRequirements() {
     password.required=Boolean((enabled.checked||publicEnabled.checked)&&!settings?.passwordConfigured);
     publicFields.hidden=!publicEnabled.checked;publicUrl.required=publicEnabled.checked;
+    // HTTPS shares the LAN switch and password, so it cannot stay on without LAN access.
+    if(!enabled.checked)httpsEnabled.checked=false;
+    lock();
+  }
+  function codes(list,values){list.replaceChildren();for(const value of values.filter(item=>typeof item==='string')){const line=document.createElement('code');line.textContent=value;list.append(line);}}
+  function qr(image,value){const valid=typeof value==='string'&&value.startsWith(QR_PREFIX);image.hidden=!valid;if(valid)image.src=value;else image.removeAttribute?.('src');}
+  function renderHttps(next) {
+    const info=next.https&&typeof next.https==='object'?next.https:null;
+    https.hidden=!info||next.canManage===false;if(!info)return;
+    httpsEnabled.checked=Boolean(info.configured&&next.enabled);httpsPort.value=String(info.port??'');
+    httpsStatus.textContent=info.enabled?'局域网 HTTPS 已开启。首次使用请按下面步骤在手机上安装并信任根证书。':info.configured?'局域网 HTTPS 已开启但端口未能启动，请换一个 HTTPS 端口后保存。':'开启后，首次会在这台电脑生成只用于 QuizForge 的本机根证书。';
+    httpsDetails.hidden=!info.enabled;
+    codes(certificateUrls,info.certificateUrls||[]);codes(httpsUrls,info.urls||[]);
+    qr(certificateQr,info.certificateQr);qr(urlQr,info.urlQr);
+    fingerprint.textContent=typeof info.fingerprint==='string'?info.fingerprint:'';
+    const dates=[info.rootValidTo?`根证书有效期至 ${day(info.rootValidTo)}`:'',info.serverValidTo?`服务器证书有效期至 ${day(info.serverValidTo)}，局域网地址变化或临近到期时自动换发，手机无需重装`:''].filter(Boolean);
+    validity.textContent=dates.length?dates.join('；')+'。':'';
   }
   function render(next) {
     settings=next;enabled.checked=Boolean(next.enabled);publicEnabled.checked=Boolean(next.publicEnabled);publicUrl.value=next.publicUrl||'';port.value=String(next.port);
@@ -52,6 +75,7 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
     }
     ipv6Addresses.hidden=!candidates.length;
     if(next.ipv6Supported&&!candidates.length)ipv6Status.textContent+=' 未检测到本机公网 IPv6 地址。';
+    renderHttps(next);
     if(next.error)showError(new Error(next.error));
     else if(typeof next.publicEnabled!=='boolean')showError(new Error('当前服务尚不支持公网连接。请保存作答，关闭原服务并重新启动。'));
     lock();
@@ -60,7 +84,7 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
   async function open() {
     if(dialog.open||loading||saving)return;
     const current=++epoch;
-    settings=null;loading=true;fields.hidden=true;addresses.hidden=true;ipv6Addresses.hidden=true;urls.replaceChildren();ipv6Urls.replaceChildren();error.hidden=true;password.value='';
+    settings=null;loading=true;fields.hidden=true;https.hidden=true;addresses.hidden=true;ipv6Addresses.hidden=true;urls.replaceChildren();ipv6Urls.replaceChildren();error.hidden=true;password.value='';
     status.textContent='正在读取设置…';lock();dialog.showModal();
     try {
       const next=await request(SETTINGS_PATH);
@@ -86,6 +110,11 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
       } catch {showError(new Error(PUBLIC_URL_MESSAGE));publicUrl.focus();return;}
     }
     const body={enabled:enabled.checked,publicEnabled:publicEnabled.checked,publicUrl:nextPublicUrl,port:nextPort};
+    if(settings.https){
+      const nextHttpsPort=Number(httpsPort.value);
+      if(!Number.isInteger(nextHttpsPort)||nextHttpsPort<1024||nextHttpsPort>65535||(enabled.checked&&httpsEnabled.checked&&nextHttpsPort===nextPort)){showError(new Error('HTTPS 端口需要填写 1024–65535 之间的整数，且不能与连接端口相同。'));httpsPort.focus();return;}
+      body.httpsEnabled=enabled.checked&&httpsEnabled.checked;body.httpsPort=nextHttpsPort;
+    }
     if(hasPassword)body.password=nextPassword;
     saving=true;lock();
     try {
@@ -97,7 +126,17 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
     } catch(cause) {showError(cause);}
     finally {saving=false;lock();}
   }
-  listen(openButton,'click',open);listen(closeButton,'click',close);listen(cancelButton,'click',close);
+  async function regenerate() {
+    if(loading||saving||!settings?.https?.enabled)return;
+    if(confirm&&!confirm('重新生成根证书后，已安装旧证书的手机都要删除旧证书并重新安装新证书。确定继续吗？'))return;
+    error.hidden=true;saving=true;lock();
+    try {
+      const next=await request(REGENERATE_PATH,{method:'POST',body:'{}'});
+      render(next);if(!next.error)httpsStatus.textContent='已重新生成根证书。请在手机上删除旧的 QuizForge 证书，再按下面步骤安装新证书。';
+    } catch(cause) {showError(cause);}
+    finally {saving=false;lock();}
+  }
+  listen(openButton,'click',open);listen(regenerateButton,'click',regenerate);listen(closeButton,'click',close);listen(cancelButton,'click',close);
   listen(form,'submit',save);
   listen(enabled,'change',updateRequirements);listen(publicEnabled,'change',updateRequirements);
   listen(dialog,'cancel',event=>{if(saving)event.preventDefault();else{epoch++;password.value='';}});

@@ -35,6 +35,7 @@
     "esbuild": "0.28.2",
     "html2canvas": "1.4.1",
     "katex": "0.16.43",
+    "qrcode-generator": "2.0.4",
     "yauzl": "3.4.0",
     "yazl": "3.3.1"
   },

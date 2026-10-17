@@ -18,30 +18,35 @@ export function normalizePublicUrl(value) {
     return parsed.origin + '/';
   } catch { throw new ApiError(400, 'INVALID_PUBLIC_URL', message); }
 }
-function switches(request) { requireObject(request, 'Provide connection switches and a valid port'); if (typeof request.enabled !== 'boolean' || !integralField(request, 'port') || ['publicEnabled'].some(key => Object.hasOwn(request, key) && typeof request[key] !== 'boolean') || Object.hasOwn(request, 'publicUrl') && typeof request.publicUrl !== 'string') throw bad('Provide connection switches and a valid port'); }
+function switches(request) { requireObject(request, 'Provide connection switches and a valid port'); if (typeof request.enabled !== 'boolean' || !integralField(request, 'port') || ['publicEnabled', 'httpsEnabled'].some(key => Object.hasOwn(request, key) && typeof request[key] !== 'boolean') || Object.hasOwn(request, 'httpsPort') && !integralField(request, 'httpsPort') || Object.hasOwn(request, 'publicUrl') && typeof request.publicUrl !== 'string') throw bad('Provide connection switches and a valid port'); }
+const httpsMessage = 'HTTPS 端口需为 1024–65535，且不能与本机端口或连接端口相同；开启局域网 HTTPS 前请先允许局域网设备连接。';
 const config = value => ({ ...value, get remoteEnabled() { return this.enabled || this.publicEnabled; }, get passwordConfigured() { return this.salt !== null && this.hash !== null; } });
 export class NetworkSettings {
   constructor(root, defaultPort) {
-    this.file = path.join(root, '.state', 'network-settings.json'); this.sessions = new Map(); this.attempts = new Map(); this.transactions = new SerialTransactions(); this.config = config({ enabled: false, publicEnabled: false, publicUrl: '', port: defaultPort, salt: null, hash: null });
+    this.defaultHttpsPort = defaultPort === 65535 ? 8789 : defaultPort + 1;
+    this.file = path.join(root, '.state', 'network-settings.json'); this.sessions = new Map(); this.attempts = new Map(); this.transactions = new SerialTransactions(); this.config = config({ enabled: false, publicEnabled: false, publicUrl: '', port: defaultPort, httpsEnabled: false, httpsPort: this.defaultHttpsPort, salt: null, hash: null });
     if (exists(this.file)) {
       const saved = readJson(this.file, 8192); switches(saved); if (saved.schemaVersion !== 1 || saved.port < 1024 || saved.port > 65535) throw new Error('Invalid network settings'); let salt = null, hash = null;
       if (Object.hasOwn(saved, 'password')) { if (saved.password.algorithm !== 'PBKDF2WithHmacSHA256' || saved.password.iterations !== iterations) throw new Error('Invalid connection password hash'); salt = decodeBase64(saved.password.salt); hash = decodeBase64(saved.password.hash); if (salt.length !== 16 || hash.length !== 32) throw new Error('Invalid connection password hash'); }
       const publicEnabled = saved.publicEnabled ?? false, publicUrl = normalizePublicUrl(saved.publicUrl ?? '');
-      if (publicEnabled && !publicUrl || (saved.enabled || publicEnabled) && salt === null) throw new Error('Invalid saved remote access configuration');
-      this.config = config({ enabled: saved.enabled, publicEnabled, publicUrl, port: saved.port, salt, hash });
+      const httpsEnabled = saved.httpsEnabled ?? false, httpsPort = saved.httpsPort ?? this.defaultHttpsPort;
+      if (publicEnabled && !publicUrl || (saved.enabled || publicEnabled) && salt === null || httpsPort < 1024 || httpsPort > 65535 || httpsEnabled && (!saved.enabled || httpsPort === saved.port)) throw new Error('Invalid saved remote access configuration');
+      this.config = config({ enabled: saved.enabled, publicEnabled, publicUrl, port: saved.port, httpsEnabled, httpsPort, salt, hash });
     }
   }
   async candidate(request, localPort) {
     switches(request); if (request.port < 1024 || request.port > 65535 || request.port === localPort) throw bad('Connection port must be 1024..65535 and different from the local port');
     const publicEnabled = request.publicEnabled ?? this.config.publicEnabled, publicUrl = Object.hasOwn(request, 'publicUrl') ? normalizePublicUrl(request.publicUrl) : this.config.publicUrl;
     if (publicEnabled && !publicUrl) throw new ApiError(400, 'INVALID_PUBLIC_URL', '开启公网连接时请填写公网访问地址'); let salt = this.config.salt, hash = this.config.hash;
+    const httpsEnabled = request.httpsEnabled ?? this.config.httpsEnabled, httpsPort = request.httpsPort ?? this.config.httpsPort;
+    if (httpsPort < 1024 || httpsPort > 65535 || httpsEnabled && (!request.enabled || httpsPort === localPort || httpsPort === request.port)) throw new ApiError(400, 'INVALID_HTTPS_SETTINGS', httpsMessage);
     if (Object.hasOwn(request, 'password')) {
       if (typeof request.password !== 'string') throw bad('Invalid password'); if (request.password.trim()) { if (request.password.length < 8 || request.password.length > 256) throw bad('Password must contain 8..256 characters'); salt = randomBytes(16); hash = await derive(request.password, salt, iterations, 32, 'sha256'); }
     }
-    if ((request.enabled || publicEnabled) && hash === null) throw bad('Set a password before enabling remote access'); return config({ enabled: request.enabled, publicEnabled, publicUrl, port: request.port, salt, hash });
+    if ((request.enabled || publicEnabled) && hash === null) throw bad('Set a password before enabling remote access'); return config({ enabled: request.enabled, publicEnabled, publicUrl, port: request.port, httpsEnabled, httpsPort, salt, hash });
   }
   save(replacement) {
-    const saved = { schemaVersion: 1, enabled: replacement.enabled, publicEnabled: replacement.publicEnabled, publicUrl: replacement.publicUrl, port: replacement.port };
+    const saved = { schemaVersion: 1, enabled: replacement.enabled, publicEnabled: replacement.publicEnabled, publicUrl: replacement.publicUrl, port: replacement.port, httpsEnabled: replacement.httpsEnabled, httpsPort: replacement.httpsPort };
     if (replacement.passwordConfigured) saved.password = { algorithm: 'PBKDF2WithHmacSHA256', iterations, salt: replacement.salt.toString('base64'), hash: replacement.hash.toString('base64') };
     replaceFile(this.file, jsonBytes(saved)); const before = this.config;
     if (['enabled', 'publicEnabled', 'publicUrl', 'port'].some(key => before[key] !== replacement[key]) || !(before.hash === replacement.hash || before.hash && replacement.hash && before.hash.equals(replacement.hash))) this.sessions.clear(); this.config = replacement;

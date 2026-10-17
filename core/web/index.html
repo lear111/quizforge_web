@@ -197,6 +197,44 @@
           <div id="network-settings-urls"></div>
           <p>优先显示正在使用的物理网卡地址。同一网络的设备打开对应地址，输入共用密码；公网使用配置的公网地址。</p>
         </section>
+        <section id="network-settings-https" class="network-settings-https" hidden>
+          <label class="network-settings-switch"><span>局域网 HTTPS<small>手机用 https:// 打开后，Chrome、Edge 才能“安装应用”。需先允许局域网设备连接，使用同一连接密码。</small></span><input
+              id="network-settings-https-enabled" type="checkbox" role="switch" aria-label="局域网 HTTPS"></label>
+          <label class="network-settings-https-port">HTTPS 端口<input id="network-settings-https-port" type="number" min="1024"
+              max="65535" step="1" inputmode="numeric"></label>
+          <p id="network-settings-https-status" class="network-settings-hint" role="status"></p>
+          <div id="network-settings-https-details" hidden>
+            <div class="network-settings-https-codes">
+              <figure><img id="network-settings-https-certificate-qr" alt="下载根证书的二维码" width="152" height="152"
+                  hidden><figcaption>① 扫码下载根证书</figcaption></figure>
+              <figure><img id="network-settings-https-url-qr" alt="打开 HTTPS 地址的二维码" width="152" height="152"
+                  hidden><figcaption>② 安装并信任后扫码打开</figcaption></figure>
+            </div>
+            <section class="network-settings-addresses">
+              <h4>根证书下载地址（HTTP，只提供公钥证书）</h4>
+              <div id="network-settings-https-certificate-urls"></div>
+              <h4 class="network-settings-https-heading">HTTPS 连接地址</h4>
+              <div id="network-settings-https-urls"></div>
+              <h4 class="network-settings-https-heading">根证书 SHA-256 指纹</h4>
+              <code id="network-settings-https-fingerprint"></code>
+              <p>安装前在手机的证书详情里核对指纹，完全一致再安装。</p>
+              <p id="network-settings-https-validity"></p>
+            </section>
+            <details class="network-settings-public-help network-settings-https-steps" open>
+              <summary>手机安装步骤</summary>
+              <ol>
+                <li><b>Android</b>：用 Chrome 扫码①下载证书，然后打开“设置 → 安全 → 加密与凭据 → 安装证书 → CA 证书”，选中下载的
+                  QuizForge-LAN-CA.crt。不同品牌菜单名称略有差异，可在设置里搜索“CA 证书”。</li>
+                <li><b>iPhone / iPad</b>：用相机扫码①，在 Safari 中允许下载描述文件；到“设置 → 已下载描述文件”安装；再到“设置 → 通用 → 关于本机 →
+                  证书信任设置”，为 QuizForge LAN Root CA 开启完全信任。</li>
+                <li>扫码②或手动打开 HTTPS 地址，输入连接密码。浏览器菜单里即可选择“安装应用”或“添加到主屏幕”。</li>
+              </ol>
+            </details>
+            <p class="network-settings-https-warning">根证书只装在你自己的设备上，不要发给别人。根证书私钥只保存在这台电脑的数据目录，任何地址都不会提供私钥。关闭局域网 HTTPS 会停止 HTTPS
+              端口；证书保留，再次开启无需重装。</p>
+            <button id="network-settings-https-regenerate" type="button" class="network-settings-https-regenerate">重新生成根证书</button>
+          </div>
+        </section>
         <p class="network-settings-firewall">此设置不会自动修改 Windows 防火墙。连接不上时，请允许 Node.js 的专用网络访问，或放行上方端口。</p>
       </div>
       <p id="network-settings-error" class="network-settings-error" role="alert" hidden></p>
