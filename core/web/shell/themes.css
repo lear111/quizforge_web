@@ -5,32 +5,39 @@
 html[data-qf-theme="mist"]{
   --qf-base:#f1eef8;
   --qf-page:linear-gradient(140deg,#e9e7fa 0%,#f4ecf8 36%,#fbeee9 64%,#e5f2ef 100%);
-  --qf-panel:rgba(255,255,255,.62);--qf-panel-solid:#f8f6fc;
-  --qf-bar:rgba(255,255,255,.55);--qf-around:transparent;--qf-line:rgba(112,100,160,.14);
+  --qf-panel-color:#fff;--qf-panel-solid:#f8f6fc;
+  --qf-bar-color:#fff;--qf-around:transparent;--qf-line:rgba(112,100,160,.14);
 }
 html[data-qf-theme="paper"]{
   --qf-base:#f6f1e6;
   --qf-page:radial-gradient(rgba(120,95,50,.045) 1px,transparent 1.2px) 0 0/7px 7px,#f6f1e6;
-  --qf-panel:#faf6ec;--qf-panel-solid:#faf6ec;
-  --qf-bar:rgba(250,246,236,.94);
+  --qf-panel-color:#faf6ec;--qf-panel-solid:#faf6ec;
+  --qf-bar-color:#faf6ec;
   --qf-around:repeating-linear-gradient(180deg,transparent 0 31px,rgba(150,125,80,.09) 31px 32px);
   --qf-line:#e7dcc6;
 }
 html[data-qf-theme="sepia"]{
   --qf-base:#f1e8d2;--qf-page:#f1e8d2;
-  --qf-panel:#f6efdd;--qf-panel-solid:#f6efdd;
-  --qf-bar:#f6efdd;--qf-around:transparent;--qf-line:#e3d6b6;
+  --qf-panel-color:#f6efdd;--qf-panel-solid:#f6efdd;
+  --qf-bar-color:#f6efdd;--qf-around:transparent;--qf-line:#e3d6b6;
 }
 html[data-qf-theme="green"]{
   --qf-base:#e2eddb;--qf-page:#e2eddb;
-  --qf-panel:#ebf3e5;--qf-panel-solid:#ebf3e5;
-  --qf-bar:#ebf3e5;--qf-around:transparent;--qf-line:#cfdfc4;
+  --qf-panel-color:#ebf3e5;--qf-panel-solid:#ebf3e5;
+  --qf-bar-color:#ebf3e5;--qf-around:transparent;--qf-line:#cfdfc4;
 }
 html[data-qf-theme="image"]{
   --qf-base:#ece8f6;
   --qf-page:linear-gradient(rgba(248,247,252,var(--qf-dim,.3)),rgba(248,247,252,var(--qf-dim,.3))),var(--qf-image,url("/assets/backgrounds/dawn-lake.svg")) center/cover no-repeat,#ece8f6;
-  --qf-panel:rgba(255,255,255,.7);--qf-panel-solid:#f8f6fc;
-  --qf-bar:rgba(255,255,255,.62);--qf-around:transparent;--qf-line:rgba(255,255,255,.55);
+  --qf-panel-color:#fff;--qf-panel-solid:#f8f6fc;
+  --qf-bar-color:#fff;--qf-around:transparent;--qf-line:rgba(255,255,255,.55);
+}
+
+/* --qf-clear (0-0.7, set per theme from the appearance settings) lets the library,
+   outline and bars show the background. Bars clear a little faster than panels. */
+html[data-qf-theme]{
+  --qf-panel:color-mix(in srgb,var(--qf-panel-color) calc(100% - var(--qf-clear,0) * 100%),transparent);
+  --qf-bar:color-mix(in srgb,var(--qf-bar-color) max(0%,calc(100% - var(--qf-clear,0) * 112%)),transparent);
 }
 
 html[data-qf-theme],html[data-qf-theme] body{background:var(--qf-base)}
@@ -73,6 +80,7 @@ html[data-qf-theme] .welcome h2{color:#5d5470}
 .appearance-swatch[data-swatch="sepia"]{background:#f1e8d2}
 .appearance-swatch[data-swatch="green"]{background:#e2eddb}
 .appearance-swatch[data-swatch="image"]{background:var(--qf-image,url("/assets/backgrounds/dawn-lake.svg")) center/cover no-repeat,#ece8f6}
+.appearance-panels{margin:0 0 14px}
 .appearance-image{display:flex;flex-direction:column;gap:10px;margin:0 0 14px;padding:12px;border:1px solid #ece6f3;border-radius:10px;background:#fbfaff}
 .appearance-image-actions{display:flex;gap:8px;flex-wrap:wrap}
 .appearance-image-actions button{padding:7px 12px;border:1px solid #e0d6ed;border-radius:7px;font-size:12px;color:#6f5a96;background:#fff}

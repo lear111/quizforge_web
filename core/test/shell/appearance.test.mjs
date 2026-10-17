@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {THEMES,DEFAULT_DIM,readAppearance,writeAppearance,applyAppearance,prepareImage,bindAppearanceSettings} from '../../web/shell/appearance.js';
+import {THEMES,DEFAULT_DIM,DEFAULT_CLEAR,readAppearance,writeAppearance,applyAppearance,prepareImage,bindAppearanceSettings} from '../../web/shell/appearance.js';
 
 const html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../../web/shell/themes.css',import.meta.url),'utf8');
@@ -18,12 +18,12 @@ function fixture(t,{saved,images=null}={}){
 }
 
 test('saved appearance is validated and falls back to the default look',()=>{
-  assert.deepEqual(readAppearance(memoryStorage()),{theme:'default',dim:DEFAULT_DIM,custom:false});
+  assert.deepEqual(readAppearance(memoryStorage()),{theme:'default',dim:DEFAULT_DIM,clear:{...DEFAULT_CLEAR},custom:false});
   for(const raw of ['not json','{"theme":"neon","dim":33}','{"theme":"paper","dim":95}','{"theme":"image","dim":-5,"custom":"yes"}']){
     const value=readAppearance(memoryStorage({'quizforge-appearance':raw}));
     assert.ok(THEMES.some(item=>item.id===value.theme));assert.ok(value.dim>=0&&value.dim<=80&&value.dim%5===0);assert.equal(typeof value.custom,'boolean');
   }
-  assert.deepEqual(readAppearance(memoryStorage({'quizforge-appearance':'{"theme":"green","dim":45,"custom":true}'})),{theme:'green',dim:45,custom:true});
+  assert.deepEqual(readAppearance(memoryStorage({'quizforge-appearance':'{"theme":"green","dim":45,"custom":true}'})),{theme:'green',dim:45,clear:{...DEFAULT_CLEAR},custom:true});
   assert.equal(readAppearance({getItem(){throw new Error('blocked');}}).theme,'default','Blocked storage keeps the default look');
   assert.doesNotThrow(()=>writeAppearance({setItem(){throw new Error('quota');}},{theme:'paper',dim:30,custom:false}));
 });
@@ -60,7 +60,7 @@ test('the appearance tab shows its panel, hides the other panels and saves a cho
   for(const id of ['network-settings-form','ai-settings-panel','development-settings-panel'])assert.equal(f.get(id).hidden,true,id);
   assert.equal(tab.getAttribute('aria-selected'),'true');assert.equal(f.get('settings-network-tab').getAttribute('aria-selected'),'false');
   f.document.querySelector('.appearance-theme[data-theme="sepia"]').click();
-  assert.equal(f.root.dataset.qfTheme,'sepia');assert.deepEqual(f.saved(),{theme:'sepia',dim:30,custom:false});
+  assert.equal(f.root.dataset.qfTheme,'sepia');assert.deepEqual(f.saved(),{theme:'sepia',dim:30,clear:{...DEFAULT_CLEAR},custom:false});
   assert.equal(f.get('appearance-image').hidden,true,'Image options only show for the image theme');
   f.get('settings-ai-tab').click();
   assert.equal(panel.hidden,true);assert.equal(tab.getAttribute('aria-selected'),'false');
@@ -107,4 +107,31 @@ test('chosen pictures are checked, scaled to 2560px and re-encoded as JPEG',asyn
   assert.equal(encoded.type,'image/jpeg');assert.equal(result.type,'image/jpeg');assert.equal(closed,true);
   await prepareImage({type:'image/jpeg',size:1000},{document,decode:async()=>({width:800,height:600,close(){}})});
   assert.deepEqual(drawn,{width:800,height:600},'Small pictures keep their size');
+});
+
+test('panel transparency is kept per theme, validated, and hidden for the default look',t=>{
+  assert.deepEqual(Object.keys(DEFAULT_CLEAR).sort(),THEMES.map(item=>item.id).filter(id=>id!=='default').sort(),'Every non-default theme has a transparency');
+  const saved=readAppearance(memoryStorage({'quizforge-appearance':JSON.stringify({theme:'mist',clear:{mist:55,image:75,paper:12,green:'20',neon:30}})}));
+  assert.deepEqual(saved.clear,{...DEFAULT_CLEAR,mist:55},'Out-of-range, off-step, non-number and unknown values fall back');
+  const f=fixture(t,{saved:{theme:'mist',dim:30,custom:false}});
+  const panels=f.get('appearance-panels'),clear=f.get('appearance-clear'),set=value=>{clear.value=String(value);clear.dispatchEvent(new f.dom.window.Event('input'));};
+  assert.equal(panels.hidden,false);assert.equal(clear.value,String(DEFAULT_CLEAR.mist));assert.equal(f.root.style.getPropertyValue('--qf-clear'),String(DEFAULT_CLEAR.mist/100));
+  set(60);
+  assert.equal(f.root.style.getPropertyValue('--qf-clear'),'0.6');assert.equal(f.get('appearance-clear-value').textContent,'60%');assert.equal(f.saved().clear.mist,60);
+  f.document.querySelector('.appearance-theme[data-theme="image"]').click();
+  assert.equal(clear.value,String(DEFAULT_CLEAR.image),'Each theme keeps its own value');assert.equal(f.root.style.getPropertyValue('--qf-clear'),String(DEFAULT_CLEAR.image/100));
+  f.document.querySelector('.appearance-theme[data-theme="mist"]').click();
+  assert.equal(clear.value,'60');
+  f.document.querySelector('.appearance-theme[data-theme="default"]').click();
+  assert.equal(panels.hidden,true);assert.equal(f.root.style.getPropertyValue('--qf-clear'),'','The default look has no transparency');
+});
+
+test('themes give panel colours and one rule mixes in the transparency',()=>{
+  assert.doesNotMatch(css,/--qf-(panel|bar):(rgba|#)/,'Themes set colours, not fixed transparencies');
+  for(const {id} of THEMES)if(id!=='default'){
+    const block=css.slice(css.indexOf(`html[data-qf-theme="${id}"]{`)).split('}')[0];
+    assert.match(block,/--qf-panel-color:/,id);assert.match(block,/--qf-bar-color:/,id);
+  }
+  assert.match(css,/--qf-panel:color-mix\(in srgb,var\(--qf-panel-color\) calc\(100% - var\(--qf-clear,0\) \* 100%\),transparent\)/);
+  assert.match(css,/@media\(max-width:800px\)\{\s*html\[data-qf-theme\] \.library,html\[data-qf-theme\] \.outline\{background:var\(--qf-panel-solid\)\}/,'Narrow-screen drawers stay solid');
 });

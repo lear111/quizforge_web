@@ -9,21 +9,29 @@ export const THEMES=Object.freeze([
   {id:'image',label:'图片'},
 ]);
 export const DEFAULT_DIM=30;
-const STORAGE_KEY='quizforge-appearance',MAX_DIM=80,MAX_INPUT_BYTES=30*1024*1024;
+// How much the library, outline and bars let the background through, per theme.
+// The defaults reproduce each theme's original look; the default theme has none.
+export const DEFAULT_CLEAR=Object.freeze({mist:40,paper:0,sepia:0,green:0,image:30});
+const STORAGE_KEY='quizforge-appearance',MAX_DIM=80,MAX_CLEAR=70,MAX_INPUT_BYTES=30*1024*1024;
+const validStep=(value,max)=>Number.isInteger(value)&&value>=0&&value<=max&&value%5===0;
 
 export function readAppearance(storage){
   let saved={};
   try{saved=JSON.parse(storage?.getItem(STORAGE_KEY)||'{}')||{};}catch{saved={};}
   const theme=THEMES.some(item=>item.id===saved.theme)?saved.theme:'default';
-  const dim=Number.isInteger(saved.dim)&&saved.dim>=0&&saved.dim<=MAX_DIM&&saved.dim%5===0?saved.dim:DEFAULT_DIM;
-  return {theme,dim,custom:saved.custom===true};
+  const dim=validStep(saved.dim,MAX_DIM)?saved.dim:DEFAULT_DIM;
+  const clear={...DEFAULT_CLEAR};
+  if(saved.clear&&typeof saved.clear==='object')for(const id of Object.keys(DEFAULT_CLEAR))if(validStep(saved.clear[id],MAX_CLEAR))clear[id]=saved.clear[id];
+  return {theme,dim,clear,custom:saved.custom===true};
 }
 export function writeAppearance(storage,value){
-  try{storage?.setItem(STORAGE_KEY,JSON.stringify({theme:value.theme,dim:value.dim,custom:value.custom}));}catch{/* A private window may refuse storage; the choice still applies until reload. */}
+  try{storage?.setItem(STORAGE_KEY,JSON.stringify({theme:value.theme,dim:value.dim,clear:value.clear,custom:value.custom}));}catch{/* A private window may refuse storage; the choice still applies until reload. */}
 }
 export function applyAppearance(root,value,imageUrl=null){
   if(value.theme==='default')delete root.dataset.qfTheme;else root.dataset.qfTheme=value.theme;
   root.style.setProperty('--qf-dim',String(value.dim/100));
+  const clear=value.clear?.[value.theme]??DEFAULT_CLEAR[value.theme];
+  if(clear===undefined)root.style.removeProperty('--qf-clear');else root.style.setProperty('--qf-clear',String(clear/100));
   if(imageUrl)root.style.setProperty('--qf-image',`url("${imageUrl}")`);else root.style.removeProperty('--qf-image');
 }
 
@@ -67,7 +75,7 @@ export function bindAppearanceSettings({document=globalThis.document,storage=glo
   const get=id=>document.getElementById(`appearance-${id}`),root=document.documentElement;
   const dialog=document.getElementById('network-settings-dialog'),tab=document.getElementById('settings-appearance-tab');
   const panel=document.getElementById('appearance-settings-panel'),list=get('themes'),imageBox=get('image'),choose=get('image-choose'),reset=get('image-reset'),file=get('image-file');
-  const dim=get('dim'),dimValue=get('dim-value'),error=get('error'),close=get('close');
+  const dim=get('dim'),dimValue=get('dim-value'),panels=get('panels'),clear=get('clear'),clearValue=get('clear-value'),error=get('error'),close=get('close');
   const listeners=[],buttons=new Map();
   const listen=(node,event,handler)=>{if(!node)return;node.addEventListener(event,handler);listeners.push(()=>node.removeEventListener(event,handler));};
   let value=readAppearance(storage),imageUrl=null,busy=false,destroyed=false;
@@ -80,6 +88,9 @@ export function bindAppearanceSettings({document=globalThis.document,storage=glo
     for(const [id,button] of buttons){const selected=id===value.theme;button.setAttribute('aria-checked',String(selected));button.tabIndex=selected?0:-1;}
     if(imageBox)imageBox.hidden=value.theme!=='image';
     if(dim){dim.value=String(value.dim);dimValue.textContent=`${value.dim}%`;}
+    const themeClear=value.clear[value.theme];
+    if(panels)panels.hidden=themeClear===undefined;
+    if(clear&&themeClear!==undefined){clear.value=String(themeClear);clearValue.textContent=`${themeClear}%`;}
     if(reset)reset.hidden=!value.custom;
     if(choose)choose.disabled=busy||!images;
   }
@@ -111,6 +122,10 @@ export function bindAppearanceSettings({document=globalThis.document,storage=glo
   for(const other of document.querySelectorAll('.settings-tabs [role="tab"]'))if(other!==tab)listen(other,'click',hide);
   listen(dialog,'close',hide);listen(close,'click',()=>dialog?.close());
   listen(dim,'input',()=>{const next=Number(dim.value);if(!Number.isInteger(next))return;value={...value,dim:next};dimValue.textContent=`${next}%`;apply();save();});
+  listen(clear,'input',()=>{
+    const next=Number(clear.value);if(!Number.isInteger(next)||!(value.theme in DEFAULT_CLEAR))return;
+    value={...value,clear:{...value.clear,[value.theme]:next}};clearValue.textContent=`${next}%`;apply();save();
+  });
   listen(choose,'click',()=>{showError('');file?.click();});
   listen(file,'change',async()=>{
     const picked=file.files?.[0];file.value='';if(!picked||!images||busy)return;
