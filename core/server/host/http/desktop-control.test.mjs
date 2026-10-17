@@ -1,7 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
-import { DesktopControl } from './desktop-control.js';
+import { DesktopControl, reportDesktopFailure } from './desktop-control.js';
+
+test('desktop failure reason is one bounded line for the launcher status', () => {
+  const output = new PassThrough(); let messages = '';
+  output.on('data', chunk => messages += chunk);
+  reportDesktopFailure('缺少依赖：qrcode-generator\r\n第二行' + 'x'.repeat(400), output);
+  assert.equal(messages.split('\n').length, 2);
+  const failed = JSON.parse(messages.trim().slice('QUIZFORGE_DESKTOP '.length));
+  assert.equal(failed.event, 'failed'); assert.equal(failed.pid, process.pid);
+  assert.equal(failed.reason.length, 300); assert.ok(failed.reason.startsWith('缺少依赖：qrcode-generator 第二行x'));
+});
 
 test('desktop readiness waits for service start; a chunked exit is idempotent and private to stdin', () => {
   const input = new PassThrough(), output = new PassThrough(); let stops = 0, messages = '';

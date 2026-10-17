@@ -10,7 +10,7 @@ core/
     rules-runner.cjs          # 独立规则进程入口
     host/
       http/                   # HTTP 路由、网络连接与服务生命周期
-      platform/               # 文件、JSON、错误、缓存和事务基础工具
+      platform/               # 文件、JSON、错误、缓存、事务和启动依赖检查
       library/                # 题库目录、分组管理和导入导出
       extensions/             # 拓展包、API 能力、规则执行与校验缓存
       practice/               # 作答、状态、大纲、草稿存储和旧数据升级

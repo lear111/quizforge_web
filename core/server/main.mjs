@@ -1,7 +1,8 @@
-import { QuizForgeServer } from './host/http/server.js';
-import { upgradeShortAnswerBanks } from './host/practice/short-answer-upgrade.js';
-import { DesktopControl } from './host/http/desktop-control.js';
+import { fileURLToPath } from 'node:url';
+import { DesktopControl, reportDesktopFailure } from './host/http/desktop-control.js';
+import { isSourceCheckout, missingModuleReason, sourceDependencyProblem } from './host/platform/dependencies.js';
 
+const product = fileURLToPath(new URL('../../', import.meta.url));
 const options = { root: '.', host: '127.0.0.1', port: 8080, token: null, node: process.execPath };
 let upgrade = false, upgradeAutomatic = false, only = false, desktopMode = false, service, desktop, stopping;
 try {
@@ -20,6 +21,17 @@ try {
   }
   if (Number(process.versions.node.split('.')[0]) !== 24) throw new Error('QuizForge requires Node.js 24');
   if (only && !upgrade && !upgradeAutomatic) throw new Error('--upgrade-only requires an upgrade option');
+  // Explain stale or missing packages before importing them.
+  const problem = sourceDependencyProblem(product);
+  if (problem) throw Object.assign(new Error(problem), { reason: problem });
+  let modules;
+  try {
+    modules = await Promise.all([import('./host/http/server.js'), import('./host/practice/short-answer-upgrade.js')]);
+  } catch (error) {
+    const reason = missingModuleReason(error, isSourceCheckout(product));
+    throw reason ? Object.assign(new Error(reason), { reason }) : error;
+  }
+  const [{ QuizForgeServer }, { upgradeShortAnswerBanks }] = modules;
   service = await QuizForgeServer.create(options);
   const stop = () => stopping ??= (async () => { desktop?.dispose(); await service.close({ graceful: desktopMode }); process.exit(0); })();
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
@@ -36,6 +48,8 @@ try {
 } catch (error) {
   desktop?.dispose();
   await service?.close();
-  // Do not print provider payloads, credentials or command-line access tokens.
-  console.error('QuizForge could not start: ' + (error.code ?? error.message)); process.exitCode = 1;
+  // Do not print provider payloads, credentials or command-line access tokens;
+  // a reason is a fixed message naming at most a package or file.
+  if (error.reason && desktopMode) reportDesktopFailure(error.reason);
+  console.error('QuizForge could not start: ' + (error.reason ?? error.code ?? error.message)); process.exitCode = 1;
 }

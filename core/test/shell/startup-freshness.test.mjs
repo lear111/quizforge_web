@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -81,6 +81,41 @@ $cases | ConvertTo-Json -Compress
 
     const launcher = readFileSync(launcherPath, 'utf8');
     assert.match(launcher, /\$refreshReason = Get-RunningQuizForgeRefreshReason \$running\s+if \(\$refreshReason\) \{ throw[^\n]+\}\s+Open-ExistingQuizForge \$running/);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test('source launcher names stale packages from the shared lock check before running npm ci', { skip: process.platform !== 'win32' }, () => {
+  const temporary = fileURLToPath(new URL('../../../.temp/node-migration/', import.meta.url));
+  mkdirSync(temporary, { recursive: true });
+  const fixtureRoot = mkdtempSync(path.join(temporary, 'quizforge-launcher-deps-'));
+  try {
+    const core = path.join(fixtureRoot, 'core'), code = fileURLToPath(new URL('../../', import.meta.url));
+    for (const file of ['scripts/launcher/check-dependencies.mjs', 'server/host/platform/dependencies.js']) {
+      mkdirSync(path.dirname(path.join(core, file)), { recursive: true }); copyFileSync(path.join(code, file), path.join(core, file));
+    }
+    const alpha = { version: '1.0.0', integrity: 'sha512-a' };
+    writeFileSync(path.join(core, 'package-lock.json'), JSON.stringify({ packages: { '': {}, 'node_modules/alpha': alpha, 'node_modules/tester': { ...alpha, dev: true } } }));
+    const script = `
+[string]$ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+$ast =[Management.Automation.Language.Parser]::ParseFile(${quotePowerShell(launcherPath)}, [ref]$null, [ref]$null)
+$definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-DependenciesReady' }, $true)
+. ([ScriptBlock]::Create($definition.Extent.Text))
+$coreRoot = ${quotePowerShell(core)}
+$nodeCommand = Get-Command node
+$cases = [ordered]@{ missingReady = Test-DependenciesReady; missing = $dependencyChanges }
+foreach ($name in @('alpha', 'tester')) { New-Item -ItemType Directory -Force (Join-Path $coreRoot "node_modules/$name") | Out-Null; Set-Content (Join-Path $coreRoot "node_modules/$name/package.json") '{}' }
+Copy-Item (Join-Path $coreRoot 'package-lock.json') (Join-Path $coreRoot 'node_modules/.package-lock.json')
+$cases.installedReady = Test-DependenciesReady
+$cases | ConvertTo-Json -Compress
+`;
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    const result = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+      encoding: 'utf8', windowsHide: true, timeout: 15_000,
+    }).trim());
+    assert.deepEqual(result, { missingReady: false, missing: 'alpha, tester', installedReady: true });
   } finally {
     rmSync(fixtureRoot, { recursive: true, force: true });
   }

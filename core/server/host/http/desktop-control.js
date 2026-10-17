@@ -1,3 +1,9 @@
+// Tells the launcher why startup failed, as one readable line for its status.
+export function reportDesktopFailure(reason, output = process.stdout) {
+  const text = String(reason).replace(/[\r\n]+/g, ' ').slice(0, 300);
+  output.write('QUIZFORGE_DESKTOP ' + JSON.stringify({ event: 'failed', pid: process.pid, reason: text }) + '\n');
+}
+
 // A private pipe owned by the desktop launcher, never an HTTP shutdown route.
 export class DesktopControl {
   constructor(stop, { input = process.stdin, output = process.stdout } = {}) {

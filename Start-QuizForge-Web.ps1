@@ -66,30 +66,8 @@ function Test-PortInUse {
 }
 
 function Test-DependenciesReady {
-  $sourceLock = Join-Path $coreRoot 'package-lock.json'
-  $installedLock = Join-Path $coreRoot 'node_modules/.package-lock.json'
-  if (-not (Test-Path -LiteralPath $installedLock)) { return $false }
-  foreach ($name in @('ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string', 'yauzl', 'yazl')) {
-    if (-not (Test-Path -LiteralPath (Join-Path $coreRoot "node_modules/$name/package.json"))) { return $false }
-  }
-  # npm locks contain an empty property name, unsupported by Windows PowerShell's JSON reader.
-  $checkLock = @'
-try {
-  const fs = require('node:fs');
-  const wanted = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')).packages;
-  const installed = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).packages;
-  if (!wanted || !installed) process.exit(1);
-  for (const [name, pkg] of Object.entries(wanted)) {
-    if (!name) continue;
-    if (pkg.os && !pkg.os.includes(process.platform)) continue;
-    if (pkg.cpu && !pkg.cpu.includes(process.arch)) continue;
-    const present = installed[name];
-    if (!present && pkg.optional) continue;
-    if (!present || present.version !== pkg.version || present.integrity !== pkg.integrity) process.exit(1);
-  }
-} catch { process.exit(1); }
-'@
-  & $nodeCommand.Source -e $checkLock $sourceLock $installedLock
+  # Shared with the tray backend check: core/server/host/platform/dependencies.js.
+  $script:dependencyChanges = (& $nodeCommand.Source (Join-Path $coreRoot 'scripts/launcher/check-dependencies.mjs') | Out-String).Trim()
   return $LASTEXITCODE -eq 0
 }
 
@@ -126,7 +104,7 @@ try {
   if (-not (Test-DependenciesReady)) {
     $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
     if (-not $npmCommand) { throw '依赖需要安装，但未找到 npm。请重新安装 Node.js 24。' }
-    Write-Host '正在安装或更新 Node 依赖，首次运行可能需要联网……'
+    Write-Host "依赖与 core/package-lock.json 不一致（$dependencyChanges），正在运行 npm ci 安装或更新，首次运行可能需要联网……"
     $npmCache = Join-Path $projectRoot '.temp/npm-cache'
     & $npmCommand.Source ci --cache $npmCache --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Node 依赖安装失败，请检查网络和上方错误后重新双击启动。' }

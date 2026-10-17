@@ -15,6 +15,8 @@ node core/server/main.mjs --root . --port 8787
 
 浏览器访问 `http://127.0.0.1:8787/`，按 Ctrl+C 停止服务。Windows 也可以运行根目录的 `Start-QuizForge-Web.cmd`。
 
+拉取或合并改动了 `core/package-lock.json` 的提交后，请重新运行 `npm --prefix core ci`。源码启动会对照锁文件和 `core/node_modules/.package-lock.json` 检查依赖：`Start-QuizForge-Web.cmd` 自动运行 `npm ci`；`node core/server/main.mjs` 和源码目录的 `QuizForge.exe` 会在终端或托盘“运行情况”中列出缺少的包和修复命令，不会自动安装。
+
 请使用独立克隆和测试数据。手动测试删除、导入、迁移等操作时使用数据副本；同一数据目录只运行一个写入服务。
 
 ## 找到相关代码和文档

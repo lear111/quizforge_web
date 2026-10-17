@@ -28,7 +28,8 @@ namespace QuizForge.Desktop
         private ProcessJob job;
         private Task startup;
         private string state = "启动中", url = "", detail = "正在启动本机服务…";
-        private string lastError = "";
+        private string lastError = "", failureReason = "";
+        private volatile bool missingModule;
         private DateTime? startedAt;
         private volatile bool quitting, disposed;
         private int openRequests;
@@ -126,8 +127,18 @@ namespace QuizForge.Desktop
                 };
                 process.EnableRaisingEvents = true;
                 process.OutputDataReceived += OnOutput;
-                process.ErrorDataReceived += (sender, args) => { if (!string.IsNullOrWhiteSpace(args.Data)) lastError = args.Data.Substring(0, Math.Min(args.Data.Length, 1200)); };
-                process.Exited += (sender, args) => Post(OnServiceExit);
+                process.ErrorDataReceived += (sender, args) =>
+                {
+                    if (string.IsNullOrWhiteSpace(args.Data)) return;
+                    if (args.Data.Contains("ERR_MODULE_NOT_FOUND")) missingModule = true;
+                    lastError = args.Data.Substring(0, Math.Min(args.Data.Length, 1200));
+                };
+                process.Exited += (sender, args) =>
+                {
+                    // Drain redirected output so a final failure reason is not lost.
+                    try { ((Process)sender).WaitForExit(); } catch { }
+                    Post(OnServiceExit);
+                };
                 process.Start();
                 try { job.Add(process); }
                 catch { if (!process.HasExited) process.Kill(); throw; }
@@ -156,7 +167,14 @@ namespace QuizForge.Desktop
             try
             {
                 var payload = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(args.Data.Substring(prefix.Length));
-                if ((string)payload["event"] != "ready" || Convert.ToInt32(payload["pid"]) != service.Id) return;
+                if (Convert.ToInt32(payload["pid"]) != service.Id) return;
+                if ((string)payload["event"] == "failed")
+                {
+                    string reason = payload.ContainsKey("reason") ? payload["reason"] as string : null;
+                    if (!string.IsNullOrWhiteSpace(reason)) failureReason = reason.Trim().Substring(0, Math.Min(reason.Trim().Length, 300));
+                    return;
+                }
+                if ((string)payload["event"] != "ready") return;
                 int port = Convert.ToInt32(payload["port"]);
                 if (port < 1 || port > 65535) return;
                 Post(() =>
@@ -174,12 +192,20 @@ namespace QuizForge.Desktop
             if (job != null) job.Dispose();
             if (quitting) return;
             string message = lastError;
-            if (message.Contains("EADDRINUSE") || message.Contains("already open"))
+            if (failureReason != "") message = failureReason;
+            else if (message.Contains("EADDRINUSE") || message.Contains("already open"))
                 message = "同目录服务或端口已被其他启动方式占用。请先保存作答并关闭原服务，再双击 QuizForge.exe。";
-            else if (message.Contains("ERR_MODULE_NOT_FOUND")) message = "运行依赖缺失，请重新解压完整预览包。";
+            else if (missingModule)
+                message = IsSourceCheckout() ? "运行依赖缺失或版本不符。请在应用根目录运行 npm --prefix core ci 后重新启动。" : "运行依赖缺失，请重新解压完整预览包。";
             if (string.IsNullOrWhiteSpace(message)) message = "后台服务已退出，请退出托盘后重新启动。";
-            SetState(startedAt.HasValue ? "服务已停止" : "启动失败", message);
-            tray.ShowBalloonTip(5000, "QuizForge 服务已停止", message, ToolTipIcon.Error);
+            string title = startedAt.HasValue ? "服务已停止" : "启动失败";
+            SetState(title, message);
+            tray.ShowBalloonTip(5000, "QuizForge " + title, message, ToolTipIcon.Error);
+        }
+        // Mirrors isSourceCheckout in core/server/host/platform/dependencies.js.
+        private bool IsSourceCheckout()
+        {
+            return File.Exists(Path.Combine(options.Root, "core", "package-lock.json")) && !File.Exists(Path.Combine(options.Root, "RELEASE.json"));
         }
         private void OpenPage()
         {

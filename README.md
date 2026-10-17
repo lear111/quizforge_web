@@ -37,7 +37,7 @@
 .\Start-QuizForge-Web.cmd
 ```
 
-首次启动会自动安装依赖。其他系统可执行 `node core/server/main.mjs --root . --port 8787`。启动参数、单实例规则等细节见 [使用手册](core/docs/guides/USER_GUIDE.md#启动与停止)。
+首次启动，以及拉取到依赖有变化的更新后，脚本会对照 `core/package-lock.json` 自动运行 `npm ci`。从源码目录双击 `QuizForge.exe` 不会自动安装；依赖不全时托盘会列出缺少的包，在根目录运行 `npm --prefix core ci` 后重新启动即可。其他系统可执行 `node core/server/main.mjs --root . --port 8787`。启动参数、单实例规则等细节见 [使用手册](core/docs/guides/USER_GUIDE.md#启动与停止)。
 
 ## 获取题库
 

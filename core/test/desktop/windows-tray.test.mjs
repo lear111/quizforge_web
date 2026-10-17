@@ -125,3 +125,27 @@ test('Windows tray port conflict and a foreign live root lock never stop the exi
   assert.equal(fs.readFileSync(file, 'utf8'), lock);
   await second.command('--quit'); await foreign.exit; assert.equal(fs.readFileSync(file, 'utf8'), lock);
 });
+
+test('Windows tray names a stale source dependency and the repair command instead of only reporting a stop', { skip: !supported, timeout: 45000 }, async t => {
+  // The lock gained qrcode-generator after the last npm ci (lock trimmed to the fixture's packages).
+  const { root, command, start } = fixture(t);
+  const wanted = JSON.parse(fs.readFileSync(path.join(product, 'core/package-lock.json'), 'utf8'));
+  wanted.packages = Object.fromEntries(Object.entries(wanted.packages).filter(([key]) => !key || fs.existsSync(path.join(root, 'core', key, 'package.json'))));
+  fs.writeFileSync(path.join(root, 'core/package-lock.json'), JSON.stringify(wanted));
+  const record = structuredClone(wanted); delete record.packages['node_modules/qrcode-generator'];
+  fs.writeFileSync(path.join(root, 'core/node_modules/.package-lock.json'), JSON.stringify(record));
+  fs.rmSync(path.join(root, 'core/node_modules/qrcode-generator'), { recursive: true });
+  const owner = start(), failure = await waitFor(command, status => status.state === '启动失败');
+  assert.equal(failure.detail, '缺少依赖或版本不符：qrcode-generator。请在应用根目录运行 npm --prefix core ci 后重新启动。');
+  await command('--quit'); await owner.exit; assert.equal(owner.child.exitCode, 0, owner.errors());
+});
+
+test('Windows tray in a preview package reports a removed runtime package and asks for a fresh unzip', { skip: !supported, timeout: 45000 }, async t => {
+  const { root, command, start } = fixture(t);
+  fs.copyFileSync(path.join(product, 'core/package-lock.json'), path.join(root, 'core/package-lock.json'));
+  fs.writeFileSync(path.join(root, 'RELEASE.json'), '{}');
+  fs.rmSync(path.join(root, 'core/node_modules/qrcode-generator'), { recursive: true });
+  const owner = start(), failure = await waitFor(command, status => status.state === '启动失败');
+  assert.equal(failure.detail, '缺少运行依赖：qrcode-generator。请重新解压完整预览包。');
+  await command('--quit'); await owner.exit; assert.equal(owner.child.exitCode, 0, owner.errors());
+});
