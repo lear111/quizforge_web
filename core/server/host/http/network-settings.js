@@ -30,14 +30,15 @@ export class NetworkSettings {
       if (Object.hasOwn(saved, 'password')) { if (saved.password.algorithm !== 'PBKDF2WithHmacSHA256' || saved.password.iterations !== iterations) throw new Error('Invalid connection password hash'); salt = decodeBase64(saved.password.salt); hash = decodeBase64(saved.password.hash); if (salt.length !== 16 || hash.length !== 32) throw new Error('Invalid connection password hash'); }
       const publicEnabled = saved.publicEnabled ?? false, publicUrl = normalizePublicUrl(saved.publicUrl ?? '');
       const httpsEnabled = saved.httpsEnabled ?? false, httpsPort = saved.httpsPort ?? this.defaultHttpsPort;
-      if (publicEnabled && !publicUrl || (saved.enabled || publicEnabled) && salt === null || httpsPort < 1024 || httpsPort > 65535 || httpsEnabled && (!saved.enabled || httpsPort === saved.port)) throw new Error('Invalid saved remote access configuration');
+      if ((saved.enabled || publicEnabled) && salt === null || httpsPort < 1024 || httpsPort > 65535 || httpsEnabled && (!saved.enabled || httpsPort === saved.port)) throw new Error('Invalid saved remote access configuration');
       this.config = config({ enabled: saved.enabled, publicEnabled, publicUrl, port: saved.port, httpsEnabled, httpsPort, salt, hash });
     }
   }
   async candidate(request, localPort) {
     switches(request); if (request.port < 1024 || request.port > 65535 || request.port === localPort) throw bad('Connection port must be 1024..65535 and different from the local port');
     const publicEnabled = request.publicEnabled ?? this.config.publicEnabled, publicUrl = Object.hasOwn(request, 'publicUrl') ? normalizePublicUrl(request.publicUrl) : this.config.publicUrl;
-    if (publicEnabled && !publicUrl) throw new ApiError(400, 'INVALID_PUBLIC_URL', '开启公网连接时请填写公网访问地址'); let salt = this.config.salt, hash = this.config.hash;
+    // The custom address is optional: detected public IPv6 and Tailscale addresses work without it.
+    let salt = this.config.salt, hash = this.config.hash;
     const httpsEnabled = request.httpsEnabled ?? this.config.httpsEnabled, httpsPort = request.httpsPort ?? this.config.httpsPort;
     if (httpsPort < 1024 || httpsPort > 65535 || httpsEnabled && (!request.enabled || httpsPort === localPort || httpsPort === request.port)) throw new ApiError(400, 'INVALID_HTTPS_SETTINGS', httpsMessage);
     if (Object.hasOwn(request, 'password')) {

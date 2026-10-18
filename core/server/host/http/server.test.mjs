@@ -16,7 +16,7 @@ async function fixture(t, options = {}) {
   const extension = path.join(root, 'extensions', 'choice'); fs.cpSync(path.join(codeRoot, 'test/fixtures/legacy-extensions/single-choice-1.0.0'), extension, { recursive: true });
   const raw = readJson(path.join(extension, readJson(path.join(extension, 'manifest.json')).examples)); raw.id = 'bank1'; raw.features = { history: options.history ?? true };
   fs.writeFileSync(path.join(root, 'question-banks', 'bank.json'), jsonBytes(raw));
-  const service = await QuizForgeServer.create({ root, codeRoot, port: 0, token: options.token ?? null }); service.engine.validationEnvironment = async () => 'http-fixture'; options.beforeStart?.(service); await service.start();
+  const service = await QuizForgeServer.create({ root, codeRoot, port: 0, token: options.token ?? null, tailscale: options.tailscale ?? { read: async () => ({ state: 'missing' }) } }); service.engine.validationEnvironment = async () => 'http-fixture'; options.beforeStart?.(service); await service.start();
   t.after(async () => { await service.close(); assert.ok(within(base, root) && root !== base); fs.rmSync(root, { recursive: true, force: true }); });
   const api = async (uri, { method = 'GET', body, headers = {}, port = service.port() } = {}) => {
     const response = await fetch('http://127.0.0.1:' + port + uri, { method, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -199,6 +199,31 @@ test('HTTPS public address accepts a forwarded Host without the default port', a
     request.on('error', reject); request.end(body);
   });
   assert.equal(login, 200);
+});
+
+test('detected Tailscale and public IPv6 addresses work without saving a public URL', async t => {
+  let tailscale = { state: 'running', name: 'pc.tail1234.ts.net', ips: ['100.70.1.2'], url: 'https://pc.tail1234.ts.net/' }, reads = 0;
+  const { api, service } = await fixture(t, { tailscale: { read: async (port, { force } = {}) => { reads += force ? 1 : 0; return tailscale; } } });
+  const probe = net.createServer(); await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
+  const saved = await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: true, publicUrl: '', port, password: 'shared-password' } });
+  assert.equal(saved.status, 200); assert.equal(saved.data.publicUrl, ''); assert.deepEqual(saved.data.tailscale, { state: 'running', name: 'pc.tail1234.ts.net', url: 'https://pc.tail1234.ts.net/' });
+  for (const host of ['pc.tail1234.ts.net', 'pc.tail1234.ts.net:443', `100.70.1.2:${port}`]) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 200, host);
+  assert.equal((await rawGet(port, '/api/health', { Host: 'pc.tail1234.ts.net' })).status, 401, 'the password still applies');
+  for (const host of ['other.tail1234.ts.net', 'pc.tail1234.ts.net:8443', `100.70.1.3:${port}`]) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 403, host);
+  const login = await new Promise((resolve, reject) => {
+    const body = JSON.stringify({ password: 'shared-password' });
+    const request = http.request({ host: '127.0.0.1', port, path: '/api/auth/login', method: 'POST', headers: { Host: 'pc.tail1234.ts.net', Origin: 'https://pc.tail1234.ts.net', 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, response => { response.resume(); response.on('end', () => resolve(response.statusCode)); });
+    request.on('error', reject); request.end(body);
+  });
+  assert.equal(login, 200, 'the HTTPS origin of the Tailscale forward is accepted');
+  service.publicIpv6Hosts = new Set(['2001:db8::42']);
+  assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: `[2001:db8::42]:${port}` })).status, 200, 'a detected public IPv6 address works');
+  const before = reads; const fresh = await api('/api/settings/network?refresh=1'); assert.equal(fresh.status, 200); assert.equal(reads, before + 1, 'refresh re-reads Tailscale');
+  tailscale = { state: 'stopped' }; await api('/api/settings/network?refresh=1');
+  assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: 'pc.tail1234.ts.net' })).status, 403, 'a stopped client no longer opens its name');
+  assert.equal((await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: false, publicUrl: '', port, password: '' } })).status, 200);
+  tailscale = { state: 'running', name: 'pc.tail1234.ts.net', ips: [], url: 'https://pc.tail1234.ts.net/' };
+  assert.equal((await api('/api/settings/network?refresh=1')).status, 200);
 });
 
 test('HTTP group export and import transport the native qbank stream and installed versions', async t => {

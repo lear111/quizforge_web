@@ -9,7 +9,7 @@ function fixture(request,options={}) {
     removeEventListener(name){this.listeners.delete(name);}
     setAttribute(name,value){this.attributes[name]=value;}
     replaceChildren(){this.children=[];}
-    append(node){this.children.push(node);}
+    append(...nodes){this.children.push(...nodes);}
     showModal(){this.open=true;}
     close(){this.open=false;}
     focus(){this.focused=true;}
@@ -17,8 +17,9 @@ function fixture(request,options={}) {
   }
   const nodes=new Map();
   const document={getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},createElement:()=>new Element()};
-  const view=bindNetworkSettings({request,document,...options});
-  return {view,node:id=>nodes.get(`network-settings-${id}`)};
+  const copied=[];
+  const view=bindNetworkSettings({request,document,clipboard:{writeText:async value=>{copied.push(value);}},...options});
+  return {view,copied,node:id=>nodes.get(`network-settings-${id}`)};
 }
 
 test('network save preserves exact password, locks repeated save and Escape, then clears secret',async()=>{
@@ -41,11 +42,13 @@ test('network save preserves exact password, locks repeated save and Escape, the
   assert.deepEqual(submitted,{enabled:true,publicEnabled:false,publicUrl:'',port:8790,password:'  secret88  '});
   release();await pending;
   assert.equal(f.node('password').value,'');assert.equal(f.node('save').disabled,false);
-  assert.equal(f.node('urls').children[0].textContent,'http://192.168.1.2:8790/');
+  assert.equal(f.node('lan-urls').children[0].children[0].textContent,'http://192.168.1.2:8790/');
   f.view.destroy();
 });
 
-test('public switch requires the shared password and a public address before saving',async()=>{
+const urlsOf=(f,key)=>f.node(`${key}-urls`).children.map(line=>line.children[0].textContent);
+
+test('outside switch needs the shared password; the custom address is optional but validated',async()=>{
   let saves=0,submitted;
   const state={canManage:true,enabled:false,publicEnabled:false,publicUrl:'',port:8790,passwordConfigured:false,urls:[]};
   const f=fixture(async(path,options)=>{
@@ -54,32 +57,34 @@ test('public switch requires the shared password and a public address before sav
     return {...state,...submitted,passwordConfigured:true};
   });
   await f.view.open();
-  assert.equal(f.node('public-fields').hidden,true);
+  assert.match(f.node('custom-note').textContent,/开启“外网连接”后可用/);
   f.node('public-enabled').checked=true;f.node('public-enabled').emit('change');
-  assert.equal(f.node('password').required,true);assert.equal(f.node('public-url').required,true);assert.equal(f.node('public-fields').hidden,false);
+  assert.equal(f.node('password').required,true);assert.equal(f.node('public-url').required,undefined,'the custom address is never required');
   await f.node('form').emit('submit');assert.equal(saves,0);assert.equal(f.node('password').focused,true);
-  f.node('password').value='secret-password';f.node('public-url').value='https://quiz.example.test/a';
-  await f.node('form').emit('submit');assert.equal(saves,0);assert.equal(f.node('public-url').focused,true);
+  f.node('password').value='secret-password';
+  await f.node('form').emit('submit');assert.equal(saves,1,'saving works without any typed address');
+  assert.deepEqual(submitted,{enabled:false,publicEnabled:true,publicUrl:'',port:8790,password:'secret-password'});
+  f.node('public-url').value='https://quiz.example.test/a';
+  await f.node('form').emit('submit');assert.equal(saves,1);assert.equal(f.node('public-url').focused,true);
   f.node('public-url').value='https://quiz.example.test/';
-  await f.node('form').emit('submit');assert.equal(saves,1);
-  assert.deepEqual(submitted,{enabled:false,publicEnabled:true,publicUrl:'https://quiz.example.test/',port:8790,password:'secret-password'});
-  assert.equal(f.node('password').value,'');assert.equal(f.node('addresses').hidden,false);
-  assert.equal(f.node('urls').children[0].textContent,'https://quiz.example.test/');assert.match(f.node('status').textContent,/公网连接入口已开启/);
+  await f.node('form').emit('submit');assert.equal(saves,2);assert.equal(submitted.publicUrl,'https://quiz.example.test/');
+  assert.deepEqual(urlsOf(f,'custom'),['https://quiz.example.test/']);assert.match(f.node('status').textContent,/外网连接已开启/);
   f.view.destroy();
 });
 
-test('both modes retain the shared password, render both addresses and lock remote editing',async()=>{
+test('both modes retain the shared password, list LAN and custom addresses and lock remote editing',async()=>{
   let submitted;
   const state={canManage:true,enabled:true,publicEnabled:true,publicUrl:'https://quiz.example.test/',port:8790,passwordConfigured:true,urls:['http://192.168.1.2:8790/']};
   const f=fixture(async(path,options)=>{if(!options)return state;submitted=JSON.parse(options.body);return {...state,...submitted};});
-  await f.view.open();assert.equal(f.node('password').required,false);assert.equal(f.node('urls').children.length,2);
+  await f.view.open();assert.equal(f.node('password').required,false);
+  assert.deepEqual(urlsOf(f,'lan'),['http://192.168.1.2:8790/']);assert.deepEqual(urlsOf(f,'custom'),['https://quiz.example.test/']);
   await f.node('form').emit('submit');assert.equal('password' in submitted,false);
-  assert.match(f.node('password-hint').textContent,/两种连接共用密码/);
+  assert.match(f.node('password-hint').textContent,/所有连接共用/);
   f.node('enabled').checked=false;f.node('public-enabled').checked=false;f.node('public-enabled').emit('change');
-  assert.equal(f.node('password').required,false);assert.equal(f.node('public-url').required,false);assert.equal(f.node('public-fields').hidden,true);
-  await f.node('form').emit('submit');assert.equal(f.node('addresses').hidden,true);assert.match(f.node('status').textContent,/仅本机/);
+  assert.equal(f.node('password').required,false);
+  await f.node('form').emit('submit');assert.deepEqual(urlsOf(f,'lan'),[]);assert.deepEqual(urlsOf(f,'custom'),[]);assert.match(f.node('status').textContent,/仅本机/);
   const remote=fixture(async()=>({...state,canManage:false}));await remote.view.open();
-  for(const field of ['enabled','public-enabled','public-url','port','password','save'])assert.equal(remote.node(field).disabled,true,field);
+  for(const field of ['enabled','public-enabled','public-url','port','password','save','refresh'])assert.equal(remote.node(field).disabled,true,field);
   assert.equal(remote.node('fields').hidden,true);
   f.view.destroy();remote.view.destroy();
 });
@@ -108,27 +113,50 @@ test('an old running backend explains restarting and cannot silently enable publ
   f.view.destroy();
 });
 
-test('IPv6 candidate fills the public URL without enabling access or saving automatically',async()=>{
-  let saves=0,submitted;
-  const url='http://[2001:db8::1234]:8790/';
-  const state={canManage:true,enabled:true,publicEnabled:false,publicUrl:'',port:8790,passwordConfigured:true,ipv6Supported:true,urls:['http://192.168.1.2:8790/','http://[fd12::1]:8790/'],publicIpv6Urls:[url]};
-  const f=fixture(async(path,options)=>{if(!options)return state;saves++;submitted=JSON.parse(options.body);return {...state,...submitted};});
-  await f.view.open();assert.match(f.node('ipv6-status').textContent,/支持 IPv4 和 IPv6/);
-  assert.equal(f.node('urls').children.length,2);assert.equal(f.node('urls').children[1].textContent,'http://[fd12::1]:8790/');
-  assert.equal(f.node('ipv6-addresses').hidden,false);
-  f.node('ipv6-urls').children[0].emit('click');assert.equal(f.node('public-url').value,url);
-  assert.equal(f.node('public-enabled').checked,false);assert.equal(saves,0);
-  f.node('public-enabled').checked=true;f.node('public-enabled').emit('change');await f.node('form').emit('submit');
-  assert.equal(submitted.publicUrl,url);assert.equal(submitted.publicEnabled,true);assert.equal(saves,1);
+test('detected IPv6 and Tailscale addresses are listed without typing, and copy buttons copy them',async()=>{
+  const v6='http://[2001:db8::1234]:8790/',ts='https://pc.tail1234.ts.net/';
+  const state={canManage:true,enabled:true,publicEnabled:true,publicUrl:'',port:8790,passwordConfigured:true,ipv6Supported:true,urls:['http://192.168.1.2:8790/','http://[2001:db8::1234]:8790/'],publicIpv6Urls:[v6],tailscale:{state:'running',name:'pc.tail1234.ts.net',url:ts}};
+  const f=fixture(async()=>state);await f.view.open();
+  assert.deepEqual(urlsOf(f,'lan'),['http://192.168.1.2:8790/'],'IPv6 is listed in its own row');
+  assert.deepEqual(urlsOf(f,'ipv6'),[v6]);assert.match(f.node('ipv6-note').textContent,/放行 IPv6 入站/);
+  assert.deepEqual(urlsOf(f,'tailscale'),[ts]);assert.match(f.node('tailscale-note').textContent,/同一 Tailscale 账号/);
+  await f.node('tailscale-urls').children[0].children[1].emit('click');assert.deepEqual(f.copied,[ts]);
+  const closed=fixture(async()=>({...state,publicEnabled:false}));await closed.view.open();
+  assert.deepEqual(urlsOf(closed,'ipv6'),[]);assert.deepEqual(urlsOf(closed,'tailscale'),[]);assert.match(closed.node('tailscale-note').textContent,/开启“外网连接”后可用/);
+  f.view.destroy();closed.view.destroy();
+});
+
+test('Tailscale without an HTTPS forward shows the command; missing and stopped clients are distinct',async()=>{
+  const base={canManage:true,enabled:false,publicEnabled:true,publicUrl:'',port:8788,passwordConfigured:true,urls:[],publicIpv6Urls:[]};
+  const pending=fixture(async()=>({...base,tailscale:{state:'running',name:'pc.tail1234.ts.net',url:null,command:'tailscale serve --bg http://127.0.0.1:8788',otherPort:8795}}));await pending.view.open();
+  assert.deepEqual(urlsOf(pending,'tailscale'),['tailscale serve --bg http://127.0.0.1:8788']);assert.match(pending.node('tailscale-note').textContent,/端口 8795/);
+  const missing=fixture(async()=>({...base,tailscale:{state:'missing'}}));await missing.view.open();
+  assert.match(missing.node('tailscale-note').textContent,/未检测到 Tailscale/);
+  const stopped=fixture(async()=>({...base,tailscale:{state:'stopped'}}));await stopped.view.open();
+  assert.match(stopped.node('tailscale-note').textContent,/未运行或未登录/);
+  const old=fixture(async()=>base);await old.view.open();assert.match(old.node('tailscale-note').textContent,/未检测到 Tailscale/);
+  for(const view of [pending,missing,stopped,old])view.view.destroy();
+});
+
+test('refresh re-detects addresses without discarding unsaved edits',async()=>{
+  const paths=[];let tailscale={state:'stopped'};
+  const state={canManage:true,enabled:true,publicEnabled:true,publicUrl:'',port:8788,passwordConfigured:true,urls:['http://192.168.1.2:8788/'],publicIpv6Urls:[]};
+  const f=fixture(async path=>{paths.push(path);return {...state,tailscale};});
+  await f.view.open();f.node('port').value='9000';f.node('enabled').checked=false;
+  tailscale={state:'running',name:'pc.tail1234.ts.net',url:'https://pc.tail1234.ts.net/'};
+  await f.node('refresh').emit('click');
+  assert.deepEqual(paths,['/api/settings/network','/api/settings/network?refresh=1']);
+  assert.deepEqual(urlsOf(f,'tailscale'),['https://pc.tail1234.ts.net/']);
+  assert.equal(f.node('port').value,'9000');assert.equal(f.node('enabled').checked,false,'unsaved edits stay');
   f.view.destroy();
 });
 
 test('IPv6 unavailable and no global IPv6 address are distinct states',async()=>{
-  const state={canManage:true,enabled:false,publicEnabled:false,publicUrl:'',port:8790,passwordConfigured:true,urls:[],publicIpv6Urls:[]};
+  const state={canManage:true,enabled:false,publicEnabled:true,publicUrl:'',port:8790,passwordConfigured:true,urls:[],publicIpv6Urls:[]};
   const v4=fixture(async()=>({...state,ipv6Supported:false}));await v4.view.open();
-  assert.match(v4.node('ipv6-status').textContent,/系统未启用 IPv6/);assert.equal(v4.node('ipv6-addresses').hidden,true);
+  assert.match(v4.node('ipv6-note').textContent,/未启用 IPv6/);assert.deepEqual(urlsOf(v4,'ipv6'),[]);
   const v6=fixture(async()=>({...state,ipv6Supported:true}));await v6.view.open();
-  assert.match(v6.node('ipv6-status').textContent,/未检测到本机公网 IPv6 地址/);assert.equal(v6.node('ipv6-addresses').hidden,true);
+  assert.match(v6.node('ipv6-note').textContent,/未检测到本机公网 IPv6/);
   v4.view.destroy();v6.view.destroy();
 });
 

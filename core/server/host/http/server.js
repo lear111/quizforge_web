@@ -25,6 +25,7 @@ import { ExamSessions } from '../exam/exam-sessions.js';
 import { MIME as archiveMime } from '../library/library-archive.js';
 import { LanCertificates, hostNames, permittedAddress } from './lan-certificates.js';
 import qrcode from 'qrcode-generator';
+import { TailscaleProbe } from './tailscale.js';
 import { hostKey, sameHost, url as addressUrl, privateAddress, ipv6Bytes, sameIpv6Subnet, interfaceAddresses, ipv6Available,displayAdapterMetadata,recommendedAddresses } from './network-addresses.js';
 
 const loopback = host => hostKey(host) === hostKey('::1') || hostKey(host)?.startsWith('127.');
@@ -55,11 +56,11 @@ const listen = (server, port, host) => new Promise((resolve, reject) => {
 const closeServer = (server, graceful = false) => new Promise(resolve => { if (!server?.listening) return resolve(); server.close(() => resolve()); if (!graceful) server.closeAllConnections(); });
 
 export class QuizForgeServer {
-  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null } = {}) {
+  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, tailscale = new TailscaleProbe() } = {}) {
     if (token !== null && !/^[A-Za-z0-9._~-]{16,256}$/.test(token)) throw new Error('Token must contain 16..256 URL-safe characters');
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port');
     const layout = resolveLayout(root), service = new QuizForgeServer();
-    Object.assign(service, layout, { root: layout.dataRoot, codeRoot: codeRoot ?? layout.codeRoot, host, token, active: 0, ready: false, closed: false });
+    Object.assign(service, layout, { root: layout.dataRoot, codeRoot: codeRoot ?? layout.codeRoot, host, token, active: 0, ready: false, closed: false, tailscaleProbe: tailscale, tailscale: { state: 'unavailable' } });
     service.server = service.newListener(false);
     try {
       // Reserve the port and data directory before any state recovery or upgrade.
@@ -123,6 +124,9 @@ export class QuizForgeServer {
     if (this.networkServer && this.networkSettings.config.enabled && this.networkSettings.config.httpsEnabled) try { this.httpsServer = await this.secureListener(this.networkSettings.config.httpsPort); } catch { this.networkError = 'Saved HTTPS port is unavailable or the certificate could not be prepared; select another port in settings'; }
     // Reissue the server certificate soon after LAN addresses change; the root stays the same.
     this.certificateTimer = setInterval(() => { if (this.httpsServer && !this.closed) this.networkSettings.transactions.run(() => this.renewCertificate()).catch(() => {}); }, 60000); this.certificateTimer.unref();
+    // Keep the Tailscale name current so its address works without opening settings.
+    if (this.networkServer && this.networkSettings.config.publicEnabled) this.refreshTailscale();
+    this.tailscaleTimer = setInterval(() => { if (this.networkServer && this.networkSettings.config.publicEnabled && !this.closed) this.refreshTailscale(); }, 60000); this.tailscaleTimer.unref();
     this.ready = true;
     let ticking = false; this.timer = setInterval(async () => { if (ticking || this.closed) return; ticking = true; try { await this.exams.tick(); } finally { ticking = false; } }, 1000); this.timer.unref();
     // Metadata is listed immediately; collections validate only when opened.
@@ -132,7 +136,7 @@ export class QuizForgeServer {
   }
   close({ graceful = false } = {}) {
     if (this.closing) return this.closing;
-    this.closed = true; this.ready = false; clearInterval(this.timer); clearInterval(this.certificateTimer);
+    this.closed = true; this.ready = false; clearInterval(this.timer); clearInterval(this.certificateTimer); clearInterval(this.tailscaleTimer);
     const dispose = () => { this.library?.close(); this.exams?.close(); this.practiceSessions?.close(); this.ai?.close(); this.developmentAi?.close(); this.networkSettings?.invalidateSessions(); this.engine?.close(); };
     this.closing = (async () => {
       if (!graceful) dispose();
@@ -161,15 +165,29 @@ export class QuizForgeServer {
       if (bytes && (bytes[0] & 0xe0) === 0x20) { this.publicIpv6Hosts.add(host); const prefix = Number(entry.cidr?.split('/')[1]); if (prefix >= 64 && prefix <= 128) this.subnets.push({ host, prefix }); }
     }
   }
-  publicHost(uri) {
-    const settings = this.networkSettings.config; if (!settings.publicEnabled) return false; const target = new URL(settings.publicUrl), standard = target.protocol === 'https:' ? '443' : '80';
-    // A Host header omits the default port of the public scheme (an HTTPS proxy forwards plain "quiz.example.com").
-    return sameHost(uri.hostname, target.hostname) && (uri.port || standard) === (target.port || standard);
+  async refreshTailscale(force = false) {
+    try { this.tailscale = await this.tailscaleProbe.read(this.networkSettings.config.port, { force }); } catch { this.tailscale = { state: 'unavailable' }; }
+    return this.tailscale;
+  }
+  // Addresses reachable from outside the LAN once 外网连接 is on: detected public IPv6, Tailscale
+  // (its HTTPS forward and its own IPs) and an optional address the user entered for port mapping.
+  publicUrls() {
+    const settings = this.networkSettings.config; if (!settings.publicEnabled) return [];
+    const ts = this.tailscale?.state === 'running' ? this.tailscale : null;
+    return [...new Set([settings.publicUrl, ts?.url, ...(ts?.ips ?? []).map(ip => addressUrl(ip, settings.port)), ...[...this.publicIpv6Hosts].map(host => addressUrl(host, settings.port))].filter(Boolean))];
+  }
+  publicTarget(uri) {
+    for (const value of this.publicUrls()) {
+      const target = new URL(value), standard = target.protocol === 'https:' ? '443' : '80';
+      // A Host header omits the default port of the public scheme (an HTTPS proxy forwards plain "quiz.example.com").
+      if (sameHost(uri.hostname, target.hostname) && (uri.port || standard) === (target.port || standard)) return target;
+    }
+    return null;
   }
   validateHost(context) {
     const uri = authority(context.request.headers.host, context.secure); context.authority = uri; let accepted;
     if (context.remote) {
-      if (!context.secure && this.publicHost(uri)) return;
+      if (!context.secure && this.publicTarget(uri)) return;
       const peer = context.request.socket.remoteAddress, settings = this.networkSettings.config;
       // HTTPS is LAN-only: it shares the LAN switch, peer check and password, and also accepts the host names in its certificate.
       accepted = settings.enabled && (!context.secure || settings.httpsEnabled) && (privateAddress(peer) || this.subnets.some(subnet => sameIpv6Subnet(subnet.host, peer, subnet.prefix))) && (this.lanHosts.has(hostKey(uri.hostname)) || context.secure && hostNames().includes(uri.hostname.toLowerCase()));
@@ -182,7 +200,7 @@ export class QuizForgeServer {
     if (origin === undefined) return;
     try {
       if (typeof origin !== 'string' || !/^https?:\/\/[^/?#\\]+$/.test(origin)) throw new Error();
-      const given = new URL(origin), expected = context.remote && this.publicHost(context.authority) ? new URL(this.networkSettings.config.publicUrl) : context.authority;
+      const given = new URL(origin), expected = context.remote && this.publicTarget(context.authority) || context.authority;
       if (given.protocol !== expected.protocol || !sameHost(given.hostname, expected.hostname) || given.port !== expected.port || given.username || given.password) throw new Error();
     } catch { throw new ApiError(403, 'ORIGIN_REJECTED', 'Writes require the same origin'); }
   }
@@ -222,7 +240,12 @@ export class QuizForgeServer {
   networkStatus(canManage) {
     this.refreshAddresses(); const settings = this.networkSettings.config;
     const display=recommendedAddresses(interfaceAddresses(),this.displayAdapters).map(entry=>entry.address).filter(host=>this.lanUrls.has(host));
-    return { canManage, https: this.httpsStatus(display), enabled: !!this.networkServer && settings.enabled, publicEnabled: !!this.networkServer && settings.publicEnabled, publicUrl: settings.publicUrl, port: settings.port, passwordConfigured: settings.passwordConfigured, ipv6Supported: this.ipv6Supported, urls: this.networkServer && settings.enabled ? display.map(host=>addressUrl(host,settings.port)) : [], publicIpv6Urls: display.filter(host=>this.publicIpv6Hosts.has(host)).map(host=>addressUrl(host,settings.port)), ...(!canManage ? { error: 'Network settings can only be changed through the local-only server' } : this.networkError ? { error: this.networkError } : {}) };
+    return { canManage, https: this.httpsStatus(display), enabled: !!this.networkServer && settings.enabled, publicEnabled: !!this.networkServer && settings.publicEnabled, publicUrl: settings.publicUrl, port: settings.port, passwordConfigured: settings.passwordConfigured, ipv6Supported: this.ipv6Supported, urls: this.networkServer && settings.enabled ? display.map(host=>addressUrl(host,settings.port)) : [], publicIpv6Urls: display.filter(host=>this.publicIpv6Hosts.has(host)).map(host=>addressUrl(host,settings.port)), tailscale: this.tailscaleStatus(), ...(!canManage ? { error: 'Network settings can only be changed through the local-only server' } : this.networkError ? { error: this.networkError } : {}) };
+  }
+  tailscaleStatus() {
+    const value = this.tailscale ?? { state: 'unavailable' }, port = this.networkSettings.config.port;
+    if (value.state !== 'running') return { state: value.state };
+    return { state: 'running', name: value.name, url: value.url, ...(value.url ? {} : { command: `tailscale serve --bg http://127.0.0.1:${port}` }), ...(value.otherPort ? { otherPort: value.otherPort } : {}) };
   }
   updateNetwork(request) {
     return this.networkSettings.transactions.run(async () => {
@@ -238,7 +261,7 @@ export class QuizForgeServer {
       this.networkServer = replacement.remoteEnabled ? candidate : null; if (previous && previous !== this.networkServer) await closeServer(previous);
       // Turning HTTPS off stops its listener; certificates stay on disk so phones need not reinstall the root.
       this.httpsServer = secureWanted ? secure : null; if (previousSecure && previousSecure !== this.httpsServer) await closeServer(previousSecure);
-      this.networkError = null; return this.networkStatus(true);
+      this.networkError = null; await this.refreshTailscale(true); return this.networkStatus(true);
     });
   }
   async uploadResource(context, development) {
@@ -253,7 +276,7 @@ export class QuizForgeServer {
     if (pathname === '/api/auth/login' && method === 'POST') { const password = text(await this.writeRequest(context), 'password', 256); if (context.remote) return { token: await this.networkSettings.login(password, context.request.socket.remoteAddress) }; this.networkSettings.limitLogin(context.request.socket.remoteAddress); if (this.token === null || !equal(password, this.token)) throw new ApiError(401, 'PASSWORD_REQUIRED', 'Incorrect access password'); return { token: this.token }; }
     if (pathname === '/api/settings/network') {
       if (context.remote || !loopback(this.server.address().address) && !loopback(context.request.socket.remoteAddress)) throw new ApiError(403, 'LOCAL_SETTINGS_ONLY', 'Open settings on the host computer using its local address');
-      if (method === 'GET') {this.refreshAddresses();this.displayAdapters=await displayAdapterMetadata();await this.networkSettings.transactions.run(() => this.renewCertificate()).catch(() => {});return this.networkStatus(this.canManage(context));}
+      if (method === 'GET') {this.refreshAddresses();this.displayAdapters=await displayAdapterMetadata();await this.refreshTailscale(context.url.searchParams.get('refresh') === '1');await this.networkSettings.transactions.run(() => this.renewCertificate()).catch(() => {});return this.networkStatus(this.canManage(context));}
       if (method === 'PUT') { this.requireLocal(context); return this.updateNetwork(await this.writeRequest(context)); }
     }
     if (pathname === '/api/settings/network/https/regenerate' && method === 'POST') { this.requireLocal(context); await this.writeRequest(context); return this.regenerateCertificates(); }

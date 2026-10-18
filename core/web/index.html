@@ -172,81 +172,68 @@
         type="button">外观</button></nav>
     <form id="network-settings-form">
       <p id="network-settings-status" class="network-settings-hint" role="status">正在读取设置…</p>
-      <div id="network-settings-fields"><label class="network-settings-switch"><span>允许局域网设备连接</span><input
-            id="network-settings-enabled" type="checkbox" role="switch" aria-label="允许局域网设备连接"></label><label
-          class="network-settings-switch"><span>允许公网连接</span><input id="network-settings-public-enabled" type="checkbox"
-            role="switch" aria-label="允许公网连接"></label>
-        <div id="network-settings-public-fields" hidden><label class="network-settings-public-address">公网访问地址<input
-              id="network-settings-public-url" type="url" maxlength="500" placeholder="http://[你的IPv6地址]:8788/"
-              autocomplete="url"><small>当前应用直连使用 HTTP。填写域名、IPv4 或 IPv6，可带端口；IPv6 地址须放在方括号内。</small></label>
-          <section id="network-settings-ipv6-addresses" class="network-settings-addresses" hidden>
-            <h4>本机公网 IPv6 候选地址</h4>
-            <div id="network-settings-ipv6-urls"></div>
-            <p>点击填入公网访问地址。需放行主机与路由器的 IPv6 入站连接；检测到地址不代表外网已连通。</p>
-          </section>
-          <details class="network-settings-public-help">
-            <summary>公网接入说明</summary>
-            <p class="network-settings-hint">IPv4 通常需要路由器端口映射或公网代理；公网 IPv6 可直接访问，但需放行入站防火墙。代理应保留
-              Host，连接下方连接端口，不要连接本机管理端口。本应用不自动配置端口映射、域名或防火墙。</p>
-          </details>
-        </div>
+      <div id="network-settings-fields">
+        <label class="network-settings-switch"><span>局域网连接<small>同一网络的手机、平板可以连接</small></span><input
+            id="network-settings-enabled" type="checkbox" role="switch" aria-label="局域网连接"></label>
+        <label class="network-settings-switch"><span>外网连接<small>公网 IPv6、端口映射和 Tailscale</small></span><input
+            id="network-settings-public-enabled" type="checkbox" role="switch" aria-label="外网连接"></label>
         <div class="network-settings-inputs"><label>连接端口<input id="network-settings-port" type="number" min="1024"
-              max="65535" step="1" required inputmode="numeric"></label><label>共用连接密码<input
+              max="65535" step="1" required inputmode="numeric"></label><label>连接密码<input
               id="network-settings-password" type="password" maxlength="256" autocomplete="new-password"
               placeholder="至少 8 个字符"></label></div>
         <p id="network-settings-password-hint" class="network-settings-hint"></p>
-        <p id="network-settings-ipv6-status" class="network-settings-hint" role="status"></p>
-        <section id="network-settings-addresses" class="network-settings-addresses" hidden>
-          <h4>推荐连接地址</h4>
-          <div id="network-settings-urls"></div>
-          <p>优先显示正在使用的物理网卡地址。同一网络的设备打开对应地址，输入共用密码；公网使用配置的公网地址。</p>
+        <section class="network-connections" aria-labelledby="network-settings-connections-title">
+          <header><h4 id="network-settings-connections-title">连接地址</h4><button id="network-settings-refresh" type="button"
+              class="network-connections-refresh">刷新</button></header>
+          <ul>
+          <li class="network-connection" id="network-settings-row-lan"><svg class="network-connection-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 9.5a11 11 0 0 1 15 0M7.5 12.8a6.6 6.6 0 0 1 9 0M10.5 16a2.2 2.2 0 0 1 3 0"/><circle cx="12" cy="18.6" r=".9"/></svg><div class="network-connection-body"><strong>局域网</strong><div id="network-settings-lan-urls" class="network-connection-urls"></div><small id="network-settings-lan-note"></small></div></li>
+          <li class="network-connection" id="network-settings-row-ipv6"><svg class="network-connection-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.4 2.3 3.6 5 3.6 8s-1.2 5.7-3.6 8c-2.4-2.3-3.6-5-3.6-8S9.6 6.3 12 4z"/></svg><div class="network-connection-body"><strong>公网 IPv6</strong><div id="network-settings-ipv6-urls" class="network-connection-urls"></div><small id="network-settings-ipv6-note"></small></div></li>
+          <li class="network-connection" id="network-settings-row-custom"><svg class="network-connection-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M12 8.2v4M12 12.2 7.3 16.2M12 12.2l4.7 4"/></svg><div class="network-connection-body"><strong>公网 IPv4 / 自定义地址</strong><input id="network-settings-public-url" type="url" maxlength="500" placeholder="选填，如 http://quiz.example.com:8788/" autocomplete="url" aria-label="自定义外网地址"><div id="network-settings-custom-urls" class="network-connection-urls"></div><small id="network-settings-custom-note"></small></div></li>
+          <li class="network-connection" id="network-settings-row-tailscale"><svg class="network-connection-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.8 18.5 6v5.3c0 4.1-2.7 7.4-6.5 8.9-3.8-1.5-6.5-4.8-6.5-8.9V6z"/></svg><div class="network-connection-body"><strong>Tailscale</strong><div id="network-settings-tailscale-urls" class="network-connection-urls"></div><small id="network-settings-tailscale-note"></small></div></li>
+          </ul>
         </section>
-        <section id="network-settings-https" class="network-settings-https" hidden>
-          <label class="network-settings-switch"><span>局域网 HTTPS<small>手机用 https:// 打开后，Chrome、Edge 才能“安装应用”。需先允许局域网设备连接，使用同一连接密码。</small></span><input
-              id="network-settings-https-enabled" type="checkbox" role="switch" aria-label="局域网 HTTPS"></label>
-          <label class="network-settings-https-port">HTTPS 端口<input id="network-settings-https-port" type="number" min="1024"
-              max="65535" step="1" inputmode="numeric"></label>
-          <p id="network-settings-https-status" class="network-settings-hint" role="status"></p>
-          <div id="network-settings-https-details" hidden>
-            <div class="network-settings-https-codes">
-              <figure><img id="network-settings-https-certificate-qr" alt="下载根证书的二维码" width="152" height="152"
-                  hidden><figcaption>① 扫码下载根证书</figcaption></figure>
-              <figure><img id="network-settings-https-url-qr" alt="打开 HTTPS 地址的二维码" width="152" height="152"
-                  hidden><figcaption>② 安装并信任后扫码打开</figcaption></figure>
+        <details class="network-settings-advanced">
+          <summary>局域网 HTTPS（备用）</summary>
+          <section id="network-settings-https" class="network-settings-https" hidden>
+            <label class="network-settings-switch"><span>开启局域网 HTTPS<small>需先开启局域网连接，使用同一连接密码；手机要安装一次本机根证书。</small></span><input
+                id="network-settings-https-enabled" type="checkbox" role="switch" aria-label="局域网 HTTPS"></label>
+            <label class="network-settings-https-port">HTTPS 端口<input id="network-settings-https-port" type="number" min="1024"
+                max="65535" step="1" inputmode="numeric"></label>
+            <p id="network-settings-https-status" class="network-settings-hint" role="status"></p>
+            <div id="network-settings-https-details" hidden>
+              <div class="network-settings-https-codes">
+                <figure><img id="network-settings-https-certificate-qr" alt="下载根证书的二维码" width="152" height="152"
+                    hidden><figcaption>① 扫码下载根证书</figcaption></figure>
+                <figure><img id="network-settings-https-url-qr" alt="打开 HTTPS 地址的二维码" width="152" height="152"
+                    hidden><figcaption>② 安装并信任后扫码打开</figcaption></figure>
+              </div>
+              <section class="network-settings-addresses">
+                <h4>根证书下载地址（HTTP，只提供公钥证书）</h4>
+                <div id="network-settings-https-certificate-urls"></div>
+                <h4 class="network-settings-https-heading">HTTPS 连接地址</h4>
+                <div id="network-settings-https-urls"></div>
+                <h4 class="network-settings-https-heading">根证书 SHA-256 指纹</h4>
+                <code id="network-settings-https-fingerprint"></code>
+                <p>安装前在手机的证书详情里核对指纹，完全一致再安装。</p>
+                <p id="network-settings-https-validity"></p>
+              </section>
+              <details class="network-settings-public-help network-settings-https-steps" open>
+                <summary>手机安装步骤</summary>
+                <ol>
+                  <li><b>Android</b>：用 Chrome 扫码①下载证书，然后打开“设置 → 安全 → 加密与凭据 → 安装证书 → CA 证书”，选中下载的
+                    QuizForge-LAN-CA.crt。不同品牌菜单名称略有差异，可在设置里搜索“CA 证书”。</li>
+                  <li><b>iPhone / iPad</b>：用相机扫码①，在 Safari 中允许下载描述文件；到“设置 → 已下载描述文件”安装；再到“设置 → 通用 → 关于本机 →
+                    证书信任设置”，为 QuizForge LAN Root CA 开启完全信任。</li>
+                  <li>扫码②或手动打开 HTTPS 地址，输入连接密码。</li>
+                </ol>
+              </details>
+              <p class="network-settings-https-warning">根证书只装在你自己的设备上，不要发给别人。根证书私钥只保存在这台电脑的数据目录，任何地址都不会提供私钥。关闭局域网 HTTPS 会停止 HTTPS
+                端口；证书保留，再次开启无需重装。</p>
+              <button id="network-settings-https-regenerate" type="button" class="network-settings-https-regenerate">重新生成根证书</button>
             </div>
-            <section class="network-settings-addresses">
-              <h4>根证书下载地址（HTTP，只提供公钥证书）</h4>
-              <div id="network-settings-https-certificate-urls"></div>
-              <h4 class="network-settings-https-heading">HTTPS 连接地址</h4>
-              <div id="network-settings-https-urls"></div>
-              <h4 class="network-settings-https-heading">根证书 SHA-256 指纹</h4>
-              <code id="network-settings-https-fingerprint"></code>
-              <p>安装前在手机的证书详情里核对指纹，完全一致再安装。</p>
-              <p id="network-settings-https-validity"></p>
-            </section>
-            <details class="network-settings-public-help network-settings-https-steps" open>
-              <summary>手机安装步骤</summary>
-              <ol>
-                <li><b>Android</b>：用 Chrome 扫码①下载证书，然后打开“设置 → 安全 → 加密与凭据 → 安装证书 → CA 证书”，选中下载的
-                  QuizForge-LAN-CA.crt。不同品牌菜单名称略有差异，可在设置里搜索“CA 证书”。</li>
-                <li><b>iPhone / iPad</b>：用相机扫码①，在 Safari 中允许下载描述文件；到“设置 → 已下载描述文件”安装；再到“设置 → 通用 → 关于本机 →
-                  证书信任设置”，为 QuizForge LAN Root CA 开启完全信任。</li>
-                <li>扫码②或手动打开 HTTPS 地址，输入连接密码。浏览器菜单里即可选择“安装应用”或“添加到主屏幕”。</li>
-              </ol>
-            </details>
-            <p class="network-settings-https-warning">根证书只装在你自己的设备上，不要发给别人。根证书私钥只保存在这台电脑的数据目录，任何地址都不会提供私钥。关闭局域网 HTTPS 会停止 HTTPS
-              端口；证书保留，再次开启无需重装。</p>
-            <button id="network-settings-https-regenerate" type="button" class="network-settings-https-regenerate">重新生成根证书</button>
-          </div>
-        </section>
-        <p class="network-settings-firewall">此设置不会自动修改 Windows 防火墙。连接不上时，请允许 Node.js 的专用网络访问，或放行上方端口。</p>
-        <details id="network-settings-install-help" class="network-settings-public-help">
-          <summary>在手机上安装为应用</summary>
-          <p class="network-settings-hint">Chrome、Edge 只在 HTTPS 地址（或本机 localhost）提供“安装应用”。用
-            http://局域网IP 打开时，“添加到主屏幕”只会创建在浏览器标签页中打开的快捷方式。需要独立窗口时，开启上方的“局域网
-            HTTPS”，在手机上安装并信任根证书后用 https:// 地址打开安装；也可用 Caddy、Nginx 等反向代理为连接端口配置手机信任的证书，在公网访问地址填写该
-            https:// 地址。安装后的应用关闭再打开时需要重新输入连接密码。</p>
+          </section>
         </details>
+        <p class="network-settings-firewall">此设置不会修改 Windows 防火墙。连接不上时，请允许 Node.js 的网络访问，或放行连接端口。</p>
       </div>
       <p id="network-settings-error" class="network-settings-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="network-settings-cancel" type="button">关闭</button><button
