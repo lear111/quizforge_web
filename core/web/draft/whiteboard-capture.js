@@ -5,6 +5,25 @@ export async function copyCaptureImage(blob, win=globalThis) {
   try{await win.navigator.clipboard.write([new win.ClipboardItem({'image/png':blob})]);}
   catch{throw new Error('复制未成功，请允许浏览器访问剪贴板后重试，或下载 PNG。');}
 }
+// html2canvas 1.4.1 cannot parse color(), color-mix(), oklch() and similar
+// modern colors. Pages styled with color-mix() report computed colors as
+// color(srgb r g b / a), so convert those to rgba() before rendering.
+const MODERN_COLOR=/\b(?:color|color-mix|oklch|oklab|lab|lch|hwb)\((?:[^()]|\([^()]*\))*\)/gi;
+const channel=value=>Math.round(Math.min(1,Math.max(0,Number(value)||0))*255);
+function legacyColor(document,value){
+  const srgb=/^color\(\s*srgb\s+([-\d.e+]+|none)\s+([-\d.e+]+|none)\s+([-\d.e+]+|none)\s*(?:\/\s*([-\d.e+]+%?|none))?\s*\)$/i.exec(value.trim());
+  if(srgb){
+    const alpha=srgb[4]===undefined||srgb[4]==='none'?1:srgb[4].endsWith('%')?Number(srgb[4].slice(0,-1))/100:Number(srgb[4]);
+    return `rgba(${channel(srgb[1])}, ${channel(srgb[2])}, ${channel(srgb[3])}, ${Math.min(1,Math.max(0,Number.isFinite(alpha)?alpha:1))})`;
+  }
+  // Other color spaces: let the browser convert one pixel to sRGB.
+  try{
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+    const context=canvas.getContext('2d',{willReadFrequently:true});context.clearRect(0,0,1,1);context.fillStyle=value;context.fillRect(0,0,1,1);
+    const [r,g,b,a]=context.getImageData(0,0,1,1).data;return `rgba(${r}, ${g}, ${b}, ${Math.round(a/255*1000)/1000})`;
+  }catch{return 'rgba(0, 0, 0, 0)';}
+}
+export function legacyColors(document,css){return css.replace(MODERN_COLOR,match=>legacyColor(document,match));}
 export function sanitizeCaptureHtml(document, html) {
   const template=document.createElement('template');template.innerHTML=html;
   const tags=new Set('div span p h1 h2 h3 h4 h5 h6 section article main header footer aside nav ul ol li strong b em i s u sub sup small label fieldset legend input textarea button select option table thead tbody tfoot tr td th caption colgroup col br hr pre code blockquote img svg g path circle ellipse rect line polyline polygon text tspan defs clippath lineargradient radialgradient stop'.split(' '));
@@ -14,6 +33,7 @@ export function sanitizeCaptureHtml(document, html) {
     for(const attr of [...node.attributes])if(!attributes.has(attr.name.toLowerCase()))node.removeAttribute(attr.name);
     if(node.tagName.toLowerCase()==='img'&&!/^data:image\/(png|jpeg|webp|gif|svg\+xml)[;,]/i.test(node.getAttribute('src')||''))throw new Error('截图图片尚未准备好，请重试。');
     for(const attr of [...node.attributes])if(!['src','style','xmlns'].includes(attr.name)&&/url\s*\(|(?:https?:|blob:|javascript:|@import)/i.test(attr.value))node.removeAttribute(attr.name);
+    if(node.hasAttribute('style'))node.setAttribute('style',legacyColors(document,node.getAttribute('style')));
     if(node.style){for(const key of Array.from(node.style))if(/url\s*\(|(?:https?:|blob:|javascript:|@import)/i.test(node.style.getPropertyValue(key)))node.style.removeProperty(key);}
     if(node.tagName.toLowerCase()==='input'&&node.type==='password'){node.value='';node.removeAttribute('value');}
   }
