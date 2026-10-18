@@ -58,7 +58,9 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
   // Each row lists what works now; detected addresses need no saving.
   function renderConnections(next) {
     const outside=Boolean(next.publicEnabled),off='开启“外网连接”后可用';
-    const lan=(next.urls||[]).filter(value=>typeof value==='string'&&!value.includes('['));
+    // With LAN HTTPS on, list its https:// addresses instead of the plain HTTP ones.
+    const secure=next.https?.enabled&&Array.isArray(next.https.urls)?next.https.urls:[];
+    const lan=(secure.length?secure:next.urls||[]).filter(value=>typeof value==='string'&&!value.includes('['));
     fill('lan',next.enabled?lan:[],next.enabled?(lan.length?'手机与电脑连接同一网络':'未检测到局域网地址'):'开启“局域网连接”后可用',{muted:!next.enabled||!lan.length});
     const ipv6=(next.publicIpv6Urls||[]).filter(value=>typeof value==='string');
     const ipv6Note=next.ipv6Supported===false?'这台电脑未启用 IPv6':!ipv6.length?'未检测到本机公网 IPv6':outside?'需要光猫和电脑防火墙放行 IPv6 入站':off;
@@ -67,11 +69,7 @@ export function bindNetworkSettings({request,beforeSave,onSaved,document=globalT
     const ts=next.tailscale&&typeof next.tailscale==='object'?next.tailscale:{state:'unavailable'};
     if(ts.state==='missing'||ts.state==='unavailable')fill('tailscale',[],'未检测到 Tailscale',{muted:true});
     else if(ts.state!=='running')fill('tailscale',[],'Tailscale 未运行或未登录',{muted:true});
-    else if(ts.url)fill('tailscale',outside?[ts.url]:[],outside?'手机登录同一 Tailscale 账号并保持连接':off,{muted:!outside});
-    else{
-      fill('tailscale',[],ts.otherPort?`HTTPS 转发指向端口 ${ts.otherPort}，与连接端口不一致。在电脑上运行上面的命令，然后点“刷新”。`:'尚未开启 HTTPS 转发。在电脑上运行上面的命令，然后点“刷新”。',{muted:true});
-      if(typeof ts.command==='string'){const line=document.createElement('div');line.className='network-connection-url';const code=document.createElement('code');code.textContent=ts.command;line.append(code,copyButton(ts.command));rows.tailscale.urls.append(line);}
-    }
+    else fill('tailscale',outside&&ts.url?[ts.url]:[],outside?'手机登录同一 Tailscale 账号并保持连接':off,{muted:!outside||!ts.url});
   }
   function codes(list,values){list.replaceChildren();for(const value of values.filter(item=>typeof item==='string')){const line=document.createElement('code');line.textContent=value;list.append(line);}}
   function qr(image,value){const valid=typeof value==='string'&&value.startsWith(QR_PREFIX);image.hidden=!valid;if(valid)image.src=value;else image.removeAttribute?.('src');}

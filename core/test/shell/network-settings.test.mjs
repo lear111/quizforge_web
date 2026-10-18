@@ -126,16 +126,24 @@ test('detected IPv6 and Tailscale addresses are listed without typing, and copy 
   f.view.destroy();closed.view.destroy();
 });
 
-test('Tailscale without an HTTPS forward shows the command; missing and stopped clients are distinct',async()=>{
+test('Tailscale lists only a browser address; missing and stopped clients are distinct',async()=>{
   const base={canManage:true,enabled:false,publicEnabled:true,publicUrl:'',port:8788,passwordConfigured:true,urls:[],publicIpv6Urls:[]};
-  const pending=fixture(async()=>({...base,tailscale:{state:'running',name:'pc.tail1234.ts.net',url:null,command:'tailscale serve --bg http://127.0.0.1:8788',otherPort:8795}}));await pending.view.open();
-  assert.deepEqual(urlsOf(pending,'tailscale'),['tailscale serve --bg http://127.0.0.1:8788']);assert.match(pending.node('tailscale-note').textContent,/端口 8795/);
+  const plain=fixture(async()=>({...base,tailscale:{state:'running',name:'pc.tail1234.ts.net',url:'http://pc.tail1234.ts.net:8788/'}}));await plain.view.open();
+  assert.deepEqual(urlsOf(plain,'tailscale'),['http://pc.tail1234.ts.net:8788/']);assert.doesNotMatch(plain.node('tailscale-note').textContent,/tailscale serve|命令/);
   const missing=fixture(async()=>({...base,tailscale:{state:'missing'}}));await missing.view.open();
   assert.match(missing.node('tailscale-note').textContent,/未检测到 Tailscale/);
   const stopped=fixture(async()=>({...base,tailscale:{state:'stopped'}}));await stopped.view.open();
   assert.match(stopped.node('tailscale-note').textContent,/未运行或未登录/);
   const old=fixture(async()=>base);await old.view.open();assert.match(old.node('tailscale-note').textContent,/未检测到 Tailscale/);
-  for(const view of [pending,missing,stopped,old])view.view.destroy();
+  for(const view of [plain,missing,stopped,old])view.view.destroy();
+});
+
+test('the LAN row shows HTTPS addresses when LAN HTTPS is on, otherwise HTTP',async()=>{
+  const state={canManage:true,enabled:true,publicEnabled:false,publicUrl:'',port:8788,passwordConfigured:true,urls:['http://192.168.1.2:8788/'],https:{enabled:false,configured:false,port:8789,urls:[]}};
+  const plain=fixture(async()=>state);await plain.view.open();assert.deepEqual(urlsOf(plain,'lan'),['http://192.168.1.2:8788/']);
+  const secure=fixture(async()=>({...state,https:{enabled:true,configured:true,port:8789,urls:['https://192.168.1.2:8789/']}}));await secure.view.open();
+  assert.deepEqual(urlsOf(secure,'lan'),['https://192.168.1.2:8789/']);
+  plain.view.destroy();secure.view.destroy();
 });
 
 test('refresh re-detects addresses without discarding unsaved edits',async()=>{

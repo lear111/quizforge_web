@@ -174,7 +174,7 @@ export class QuizForgeServer {
   publicUrls() {
     const settings = this.networkSettings.config; if (!settings.publicEnabled) return [];
     const ts = this.tailscale?.state === 'running' ? this.tailscale : null;
-    return [...new Set([settings.publicUrl, ts?.url, ...(ts?.ips ?? []).map(ip => addressUrl(ip, settings.port)), ...[...this.publicIpv6Hosts].map(host => addressUrl(host, settings.port))].filter(Boolean))];
+    return [...new Set([settings.publicUrl, ts?.url, ts && addressUrl(ts.name, settings.port), ...(ts?.ips ?? []).map(ip => addressUrl(ip, settings.port)), ...[...this.publicIpv6Hosts].map(host => addressUrl(host, settings.port))].filter(Boolean))];
   }
   publicTarget(uri) {
     for (const value of this.publicUrls()) {
@@ -245,7 +245,8 @@ export class QuizForgeServer {
   tailscaleStatus() {
     const value = this.tailscale ?? { state: 'unavailable' }, port = this.networkSettings.config.port;
     if (value.state !== 'running') return { state: value.state };
-    return { state: 'running', name: value.name, url: value.url, ...(value.url ? {} : { command: `tailscale serve --bg http://127.0.0.1:${port}` }), ...(value.otherPort ? { otherPort: value.otherPort } : {}) };
+    // Without an HTTPS forward to this port, the MagicDNS name still reaches the connection port over HTTP.
+    return { state: 'running', name: value.name, url: value.url || addressUrl(value.name, port) };
   }
   updateNetwork(request) {
     return this.networkSettings.transactions.run(async () => {

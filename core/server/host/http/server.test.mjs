@@ -207,6 +207,7 @@ test('detected Tailscale and public IPv6 addresses work without saving a public 
   const probe = net.createServer(); await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve)); const port = probe.address().port; await new Promise(resolve => probe.close(resolve));
   const saved = await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: true, publicUrl: '', port, password: 'shared-password' } });
   assert.equal(saved.status, 200); assert.equal(saved.data.publicUrl, ''); assert.deepEqual(saved.data.tailscale, { state: 'running', name: 'pc.tail1234.ts.net', url: 'https://pc.tail1234.ts.net/' });
+  for (const host of [`pc.tail1234.ts.net:${port}`]) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 200, 'the MagicDNS name also works over HTTP on the connection port');
   for (const host of ['pc.tail1234.ts.net', 'pc.tail1234.ts.net:443', `100.70.1.2:${port}`]) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 200, host);
   assert.equal((await rawGet(port, '/api/health', { Host: 'pc.tail1234.ts.net' })).status, 401, 'the password still applies');
   for (const host of ['other.tail1234.ts.net', 'pc.tail1234.ts.net:8443', `100.70.1.3:${port}`]) assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: host })).status, 403, host);
@@ -222,8 +223,9 @@ test('detected Tailscale and public IPv6 addresses work without saving a public 
   tailscale = { state: 'stopped' }; await api('/api/settings/network?refresh=1');
   assert.equal((await rawGet(port, '/manifest.webmanifest', { Host: 'pc.tail1234.ts.net' })).status, 403, 'a stopped client no longer opens its name');
   assert.equal((await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: false, publicUrl: '', port, password: '' } })).status, 200);
-  tailscale = { state: 'running', name: 'pc.tail1234.ts.net', ips: [], url: 'https://pc.tail1234.ts.net/' };
-  assert.equal((await api('/api/settings/network?refresh=1')).status, 200);
+  tailscale = { state: 'running', name: 'pc.tail1234.ts.net', ips: [], url: null };
+  const plain = await api('/api/settings/network?refresh=1'); assert.equal(plain.status, 200);
+  assert.deepEqual(plain.data.tailscale, { state: 'running', name: 'pc.tail1234.ts.net', url: `http://pc.tail1234.ts.net:${port}/` }, 'without an HTTPS forward the HTTP name is listed');
 });
 
 test('HTTP group export and import transport the native qbank stream and installed versions', async t => {
