@@ -43,6 +43,8 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     reportProgress(patches) {if (!disposed && context().capabilities.canSave && context().status !== 'submitted') return report(clone(answer()),patches);},
     async flush() {
       clearTimeout(timer);timer = null;
+      // After submission drafts are never saved, so a leftover draft or old error must not block 重做.
+      if (context().status === 'submitted' || !context().capabilities.canSave) {saved = version;await queue.catch(() => {});lastError = null;return;}
       if (version !== saved && context().capabilities.canSave && context().status !== 'submitted') saveDraft();
       await queue;await reports;
       if (lastError) throw lastError;
@@ -59,7 +61,8 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
 (function () {
   'use strict';
   const KIND = 'true-false', $ = id => document.getElementById(id), content = QF.content;
-  let context, selected = new Set(), disposed = false, busy = false, key = null, epoch = 0;
+  // acting: a submit or 重做 the user started; background draft saves no longer disable the buttons.
+  let context, selected = new Set(), disposed = false, busy = false, acting = false, key = null, epoch = 0;
   const views = new Map();
   const resize = () => {if (!disposed) QF.ui.resize();};
   function error(value) {if (!disposed) {$('error').hidden = false;$('error').textContent = value.message || String(value);resize();}}
@@ -70,9 +73,9 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
   function controls() {
     if (!context) return;
     $('submit').hidden = context.status === 'submitted' || context.capabilities.canSubmit !== true;
-    $('submit').disabled = busy || !selected.size;
+    $('submit').disabled = acting || !selected.size;$('submit').textContent = acting && context.status !== 'submitted' ? '提交中…' : '提交';
     $('retry').hidden = context.status !== 'submitted' || context.capabilities.canRetry !== true;
-    $('retry').disabled = busy;
+    $('retry').disabled = acting;
     $('options').querySelectorAll('input').forEach(input => {input.disabled = locked();input.checked = selected.has(input.value);input.closest('.choice').classList.toggle('is-selected',input.checked);});
   }
   function changed(event) {
@@ -81,8 +84,10 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     else selected = new Set([event.target.value]);
     $('error').hidden = true;saver.changed();saver.reportProgress();controls();
   }
-  async function submit() {if (busy || !selected.size || context.capabilities.canSubmit !== true) return;await saver.submit();}
-  async function retry() {if (busy || context.capabilities.canRetry !== true) return;await saver.retry();}
+  // Clicking waits for any running draft save first (saver.submit flushes), and repeated clicks are ignored.
+  async function act(task) {if (acting) return;acting = true;controls();try {await task();} finally {acting = false;controls();}}
+  async function submit() {if (acting || !selected.size || context.capabilities.canSubmit !== true) return;await act(() => saver.submit());}
+  async function retry() {if (acting || context.capabilities.canRetry !== true) return;await act(() => saver.retry());}
   const submitHandler = () => submit().catch(error), retryHandler = () => retry().catch(error);
   $('options').addEventListener('change',changed);$('submit').addEventListener('click',submitHandler);$('retry').addEventListener('click',retryHandler);
   QF.page.register({

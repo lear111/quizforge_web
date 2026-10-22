@@ -1,6 +1,6 @@
 {
   "id": "quizforge.single-choice",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "单选题",
   "description": "富文本单选题，支持题干、选项、答案与解析编辑及自动评分。",
   "requiresApi": {

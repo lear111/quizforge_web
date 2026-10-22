@@ -43,6 +43,8 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     reportProgress(patches) {if (!disposed && context().capabilities.canSave && context().status !== 'submitted') return report(clone(answer()),patches);},
     async flush() {
       clearTimeout(timer);timer = null;
+      // After submission drafts are never saved, so a leftover draft or old error must not block 重做.
+      if (context().status === 'submitted' || !context().capabilities.canSave) {saved = version;await queue.catch(() => {});lastError = null;return;}
       if (version !== saved && context().capabilities.canSave && context().status !== 'submitted') saveDraft();
       await queue;await reports;
       if (lastError) throw lastError;
@@ -60,7 +62,7 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
   'use strict';
   const $ = id => document.getElementById(id), content = QF.content, copy = value => JSON.parse(JSON.stringify(value));
   const views = new Map(), targets = new Map(), answers = new Map(), tasks = new Map(), reviewDrafts = new Map(), reviewTimers = new Map();
-  let context, key = null, active = null, editor = null, switching = Promise.resolve(), disposed = false, epoch = 0, busy = false, pollTimer = null, polling = false, reportedStatus = null;
+  let context, key = null, active = null, editor = null, switching = Promise.resolve(), disposed = false, epoch = 0, busy = false, acting = false, pollTimer = null, polling = false, reportedStatus = null;
   const resize = () => {if (!disposed) QF.ui.resize();};
   function error(value) {if (!disposed) {$('error').hidden = false;$('error').textContent = value.message || String(value);resize();}}
   function locked() {return context.status === 'submitted' || context.mode === 'history' || context.capabilities.canSave !== true;}
@@ -71,8 +73,9 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
   function controls() {
     if (!context) return;
     $('submit').hidden = context.status === 'submitted' || context.capabilities.canSubmit !== true;
-    $('submit').disabled = busy || ![...answers.values()].some(doc => !content.isEmpty(doc));
-    $('retry').hidden = context.status !== 'submitted' || context.capabilities.canRetry !== true;$('retry').disabled = busy;
+    // Background draft saves no longer disable the buttons; only a submit or 重做 in progress does.
+    $('submit').disabled = acting || ![...answers.values()].some(doc => !content.isEmpty(doc));$('submit').textContent = acting && context.status !== 'submitted' ? '提交中…' : '提交';
+    $('retry').hidden = context.status !== 'submitted' || context.capabilities.canRetry !== true;$('retry').disabled = acting;
     for (const part of context.question.data.parts) updateGrade(part.id);
   }
   function changedAnswer(id,doc) {
@@ -160,8 +163,10 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     await switching;await editor?.flush();if (editor && active && !locked()) changedAnswer(active,editor.getDocument());
     await saver.flush();for (const id of [...reviewDrafts.keys()]) await saveReview(id);
   }
-  async function submit() {if (busy || context.capabilities.canSubmit !== true) return;await switching;await closeEditor();await saver.submit();}
-  async function retry() {if (busy || context.capabilities.canRetry !== true) return;await flush();await saver.retry();}
+  // Clicking waits for the editor and any running draft save first, and repeated clicks are ignored.
+  async function act(task) {if (acting) return;acting = true;controls();try {await task();} finally {acting = false;controls();}}
+  async function submit() {if (acting || context.capabilities.canSubmit !== true) return;await act(async () => {await switching;await closeEditor();await saver.submit();});}
+  async function retry() {if (acting || context.capabilities.canRetry !== true) return;await act(async () => {await flush();await saver.retry();});}
   const submitHandler = () => submit().catch(error), retryHandler = () => retry().catch(error);
   $('parts').addEventListener('click',requestEdit);$('parts').addEventListener('keydown',requestEdit);$('parts').addEventListener('input',manual);$('parts').addEventListener('click',clickAi);$('submit').addEventListener('click',submitHandler);$('retry').addEventListener('click',retryHandler);
   QF.page.register({

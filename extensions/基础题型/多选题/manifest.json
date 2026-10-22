@@ -1,6 +1,6 @@
 {
   "id": "quizforge.multiple-choice",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "多选题",
   "description": "富文本多选题，全部选对得满分，漏选或错选不得分。",
   "requiresApi": {

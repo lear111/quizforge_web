@@ -1,6 +1,6 @@
 {
   "id": "quizforge.true-false",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "name": "判断题",
   "description": "富文本判断题，支持正确或错误判断与自动评分。",
   "requiresApi": {

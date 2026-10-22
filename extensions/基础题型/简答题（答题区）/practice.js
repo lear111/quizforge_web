@@ -62,7 +62,8 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy,onSaved=()=>{
   'use strict';
   const $ = id => document.getElementById(id), content = QF.content, copy = value => JSON.parse(JSON.stringify(value));
   const components = new Map(), views = new Map(), targets = new Map(), answers = new Map(), tasks = new Map(), reviewDrafts = new Map(), reviewTimers = new Map();
-  let context, key = null, disposed = false, epoch = 0, busy = false, pollTimer = null, polling = false;
+  // acting: a submit or 重做 the user started; background draft saves no longer disable the buttons.
+  let context, key = null, disposed = false, epoch = 0, busy = false, acting = false, pollTimer = null, polling = false;
   const areaEmpty = area => !area || !(area.text?.trim() || area.strokes?.length || area.images?.length);
   const areaId = part => 'response-' + part.id;
   const resize = () => {if (!disposed) QF.ui.resize();};
@@ -75,8 +76,8 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy,onSaved=()=>{
   function controls() {
     if (!context) return;
     $('submit').hidden = context.status === 'submitted' || context.capabilities.canSubmit !== true;
-    $('submit').disabled = busy || ![...answers.values()].some(doc => !areaEmpty(doc));
-    $('retry').hidden = context.status !== 'submitted' || context.capabilities.canRetry !== true;$('retry').disabled = busy;
+    $('submit').disabled = acting || ![...answers.values()].some(doc => !areaEmpty(doc));$('submit').textContent = acting && context.status !== 'submitted' ? '提交中…' : '提交';
+    $('retry').hidden = context.status !== 'submitted' || context.capabilities.canRetry !== true;$('retry').disabled = acting;
     for (const part of context.question.data.parts) updateGrade(part.id);
   }
   function changedAnswer(id,doc) {
@@ -147,8 +148,10 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy,onSaved=()=>{
     await saver.flush();await pending;await saver.flush();
     for (const id of [...reviewDrafts.keys()]) await saveReview(id);
   }
-  async function submit() {if (busy || context.capabilities.canSubmit !== true) return;await flush();await saver.submit();}
-  async function retry() {if (busy || context.capabilities.canRetry !== true) return;await flush();await saver.retry();}
+  // Clicking waits for ink, uploads and any running draft save first, and repeated clicks are ignored.
+  async function act(task) {if (acting) return;acting = true;controls();try {await task();} finally {acting = false;controls();}}
+  async function submit() {if (acting || context.capabilities.canSubmit !== true) return;await act(async () => {await flush();await saver.submit();});}
+  async function retry() {if (acting || context.capabilities.canRetry !== true) return;await act(async () => {await flush();await saver.retry();});}
   const submitHandler = () => submit().catch(error), retryHandler = () => retry().catch(error);
   $('parts').addEventListener('input',manual);$('parts').addEventListener('click',clickAi);$('submit').addEventListener('click',submitHandler);$('retry').addEventListener('click',retryHandler);
   QF.page.register({
