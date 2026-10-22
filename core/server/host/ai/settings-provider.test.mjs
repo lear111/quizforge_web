@@ -9,7 +9,7 @@ import { AiSettings } from './ai-settings.js';
 import { NetworkSettings, normalizePublicUrl } from '../http/network-settings.js';
 import { hostKey, sameIpv6Subnet } from '../http/network-addresses.js';
 import { OpenAiCompatibleProvider, boundedRequest, classify } from './ai-provider.js';
-import { challenge, runDiagnostics } from './ai-diagnostics.js';
+import { challenge, runDiagnostics, closeEnough } from './ai-diagnostics.js';
 import { EditorDraftStore } from '../editor/editor-drafts.js';
 import { PracticeSessions } from '../practice/practice-sessions.js';
 import { safeDirectory, within } from '../platform/files.js';
@@ -73,4 +73,12 @@ test('gateway rejects oversized streaming responses, redirects and timeout witho
   assert.equal(classify('https://example.com/v1', 302, Buffer.from('{}')).code, 'AI_CONFIG');
   assert.equal(classify('https://dashscope.aliyuncs.com/v1', 429, Buffer.from('{"error":{"code":"insufficient_quota"}}')).code, 'AI_RATE_LIMIT');
   assert.equal(classify('https://example.com/v1', 429, Buffer.from('{"error":{"code":"insufficient_quota"}}')).code, 'AI_QUOTA');
+});
+
+test('the vision check ignores case, spaces and separators and allows one wrong character', () => {
+  assert.equal(closeEnough('k7m 2-p5', 'K7M2P5'), true);
+  assert.equal(closeEnough('K7M2PS', 'K7M2P5'), true, 'one misread character');
+  assert.equal(closeEnough('K7M2P', 'K7M2P5'), true, 'one missing character');
+  assert.equal(closeEnough('K7N2PS', 'K7M2P5'), false, 'two misread characters');
+  assert.equal(closeEnough('', 'K7M2P5'), false);
 });
