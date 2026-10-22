@@ -44,7 +44,12 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy,onSaved=()=>{
       const job=new Promise((resolve,reject)=>waiters.push({version,resolve,reject}));job.catch(()=>{});
       clearTimeout(timer);timer=setTimeout(()=>{void saveDraft();},250);return job;
     },
-    async flush() {clearTimeout(timer);timer=null;if(pending)await saveDraft();await queue;if(saved<version)throw new Error('答案尚未保存，请重试');},
+    async flush() {
+      clearTimeout(timer);timer=null;
+      // After submission drafts are never saved, so a leftover one must not block 重做 or other actions.
+      if(context().status==='submitted'||!context().capabilities.canSave){pending=null;saved=version;settle();await queue;return;}
+      if(pending)await saveDraft();await queue;if(saved<version)throw new Error('答案尚未保存，请重试');
+    },
     async submit(){await this.flush();return enqueue(async()=>unwrap(await QF.save({purpose:'submit',data:{answer:clone(answer())}})));},
     review(value){return enqueue(async()=>unwrap(await QF.save({purpose:'review',data:{review:value}})));},
     retry(){return enqueue(async()=>unwrap(await QF.requestAction({action:'retry'})));},
