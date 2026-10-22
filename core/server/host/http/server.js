@@ -407,7 +407,7 @@ export class QuizForgeServer {
       } else if (pathname === HUB_CALLBACK) {
         // The Hub returns the browser here after the user allows or denies; host computer only.
         if (request.method !== 'GET' || !this.canManage(context)) throw new ApiError(404, 'NOT_FOUND', 'Page not found');
-        let title = '已登录 QuizForge 账号', detail = '这台电脑现在可以使用免费 AI 额度评分。可以关闭此页面，回到 QuizForge。';
+        let title = '已登录 QuizForge 账号', detail = '这台设备已授权登录，可以关闭此页面，回到 QuizForge。';
         try { await this.hub.complete(context.url.searchParams); } catch (error) { title = '没有完成登录'; detail = error instanceof ApiError ? error.message : '登录没有完成，请回到 QuizForge 重新登录。'; }
         response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
         this.send(response, 200, 'text/html; charset=utf-8', Buffer.from(callbackPage(title, detail)));
