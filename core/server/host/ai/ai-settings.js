@@ -26,10 +26,12 @@ function parse(request, previous, stored) {
   if (/[^\x20-\x7e]/.test(apiKey) || clear && apiKey) throw bad('Invalid AI credential'); if (!stored && !apiKey && !clear) apiKey = previous.apiKey; if (clear) apiKey = '';
   const outputMode = string(request, 'outputMode', previous.outputMode, 20); if (!['schema', 'json', 'text'].includes(outputMode)) throw bad('Invalid AI output mode');
   // Two grading sources may be on together: the free quota of the connected Hub
-  // account (tried first) and the user's own model. Older files saved one 'source'.
+  // account (tried first) and the user's own model. Older files saved one 'source',
+  // and the oldest none at all, which meant the user's own model.
   const baseUrl = url ? baseUri(url) : null;
   let useOfficial = boolean(request, 'useOfficial', previous.useOfficial), useCustom = boolean(request, 'useCustom', previous.useCustom);
-  if (Object.hasOwn(request, 'source')) {
+  const legacy = stored && !Object.hasOwn(request, 'useOfficial') && !Object.hasOwn(request, 'useCustom');
+  if (Object.hasOwn(request, 'source') || legacy) {
     if (Object.hasOwn(request, 'useOfficial') || Object.hasOwn(request, 'useCustom')) throw bad('Invalid AI settings field');
     const source = string(request, 'source', 'custom', 20); if (!['custom', 'official'].includes(source)) throw bad('Invalid AI source');
     useOfficial = source === 'official'; useCustom = source === 'custom' && !!baseUrl;

@@ -164,4 +164,8 @@ test('settings saved with one source before this version keep working', t => {
   assert.deepEqual([new AiSettings(root).profile.useOfficial, new AiSettings(root).profile.useCustom], [true, false]);
   fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, provider: 'openai-compatible', source: 'custom', enabled: true, baseUrl: 'http://localhost:11434/v1', model: 'local', apiKey: '', vision: false, outputMode: 'json', maxOutputTokens: 8192, timeoutSeconds: 90, autoGrade: false }));
   assert.deepEqual([new AiSettings(root).profile.useOfficial, new AiSettings(root).profile.useCustom], [false, true]);
+  fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, provider: 'openai-compatible', enabled: true, baseUrl: 'http://localhost:11434/v1', model: 'local', apiKey: '', vision: false, outputMode: 'json', maxOutputTokens: 8192, timeoutSeconds: 90, autoGrade: false }));
+  assert.deepEqual([new AiSettings(root).profile.useOfficial, new AiSettings(root).profile.useCustom], [false, true], 'files from before any source field mean the custom model');
+  fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, provider: 'openai-compatible', enabled: false, baseUrl: '', model: '', apiKey: '', vision: false, outputMode: 'json', maxOutputTokens: 8192, timeoutSeconds: 90, autoGrade: false }));
+  assert.deepEqual([new AiSettings(root).profile.useOfficial, new AiSettings(root).profile.useCustom], [false, false]);
 });
