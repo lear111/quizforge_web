@@ -27,6 +27,7 @@ import { MIME as archiveMime } from '../library/library-archive.js';
 import { LanCertificates, hostNames, permittedAddress } from './lan-certificates.js';
 import qrcode from 'qrcode-generator';
 import { TailscaleProbe } from './tailscale.js';
+import { HubConnection } from '../ai/hub-connection.js';
 import { hostKey, sameHost, url as addressUrl, privateAddress, ipv6Bytes, sameIpv6Subnet, interfaceAddresses, ipv6Available,displayAdapterMetadata,recommendedAddresses } from './network-addresses.js';
 
 const loopback = host => hostKey(host) === hostKey('::1') || hostKey(host)?.startsWith('127.');
@@ -44,6 +45,9 @@ export function queryValue(context, name) {
   return values[0];
 }
 export const CA_PATH = '/quizforge-lan-ca.crt';
+const HUB_CALLBACK = '/hub/connect/callback';
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const callbackPage = (title, detail) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · QuizForge</title><style>body{margin:0;font-family:system-ui,'Microsoft YaHei',sans-serif;background:#f8f6fc;color:#40364f}main{max-width:480px;margin:72px auto;padding:28px;background:#fff;border:1px solid #e6ddf2;border-radius:14px}h1{font-size:20px;margin:0 0 12px}p{line-height:1.7;margin:0}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(detail)}</p></main></body></html>`;
 const qrImage = value => { const code = qrcode(0, 'M'); code.addData(value); code.make(); return 'data:image/svg+xml;base64,' + Buffer.from(code.createSvgTag({ cellSize: 4, margin: 16, scalable: true })).toString('base64'); };
 function authority(value, secure = false) {
   try {
@@ -60,7 +64,7 @@ const listen = (server, port, host) => new Promise((resolve, reject) => {
 const closeServer = (server, graceful = false) => new Promise(resolve => { if (!server?.listening) return resolve(); server.close(() => resolve()); if (!graceful) server.closeAllConnections(); });
 
 export class QuizForgeServer {
-  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe() } = {}) {
+  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe(), hub = {} } = {}) {
     if (token !== null && !/^[A-Za-z0-9._~-]{16,256}$/.test(token)) throw new Error('Token must contain 16..256 URL-safe characters');
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port');
     const layout = resolveLayout(root), service = new QuizForgeServer();
@@ -75,7 +79,7 @@ export class QuizForgeServer {
       service.developmentSettings = new DevelopmentSettings(service.root);
       service.library = new Library(service.root, service.codeRoot, service.engine, service.developmentSettings);
       service.states = new StateStore(service.root, service.engine); service.resources = new ResourceStore(service.root, { fallback: new ResourceStore(path.join(service.root, '.development')) }); service.editorDrafts = new EditorDraftStore(service.root);
-      service.aiSettings = new AiSettings(service.root); service.aiGateway = new OpenAiCompatibleProvider(service.aiSettings, service.resources);
+      service.aiSettings = new AiSettings(service.root); service.hub = new HubConnection(service.root, hub); service.aiSettings.attachHub(service.hub); service.aiGateway = new OpenAiCompatibleProvider(service.aiSettings, service.resources);
       service.ai = new AiGradingService(service.root, service.states, service.library, service.aiGateway);
       service.writes = { read: context => service.writeRequest(context), validateOrigin: context => service.validateOrigin(context) };
       service.automaticAi = () => service.aiSettings.profile.enabled && service.aiSettings.profile.autoGrade;
@@ -287,11 +291,18 @@ export class QuizForgeServer {
     }
     if (pathname === '/api/settings/network/https/regenerate' && method === 'POST') { this.requireLocal(context); await this.writeRequest(context); return this.regenerateCertificates(); }
     if (pathname === '/api/settings/ai' || pathname === '/api/settings/ai/test' || pathname === '/api/settings/ai/credential') {
-      if (pathname === '/api/settings/ai' && method === 'GET') return { ...this.aiSettings.status(), canManage: this.canManage(context) };
+      if (pathname === '/api/settings/ai' && method === 'GET') return { ...this.aiSettings.status(), hub: this.hub.summary(), canManage: this.canManage(context) };
       this.requireLocal(context);
       if (pathname.endsWith('/credential') && method === 'GET') return this.aiSettings.credential();
       if (pathname === '/api/settings/ai' && method === 'PUT') return { ...await this.aiSettings.update(await this.writeRequest(context)), canManage: true };
       if (pathname.endsWith('/test') && method === 'POST') { await this.writeRequest(context); return this.aiGateway.testConnection(); }
+    }
+    // Hub account connection for official AI grading; only the host computer may log in or out.
+    if (pathname.startsWith('/api/settings/ai/hub')) {
+      this.requireLocal(context);
+      if (pathname === '/api/settings/ai/hub' && method === 'GET') return this.hub.account();
+      if (pathname === '/api/settings/ai/hub/login' && method === 'POST') { await this.writeRequest(context); return this.hub.start(`http://127.0.0.1:${this.port()}/hub/connect/callback`); }
+      if (pathname === '/api/settings/ai/hub/logout' && method === 'POST') { await this.writeRequest(context); return this.hub.logout(); }
     }
     if (pathname === '/api/settings/development') { if (method === 'GET') return this.developmentSettings.status(this.canManage(context)); if (method === 'PUT') { this.requireLocal(context); const value = this.developmentSettings.update(await this.writeRequest(context)); this.library.invalidate(); return value; } }
     if (parts[1] === 'development') {
@@ -392,6 +403,13 @@ export class QuizForgeServer {
           const download = await this.namespaceTransaction(() => single ? this.library.exportBank(value) : this.library.exportGroup(value));
           try { response.writeHead(200, { 'Content-Type': archiveMime, 'Content-Length': fs.statSync(download.file).size, 'Content-Disposition': "attachment; filename=quizforge-package.qbank; filename*=UTF-8''" + encodeURIComponent(download.name + '.qbank') }); await pipeline(fs.createReadStream(download.file), response); } finally { download.close(); }
         } else this.send(response, 200, 'application/json; charset=utf-8', jsonBytes(await this.api(context, pathname)));
+      } else if (pathname === HUB_CALLBACK) {
+        // The Hub returns the browser here after the user allows or denies; host computer only.
+        if (request.method !== 'GET' || !this.canManage(context)) throw new ApiError(404, 'NOT_FOUND', 'Page not found');
+        let title = '已登录 QuizForge 账号', detail = '这台电脑现在可以使用官方 AI 评分。可以关闭此页面，回到 QuizForge。';
+        try { await this.hub.complete(context.url.searchParams); } catch (error) { title = '没有完成登录'; detail = error instanceof ApiError ? error.message : '登录没有完成，请回到 QuizForge 重新登录。'; }
+        response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+        this.send(response, 200, 'text/html; charset=utf-8', Buffer.from(callbackPage(title, detail)));
       } else if (pathname === CA_PATH) {
         // Public root certificate for phones; it is the only file served from .state and never includes a key.
         if (request.method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Only GET is supported for pages');

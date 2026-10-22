@@ -18,7 +18,7 @@ async function fixture(t, options = {}) {
   const extension = path.join(root, 'extensions', 'Test', 'choice'); copyFixture(path.join(codeRoot, 'test/fixtures/legacy-extensions/single-choice-1.0.0'), extension, { recursive: true });
   const raw = readJson(path.join(extension, readJson(path.join(extension, 'manifest.json')).examples)); raw.id = 'bank1'; raw.features = { history: options.history ?? true };
   writeFixture(path.join(root, 'question-banks', 'bank', 'bank.json'), jsonBytes(raw));
-  const service = await QuizForgeServer.create({ root, codeRoot, port: 0, token: options.token ?? null, tailscale: options.tailscale ?? { read: async () => ({ state: 'missing' }) } }); service.engine.validationEnvironment = async () => 'http-fixture'; options.beforeStart?.(service); await service.start();
+  const service = await QuizForgeServer.create({ root, codeRoot, port: 0, token: options.token ?? null, tailscale: options.tailscale ?? { read: async () => ({ state: 'missing' }) }, hub: options.hub ?? { fetchImpl: async () => { throw new Error('No Hub in tests'); } } }); service.engine.validationEnvironment = async () => 'http-fixture'; options.beforeStart?.(service); await service.start();
   t.after(async () => { await service.close(); assert.ok(within(base, root) && root !== base); fs.rmSync(root, { recursive: true, force: true }); });
   const api = async (uri, { method = 'GET', body, headers = {}, port = service.port() } = {}) => {
     const response = await fetch('http://127.0.0.1:' + port + uri, { method, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -280,6 +280,30 @@ test('detected Tailscale and public IPv6 addresses work without saving a public 
   tailscale = { state: 'running', name: 'pc.tail1234.ts.net', ips: [], url: null };
   const plain = await api('/api/settings/network?refresh=1'); assert.equal(plain.status, 200);
   assert.deepEqual(plain.data.tailscale, { state: 'running', name: 'pc.tail1234.ts.net', url: `http://pc.tail1234.ts.net:${port}/` }, 'without an HTTPS forward the HTTP name is listed');
+});
+
+test('Hub login starts on the host only and the loopback callback finishes it without exposing the token', async t => {
+  const exchanged = [];
+  const token = 'qfd_' + 'B'.repeat(43);
+  const fetchImpl = async (url, init) => { exchanged.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ token, device: { id: 'd1', name: 'pc', client: 'web' }, user: { name: 'alice' } }), { status: 200 }); };
+  const { api, service } = await fixture(t, { hub: { fetchImpl, origin: 'https://hub.example' } });
+  const initial = await api('/api/settings/ai');
+  assert.deepEqual(initial.data.hub, { connected: false }); assert.equal(initial.data.source, 'custom');
+  assert.equal((await api('/api/settings/ai', { method: 'PUT', body: { source: 'official', enabled: true } })).status, 200, 'official grading needs no model address');
+  const started = await api('/api/settings/ai/hub/login', { method: 'POST', body: {} });
+  const authorize = new URL(started.data.authorizeUrl);
+  assert.equal(authorize.origin, 'https://hub.example');
+  assert.equal(authorize.searchParams.get('redirect_uri'), `http://127.0.0.1:${service.port()}/hub/connect/callback`);
+  const state = authorize.searchParams.get('state'), code = 'C'.repeat(43);
+  const bad = await rawGet(service.port(), '/hub/connect/callback?code=' + code + '&state=wrong-state-0000000000000');
+  assert.equal(bad.status, 200); assert.match(bad.data.toString(), /没有完成登录/);
+  const page = await rawGet(service.port(), `/hub/connect/callback?code=${code}&state=${state}`);
+  assert.match(page.data.toString(), /已登录 QuizForge 账号/); assert.equal(page.data.toString().includes(token), false, 'the page never shows the token');
+  assert.equal(exchanged.length, 1); assert.equal(exchanged[0].url, 'https://hub.example/api/connect/token'); assert.equal(exchanged[0].body.code, code);
+  const after = await api('/api/settings/ai');
+  assert.deepEqual(after.data.hub, { connected: true, user: { name: 'alice' }, device: { name: 'pc', client: 'web' } });
+  assert.equal(JSON.stringify(after.data).includes(token), false, 'settings never return the device token');
+  assert.equal((await rawGet(service.port(), `/hub/connect/callback?code=${code}&state=${state}`, { Host: 'example.test' })).status, 403, 'other host names cannot reach the callback');
 });
 
 test('HTTP group export and import transport the native qbank stream and installed versions', async t => {

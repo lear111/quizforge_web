@@ -164,3 +164,49 @@ test('an old backend missing the credential endpoint explains restart and cannot
   f.get('form').dispatchEvent(new f.dom.window.Event('submit',{cancelable:true}));assert.equal(calls.length,2);
   f.ui.destroy();f.dom.window.close();
 });
+
+test('official AI hides the custom model fields and test, and saves the chosen source',async()=>{
+  const bodies=[];
+  const f=await fixture(async(path,options)=>{if(path.endsWith('/credential'))return {apiKey:''};if(path.endsWith('/hub'))return {connected:false};if(options){const body=JSON.parse(options.body);bodies.push(body);return {...profile,...body,hub:{connected:false}};}return {...profile,source:'custom',hub:{connected:false}};});
+  await f.ui.open();
+  assert.equal(f.get('source-custom').checked,true);assert.equal(f.get('custom').hidden,false);assert.equal(f.get('official').hidden,true);
+  f.get('source-official').checked=true;f.get('source-official').dispatchEvent(new f.dom.window.Event('change'));
+  assert.equal(f.get('custom').hidden,true);assert.equal(f.get('official').hidden,false);assert.equal(f.get('test').hidden,true);
+  assert.match(f.get('account').textContent,/还没有登录/);
+  f.get('form').dispatchEvent(new f.dom.window.Event('submit',{cancelable:true}));await settle();
+  assert.equal(bodies.at(-1).source,'official');assert.match(f.get('status').textContent,/请登录 QuizForge 账号/);
+  f.ui.destroy();f.dom.window.close();
+});
+
+test('logging in opens the Hub page, waits for the callback and shows today\'s remaining calls; logout clears it',async()=>{
+  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'));
+  const document=dom.window.document,dialog=document.getElementById('network-settings-dialog');dialog.open=true;dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
+  let connected=false,timers=[];const opened=[],paths=[];
+  const request=async(path,options)=>{paths.push(path);
+    if(path.endsWith('/credential'))return {apiKey:''};
+    if(path.endsWith('/hub/login'))return {authorizeUrl:'https://quizforge.treenewbee.cloud/connect/authorize?v=1'};
+    if(path.endsWith('/hub/logout')){connected=false;return {connected:false};}
+    if(path.endsWith('/hub'))return connected?{connected:true,user:{name:'alice'},device:{name:'书房电脑',client:'web'},ai:{enabled:true,model:'通义千问 qwen-vl-plus',dailyLimit:20,usedToday:3,resetAt:''}}:{connected:false};
+    return {...profile,source:'official',hub:{connected:false}};};
+  const ui=bindAiSettings({request,document,openWindow:url=>opened.push(url),setTimer:fn=>{timers.push(fn);return timers.length;},clearTimer:()=>{}});
+  const get=id=>document.getElementById(`ai-settings-${id}`);
+  await ui.open();assert.equal(get('official').hidden,false);assert.equal(get('login').hidden,false);assert.equal(get('logout').hidden,true);
+  get('login').click();await settle();
+  assert.deepEqual(opened,['https://quizforge.treenewbee.cloud/connect/authorize?v=1']);
+  assert.match(get('account').textContent,/完成登录并点“允许”/);assert.equal(get('account').querySelector('a').href,opened[0],'a manual link backs up a blocked pop-up');
+  await timers.shift()();assert.equal(timers.length,1,'still waiting while not connected');
+  connected=true;await timers.shift()();
+  assert.match(get('account').textContent,/已登录：alice（这台电脑：书房电脑）。今天还可评分 17 次（共 20 次/);
+  assert.equal(get('login').hidden,true);assert.equal(get('logout').hidden,false);assert.equal(timers.length,0,'polling stops once connected');
+  get('logout').click();await settle();
+  assert.match(get('account').textContent,/还没有登录/);assert.match(get('status').textContent,/已退出登录/);
+  assert.ok(paths.includes('/api/settings/ai/hub/logout'));
+  ui.destroy();dom.window.close();
+});
+
+test('remote devices see the official choice but cannot log in or out',async()=>{
+  const f=await fixture(async path=>{assert.equal(path.endsWith('/hub'),false,'remote settings never query the Hub account');return {...profile,source:'official',canManage:false,hub:{connected:true,user:{name:'alice'},device:{name:'pc'}}};});
+  await f.ui.open();
+  assert.equal(f.get('source-official').checked,true);assert.equal(f.get('login').disabled,true);assert.equal(f.get('logout').disabled,true);
+  f.ui.destroy();f.dom.window.close();
+});

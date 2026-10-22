@@ -253,18 +253,28 @@
       <form id="ai-settings-form" class="ai-settings-form">
         <p id="ai-settings-status" role="status">正在读取 AI 设置…</p><label class="ai-check"><input id="ai-settings-enabled"
             type="checkbox">开启 AI 评分</label><label class="ai-check"><input id="ai-settings-autoGrade"
-            type="checkbox">提交答案后自动 AI 评分</label><label>服务地址<input id="ai-settings-baseUrl" type="url" maxlength="500"
+            type="checkbox">提交答案后自动 AI 评分</label>
+        <fieldset class="ai-source" id="ai-settings-source"><legend>评分方式</legend><label class="ai-check"><input type="radio"
+              name="ai-source" value="official" id="ai-settings-source-official">官方 AI<small>登录 QuizForge 账号即可使用，每天有免费次数</small></label><label
+            class="ai-check"><input type="radio" name="ai-source" value="custom" id="ai-settings-source-custom">自定义模型<small>使用你自己的模型 API</small></label></fieldset>
+        <section id="ai-settings-official" class="ai-official" hidden>
+          <p id="ai-settings-account" class="ai-account"></p>
+          <div class="ai-official-actions"><button id="ai-settings-login" type="button">登录 QuizForge 账号</button><button
+              id="ai-settings-logout" type="button" hidden>退出登录</button><button id="ai-settings-refresh" type="button" hidden>刷新</button></div>
+          <small>评分时，题目、答案和图片会经 QuizForge 服务器发送给模型服务商（通义千问），服务器不保存这些内容。</small>
+        </section>
+        <div id="ai-settings-custom" class="ai-custom"><label>服务地址<input id="ai-settings-baseUrl" type="url" maxlength="500"
             placeholder="https://服务地址/v1"><small>填写 OpenAI 兼容接口的基础地址，系统会追加
             /chat/completions。</small></label><label>模型名称<input id="ai-settings-model" maxlength="200"
             placeholder="填写服务提供的模型 ID"></label><label>API Key<input id="ai-settings-apiKey" type="password"
             maxlength="4096" autocomplete="new-password" placeholder="输入 API Key"><small
             id="ai-settings-keyHint"></small></label>
-        <p>评分内容会发送到所配置的模型服务，结果通过校验后自动保存。测试模型可检测图片识别能力并显示报告。</p>
+        <p>评分内容会发送到所配置的模型服务，结果通过校验后自动保存。测试模型可检测图片识别能力并显示报告。</p></div>
         <p id="ai-settings-error" role="alert" hidden></p>
         <section id="ai-settings-report" class="ai-test-report" aria-live="polite" hidden></section>
         <div class="dialog-actions"><button id="ai-settings-close" type="button">关闭</button><button
             id="ai-settings-test" type="button">测试模型</button><button id="ai-settings-save" type="submit">保存 AI
-            设置</button></div><small>测试前会保存当前设置，并发送文字与图片测试请求，服务可能计费。</small>
+            设置</button></div><small id="ai-settings-testHint">测试前会保存当前设置，并发送文字与图片测试请求，服务可能计费。</small>
       </form>
     </section>
     <section id="development-settings-panel" hidden>
