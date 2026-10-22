@@ -942,6 +942,8 @@ export function mountWhiteboard(container, { onChange = () => {}, onViewChange =
       updateControls();
       requestPaint();
     },
+    // After 重做 the host removes the submitted answer ink; keep the old answer document from adopting it back.
+    forgetAnswerInk(ids) { answerInk.forget(ids); },
     // Changes whenever load() resets the camera, so hosts can restore their view.
     get loadGeneration() { return loadGeneration; },
     getDraft() { return model.getDraft(); },

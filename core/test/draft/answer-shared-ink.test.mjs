@@ -129,3 +129,16 @@ test('narrow practice layouts keep the host canvas so saved answer ink stays vis
   const css=readFileSync(new URL('../../web/shell/refinements.css',import.meta.url),'utf8');
   assert.doesNotMatch(css,/\.question-pane:not\(\.is-draft\)\s*\.qf-whiteboard\s*\{\s*display\s*:\s*none/);
 });
+
+test('after 重做 in draft mode, a stale answer document cannot bring removed strokes back',t=>{
+ const f=fixture(t),saves=[];f.stroke([150,140],[250,140]);const removed=f.whiteboard.getDraft().strokes.map(stroke=>stroke.id);assert.equal(removed.length,1);
+ const submitted=structuredClone(f.frame.qfSharedAnswerAreas[0].document);assert.equal(submitted.strokes.length,1);
+ // The host reloads the board without the answer ink, while the old area still reports its submitted document.
+ f.whiteboard.load({schemaVersion:1,viewport:{x:0,y:0,zoom:1},paper:{color:'#ffffff',pattern:'plain'},strokes:[]});f.whiteboard.forgetAnswerInk(removed);
+ f.frame.qfSharedAnswerAreas[0].document=submitted;f.viewport.addEventListener('qf-answer-ink',()=>saves.push(1));
+ f.viewport.dispatchEvent(new f.dom.window.CustomEvent('qf-shared-answer-layout'));
+ assert.deepEqual(f.whiteboard.getDraft().strokes,[],'the removed answer stroke stays removed');
+ // A later normal load starts fresh: restoring a saved answer still adopts its ink.
+ f.whiteboard.load(null);f.frame.qfSharedAnswerAreas[0].document=submitted;f.viewport.dispatchEvent(new f.dom.window.CustomEvent('qf-shared-answer-layout'));
+ assert.equal(f.whiteboard.getDraft().strokes.length,1);
+});

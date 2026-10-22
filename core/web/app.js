@@ -80,7 +80,7 @@ function makeWriteQueue(pane){return createWriteQueue({
     onSaved:(qid,action,value)=>{
       questionsCache.set(questionCacheKey(pane,qid),value);
       pane.collection.states[qid]=value.state;
-      if(pane.questionId===qid){pane.payload=value;if(action==='retry'&&pane.plugin?.frame?.qfSharedAnswerAreas?.length){pane.ink.clear();clearTimeout(pane.inkTimer);pane.inkTimer=null;pane.whiteboard.load(value.draft);}if(action!=='whiteboard'&&action!=='draft')pane.plugin?.update(contextFor(pane));}
+      if(pane.questionId===qid){pane.payload=value;if(action==='retry'&&pane.plugin?.frame?.qfSharedAnswerAreas?.length){const before=pane.whiteboard.getDraft?.()?.strokes||[],kept=new Set((value.draft?.strokes||[]).map(stroke=>stroke.id));pane.ink.clear();clearTimeout(pane.inkTimer);pane.inkTimer=null;pane.whiteboard.load(value.draft);pane.whiteboard.forgetAnswerInk?.(before.map(stroke=>stroke.id).filter(id=>!kept.has(id)));}if(action!=='whiteboard'&&action!=='draft')pane.plugin?.update(contextFor(pane));}
       if(active()===pane){renderOutline();updateChrome();saveStatus(pane.writes.hasFailures?'仍有内容未保存':pane.answerPreviews?.size?'答案尚未保存':practiceSaveLabel(pane),pane.writes.hasFailures?'error':pane.answerPreviews?.size?'saving':'');renderRecovery();}
     },
     onFailed:async(qid,_action,error)=>{

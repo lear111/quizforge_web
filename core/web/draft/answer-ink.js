@@ -18,7 +18,8 @@ export function strokeInRectangle(stroke,rect){
 }
 
 export function createAnswerInk({container,canvas,whiteboard,getMode,getCamera,getScroll,getSize,onAdopt}){
-  let records=new WeakMap();
+  // Strokes the host just removed on purpose (重做); a stale answer document must not bring them back.
+  let records=new WeakMap(),forgotten=new Set();
   function collect(){
     const result=[],space=canvasSpace(canvas,getSize?.());
     for(const frame of container.querySelectorAll('iframe')){
@@ -60,7 +61,7 @@ export function createAnswerInk({container,canvas,whiteboard,getMode,getCamera,g
             whiteboard.mapStrokes(ids,stroke=>transformInk([stroke],doc.anchor,anchor)[0]);adopted=adopted||ids.size>0;
           }
           const imported=transformInk(doc.strokes,{x:0,y:0,width:doc.width,height:doc.height},record.input.autoGrow?anchor:doc.anchor||anchor).map(stroke=>({...stroke,width:Math.max(.5,Math.min(32,stroke.width)),id:doc.inkSource==='draft'?stroke.id:`area-${doc.id.slice(0,24)}-${stroke.id.slice(0,85)}`}));
-          const ids=new Set(whiteboard.strokes.map(stroke=>stroke.id)),missing=imported.filter(stroke=>!ids.has(stroke.id));
+          const ids=new Set(whiteboard.strokes.map(stroke=>stroke.id)),missing=imported.filter(stroke=>!ids.has(stroke.id)&&!forgotten.has(stroke.id));
           if(missing.length){whiteboard.adoptStrokes([...whiteboard.strokes,...missing]);adopted=true;}
           record.hydrated=true;
         }else if(record.input.autoGrow&&(previous.x!==anchor.x||previous.y!==anchor.y||previous.width!==anchor.width)){
@@ -100,5 +101,5 @@ export function createAnswerInk({container,canvas,whiteboard,getMode,getCamera,g
   }
   function imageCommand(target,action){const Event=container.ownerDocument.defaultView.CustomEvent;target.frame.dispatchEvent(new Event('qf-answer-area-command',{detail:{action,id:target.id,imageId:target.imageId}}));}
   function dismissImages(){const selected=collect().filter(row=>row.input.selectedImageId);for(const row of selected)imageCommand({frame:row.frame,id:row.input.id},'deactivate-image');return selected.length>0;}
-  return {imageAt,selectImage:target=>imageCommand(target,'select-image'),dismissImages,sync,paintPractice,hasAreas:()=>collect().some(record=>record.input.displayInk),reset(){records=new WeakMap();}};
+  return {imageAt,selectImage:target=>imageCommand(target,'select-image'),dismissImages,sync,paintPractice,hasAreas:()=>collect().some(record=>record.input.displayInk),forget(ids){for(const id of ids)forgotten.add(id);},reset(){forgotten=new Set();records=new WeakMap();}};
 }
