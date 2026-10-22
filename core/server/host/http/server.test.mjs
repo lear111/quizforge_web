@@ -285,11 +285,12 @@ test('detected Tailscale and public IPv6 addresses work without saving a public 
 test('Hub login starts on the host only and the loopback callback finishes it without exposing the token', async t => {
   const exchanged = [];
   const token = 'qfd_' + 'B'.repeat(43);
-  const fetchImpl = async (url, init) => { exchanged.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ token, device: { id: 'd1', name: 'pc', client: 'web' }, user: { name: 'alice' } }), { status: 200 }); };
+  const fetchImpl = async (url, init) => { exchanged.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify(url.endsWith('/api/connect/redeem') ? { added: 50, points: 50 } : { token, device: { id: 'd1', name: 'pc', client: 'web' }, user: { name: 'alice' } }), { status: 200 }); };
   const { api, service } = await fixture(t, { hub: { fetchImpl, origin: 'https://hub.example' } });
   const initial = await api('/api/settings/ai');
-  assert.deepEqual(initial.data.hub, { connected: false }); assert.equal(initial.data.source, 'custom');
-  assert.equal((await api('/api/settings/ai', { method: 'PUT', body: { source: 'official', enabled: true } })).status, 200, 'official grading needs no model address');
+  assert.deepEqual(initial.data.hub, { connected: false }); assert.deepEqual([initial.data.useOfficial, initial.data.useCustom], [false, false]);
+  assert.equal((await api('/api/settings/ai', { method: 'PUT', body: { useOfficial: true, enabled: true } })).status, 200, 'the free quota needs no model address');
+  assert.equal((await api('/api/settings/ai', { method: 'PUT', body: { useCustom: true } })).status, 400, 'the custom model still needs an address and model');
   const started = await api('/api/settings/ai/hub/login', { method: 'POST', body: {} });
   const authorize = new URL(started.data.authorizeUrl);
   assert.equal(authorize.origin, 'https://hub.example');
@@ -303,6 +304,8 @@ test('Hub login starts on the host only and the loopback callback finishes it wi
   const after = await api('/api/settings/ai');
   assert.deepEqual(after.data.hub, { connected: true, user: { name: 'alice' }, device: { name: 'pc', client: 'web' } });
   assert.equal(JSON.stringify(after.data).includes(token), false, 'settings never return the device token');
+  const redeemed = await api('/api/settings/ai/hub/redeem', { method: 'POST', body: { code: 'AI-0000-1111-2222-3333' } });
+  assert.deepEqual(redeemed.data, { added: 50, points: 50 }); assert.deepEqual(exchanged.at(-1), { url: 'https://hub.example/api/connect/redeem', body: { code: 'AI-0000-1111-2222-3333' } });
   assert.equal((await rawGet(service.port(), `/hub/connect/callback?code=${code}&state=${state}`, { Host: 'example.test' })).status, 403, 'other host names cannot reach the callback');
 });
 

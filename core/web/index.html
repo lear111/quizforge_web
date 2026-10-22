@@ -177,7 +177,8 @@
     </div>
     <nav class="settings-tabs" role="tablist" aria-label="设置分类"><button id="settings-network-tab" role="tab"
         aria-selected="true" type="button">网络连接</button><button id="settings-ai-tab" role="tab" aria-selected="false"
-        type="button">AI 评分</button><button id="settings-development-tab" role="tab" aria-selected="false"
+        type="button">AI 评分</button><button id="settings-user-tab" role="tab" aria-selected="false"
+        type="button">用户中心</button><button id="settings-development-tab" role="tab" aria-selected="false"
         type="button">拓展管理</button><button id="settings-appearance-tab" role="tab" aria-selected="false"
         type="button">外观</button></nav>
     <form id="network-settings-form">
@@ -251,31 +252,51 @@
     </form>
     <section id="ai-settings-panel" hidden>
       <form id="ai-settings-form" class="ai-settings-form">
-        <p id="ai-settings-status" role="status">正在读取 AI 设置…</p><label class="ai-check"><input id="ai-settings-enabled"
-            type="checkbox">开启 AI 评分</label><label class="ai-check"><input id="ai-settings-autoGrade"
-            type="checkbox">提交答案后自动 AI 评分</label>
-        <fieldset class="ai-source" id="ai-settings-source"><legend>评分方式</legend><label class="ai-check"><input type="radio"
-              name="ai-source" value="official" id="ai-settings-source-official">内置 AI<small>登录 QuizForge 账号即可使用，每天有免费次数</small></label><label
-            class="ai-check"><input type="radio" name="ai-source" value="custom" id="ai-settings-source-custom">自定义模型<small>使用你自己的模型 API</small></label></fieldset>
-        <section id="ai-settings-official" class="ai-official" hidden>
-          <p id="ai-settings-account" class="ai-account"></p>
-          <div class="ai-official-actions"><button id="ai-settings-login" type="button">登录 QuizForge 账号</button><button
-              id="ai-settings-logout" type="button" hidden>退出登录</button><button id="ai-settings-refresh" type="button" hidden>刷新</button></div>
-          <small>评分时，题目、答案和图片会经 QuizForge 服务器发送给模型服务商（通义千问），服务器不保存这些内容。</small>
-        </section>
-        <div id="ai-settings-custom" class="ai-custom"><label>服务地址<input id="ai-settings-baseUrl" type="url" maxlength="500"
-            placeholder="https://服务地址/v1"><small>填写 OpenAI 兼容接口的基础地址，系统会追加
-            /chat/completions。</small></label><label>模型名称<input id="ai-settings-model" maxlength="200"
-            placeholder="填写服务提供的模型 ID"></label><label>API Key<input id="ai-settings-apiKey" type="password"
-            maxlength="4096" autocomplete="new-password" placeholder="输入 API Key"><small
-            id="ai-settings-keyHint"></small></label>
-        <p>评分内容会发送到所配置的模型服务，结果通过校验后自动保存。测试模型可检测图片识别能力并显示报告。</p></div>
+        <p id="ai-settings-status" role="status">正在读取 AI 设置…</p>
+        <label class="network-settings-switch"><span>开启 AI 评分<small>打开后选择评分来源；关闭时仍可人工评分</small></span><input
+            id="ai-settings-enabled" type="checkbox" role="switch" aria-label="开启 AI 评分"></label>
+        <div id="ai-settings-options" class="ai-options" hidden>
+          <label class="ai-check"><input id="ai-settings-autoGrade" type="checkbox">提交答案后自动 AI 评分</label>
+          <fieldset class="ai-source" id="ai-settings-source"><legend>评分来源（可同时开启，优先使用免费额度）</legend>
+            <label class="ai-check ai-source-row"><input id="ai-settings-useOfficial" type="checkbox"><span>使用免费 AI 额度</span><span
+                id="ai-settings-points" class="ai-points"></span></label>
+            <small id="ai-settings-officialHint">评分时，题目、答案和图片会经 QuizForge 服务器发送给模型服务商（通义千问），服务器不保存这些内容。额度用完或暂时不可用时，如果开启了自定义模型，会自动改用自定义模型。</small>
+            <label class="ai-check ai-source-row"><input id="ai-settings-useCustom" type="checkbox"><span>使用自定义模型</span></label>
+            <div id="ai-settings-custom" class="ai-custom" hidden><label>服务地址<input id="ai-settings-baseUrl" type="url" maxlength="500"
+                  placeholder="https://服务地址/v1"><small>填写 OpenAI 兼容接口的基础地址，系统会追加
+                  /chat/completions。</small></label><label>模型名称<input id="ai-settings-model" maxlength="200"
+                  placeholder="填写服务提供的模型 ID"></label><label>API Key<input id="ai-settings-apiKey" type="password"
+                  maxlength="4096" autocomplete="new-password" placeholder="输入 API Key"><small
+                  id="ai-settings-keyHint"></small></label>
+              <p>评分内容会发送到所配置的模型服务，结果通过校验后自动保存。测试模型可检测图片识别能力并显示报告。</p>
+              <div class="ai-custom-actions"><button id="ai-settings-test" type="button">测试模型</button><button id="ai-settings-save"
+                  type="submit">保存</button></div><small id="ai-settings-testHint">测试前会保存当前设置，并发送文字与图片测试请求，服务可能计费。</small>
+              <section id="ai-settings-report" class="ai-test-report" aria-live="polite" hidden></section>
+            </div>
+          </fieldset>
+        </div>
         <p id="ai-settings-error" role="alert" hidden></p>
-        <section id="ai-settings-report" class="ai-test-report" aria-live="polite" hidden></section>
-        <div class="dialog-actions"><button id="ai-settings-close" type="button">关闭</button><button
-            id="ai-settings-test" type="button">测试模型</button><button id="ai-settings-save" type="submit">保存 AI
-            设置</button></div><small id="ai-settings-testHint">测试前会保存当前设置，并发送文字与图片测试请求，服务可能计费。</small>
+        <div class="dialog-actions"><button id="ai-settings-close" type="button">关闭</button></div>
       </form>
+    </section>
+    <section id="user-center-panel" class="user-center" hidden>
+      <p id="user-center-status" class="network-settings-hint" role="status">正在读取账号…</p>
+      <div id="user-center-account" class="user-center-account" hidden>
+        <div class="user-center-who"><span id="user-center-avatar" class="user-center-avatar" aria-hidden="true"></span><span><strong
+              id="user-center-name"></strong><small id="user-center-device"></small></span></div>
+        <div class="user-center-points"><small>免费 AI 额度</small><strong id="user-center-points"></strong></div>
+        <form id="user-center-redeem" class="user-center-redeem"><label for="user-center-code">兑换码</label><div><input id="user-center-code"
+              maxlength="64" autocomplete="off" spellcheck="false" placeholder="AI-XXXX-XXXX-XXXX-XXXX"><button id="user-center-redeem-submit"
+              type="submit">兑换</button></div><small id="user-center-redeem-result" role="status"></small></form>
+        <div class="user-center-actions"><a id="user-center-manage" target="_blank" rel="noopener">在题库广场管理设备</a><button
+            id="user-center-refresh" type="button">刷新</button><button id="user-center-logout" type="button">退出登录</button></div>
+      </div>
+      <div id="user-center-guest" class="user-center-guest" hidden>
+        <p>登录 QuizForge 账号后，可以使用免费 AI 额度评分，并用兑换码获取额度。登录只用于免费 AI 额度，题库和作答仍只保存在这台电脑上。</p>
+        <button id="user-center-login" type="button">登录 QuizForge 账号</button>
+      </div>
+      <p id="user-center-error" class="network-settings-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="user-center-close" type="button">关闭</button></div>
     </section>
     <section id="development-settings-panel" hidden>
       <form id="development-settings-form" class="development-settings-form"><label
@@ -306,6 +327,13 @@
       <p id="appearance-error" class="network-settings-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="appearance-close" type="button">关闭</button></div>
     </section>
+  </dialog>
+  <dialog id="hub-login-dialog" class="hub-login-dialog" aria-labelledby="hub-login-title">
+    <h2 id="hub-login-title">登录 QuizForge 账号</h2>
+    <p id="hub-login-message">已在浏览器打开登录页，在那里点“允许”后，这里会自动关闭。</p>
+    <p class="hub-login-wait" role="status" id="hub-login-wait">等待登录…</p>
+    <p class="hub-login-manual">没有弹出？<a id="hub-login-link" target="_blank" rel="noopener">手动打开登录页</a></p>
+    <div class="dialog-actions"><button id="hub-login-cancel" type="button">取消</button></div>
   </dialog>
   <dialog id="development-publish-dialog" class="development-publish-dialog"
     aria-labelledby="development-publish-title">

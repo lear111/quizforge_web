@@ -7,13 +7,14 @@ import { jsonBytes } from '../platform/json.js';
 import { exists, readJson, replaceFile, safeDirectory } from '../platform/files.js';
 import { restrictPrivate } from './ai-settings.js';
 
-// Connects this installation to a QuizForge Hub account for official AI grading
+// Connects this installation to a QuizForge Hub account for free AI grading
 // (Hub docs/HUB_CONNECT_AI.md, protocol v1, section 7.1). The Hub origin is fixed;
 // it is never read from links, settings or server responses.
 export const HUB_ORIGIN = 'https://quizforge.treenewbee.cloud';
 export const OFFICIAL_MODEL = 'quizforge-official';
 const PENDING_TTL = 600000;
 const TOKEN = /^qfd_[A-Za-z0-9_-]{43}$/;
+const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
 const deviceName = value => Array.from(String(value || '').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim()).slice(0, 40).join('') || 'QuizForge 电脑';
 
 export class HubConnection {
@@ -52,7 +53,7 @@ export class HubConnection {
     this.save({ schemaVersion: 1, token: result.token, user: { name: result.user.name.slice(0, 60) }, device: { id: String(result.device.id ?? ''), name: result.device.name.slice(0, 40) }, connectedAt: new Date(this.now()).toISOString() });
     return this.summary();
   }
-  // Account and today's quota from the Hub; a rejected token logs this device out.
+  // Account and AI points from the Hub; a rejected token logs this device out.
   async account() {
     const token = this.token(); if (!token) return { connected: false };
     try {
@@ -60,9 +61,24 @@ export class HubConnection {
       if (response.status === 401) { this.invalidate(token); return { connected: false, expired: true }; }
       const result = await response.json().catch(() => null);
       if (!response.ok || !result?.ai) return { ...this.summary(), unavailable: true };
-      const ai = result.ai, number = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
-      return { ...this.summary(), ai: { enabled: ai.enabled === true, model: typeof ai.model === 'string' ? ai.model.slice(0, 80) : '', dailyLimit: number(ai.dailyLimit), usedToday: number(ai.usedToday), resetAt: typeof ai.resetAt === 'string' ? ai.resetAt.slice(0, 40) : '' } };
+      const ai = result.ai;
+      return { ...this.summary(), ai: { enabled: ai.enabled === true, model: typeof ai.model === 'string' ? ai.model.slice(0, 80) : '', points: count(ai.points) } };
     } catch { return { ...this.summary(), unavailable: true }; }
+  }
+  // Adds AI points to the account with a redeem code (docs/HUB_CONNECT_AI.md 5, 6.1).
+  async redeem(code) {
+    const token = this.token(); if (!token) throw new ApiError(409, 'HUB_LOGIN_REQUIRED', '请先登录 QuizForge 账号。');
+    if (typeof code !== 'string' || !code.trim() || code.length > 64) throw new ApiError(400, 'REDEEM_CODE_INVALID', '请输入兑换码。');
+    let response, result;
+    try {
+      response = await this.fetch(this.origin + '/api/connect/redeem', { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ code: code.trim() }) });
+      result = await response.json().catch(() => null);
+    } catch { throw new ApiError(502, 'HUB_UNREACHABLE', '无法连接 QuizForge 服务器，请检查网络后重试。'); }
+    if (response.status === 401) { this.invalidate(token); throw new ApiError(409, 'HUB_LOGIN_REQUIRED', '登录已失效，请重新登录 QuizForge 账号。'); }
+    const failed = { REDEEM_CODE_INVALID: [400, '兑换码无效、已使用或已过期。'], REDEEM_LOCKED: [429, '兑换码输错次数太多，请 1 小时后再试。'] }[result?.error?.code];
+    if (failed) throw new ApiError(failed[0], result.error.code, failed[1]);
+    if (!response.ok || !Number.isSafeInteger(result?.points)) throw new ApiError(502, 'HUB_REDEEM_FAILED', '兑换没有完成，请稍后重试。');
+    return { added: count(result.added), points: count(result.points) };
   }
   async logout() {
     const token = this.token(); if (!token) return this.summary();

@@ -297,10 +297,11 @@ export class QuizForgeServer {
       if (pathname === '/api/settings/ai' && method === 'PUT') return { ...await this.aiSettings.update(await this.writeRequest(context)), canManage: true };
       if (pathname.endsWith('/test') && method === 'POST') { await this.writeRequest(context); return this.aiGateway.testConnection(); }
     }
-    // Hub account connection for official AI grading; only the host computer may log in or out.
+    // Hub account connection for the free AI quota; only the host computer may log in, out or redeem.
     if (pathname.startsWith('/api/settings/ai/hub')) {
       this.requireLocal(context);
-      if (pathname === '/api/settings/ai/hub' && method === 'GET') return this.hub.account();
+      if (pathname === '/api/settings/ai/hub' && method === 'GET') return { ...await this.hub.account(), manageUrl: this.hub.origin + '/manage/' };
+      if (pathname === '/api/settings/ai/hub/redeem' && method === 'POST') return this.hub.redeem(requireObject(await this.writeRequest(context)).code);
       if (pathname === '/api/settings/ai/hub/login' && method === 'POST') { await this.writeRequest(context); return this.hub.start(`http://127.0.0.1:${this.port()}/hub/connect/callback`); }
       if (pathname === '/api/settings/ai/hub/logout' && method === 'POST') { await this.writeRequest(context); return this.hub.logout(); }
     }
@@ -406,7 +407,7 @@ export class QuizForgeServer {
       } else if (pathname === HUB_CALLBACK) {
         // The Hub returns the browser here after the user allows or denies; host computer only.
         if (request.method !== 'GET' || !this.canManage(context)) throw new ApiError(404, 'NOT_FOUND', 'Page not found');
-        let title = '已登录 QuizForge 账号', detail = '这台电脑现在可以使用内置 AI 评分。可以关闭此页面，回到 QuizForge。';
+        let title = '已登录 QuizForge 账号', detail = '这台电脑现在可以使用免费 AI 额度评分。可以关闭此页面，回到 QuizForge。';
         try { await this.hub.complete(context.url.searchParams); } catch (error) { title = '没有完成登录'; detail = error instanceof ApiError ? error.message : '登录没有完成，请回到 QuizForge 重新登录。'; }
         response.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
         this.send(response, 200, 'text/html; charset=utf-8', Buffer.from(callbackPage(title, detail)));
