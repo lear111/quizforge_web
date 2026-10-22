@@ -53,12 +53,12 @@ export function bindAiSettings({request,document=globalThis.document,openWindow=
       if(loginUrl){const link=document.createElement('a');link.href=loginUrl;link.target='_blank';link.rel='noopener';link.textContent='没有打开？点这里打开登录页';account.append(' ',link);}
       return;
     }
-    if(!hub.connected){account.textContent=hub.expired?'登录已失效，请重新登录 QuizForge 账号。':'还没有登录。登录 QuizForge 账号后，即可使用官方 AI 评分。';return;}
+    if(!hub.connected){account.textContent=hub.expired?'登录已失效，请重新登录 QuizForge 账号。':'还没有登录。登录 QuizForge 账号后，即可使用内置 AI 评分。';return;}
     const who=`已登录：${hub.user?.name||''}（这台电脑：${hub.device?.name||''}）`;
     if(hub.unavailable){account.textContent=`${who}。暂时无法连接 QuizForge 服务器，查询不到剩余次数。`;return;}
     const ai=hub.ai;if(!ai){account.textContent=who;return;}
     const left=Math.max(0,(ai.dailyLimit||0)-(ai.usedToday||0));
-    account.textContent=ai.enabled?`${who}。今天还可评分 ${left} 次（共 ${ai.dailyLimit} 次，0 点恢复）。`:`${who}。官方 AI 暂时不可用，可以改用自定义模型。`;
+    account.textContent=ai.enabled?`${who}。今天还可评分 ${left} 次（共 ${ai.dailyLimit} 次，0 点恢复）。`:`${who}。内置 AI 暂时不可用，可以改用自定义模型。`;
   }
   function render(value,key=''){
     current=value;
@@ -67,7 +67,7 @@ export function bindAiSettings({request,document=globalThis.document,openWindow=
     sources[value.source==='official'?'official':'custom'].checked=true;
     fields.apiKey.value=value.canManage===false?'':key;
     keyHint.textContent=value.canManage===false?'API Key 由主机保存，仅主机可修改。':value.apiKeyConfigured?'API Key 已保存并隐藏。可直接删除或输入新值，保存后生效。':'本地模型可以不填 API Key。';
-    const how=value.source==='official'?'使用官方 AI':'使用自定义模型';
+    const how=value.source==='official'?'使用内置 AI':'使用自定义模型';
     status.textContent=value.canManage===false?'请在运行 QuizForge 的电脑上配置 AI。其他设备可使用已开启的评分服务。':value.enabled?value.autoGrade?`AI 评分已开启（${how}），提交答案后自动评分，结果自动保存。`:`AI 评分已开启（${how}），可在题卡点击评分，结果自动保存。`:'AI 评分未开启，仍可人工评分。';
     renderReport(value.source==='official'?null:value.testReport);renderHub(value.hub);lock();
   }
@@ -101,7 +101,7 @@ export function bindAiSettings({request,document=globalThis.document,openWindow=
     error.hidden=true;const token=epoch;busy=true;status.textContent='正在保存 AI 设置…';lock();
     try{
       await saveCurrent(token);
-      if(token===epoch&&dialog.open)status.textContent=source()==='official'&&fields.enabled.checked&&!hub.connected?'AI 设置已保存。请登录 QuizForge 账号后再使用官方 AI 评分。':'AI 设置已保存。';
+      if(token===epoch&&dialog.open)status.textContent=source()==='official'&&fields.enabled.checked&&!hub.connected?'AI 设置已保存。请登录 QuizForge 账号后再使用内置 AI 评分。':'AI 设置已保存。';
     }
     catch(cause){if(token===epoch&&dialog.open){status.textContent='AI 设置未保存，当前修改保留，请重试。';showError(cause);}}
     finally{if(token===epoch){busy=false;lock();}}
@@ -139,7 +139,7 @@ export function bindAiSettings({request,document=globalThis.document,openWindow=
   async function endLogin(){
     if(busy||!current||current.canManage===false)return;
     const token=epoch;busy=true;lock();
-    try{const value=await request(`${HUB}/logout`,{method:'POST',body:'{}'});if(token===epoch&&dialog.open){renderHub(value);status.textContent='已退出登录。官方 AI 评分需要重新登录后才能使用。';}}
+    try{const value=await request(`${HUB}/logout`,{method:'POST',body:'{}'});if(token===epoch&&dialog.open){renderHub(value);status.textContent='已退出登录。内置 AI 评分需要重新登录后才能使用。';}}
     catch(cause){if(token===epoch&&dialog.open)showError(cause);}
     finally{if(token===epoch){busy=false;lock();}}
   }
