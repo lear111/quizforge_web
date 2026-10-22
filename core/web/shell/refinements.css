@@ -58,7 +58,7 @@ html:fullscreen{width:100%;height:100%;background:#f8f9fc}
   .question-pane{bottom:calc(56px + env(safe-area-inset-bottom))}.question-viewport{background:#fff}
   .question-pane:not(.is-draft) .question-world{position:relative;width:100%;transform:none}
   .question-pane:not(.is-draft) .question-frame-wrapper{width:100%;max-width:none;margin:0!important;padding:0!important}
-  .question-pane:not(.is-draft) .qf-whiteboard{display:none}.question-pane:not(.is-draft) .question-frame{min-height:0}
+  .question-pane:not(.is-draft) .question-frame{min-height:0}
   .question-navigation{inset:auto 0 0;height:calc(56px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff;pointer-events:auto}
   .question-arrow{top:28px;width:44px;height:44px;border-radius:10px;box-shadow:none;backdrop-filter:none}.question-arrow.previous{left:max(14px,env(safe-area-inset-left))}.question-arrow.next{right:max(14px,env(safe-area-inset-right))}
   .mode-bar{font-size:10px;padding:6px 10px}.mode-bar button{min-height:36px}

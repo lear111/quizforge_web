@@ -3,6 +3,7 @@ import {mountWhiteboard} from '../../web/draft/whiteboard.js';
 import {createSharedAnswerAreaService} from '../../shared/answer-area/1.3.2/component.js';
 import {answerAreaModel} from '../../shared/answer-area/1.3.0/model.js';
 import {strokeInRectangle} from '../../web/draft/answer-ink.js';
+import {readFileSync} from 'node:fs';
 
 function fixture(t){
  const dom=new JSDOM('<div class="question-viewport"><iframe></iframe></div>',{pretendToBeVisual:true});t.after(()=>dom.window.close());const {document}=dom.window,drawn=[];
@@ -121,4 +122,10 @@ test('loading another question or destroying the whiteboard cancels an unresolve
 
 test('short handwriting inside a photo retains its actual path rather than collapsing to a dot',t=>{
  const f=fixture(t);attachPicture(f);f.pointer('pointerdown',150,150);f.pointer('pointermove',152,151);f.pointer('pointerup',154,152);f.whiteboard.flush();const stroke=f.whiteboard.getDraft().strokes[0];assert.equal(stroke.points.length,3);assert.deepEqual(stroke.points.at(-1),{x:154,y:152,pressure:.5});
+});
+
+test('narrow practice layouts keep the host canvas so saved answer ink stays visible',()=>{
+  // Practice mode paints only answer-area ink; hiding the whole whiteboard on phones made it vanish.
+  const css=readFileSync(new URL('../../web/shell/refinements.css',import.meta.url),'utf8');
+  assert.doesNotMatch(css,/\.question-pane:not\(\.is-draft\)\s*\.qf-whiteboard\s*\{\s*display\s*:\s*none/);
 });
