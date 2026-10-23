@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/practice/practice-summary.css">
   <link rel="stylesheet" href="/shell/network-settings.css">
   <link rel="stylesheet" href="/ai/ai-settings.css">
+  <link rel="stylesheet" href="/shell/admin-contact.css">
   <link rel="stylesheet" href="/development/development.css">
   <link rel="stylesheet" href="/library/library-management.css">
   <link rel="stylesheet" href="/exam/exam-mode.css">
@@ -296,6 +297,7 @@
         <button id="user-center-login" type="button">登录 QuizForge 账号</button>
       </div>
       <p id="user-center-error" class="network-settings-error" role="alert" hidden></p>
+      <div class="user-center-help"><button id="user-center-contact" type="button" hidden>联系管理员</button></div>
       <div class="dialog-actions"><button id="user-center-close" type="button">关闭</button></div>
     </section>
     <section id="development-settings-panel" hidden>
@@ -327,6 +329,12 @@
       <p id="appearance-error" class="network-settings-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="appearance-close" type="button">关闭</button></div>
     </section>
+  </dialog>
+  <dialog id="admin-contact-dialog" class="admin-contact-dialog" aria-labelledby="admin-contact-title">
+    <div class="admin-contact-heading"><h2 id="admin-contact-title">联系管理员</h2><button id="admin-contact-close" class="admin-contact-close" type="button" aria-label="关闭联系管理员">×</button></div>
+    <p id="admin-contact-status" class="admin-contact-status" role="status"></p>
+    <div id="admin-contact-content" class="admin-contact-content" hidden></div>
+    <div class="dialog-actions"><button id="admin-contact-retry" type="button" hidden>重新读取</button><button id="admin-contact-done" type="button">关闭</button></div>
   </dialog>
   <dialog id="hub-login-dialog" class="hub-login-dialog" aria-labelledby="hub-login-title">
     <h2 id="hub-login-title">登录 QuizForge 账号</h2>

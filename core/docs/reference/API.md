@@ -59,6 +59,14 @@ Mixed binding details: a bank using any question-level reference (or omitting th
 - HTTP remains no-store; browser uses explicit bounded question/page/SDK caches and validates current stamps on question revisit or tab activation. Confirmed writes replace cached state. LRU and 5-minute idle timers release entries; collection close releases its question/unused page entries, and directory refresh clears question/page caches. Fixed SDK versions retain their independent bounds. No hidden iframe DOM cache; only one active iframe/whiteboard runtime. Localhost remains the default listener; LAN opt-in uses local network settings with same-origin checks for writes and server-owned paths. Access tokens are sent in `X-QuizForge-Token`.
 
 
+### Public administrator contact (host settings only)
+
+`GET /api/settings/admin-contact` returns `{content:string,revision:number}` from the fixed public upstream `https://quizforge.treenewbee.cloud/api/admin-contact`. It accepts no query parameters, URL, request body or write operation. Existing host authentication and `requireLocal` restrictions apply, exactly as for the user center; a Hub account is not required. Other methods return 405, query parameters return 400, and disallowed remote settings access returns `LOCAL_SETTINGS_ONLY`. Responses use `Cache-Control: no-store`.
+
+The host sends a separate anonymous HTTPS GET with `Accept: application/json`, no Hub token, cookies, model credentials, practice identifier or caller headers. It keeps default TLS verification, refuses redirects, enforces a 10-second total deadline including streamed body reads, and rejects responses over 32 KiB. It validates JSON, `content.length <= 4000` in UTF-16 code units, and a nonnegative safe-integer `revision`, returning only those two fields. An empty string means no published contact information. Upstream failures and invalid/oversized responses return 502 `ADMIN_CONTACT_UNAVAILABLE`; timeout returns 504 `ADMIN_CONTACT_TIMEOUT`; disconnection cancels the upstream read (`ADMIN_CONTACT_CANCELLED`). Errors contain fixed local messages, never upstream response text.
+
+The host user center opens a separate modal immediately, queries on each opening or explicit retry, renders with `textContent` and `white-space: pre-wrap`, and cancels/invalidates requests on close. There is no polling, stored contact configuration, HTML rendering or automatic link navigation. This is not an extension SDK capability or a general-purpose network proxy. Android must adapt this same route through its dedicated anonymous native reader; it must not reuse device-authenticated Hub account requests or enable arbitrary iframe networking.
+
 ## Browser extension SDK
 
 Host injects QF in sandbox iframe (allow-scripts only), scoped messages checked by iframe identity and session.
