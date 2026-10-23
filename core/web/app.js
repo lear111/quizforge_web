@@ -103,7 +103,7 @@ async function mutate(pane,action,data,options={}){
 function renderRecovery(){
   const pane=active(),failed=pane?.writes.failures||[];
   $('#save-recovery').hidden=!failed.length;
-  $('#recovery-message').textContent=failed.some(value=>value.error.code==='CONTENT_CONFLICT')?'题目内容已更改，当前输入仍保留。请读取服务器状态后重新作答。':failed.some(value=>value.error.status===409)?'保存状态发生冲突。当前输入仍保留，可重试，或读取服务器已保存的内容。':pane?.development?'仍有内容未保存，当前输入保留。可以切题后返回重试。':'仍有内容未保存，切题已暂停。当前输入仍保留。';
+  $('#recovery-message').textContent=failed.some(value=>value.error.code==='CONTENT_CONFLICT')?'题目内容已更改，当前输入仍保留。请读取已保存内容后重新作答。':failed.some(value=>value.error.status===409)?'保存状态发生冲突。当前输入仍保留，可重试，或读取已保存的内容。':pane?.development?'仍有内容未保存，当前输入保留。可以切题后返回重试。':'仍有内容未保存，切题已暂停。当前输入仍保留。';
 }
 function enqueueInk(pane,value){
   if(pane.loading||pane.recovering||pane.closed||!pane.questionId||pane.view!=='practice'||!collectionFeature(pane,'whiteboard'))return;
@@ -127,7 +127,7 @@ async function flushPane(pane){
     if(!pane.development||!pane.plugin?.hasError)await pane.plugin?.flush();
     if(pane.view!=='practice')return true;
     pane.whiteboard?.flush();await saveInk(pane);await pane.writes.settled();
-    if(pane.writes.hasFailures)throw Object.assign(new Error('保存未完成，当前输入已保留。请重试保存，或读取服务器状态。'),{code:'SAVE_FAILED'});
+    if(pane.writes.hasFailures)throw Object.assign(new Error('保存未完成，当前输入已保留。请重试保存，或读取已保存内容。'),{code:'SAVE_FAILED'});
     const saved=!pane.plugin?.hasUnsavedInput;
     if(saved&&pane.keepRuntime&&!pane.plugin?.hasError){pane.keepRuntime=false;clearPageFailure(pane);}
     return saved;

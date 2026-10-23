@@ -16,7 +16,7 @@ export function bindSaveRecovery({document,active,transitionTo,loadQuestion,show
   }
   async function loadSaved(){
     const pane=active();
-    if(!pane||pane.closed||!confirm('读取服务器状态会放弃当前未保存的答案和笔迹，是否继续？'))return;
+    if(!pane||pane.closed||!confirm('读取已保存内容会放弃当前未保存的答案和笔迹，是否继续？'))return;
     return transitionTo(async()=>{
       if(pane.closed)return;
       const plugin=pane.plugin,qid=pane.questionId;
@@ -31,7 +31,7 @@ export function bindSaveRecovery({document,active,transitionTo,loadQuestion,show
         if(pane.closed)return;
         await showQuestion(pane,qid,{payload});
         pane.ink.clear();pane.writes.clear();pane.answerPreviews?.clear();pane.answerStateSnapshots?.clear();renderOutline();
-        notice(collectionFeature(pane,'history')?'已读取服务器保存的状态。':'已读取当前会话状态。');
+        notice(collectionFeature(pane,'history')?'已读取已保存的内容。':'已读取当前会话状态。');
       }finally{
         pane.recovering=false;
         if(!pane.closed&&pane.plugin===plugin)plugin?.setActive?.(active()===pane);
