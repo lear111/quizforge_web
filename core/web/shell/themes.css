@@ -32,6 +32,14 @@ html[data-qf-theme="image"]{
   --qf-panel-color:#fff;--qf-panel-solid:#f8f6fc;
   --qf-bar-color:#fff;--qf-around:transparent;--qf-line:rgba(255,255,255,.55);
 }
+html[data-qf-theme="coast"]{
+  --accent:#24746b;--accent-light:#e1efea;--accent-soft:#e1efea;--muted:#62776f;--line:#d3e0d8;
+  --qf-base:#edf2e9;
+  --qf-page:linear-gradient(rgba(249,250,242,var(--qf-dim,.3)),rgba(249,250,242,var(--qf-dim,.3))),url("/assets/backgrounds/coast.svg") center/cover no-repeat,#edf2e9;
+  --qf-panel-color:#fcfff7;--qf-panel-solid:#f4f8ef;
+  --qf-bar-color:#fcfff7;--qf-around:transparent;--qf-line:rgba(67,109,93,.18);
+  --qf-settings-ink:#244e46;
+}
 
 /* --qf-clear (0-0.7, set per theme from the appearance settings) lets the library,
    outline and bars show the background. Bars clear a little faster than panels. */
@@ -68,6 +76,19 @@ html[data-qf-theme] .question-arrow:not(:hover){background:color-mix(in srgb,#ff
 html[data-qf-theme] .welcome-icon{background:rgba(255,255,255,.7)}
 html[data-qf-theme] .welcome h2{color:#5d5470}
 
+/* The coastal illustration has its own shell accents. Question pages remain
+   owned by their extensions, including their answer and grading colours. */
+html[data-qf-theme="coast"] :is(.library-heading,.outline-heading,.document-group,.document-eyebrow,.outline-group-title,.brand small,.list-empty,.welcome){color:#526d61}
+html[data-qf-theme="coast"] :is(.icon-button,.library-switch button,.library-item.active,.extension-group-toggle,.library-download-link,.welcome-icon,.welcome h2){color:#285e51}
+html[data-qf-theme="coast"] .library-footer .network-settings-entry{color:var(--qf-settings-ink)}
+html[data-qf-theme="coast"] :is(.library-item:hover,.library-switch button:hover,.icon-button:hover){background:#e3eee5}
+html[data-qf-theme="coast"] .library-item.active{background:#dcece2}
+html[data-qf-theme="coast"] .outline-item.active{background:#e0efe5;border-color:#6b9b85;color:#285e51;box-shadow:0 0 0 1px #709c8244}
+html[data-qf-theme="coast"] .outline-item:is(.draft,.pending){background:#e4f0e8;border-color:#bbd5c6;color:#326956}
+html[data-qf-theme="coast"] .outline-item.active:is(.draft,.correct,.incorrect){outline-color:#6b9b85}
+html[data-qf-theme="coast"] .question-arrow{color:#326956;border-color:#c0d5c7}
+html[data-qf-theme="coast"] :is(button,input,a):focus-visible{outline-color:#79ab96}
+
 /* Drawers float over the question on narrow screens and must stay readable. */
 @media(max-width:800px){
   html[data-qf-theme] .library,html[data-qf-theme] .outline{background:var(--qf-panel-solid)}
@@ -90,6 +111,12 @@ html[data-qf-theme] .welcome h2{color:#5d5470}
 .appearance-swatch[data-swatch="sepia"]{background:#f1e8d2}
 .appearance-swatch[data-swatch="green"]{background:#e2eddb}
 .appearance-swatch[data-swatch="image"]{background:var(--qf-image,url("/assets/backgrounds/dawn-lake.svg")) center/cover no-repeat,#ece8f6}
+.appearance-swatch[data-swatch="coast"]{background:url("/assets/backgrounds/coast.svg") center/cover no-repeat,#edf2e9}
+html[data-qf-theme="coast"] .appearance-theme[aria-checked="true"]{color:#285e51;box-shadow:0 0 0 2px #c6ded0}
+html[data-qf-theme="coast"] .settings-tabs button[aria-selected="true"]{background:#e1efea;color:#285e51}
+html[data-qf-theme="coast"] .appearance-image{background:#f5f8f0;border-color:#d3e0d8}
+html[data-qf-theme="coast"] .appearance-dim output{color:#326956}
+html[data-qf-theme="coast"] .appearance-dim input{accent-color:var(--accent)}
 .appearance-panels{margin:0 0 14px}
 .appearance-image{display:flex;flex-direction:column;gap:10px;margin:0 0 14px;padding:12px;border:1px solid #ece6f3;border-radius:10px;background:#fbfaff}
 .appearance-image-actions{display:flex;gap:8px;flex-wrap:wrap}
