@@ -2,7 +2,7 @@ function resourceMap(assets){
   const result=new Map();
   for(const asset of assets||[]){
     const data=asset?.data??asset?.base64;
-    if(typeof asset?.path!=='string'||typeof data!=='string'||!/^(image\/(?:png|jpeg|gif|webp|svg\+xml|avif)|font\/(?:woff2?|ttf|otf))$/.test(asset.mime))throw new Error('开发预览资源无效');
+    if(typeof asset?.path!=='string'||typeof data!=='string'||!/^(image\/(?:png|jpeg|gif|webp|svg\+xml|avif)|font\/(?:woff2?|ttf|otf)|audio\/(?:wav|mpeg|mp4|aac|ogg|flac))$/.test(asset.mime))throw new Error('开发预览资源无效');
     result.set(asset.path.replace(/^\.\//,''),`data:${asset.mime};base64,${data}`);
   }
   return result;

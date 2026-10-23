@@ -1,0 +1,45 @@
+/* 听力理解题型专用样式（构建时追加到 practice.css 末尾） */
+
+/* 声明的 <audio> 只作为资源载体，不占布局 */
+.audio-slot{display:none}
+
+.listen-card .stem{margin-bottom:14px}
+.player-host{margin:0 0 18px}
+.player-host:empty{display:none}
+
+/* 播放器卡片在题目卡片内部，用柔和的底色区分层级 */
+.player-host .qfa{background:var(--qt-soft);border-color:var(--qt-line);padding:12px 14px 10px}
+.player-host .qfa-badge{background:var(--qt-surface)}
+.player-host .qfa-toggle{background:var(--qt-accent);color:#fff}
+.player-host .qfa-toggle:hover{background:var(--qt-accent-hover)}
+.player-host .qfa:focus-within{border-color:var(--qt-focus)}
+
+.play-hint{margin:-8px 0 16px;font-size:13px;line-height:1.6;color:var(--qt-muted)}
+.play-hint.is-warning{color:#a84444}
+.play-hint:empty{display:none}
+
+/* 作者页：音频选择与播放次数 */
+.audio-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.audio-row select,.audio-row input{min-height:34px;padding:5px 9px;border:1px solid var(--qt-line);border-radius:7px;background:var(--qt-surface);color:var(--qt-ink);font:inherit;font-size:14px}
+.audio-row select{flex:0 1 220px;min-width:0}
+.audio-row input{flex:1 1 220px;min-width:0}
+.audio-row select:focus-visible,.audio-row input:focus-visible{outline:2px solid var(--qt-focus);outline-offset:1px}
+.audio-row select:disabled,.audio-row input:disabled{opacity:.6}
+.limit-field{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--qt-muted)}
+.limit-field input{width:4.5em;min-height:32px;padding:4px 8px;border:1px solid var(--qt-line);border-radius:7px;background:var(--qt-surface);color:var(--qt-ink);font:inherit;font-size:14px;text-align:center}
+.limit-field input:invalid{border-color:#bc6666;color:#a84444}
+.limit-tip{color:var(--qt-muted)}
+.authoring #audio-preview{margin-top:14px}
+.audio-import-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.audio-import-button{position:relative;display:inline-flex;align-items:center;min-height:34px;padding:5px 12px;border:1px solid var(--qt-line);border-radius:7px;background:var(--qt-surface);color:var(--qt-ink);font-size:14px;overflow:hidden;cursor:pointer}
+.audio-import-button:focus-within{outline:2px solid var(--qt-focus);outline-offset:2px}
+.audio-import-button input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.audio-import-button:has(input:disabled){opacity:.6;cursor:default}
+.audio-import-tip,.audio-import-status{font-size:12px;line-height:1.7;color:var(--qt-muted)}
+.audio-import-status{margin:6px 0 0;overflow-wrap:anywhere}
+.audio-import-status:empty{display:none}
+@media(max-width:520px){
+  .player-host .qfa{padding:10px 12px 8px}
+  .play-hint{font-size:12px}
+  .audio-row select,.audio-row input{flex:1 1 100%}
+}

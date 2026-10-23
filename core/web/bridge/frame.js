@@ -19,7 +19,7 @@ export function mountExtension(container,assets,context,{onRequest,onError,onDir
   let appearance=appearanceSupported?currentAppearance():null;
   const session=makeRequestId(),frame=document.createElement('iframe');frame.className='question-frame';frame.title='题型练习页面';frame.setAttribute('sandbox','allow-scripts');frame.referrerPolicy='no-referrer';
   const nonce=makeRequestId().replace(/[^a-zA-Z0-9]/g,'');const boot={session,context,nonce,dependencies:assets.dependencies||[],contentApi:assets.contentApi,editorDraft,api:bridge.api,legacyPage:assets.legacyPage===true,...(appearance?{appearance}:{}),development:!!context.development&&context.mode!=='history'};
-  const policy=`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'`;
+  const policy=`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'`;
   const captureBoot={session};
   const answerAreasSupported=bridge.api.capabilities.includes('answer-areas')&&assets.answerAreasDeclared===true;
   if(answerAreasSupported){

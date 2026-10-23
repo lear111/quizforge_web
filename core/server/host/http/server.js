@@ -37,7 +37,7 @@ const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javasc
 // These pure models are also browser dependencies. Expose exact files only;
 // the rest of shared/ and all server sources remain outside the web root.
 const publicSharedModules = new Set(['shared/answer-area/1.3.0/model.js', 'shared/answer-area/1.4.0/model.js', 'shared/ink/1.0.0/renderer.js']);
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self'; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
 export function queryValue(context, name) {
   const values = context.url.searchParams.getAll(name); if (values.length > 1) throw bad('Invalid query');
   if (!values.length) return null;

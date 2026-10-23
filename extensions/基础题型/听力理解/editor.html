@@ -1,0 +1,40 @@
+<main class="listen-card authoring">
+  <header class="question-header">
+    <span class="question-type">听力理解</span>
+    <label class="question-score editable-score"><input id="edit-max-score" type="text" inputmode="decimal" maxlength="12" aria-label="满分" title="满分须大于 0，最多 100000" autocomplete="off"><span>分</span></label>
+  </header>
+  <section class="edit-section">
+    <div class="section-label">听力音频</div>
+    <div class="audio-row">
+      <select id="edit-audio" aria-label="选择听力音频"></select>
+      <input id="edit-audio-title" type="text" maxlength="200" placeholder="音频标题，可留空" aria-label="音频标题" autocomplete="off">
+    </div>
+    <div class="audio-import-row">
+      <label class="audio-import-button">导入本地音频<input id="audio-file" type="file" accept=".wav,.mp3,.m4a,.aac,.ogg,.oga,.flac,audio/*" aria-label="导入本地音频"></label>
+      <button id="audio-import-cancel" type="button" hidden>取消导入</button>
+      <span class="audio-import-tip">自动压缩后随本题保存，最长 3 分钟；原文件不会修改。</span>
+    </div>
+    <p id="audio-import-status" class="audio-import-status" role="status" aria-live="polite"></p>
+    <div id="audio-preview" class="player-host"></div>
+    <p class="audio-import-tip">音频可不限次数播放。</p>
+    <div id="audio-slot" class="audio-slot">
+      <audio data-asset="assets/listen-01.mp3" src="assets/listen-01.mp3" preload="metadata"></audio>
+      <audio data-asset="assets/listen-02.mp3" src="assets/listen-02.mp3" preload="metadata"></audio>
+      <audio data-asset="assets/listen-03.mp3" src="assets/listen-03.mp3" preload="metadata"></audio>
+    </div>
+  </section>
+  <section class="edit-section">
+    <div class="section-label">题干</div>
+    <div id="edit-stem" class="editable-field" tabindex="0" role="button" aria-label="编辑题干"></div>
+  </section>
+  <section class="edit-section">
+    <div class="section-label">选项</div>
+    <div id="option-editors" class="options"></div>
+    <button id="add-option" class="add-option" type="button">＋ 添加选项</button>
+  </section>
+  <section class="edit-section">
+    <div class="section-label">答案与解析</div>
+    <div id="edit-assessment" class="editable-field" tabindex="0" role="button" aria-label="编辑答案与解析"></div>
+  </section>
+  <p id="error" class="error" role="alert" hidden></p>
+</main>

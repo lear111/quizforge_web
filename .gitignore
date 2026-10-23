@@ -23,6 +23,7 @@ node_modules/
 !/extensions/基础题型/判断题/
 !/extensions/基础题型/简答题/
 !/extensions/基础题型/简答题（答题区）/
+!/extensions/基础题型/听力理解/
 *.log
 .env
 .env.*

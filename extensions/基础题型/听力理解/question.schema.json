@@ -1,0 +1,177 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "富文本听力理解题数据",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "audio",
+    "stem",
+    "options",
+    "correctOptionId",
+    "answerAndExplanation",
+    "maxScore"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 1
+    },
+    "audio": {
+      "type": "string",
+      "maxLength": 1398127,
+      "anyOf": [
+        {"pattern": "^assets/[A-Za-z0-9][A-Za-z0-9._-]{0,119}\\.(?:wav|mp3|m4a|aac|ogg|oga|flac)$"},
+        {"pattern": "^data:audio/mpeg;base64,[A-Za-z0-9+/]+={0,2}$"}
+      ],
+      "description": "题型声明的音频路径，或作者页本地转换后随本题保存的 MP3（至多 1 MiB）"
+    },
+    "audioTitle": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "播放器上显示的音频标题，可省略"
+    },
+    "playLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "旧题库兼容字段，已忽略；所有音频均不限播放次数"
+    },
+    "stem": {
+      "$ref": "#/definitions/document"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 26,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "content"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "content": {
+            "$ref": "#/definitions/document"
+          }
+        }
+      }
+    },
+    "correctOptionId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "answerAndExplanation": {
+      "$ref": "#/definitions/document"
+    },
+    "maxScore": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 100000
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "doc",
+            "paragraph",
+            "heading",
+            "blockquote",
+            "bulletList",
+            "orderedList",
+            "listItem",
+            "codeBlock",
+            "hardBreak",
+            "horizontalRule",
+            "image",
+            "text",
+            "table",
+            "tableRow",
+            "tableCell",
+            "tableHeader",
+            "inlineMath",
+            "blockMath"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 100000
+        },
+        "attrs": {
+          "type": "object"
+        },
+        "marks": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "bold",
+                  "italic",
+                  "strike",
+                  "underline",
+                  "code",
+                  "link",
+                  "textStyle",
+                  "highlight",
+                  "subscript",
+                  "superscript"
+                ]
+              },
+              "attrs": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "content": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "$ref": "#/definitions/node"
+          }
+        }
+      }
+    },
+    "document": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/node"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "content"
+          ],
+          "properties": {
+            "type": {
+              "const": "doc"
+            },
+            "content": {
+              "type": "array",
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

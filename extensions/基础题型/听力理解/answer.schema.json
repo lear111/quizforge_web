@@ -1,0 +1,10 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["selectedOptionId"],
+  "properties": {
+    "selectedOptionId": {"anyOf": [{"type":"null"},{"type":"string","pattern":"^[A-Za-z0-9_-]{1,64}$"}]},
+    "plays": {"type": "integer", "minimum": 0, "maximum": 5, "description": "已完整播放次数；随草稿保存，切换题目后播放次数限制仍然有效"}
+  }
+}

@@ -9,7 +9,9 @@ import { answerAreaComponent } from './answer-area-component.js';
 import { optional } from '../library/collections.js';
 
 const FIELDS = ['entry', 'script', 'style', 'rules', 'questionSchema', 'answerSchema', 'examples'];
-const MEDIA = new Map([['png', 'image/png'], ['jpg', 'image/jpeg'], ['jpeg', 'image/jpeg'], ['webp', 'image/webp'], ['gif', 'image/gif'], ['svg', 'image/svg+xml'], ['woff', 'font/woff'], ['woff2', 'font/woff2'], ['ttf', 'font/ttf'], ['otf', 'font/otf']]);
+const MEDIA = new Map([['png', 'image/png'], ['jpg', 'image/jpeg'], ['jpeg', 'image/jpeg'], ['webp', 'image/webp'], ['gif', 'image/gif'], ['svg', 'image/svg+xml'], ['woff', 'font/woff'], ['woff2', 'font/woff2'], ['ttf', 'font/ttf'], ['otf', 'font/otf'], ['wav', 'audio/wav'], ['mp3', 'audio/mpeg'], ['m4a', 'audio/mp4'], ['aac', 'audio/aac'], ['ogg', 'audio/ogg'], ['oga', 'audio/ogg'], ['flac', 'audio/flac']]);
+const AUDIO = new Set(['audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/ogg', 'audio/flac']);
+const assetLimit = mime => AUDIO.has(mime) ? 4 * 1024 * 1024 : 1024 * 1024;
 export const markedDevelopment = directory => exists(path.join(directory, 'development.json'));
 export const runtimeId = folder => 'dev.' + (/^[A-Za-z0-9][A-Za-z0-9._-]{0,115}$/.test(folder) ? folder : hash(Buffer.from(folder)));
 export function declaration(directory, development = false) {
@@ -48,9 +50,9 @@ export function pageAssets(directory, config, media) {
       if (typeof relative !== 'string' || !relative.trim() || relative.length > 240 || seen.has(relative)) throw bad('Invalid development asset path');
       seen.add(relative);
       const mime = MEDIA.get(relative.slice(relative.lastIndexOf('.') + 1).toLowerCase());
-      if (!mime) throw bad('Development assets support image and font files');
-      const bytes = readBytes(safeFile(directory, relative), 1024 * 1024);
-      if ((total += bytes.length) > 8 * 1024 * 1024) throw new Error('Inline static assets must be at most 1 MiB each and 8 MiB in total; use QF.resources for larger images');
+      if (!mime) throw bad('Development assets support image, font and audio files');
+      const bytes = readBytes(safeFile(directory, relative), assetLimit(mime));
+      if ((total += bytes.length) > 8 * 1024 * 1024) throw new Error('Inline static assets must be at most 1 MiB each (4 MiB for audio) and 8 MiB in total; use QF.resources for larger images');
       result.assets.push({ path: relative, mime, base64: bytes.toString('base64') });
     }
   }

@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node server/main.mjs --root ..",
+    "build:listening": "node scripts/build/build-listening.mjs",
     "build:richtext": "node scripts/build/build-richtext.mjs",
     "build:richtext-advanced": "node scripts/build/build-richtext-advanced.mjs",
     "build:short-answer-advanced": "node scripts/build/build-short-answer-advanced.mjs",
@@ -19,6 +20,7 @@
     "test:rules": "node scripts/test/run.mjs rules"
   },
   "dependencies": {
+    "@breezystack/lamejs": "1.2.7",
     "@napi-rs/canvas": "1.0.12",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-color": "3.31.4",

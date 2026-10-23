@@ -1,0 +1,47 @@
+{
+  "id": "quizforge.listening",
+  "version": "1.1.0",
+  "name": "听力理解",
+  "description": "先听音频再作答：不限播放次数，支持默认 1 倍速的倍速下拉选择、前后 15 秒，以及本地音频自动压缩导入。",
+  "requiresApi": {
+    "major": 1,
+    "minMinor": 4,
+    "capabilities": [
+      "practice",
+      "editor",
+      "score",
+      "richtext",
+      "resources",
+      "lifecycle",
+      "answer-state",
+      "editor-drafts",
+      "appearance"
+    ]
+  },
+  "requiresRichText": {
+    "major": 1,
+    "minMinor": 0,
+    "documentFormat": 1,
+    "documentProfile": "advanced-v1",
+    "capabilities": [
+      "basic-formatting",
+      "images",
+      "advanced-formatting",
+      "tables",
+      "math",
+      "image-resize"
+    ]
+  },
+  "entry": "practice.html",
+  "script": "practice.js",
+  "style": "practice.css",
+  "rules": "rules.js",
+  "questionSchema": "question.schema.json",
+  "answerSchema": "answer.schema.json",
+  "examples": "examples/bank.json",
+  "assets": [
+    "assets/listen-01.mp3",
+    "assets/listen-02.mp3",
+    "assets/listen-03.mp3"
+  ]
+}

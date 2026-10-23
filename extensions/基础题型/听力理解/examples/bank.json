@@ -1,0 +1,353 @@
+{
+  "formatVersion": 1,
+  "id": "examples",
+  "title": "听力理解示例",
+  "description": "三段校园听力材料：图书馆开放时间、讲座变更、天气预报。音频随题型打包，播放器支持倍速、暂停与前后 15 秒。",
+  "extension": {
+    "path": "extensions/基础题型/听力理解"
+  },
+  "questions": [
+    {
+      "id": "library-hours",
+      "title": "图书馆周五开放时间",
+      "outline": {
+        "level": "question",
+        "label": "1"
+      },
+      "data": {
+        "formatVersion": 1,
+        "audio": "assets/listen-01.mp3",
+        "audioTitle": "图书馆开放时间通知",
+        "playLimit": 2,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "听这段广播，回答：图书馆周五晚上开放到几点？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十点半"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点半"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-4",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "正确答案：D。广播说「周一到周四仍然开放到晚上十点，周五延长到晚上十一点半」，注意区分工作日与周五。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      }
+    },
+    {
+      "id": "lecture-change",
+      "title": "英语讲座时间变更",
+      "outline": {
+        "level": "question",
+        "label": "2"
+      },
+      "data": {
+        "formatVersion": 1,
+        "audio": "assets/listen-02.mp3",
+        "audioTitle": "英语讲座变更通知",
+        "playLimit": 2,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "听这段通知，回答：英语讲座改到了什么时候？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "明天下午两点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周四晚上七点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周五晚上七点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周四下午两点"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-2",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "正确答案：B。原定「明天下午两点」的计划取消了，改为「本周四晚上七点」，地点也从第三教学楼改到图书馆报告厅。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      }
+    },
+    {
+      "id": "weather-tomorrow",
+      "title": "明天的天气",
+      "outline": {
+        "level": "question",
+        "label": "3"
+      },
+      "data": {
+        "formatVersion": 1,
+        "audio": "assets/listen-03.mp3",
+        "audioTitle": "天气预报",
+        "playLimit": 0,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "听这段天气预报，回答：明天白天的最高气温是多少？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "十九度"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "二十二度"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "二十八度"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "三十四度"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-3",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "正确答案：C。明天「最高气温二十八度，最低气温十九度」，十九度是最低温，别混。本题不限播放次数，可以反复听。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      }
+    }
+  ]
+}

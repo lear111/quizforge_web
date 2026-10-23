@@ -13,13 +13,13 @@ test('preview content stages one physical extension group and rewrites its bank 
   t.after(() => { assert.equal(path.dirname(target), base); fs.rmSync(target, { recursive: true, force: true }); });
   const source = path.join(product, 'question-banks/基础题型/基础题型展示/bank.json'), before = fs.readFileSync(source);
   const result = stageBasicContent(product, target);
-  assert.equal(result.extensions.length, 5); assert.deepEqual(fs.readdirSync(path.join(target, 'extensions')).sort(), ['README.md', '基础题型']);
+  assert.equal(result.extensions.length, 6); assert.deepEqual(fs.readdirSync(path.join(target, 'extensions')).sort(), ['README.md', '基础题型']);
   const raw = JSON.parse(fs.readFileSync(path.join(target, 'question-banks/基础题型/基础题型展示/bank.json')));
   for (const owner of [raw, ...raw.questions]) if (owner.extension?.path) assert.ok(owner.extension.path.startsWith('extensions/基础题型/'));
   for (const name of BASIC_EXTENSIONS) assert.ok(fs.existsSync(path.join(target, 'extensions/基础题型', name, 'manifest.json')));
   assert.deepEqual(fs.readFileSync(source), before);
   const core = path.join(product, 'core'), engine = await RuleEngine.create(core), library = new Library(target, core, engine);
   engine.validationEnvironment = async () => 'staged-basics';
-  try { const row = library.index().banks[0], collection = await library.collection('bank', row.id); assert.equal(collection.questions.length, raw.questions.length); assert.equal(collection.extensions.length, 5); }
+  try { const row = library.index().banks[0], collection = await library.collection('bank', row.id); assert.equal(collection.questions.length, raw.questions.length); assert.equal(collection.extensions.length, 6); }
   finally { library.close(); engine.close(); }
 });

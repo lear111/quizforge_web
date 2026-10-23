@@ -1,0 +1,25 @@
+<main class="listen-card">
+  <header class="question-header">
+    <span class="question-type">听力理解</span>
+    <span id="max-score" class="question-score"></span>
+  </header>
+  <div id="stem" class="stem"></div>
+  <div id="audio-slot" class="audio-slot">
+    <audio data-asset="assets/listen-01.mp3" src="assets/listen-01.mp3" preload="metadata"></audio>
+    <audio data-asset="assets/listen-02.mp3" src="assets/listen-02.mp3" preload="metadata"></audio>
+    <audio data-asset="assets/listen-03.mp3" src="assets/listen-03.mp3" preload="metadata"></audio>
+  </div>
+  <div id="player" class="player-host"></div>
+  <p id="play-hint" class="play-hint" role="status" aria-live="polite" hidden></p>
+  <div id="options" class="options" role="radiogroup" aria-label="选择答案"></div>
+  <div class="actions">
+    <button id="submit" class="primary" data-qf-action="submit" disabled>提交</button>
+    <button id="retry" class="secondary" data-qf-action="retry" hidden>重做</button>
+  </div>
+  <section id="result" class="result" hidden>
+    <div id="score-value" class="score-value"></div>
+    <div class="section-label">答案与解析</div>
+    <div id="answer-and-explanation"></div>
+  </section>
+  <p id="error" class="error" role="alert" hidden></p>
+</main>
