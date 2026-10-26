@@ -4,6 +4,7 @@ import { ApiError, bad, id, text } from '../platform/errors.js';
 import { checkPath, exists, readBytes, readJson, replaceFile, safeDirectory, safeFile, walkFiles, within } from '../platform/files.js';
 import { cloneJson, fingerprint, hash, jsonBytes, jsonEqual } from '../platform/json.js';
 import { BankFeatures } from './features.js';
+import { bindListening, readListening } from '../resources/listening.js';
 import { ResourceStore } from '../resources/resources.js';
 import { RichTextService, validateSdk } from '../resources/richtext-service.js';
 import { DevelopmentSettings } from '../extensions/development-settings.js';
@@ -152,6 +153,8 @@ export class Library {
     if (scope.source) {
       sourceOffset = values.length;
       values.push(scope.source, this.files.hash(scope.source));
+      const listening = readListening(this.files.json(scope.source));
+      for (const file of new Set(listening?.materials.map(row => row.file) ?? [])) values.push(file, this.files.hash(safeFile(path.dirname(scope.source), file), 8 * 1024 * 1024));
       const assets = path.join(path.dirname(scope.source), 'assets');
       if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const file of walkFiles(assets).sort()) if (fs.lstatSync(file).isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 4 * 1024 * 1024));
     }
@@ -262,7 +265,7 @@ export class Library {
     prepared.title = scope.candidate.metadata.title ?? scope.candidate.metadata.name ?? prepared.title;
     const cacheKey = environment === 'unavailable' ? null : fingerprint({ collection: prepared.checkKey, environment, sources: identity }, 'quizforge-node-validation-v1');
     const result = await finishCollection(options.engine ?? this.engine, prepared, this.validationCache.read(cacheKey, prepared.questions.length));
-    const collection = result.collection, store = this.resources;
+    const collection = bindListening(result.collection, scope.source ? path.dirname(scope.source) : extension.examples ? path.dirname(extension.examples) : extension.directory), store = this.resources;
     if (kind === 'bank') collection.bankId = raw.id;
     if (kind === 'bank' && scope.candidate.metadata.groupId) {
       collection.groupId = scope.candidate.metadata.groupId; collection.bankId = raw.id;
@@ -336,7 +339,7 @@ export class Library {
       }
       const prepared = prepareCollection(document, current.kind, current.extension, current.id, loaded.available, current.bankId ?? current.id);
       prepared.title = current.title;
-      const replacement = (await finishCollection(this.engine, prepared)).collection;
+      const replacement = bindListening((await finishCollection(this.engine, prepared)).collection, path.dirname(source));
       for (const field of ['storageKey', 'bankId', 'groupId']) if (current[field]) replacement[field] = current[field];
       return replacement;
     };
@@ -396,7 +399,7 @@ export class Library {
             if (!jsonEqual(raw, expected) || identities.previous !== entry.identity) continue;
           } else if (identities.current !== entry.identity) continue;
           const title = scope.candidate.metadata.title ?? scope.candidate.metadata.name ?? entry.collection.title;
-          const collection = Object.assign(Object.create(Object.getPrototypeOf(entry.collection)), entry.collection, { title });
+          const collection = Object.assign(Object.create(Object.getPrototypeOf(entry.collection)), entry.collection, { title, mediaDirectory: path.dirname(scope.source ?? entry.source) });
           const revision = catalogRevision(collection), row = { ...entry.row, contentRevision: revision };
           const retained = { ...entry, collection, scope, raw, source: scope.source ?? entry.source, row, indexRevision: after.revision, identity: identities.current, ...(moved ? { cacheKey: null } : {}) };
           this.loaded.set(key, retained);

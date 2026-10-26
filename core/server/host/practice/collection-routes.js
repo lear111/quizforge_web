@@ -1,5 +1,6 @@
 import { ApiError, bad, routeId } from '../platform/errors.js';
 import { fingerprint } from '../platform/json.js';
+import { readMaterial } from '../resources/listening.js';
 import { targetId } from '../ai/ai-protocol.js';
 
 export class CollectionRoutes {
@@ -12,6 +13,7 @@ export class CollectionRoutes {
     const readCollection = () => resolvedCollection ?? library.readCollection(kind, id);
     if (parts[4] === 'history') try { (await library.collection(kind, id)).features.requireHistory(); } catch (error) { if (error.code !== 'COLLECTION_NOT_FOUND') throw error; }
     if (parts.length === 4 && method === 'GET') return states.overview(await readCollection());
+    if (parts.length === 6 && parts[4] === 'listening' && method === 'GET') return readMaterial(await readCollection(), routeId(parts[5]));
     if (parts.length === 5) {
       if (parts[4] === 'summary' && method === 'GET') return states.summary(await library.collection(kind, id));
       if (parts[4] === 'history' && method === 'GET') return states.history(kind, id);

@@ -101,3 +101,8 @@ extensions/<分组名>/<拓展>/...
 格式 3 整组清单为 `{"format":"quizforge-bank-group","formatVersion":3,"group":"组名"}`。单题库清单增加 `"scope":"bank"`，恰好包含一本题库，只收集它实际需要的拓展和资源；导入到题库根目录，配套拓展仍有独立物理组。包内题库与拓展均有一层同名暂存分组，各实体为独立文件夹；不含作答、历史、设置或内部保存身份。旧包格式 1/2 不支持导入，当前安装目录也须完成物理分组和路径绑定升级；冻结历史读取不变。完整约定见[导入导出](LIBRARY_PACKAGES.md)。
 
 导入检查格式标识、目录、路径、资源和完整题库规则，自动分配新目录名称并同步拓展路径后成套安装；不能只按 ZIP 后缀直接解压。上限为上传 64 MiB、解压 128 MiB、单文件 8 MiB、10000 个条目。实现见 `core/server/host/library/library-archive.js`。
+
+
+## 宿主听力材料（可选）
+
+题库根可声明 `listening:{materials:[{id,title,file}],examMaterialId?}`，题卡在 `data` 同层用 `listening:{materialId}` 标记听力和材料绑定。音频放在题库 `media/` 目录，不写入题目JSON、不由拓展私有播放器承担。字段、大小限制和完整示例见 [宿主悬浮听力](LISTENING.md)。

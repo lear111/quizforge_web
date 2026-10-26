@@ -155,3 +155,8 @@ Old .development/.state answers are copied lazily to .state with original and ba
 POST /api/collections/{kind}/{id}/finish retains requestId, roundId and summaryVersion. It first submits saved answered drafts through extension grading, then completes the round. Summary adds answeredUnsubmittedCount. Declared answer-state types determine answered state explicitly; legacy saved drafts are submitted as-is so extension rules own empty/partial answers. Previously submitted questions are retained. Save/grade failures keep answers and permit retry; request receipts prevent duplicate submission/completion. Pending AI/manual grades return completionPending:true, finished:false and pendingCount; they remain available for retry/manual review. A later finish finalizes the same round after grades are confirmed. Stale summary and content/revision checks remain enforced.
 
 New draft layout width is 760 logical pixels, independent of device width. Saved legacy layouts are retained. Zoom/pan are device-local views and do not mutate persisted viewport; stroke and paper edits persist normally. No extension API version bump.
+
+
+## Optional host listening
+
+Banks may declare host-owned `listening` materials and question-level `{listening:{materialId}}` outside extension data. The collection overview adds sanitized material metadata and question bindings. Authenticated `GET /api/collections/{kind}/{id}/listening/{materialId}` returns declared binary audio; browser requests use the existing access and page-session headers. No extension networking or new QF method is added, and Extension API remains 1.5. See [host listening](LISTENING.md) for limits, exam freezing, import/export and demo files.

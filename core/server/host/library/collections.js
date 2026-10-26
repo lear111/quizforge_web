@@ -3,6 +3,7 @@ import { cloneJson, fingerprint } from '../platform/json.js';
 import { BankFeatures } from './features.js';
 import { requireBankFormat } from '../extensions/extension-api.js';
 import { outlineQuestions, readOutlineConfiguration, runRuleBatches } from '../practice/outline.js';
+import { readListening, readQuestionListening } from '../resources/listening.js';
 import { referenceIdentity } from './identity.js';
 
 export function optional(raw, field, max) {
@@ -22,8 +23,8 @@ export function resolveExtension(reference, available) {
 export function developmentFolders(raw) { return [...new Set([raw?.extension, ...(raw?.questions ?? []).map(question => question.extension)].filter(reference => reference && Object.hasOwn(reference, 'development')).map(reference => id(reference, 'development')))].sort(); }
 export function ruleIdentity(questions) { return fingerprint(questions.map(question => ({ id: question.extension.id, version: question.extension.version, fingerprint: question.extension.fingerprint, directory: question.extension.directory, outlineItems: question.extension.outlineItemsDeclared })), 'quizforge-library-rules-v1'); }
 export class Collection {
-  constructor({ id, title, description, kind, extension = null, questions, features = new BankFeatures() }) {
-    Object.assign(this, { id, title, description, kind, extension, features });
+  constructor({ id, title, description, kind, extension = null, questions, listening = null, features = new BankFeatures() }) {
+    Object.assign(this, { id, title, description, kind, extension, features, listening });
     this.questions = questions.map(question => question.extension || !extension ? question : { ...question, extension });
     const bindings = new Map();
     this.questionIndex = new Map();
@@ -42,14 +43,14 @@ export class Collection {
   extensionFor(question) { const extension = question.extension ?? this.extension; if (!extension) throw bad('Question extension is missing'); return extension; }
 }
 export function catalogRevision(collection) {
-  const value = { title: collection.title, description: collection.description, stateKey: collection.stateKey(), features: collection.features.json(), questions: collection.questions.map(question => ({ id: question.id, title: question.title, fingerprint: question.fingerprint, extensionId: question.extension.id, extensionVersion: question.extension.version, providerRevision: question.extension.providerRevision, outline: question.outline, outlineItems: question.outlineItems })) };
+  const value = { title: collection.title, description: collection.description, stateKey: collection.stateKey(), features: collection.features.json(), ...(collection.listening ? { listening: collection.listening } : {}), questions: collection.questions.map(question => ({ id: question.id, title: question.title, fingerprint: question.fingerprint, extensionId: question.extension.id, extensionVersion: question.extension.version, providerRevision: question.extension.providerRevision, outline: question.outline, outlineItems: question.outlineItems })) };
   return fingerprint(value, 'quizforge-library-content-v1');
 }
 export function prepareCollection(raw, kind, extension, collectionId, available, sourceId = collectionId) {
   requireObject(raw, 'Invalid bank ID');
   if (['bank', 'development-bank'].includes(kind) && sourceId !== id(raw, 'id')) throw bad('Invalid bank ID');
   requireBankFormat(raw);
-  const features = BankFeatures.read(raw), fallback = Object.hasOwn(raw, 'extension') ? resolveExtension(raw.extension, available) : null;
+  const listening = readListening(raw), features = BankFeatures.read(raw), fallback = Object.hasOwn(raw, 'extension') ? resolveExtension(raw.extension, available) : null;
   if (extension && fallback && (extension.id !== fallback.id || extension.version !== fallback.version)) throw bad('Extension mismatch');
   if (!Array.isArray(raw.questions) || !raw.questions.length || raw.questions.length > 10000) throw bad('Invalid questions');
   const questions = [], seen = new Set(); let perQuestion = false;
@@ -63,9 +64,10 @@ export function prepareCollection(raw, kind, extension, collectionId, available,
     if (['extension', 'development'].includes(kind) && (!extension || owner.id !== extension.id || owner.version !== extension.version)) throw bad('Example extension mismatch');
     perQuestion ||= Object.hasOwn(question, 'extension');
     const data = cloneJson(question.data), outline = Object.hasOwn(question, 'outline') ? readOutlineConfiguration(question.outline, owner) : null;
-    questions.push({ id: questionId, title: text(question, 'title', 300), data, fingerprint: fingerprint(data, owner.fingerprint), extension: owner, outlineItems: outline?.items ?? [], outline });
+    const questionListening = readQuestionListening(question, listening);
+    questions.push({ ...(questionListening ? { listening: questionListening } : {}), id: questionId, title: text(question, 'title', 300), data, fingerprint: fingerprint(data, owner.fingerprint), extension: owner, outlineItems: outline?.items ?? [], outline });
   }
-  return { id: collectionId, title: text(raw, 'title', 300), description: optional(raw, 'description', 4000), kind, extension: ['extension', 'development'].includes(kind) ? extension : perQuestion || !fallback ? null : fallback, questions, features, checkKey: fingerprint(raw, kind + ':' + ruleIdentity(questions)) };
+  return { id: collectionId, title: text(raw, 'title', 300), description: optional(raw, 'description', 4000), kind, extension: ['extension', 'development'].includes(kind) ? extension : perQuestion || !fallback ? null : fallback, questions, features, listening, checkKey: fingerprint(raw, kind + ':' + ruleIdentity(questions)) };
 }
 export async function finishCollection(engine, prepared, cached = null, validated = false, validationFailure = null) {
   let questions = prepared.questions, successfulCheck = cached;

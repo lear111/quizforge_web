@@ -37,7 +37,7 @@ const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javasc
 // These pure models are also browser dependencies. Expose exact files only;
 // the rest of shared/ and all server sources remain outside the web root.
 const publicSharedModules = new Set(['shared/answer-area/1.3.0/model.js', 'shared/answer-area/1.4.0/model.js', 'shared/ink/1.0.0/renderer.js']);
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
 export function queryValue(context, name) {
   const values = context.url.searchParams.getAll(name); if (values.length > 1) throw bad('Invalid query');
   if (!values.length) return null;
@@ -394,7 +394,9 @@ export class QuizForgeServer {
       if (pathname.startsWith('/api/')) {
         if (pathname !== '/api/auth/login') this.authenticate(context);
         const development = pathname.startsWith('/api/development/resources/');
-        if ((pathname.startsWith('/api/resources/') || development) && request.method === 'GET') {
+        if (/^\/api\/collections\/[^/]+\/[^/]+\/listening\/[^/]+$/.test(pathname) && request.method === 'GET') {
+          const resource = await this.api(context, pathname); this.send(response, 200, resource.mime, resource.bytes);
+        } else if ((pathname.startsWith('/api/resources/') || development) && request.method === 'GET') {
           const resourceId = pathname.slice((development ? '/api/development/resources/' : '/api/resources/').length), lease = await this.lease(context, false, false);
           try { const store = lease ? development ? lease.session.developmentResources : lease.session.resources : development ? this.developmentResources : this.resources, resource = store.read(resourceId); this.send(response, 200, resource.mime, resource.bytes); } finally { lease?.close(); }
         } else if (pathname === '/api/library/export' && request.method === 'POST') {

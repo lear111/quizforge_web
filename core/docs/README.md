@@ -7,6 +7,7 @@
 | [使用手册](guides/USER_GUIDE.md) | 启动、目录管理、练习、白板、编辑、导入导出、网络、AI 与更新的完整说明 |
 | [产品功能清单](../../FEATURES.md) | 用户可见功能、操作入口及功能测试预期 |
 | [API 文档](reference/API.md) | 页面 SDK、规则、HTTP 与保存约定 |
+| [宿主悬浮听力](reference/LISTENING.md) | 题库音频、共享播放器、考试快照、拖动缩放及演示题库 |
 | [手写答题区](reference/ANSWER_AREAS.md) | 可选 API 1.5 组件、笔迹保存、提交出图、AI 与独立样例 |
 | [答题区至单题编辑同步交接](guides/ANSWER_AREA_SYNC_2026-10-21.md) | 本轮最终规则、共享源码基线、Hub／Android 适配清单与验收边界 |
 | [开发与架构](guides/CORE_SOURCE.md) | 启动、测试、模块职责及数据流 |

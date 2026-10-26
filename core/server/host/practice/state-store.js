@@ -13,6 +13,7 @@ import { catalogRevision } from '../library/collections.js';
 import { gradingStatus, legacyRounds, matchesId, publicRecord, pageKey, summarize, validatePage, validateResult, validateRound, deleteLegacy } from '../history/history-rounds.js';
 import { validateDraft } from './whiteboard.js';
 import { prepareAnswerAreasWithImages as prepareAnswerAreas, draftWithoutAnswerInk } from './answer-areas.js';
+import { publicListening } from '../resources/listening.js';
 import { ResourceStore } from '../resources/resources.js';
 import { decorateReview, normalizeInput, targetId, validTargetId, validateInput } from '../ai/ai-protocol.js';
 
@@ -181,7 +182,7 @@ export class StateStore {
   }
   async overviewValue(collection, persisted) {
     const states = await this.publicStates(collection, collection.questions, collection.questions.map(question => questionState(persisted, collection, question)));
-    return { id: collection.id, title: collection.title, kind: collection.kind, revision: catalogRevision(collection), ...collectionMetadata(collection), questions: collection.questions.map(question => attachOutline({ id: question.id, title: question.title, type: extensionMetadata(collection.extensionFor(question)) }, question)), states: Object.fromEntries(collection.questions.map((question, index) => [question.id, states[index]])) };
+    return { id: collection.id, title: collection.title, kind: collection.kind, revision: catalogRevision(collection), ...collectionMetadata(collection), ...publicListening(collection), questions: collection.questions.map(question => attachOutline({ id: question.id, title: question.title, ...(question.listening ? { listening: cloneJson(question.listening) } : {}), type: extensionMetadata(collection.extensionFor(question)) }, question)), states: Object.fromEntries(collection.questions.map((question, index) => [question.id, states[index]])) };
   }
   overview(collection) { return this.overviewValue(collection, this.load(collection)); }
   rememberAiSupport(extension, evaluated) { if (typeof evaluated?.capabilities?.canAiGrade !== 'boolean') return; this.aiSupport.set(extension.fingerprint, evaluated.capabilities.canAiGrade); while (this.aiSupport.size > 32) this.aiSupport.delete(this.aiSupport.keys().next().value); }
