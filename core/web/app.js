@@ -1,3 +1,4 @@
+import {createListeningPlayer} from './listening/listening-player.js';
 import {createLibraryIndexClient} from './library/library-index-client.js';
 import {createCollectionLoading} from './practice/collection-loading.js';
 import {reportAnswerPreview,previewDraftAnswer,confirmAnswerPreview,answerStateForSave} from './practice/answer-preview.js';
@@ -662,7 +663,10 @@ function renderOutline(){
     onNavigate:(qid,itemId)=>transitionTo(async()=>{await navigateOutlineTarget(pane,qid,itemId,{navigateQuestion,renderOutline});closeDrawers();}),
     onSummary:()=>transitionTo(async()=>{await showScoreSummary(pane);closeDrawers();})});
 }
+const listeningPlayer=createListeningPlayer({document,request});
+addEventListener('pagehide',()=>listeningPlayer.destroy(),{once:true});
 function updateChrome(){
+  listeningPlayer.setContext(active());
   if(typeof examControls!=='undefined')examControls.sync();
   draftFullscreen.sync();
   $('#document-group').hidden=true;

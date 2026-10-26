@@ -9,13 +9,14 @@ import { BankFeatures } from '../library/features.js';
 import { readOutlineItems } from '../practice/outline.js';
 import { snapshotPage, markedDevelopment } from '../extensions/extension-packages.js';
 import { StateStore } from '../practice/state-store.js';
+import { bindListening, readMaterial, snapshotListening } from '../resources/listening.js';
 import { ResourceStore } from '../resources/resources.js';
 import { OpenAiCompatibleProvider } from '../ai/ai-provider.js';
 import { CollectionRoutes } from '../practice/collection-routes.js';
 import { TemporaryExamSessions, requireOwner } from './temporary-exams.js';
 import { SerialTransactions } from '../platform/transactions.js';
 
-const privateFields = new Set(['packages', 'questions', 'features', 'requestId', 'description', 'pageSession']);
+const privateFields = new Set(['packages', 'questions', 'features', 'requestId', 'description', 'pageSession', 'listening']);
 const packageIdentity = extension => extension.referencePath ? fingerprint(extension.referencePath, extension.fingerprint) : extension.fingerprint;
 export class ExamSessions {
   constructor(root, library, states, ai, routes, writes, automaticAi, { now = () => Date.now(), resourceGateway = null } = {}) {
@@ -50,9 +51,9 @@ export class ExamSessions {
     const seen = new Set(), questions = record.questions.map(row => {
       routeId(row.id); if (seen.has(row.id) || typeof row.title !== 'string' || !/^[a-f0-9]{64}$/.test(row.fingerprint) || !Object.hasOwn(row, 'data')) throw new Error('Invalid frozen exam question'); seen.add(row.id);
       const extension = extensions.get(row.package); if (!extension) throw new Error('Missing exam extension');
-      return { id: row.id, title: row.title, data: cloneJson(row.data), fingerprint: row.fingerprint, extension, outlineItems: readOutlineItems(row.outlineItems ?? []), outline: cloneJson(row.outline ?? null) };
+      return { ...(row.listening ? { listening: cloneJson(row.listening) } : {}), id: row.id, title: row.title, data: cloneJson(row.data), fingerprint: row.fingerprint, extension, outlineItems: readOutlineItems(row.outlineItems ?? []), outline: cloneJson(row.outline ?? null) };
     });
-    return new Collection({ id: record.id, title: record.title, description: record.description ?? '', kind: 'exam', extension: null, questions, features: new BankFeatures({ editing: false, whiteboard: record.features?.whiteboard ?? true, history: record.features?.history ?? true, exam: false }) });
+    return bindListening(new Collection({ listening: cloneJson(record.listening ?? null), id: record.id, title: record.title, description: record.description ?? '', kind: 'exam', extension: null, questions, features: new BankFeatures({ editing: false, whiteboard: record.features?.whiteboard ?? true, history: record.features?.history ?? true, exam: false }) }), base);
   }
   describe(extension) {
     const value = { id: extension.id, version: extension.version, name: extension.name, description: extension.description, fingerprint: extension.fingerprint, providerRevision: extension.providerRevision, outlineItemsDeclared: extension.outlineItemsDeclared, ...(extension.answerStateDeclared ? {answerStateDeclared:true} : {}), ...(extension.answerAreasDeclared ? {answerAreasDeclared:true} : {}), dependencies: cloneJson(extension.dependencies) };
@@ -85,10 +86,11 @@ export class ExamSessions {
     this.expireTemporary(); if (!source.features.history) { requireOwner(pageSession); this.temporary.touchPage(pageSession, false); }
     for (const record of this.records.values()) if (record.requestId === requestId) { if (record.bankKind !== source.kind || record.bankId !== source.id || record.durationMinutes !== request.durationMinutes || record.features?.history === false && record.pageSession !== pageSession) throw new ApiError(409, 'REQUEST_ID_REUSED', '考试请求编号已使用。'); if (record.status === 'deleted') throw new ApiError(409, 'EXAM_DELETED', '这次考试已删除，请重新开始考试。'); return this.publicRecord(record); }
     if (!source.features.history) this.temporary.checkAdmission(0);
-    const examId = randomUUID(), now = this.now(), record = { id: examId, bankKind: source.kind, bankId: source.id, title: source.title, description: source.description, requestId, startedAt: new Date(now).toISOString(), status: 'in-progress', durationMinutes: request.durationMinutes, features: source.features.json(), ...(!source.features.history ? { pageSession } : {}), deadline: request.durationMinutes === null ? null : new Date(now + request.durationMinutes * 60000).toISOString(), packages: [], questions: [] };
+    const examId = randomUUID(), now = this.now(), record = { id: examId, bankKind: source.kind, bankId: source.id, title: source.title, description: source.description, requestId, startedAt: new Date(now).toISOString(), status: 'in-progress', durationMinutes: request.durationMinutes, features: source.features.json(), ...(!source.features.history ? { pageSession } : {}), deadline: request.durationMinutes === null ? null : new Date(now + request.durationMinutes * 60000).toISOString(), packages: [], questions: [], ...(source.listening ? { listening: cloneJson(source.listening) } : {}) };
     try {
+      snapshotListening(source, path.join(this.directory, examId));
       for (const extension of source.extensions) { const pkg = this.describe(extension); pkg.folder = 'packages/' + packageIdentity(extension) + '/' + path.basename(extension.directory); this.copyPackage(extension.directory, path.join(this.directory, examId, pkg.folder)); record.packages.push(pkg); }
-      for (const question of source.questions) { if (source.kind.startsWith('development')) this.copyImages(question.data); record.questions.push({ id: question.id, title: question.title, fingerprint: question.fingerprint, package: packageIdentity(source.extensionFor(question)), data: cloneJson(question.data), ...(question.outline ? { outline: cloneJson(question.outline) } : {}), outlineItems: cloneJson(question.outlineItems) }); }
+      for (const question of source.questions) { if (source.kind.startsWith('development')) this.copyImages(question.data); record.questions.push({ id: question.id, title: question.title, fingerprint: question.fingerprint, package: packageIdentity(source.extensionFor(question)), data: cloneJson(question.data), ...(question.outline ? { outline: cloneJson(question.outline) } : {}), outlineItems: cloneJson(question.outlineItems), ...(question.listening ? { listening: cloneJson(question.listening) } : {}) }); }
       const frozen = this.restore(record);
       if (!source.features.history) {
         const resources = new ResourceStore(this.root, { memory: true, fallback: this.library.resources }), memory = StateStore.memory(this.root, this.states.rules, resources), gateway = this.resourceGateway ? this.resourceGateway(resources) : this.ai.gateway, ai = this.ai.temporary(this.root, memory, gateway), routes = new CollectionRoutes(this.library, memory, ai, this.writes, this.automaticAi), runtime = { states: memory, ai, resources, routes, bytes: () => memory.memoryBytes() + ai.memoryBytes() + resources.memoryBytes(), close: () => { ai.close(); memory.clearMemory(); resources.clearMemory(); } };
@@ -138,6 +140,7 @@ export class ExamSessions {
     this.expireTemporary(); const id = routeId(parts[3]), owner = context.request.headers['x-quizforge-practice-session'];
     if (parts.length === 5 && parts[4] === 'exam' && method === 'DELETE') { this.writes.validateOrigin(context); return this.delete(id, owner); }
     const record = this.require(id); if (record.features?.history === false) this.temporary.access(id, owner, method !== 'GET'); await this.advance(record); const collection = this.collection(id), active = record.status === 'in-progress';
+    if (parts.length === 6 && parts[4] === 'listening' && method === 'GET') return readMaterial(collection, routeId(parts[5]));
     if (parts[4] === 'resources') { const resources = this.temporary.runtime(id)?.resources ?? this.library.resources; if (parts.length === 5 && method === 'POST') { const request = await this.writes.read(context); if (!active) throw new ApiError(403, 'EXAM_ACTION_DISABLED', '交卷后不能上传作答图片。'); return resources.upload(request); } if (parts.length === 6 && method === 'GET') { const image = resources.read(parts[5]); return { id: image.id, mime: image.mime, size: image.bytes.length, data: image.bytes.toString('base64') }; } }
     if (parts.length === 5 && parts[4] === 'exam') { if (method === 'GET') return this.publicRecord(record); if (method === 'POST') { await this.writes.read(context); return this.submit(id); } }
     if (parts.length === 7 && parts[4] === 'questions' && parts[6] === 'page' && method === 'GET') { const extension = collection.extensionFor(collection.question(parts[5])), page = snapshotPage(extension); if (extension.id === 'quizforge.single-choice' && extension.version === '1.0.0' || extension.id === 'quizforge.short-answer' && extension.version === '1.3.0') page.examActionSelectors = ['#submit-button', '#retry-button']; return page; }
@@ -153,7 +156,7 @@ export class ExamSessions {
   cleanupTemporarySnapshot(id) {
     try {
       if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) return; const folder = path.resolve(this.directory, id); if (path.dirname(folder) !== path.resolve(this.directory) || !exists(folder)) return; checkPath(this.directory, { directory: true }); checkPath(folder, { directory: true });
-      if (fs.readdirSync(folder).some(name => name !== 'packages')) return; for (const file of walkFiles(folder, 16384)) { if (!within(folder, file)) throw new Error('Unsafe temporary exam path'); checkPath(file); }
+      if (fs.readdirSync(folder).some(name => !['packages', 'media'].includes(name))) return; for (const file of walkFiles(folder, 16384)) { if (!within(folder, file)) throw new Error('Unsafe temporary exam path'); checkPath(file); }
       fs.rmSync(folder, { recursive: true });
     } catch { /* Unrelated or redirected files are preserved. */ }
   }

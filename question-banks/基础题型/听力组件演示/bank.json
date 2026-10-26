@@ -1,0 +1,490 @@
+{
+  "formatVersion": 1,
+  "id": "host-listening-demo",
+  "title": "听力组件演示",
+  "description": "宿主悬浮听力真实演示：两题共用图书馆音频、普通阅读题、讲座音频；支持真实保存、评分、草稿、编辑及考试。",
+  "features": {
+    "editing": true,
+    "whiteboard": true,
+    "history": true,
+    "exam": true
+  },
+  "extension": {
+    "path": "extensions/基础题型/单选题"
+  },
+  "listening": {
+    "materials": [
+      {
+        "id": "library",
+        "title": "图书馆开放时间通知",
+        "file": "media/library.mp3"
+      },
+      {
+        "id": "lecture",
+        "title": "英语讲座变更通知",
+        "file": "media/lecture.mp3"
+      },
+      {
+        "id": "exam",
+        "title": "整卷听力：图书馆与讲座通知",
+        "file": "media/exam.mp3"
+      }
+    ],
+    "examMaterialId": "exam"
+  },
+  "questions": [
+    {
+      "id": "library-hours",
+      "title": "图书馆周五开放时间",
+      "outline": {
+        "level": "question",
+        "label": "1"
+      },
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "听这段广播，回答：图书馆周五晚上开放到几点？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十点半"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点半"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-4",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "正确答案：D。广播说「周一到周四仍然开放到晚上十点，周五延长到晚上十一点半」，注意区分工作日与周五。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      },
+      "listening": {
+        "materialId": "library"
+      }
+    },
+    {
+      "id": "library-weekdays",
+      "title": "同一段材料：工作日安排",
+      "outline": {
+        "level": "question",
+        "label": "2"
+      },
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "继续听刚才的图书馆通知：周一到周四开放到几点？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上九点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "晚上十一点半"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-2",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "答案：B。广播说明周一到周四仍开放到晚上十点；周五才延长到十一点半。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      },
+      "listening": {
+        "materialId": "library"
+      }
+    },
+    {
+      "id": "ordinary-reading",
+      "title": "普通阅读题（无听力）",
+      "outline": {
+        "level": "question",
+        "label": "3"
+      },
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Read the sentence and choose the missing word: Reading regularly helps us expand our _____."
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "vocabulary"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "temperature"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "distance"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "weight"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-1",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "答案：A。经常阅读有助于扩大词汇量（vocabulary）。本题不使用听力材料。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 2
+      }
+    },
+    {
+      "id": "lecture-change",
+      "title": "英语讲座时间变更",
+      "outline": {
+        "level": "question",
+        "label": "4"
+      },
+      "data": {
+        "formatVersion": 1,
+        "stem": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "听这段通知，回答：英语讲座改到了什么时候？"
+                }
+              ]
+            }
+          ]
+        },
+        "options": [
+          {
+            "id": "choice-1",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "明天下午两点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-2",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周四晚上七点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-3",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周五晚上七点"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "choice-4",
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "本周四下午两点"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "correctOptionId": "choice-2",
+        "answerAndExplanation": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "正确答案：B。原定「明天下午两点」的计划取消了，改为「本周四晚上七点」，地点也从第三教学楼改到图书馆报告厅。"
+                }
+              ]
+            }
+          ]
+        },
+        "maxScore": 5
+      },
+      "listening": {
+        "materialId": "lecture"
+      }
+    }
+  ]
+}

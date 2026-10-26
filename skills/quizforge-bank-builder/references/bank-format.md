@@ -147,3 +147,8 @@ extensions/
 ## 校验边界
 
 按 SKILL.md 运行只读 validator：结构、绑定、Schema、validateQuestion、初始 getScore 和资源检查不代替材料核对、浏览器三态或提交／review 测试。宿主拥有整库分值卡和历史统计，不在题库增造总分字段来代替评分接口。
+
+
+## 宿主听力（可选）
+
+支持宿主听力的Web版本可在题库根配置 `listening.materials` 和 `examMaterialId`，在题卡 `data` 同层配置 `listening:{materialId}`。音频归题库 `media/`，多题可共用材料；考试配置一条整卷音轨。复用原有单选等拓展，不往题型里加播放器、不把音频Base64写入data。正式字段/8MiB单文件限制/示例见 [宿主听力文档](../../../core/docs/reference/LISTENING.md)，真实演示位于 `question-banks/基础题型/听力组件演示`。只配置经核对的题意、答案及评分；Web之外的端须确认已同步能力再交付。

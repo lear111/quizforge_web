@@ -1,0 +1,369 @@
+/*!
+ * QuizForge 听力播放器组件 — audio-player.css
+ * 变量前缀 --qfa-，默认继承题型拓展的 --qt-*（QuizForge 主题），
+ * 单独使用时回退到内置紫色配色。
+ */
+
+.qfa {
+  --qfa-surface: var(--qt-surface, #ffffff);
+  --qfa-soft: var(--qt-soft, #f5f0fb);
+  --qfa-ink: var(--qt-ink, #302c37);
+  --qfa-muted: var(--qt-muted, #66556f);
+  --qfa-line: var(--qt-line, #d9cfe4);
+  --qfa-accent: var(--qt-accent, #7751a3);
+  --qfa-accent-hover: var(--qt-accent-hover, #65418e);
+  --qfa-focus: var(--qt-focus, #7956a4);
+  --qfa-rail: color-mix(in srgb, var(--qfa-line) 88%, var(--qfa-surface));
+  --qfa-buffer: color-mix(in srgb, var(--qfa-line) 55%, var(--qfa-surface));
+  --qfa-radius: 12px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--qfa-line);
+  border-radius: var(--qfa-radius);
+  background: var(--qfa-soft);
+  color: var(--qfa-ink);
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 首帧跟随宿主外观（API 1.4） */
+html[data-qf-theme] .qfa {
+  background: var(--qfa-soft);
+  background: color-mix(in srgb, var(--qfa-soft) calc(100% - clamp(0, var(--qf-transparency, 0), 0.7) * 100%), transparent);
+}
+
+.qfa *,
+.qfa *::before,
+.qfa *::after { box-sizing: border-box; }
+
+.qfa [hidden] { display: none !important; }
+
+/* ---------- 标题行 ---------- */
+
+.qfa-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+.qfa-badge {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--qfa-surface);
+  color: var(--qfa-accent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.qfa-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--qfa-ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 控制区 ---------- */
+
+.qfa-transport {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(90px, 1fr) auto;
+  grid-template-areas: "toggle back forward track time";
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.qfa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--qfa-ink);
+  cursor: pointer;
+  font: inherit;
+  transition: background-color .12s, color .12s, border-color .12s;
+}
+
+.qfa-btn:focus-visible {
+  outline: 2px solid var(--qfa-focus);
+  outline-offset: 2px;
+}
+
+.qfa-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.qfa-toggle {
+  grid-area: toggle;
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border-color: transparent;
+  background: var(--qfa-accent);
+  color: #fff;
+}
+
+.qfa-toggle:hover { background: var(--qfa-accent-hover); }
+
+.qfa-toggle .qfa-icon { display: none; }
+.qfa-toggle .qfa-icon:first-child { display: block; }
+.qfa[data-qfa-playing="true"] .qfa-toggle .qfa-icon:first-child { display: none; }
+.qfa[data-qfa-playing="true"] .qfa-toggle .qfa-icon:last-child { display: block; }
+
+.qfa-skip {
+  width: 38px;
+  height: 38px;
+  padding: 4px;
+  border-color: var(--qfa-line);
+  background: var(--qfa-surface);
+  color: var(--qfa-ink);
+}
+
+.qfa-skip:hover { border-color: var(--qfa-focus); color: var(--qfa-accent); }
+.qfa-skip:active { background: var(--qfa-soft); }
+
+.qfa-back { grid-area: back; }
+.qfa-forward { grid-area: forward; }
+
+.qfa-skip:disabled,
+.qfa-toggle:disabled {
+  border-color: var(--qfa-line);
+  background: var(--qfa-surface);
+  color: var(--qfa-muted);
+  cursor: default;
+  opacity: .55;
+}
+
+/* ---------- 进度条 ---------- */
+
+.qfa-track {
+  position: relative;
+  grid-area: track;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.qfa-track:focus-visible {
+  outline: 2px solid var(--qfa-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.qfa-rail {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--qfa-rail);
+}
+
+.qfa-buffer,
+.qfa-played {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: inherit;
+  width: 0;
+}
+
+.qfa-buffer { background: var(--qfa-buffer); }
+
+.qfa-played {
+  background: var(--qfa-accent);
+  transition: none;
+}
+
+.qfa-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border: 2px solid var(--qfa-surface);
+  border-radius: 50%;
+  background: var(--qfa-accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity .12s, transform .12s;
+  pointer-events: none;
+}
+
+/* Only uninterrupted playback interpolates, with matching timing for fill and dot.
+   Pointer/keyboard/API seeks update both immediately, even during playback. */
+.qfa[data-qfa-smooth="true"] .qfa-played { transition: width .08s linear; }
+.qfa[data-qfa-smooth="true"] .qfa-thumb { transition: opacity .12s, transform .12s, left .08s linear; }
+
+.qfa-track:hover .qfa-thumb,
+.qfa-track:focus-visible .qfa-thumb,
+.qfa[data-qfa-dragging="true"] .qfa-thumb { opacity: 1; }
+
+.qfa[data-qfa-dragging="true"] .qfa-thumb { transform: translateY(-50%) scale(1.15); }
+
+.qfa[data-qfa-dragging="true"] .qfa-track { cursor: grabbing; }
+
+/* ---------- 时间 ---------- */
+
+.qfa-time {
+  grid-area: time;
+  flex: none;
+  color: var(--qfa-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+
+.qfa-time-now { color: var(--qfa-ink); }
+
+/* ---------- 倍速 ---------- */
+
+.qfa-speed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.qfa-speed-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 2px;
+  color: var(--qfa-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.qfa-speed-field {
+  position: relative;
+  display: inline-flex;
+}
+
+.qfa-speed-field::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-25%);
+  border: 4px solid transparent;
+  border-top-color: var(--qfa-ink);
+  border-bottom: 0;
+  pointer-events: none;
+}
+
+.qfa-speed-select {
+  appearance: none;
+  min-width: 90px;
+  margin: 0;
+  padding: 5px 32px 5px 12px;
+  border: 1px solid var(--qfa-line);
+  border-radius: 999px;
+  background: var(--qfa-surface);
+  color: var(--qfa-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  transition: background-color .12s, border-color .12s, color .12s;
+}
+
+.qfa-speed-select:hover { border-color: var(--qfa-focus); }
+
+.qfa-speed-select:focus-visible {
+  outline: 2px solid var(--qfa-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- 状态 ---------- */
+
+.qfa[data-qfa-buffering="true"] .qfa-played {
+  background: linear-gradient(90deg, var(--qfa-accent) 0%, color-mix(in srgb, var(--qfa-accent) 45%, var(--qfa-surface)) 50%, var(--qfa-accent) 100%);
+  background-size: 200% 100%;
+  animation: qfa-shimmer 1.1s linear infinite;
+}
+
+@keyframes qfa-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.qfa[data-qfa-state="error"] .qfa-rail { background: color-mix(in srgb, #c05555 30%, var(--qfa-surface)); }
+
+.qfa-error {
+  margin: 10px 0 0;
+  color: #a84444;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- 窄屏 ---------- */
+
+@media (max-width: 560px) {
+  .qfa { padding: 12px 13px 10px; }
+
+  .qfa-transport {
+    grid-template-columns: auto auto auto 1fr;
+    grid-template-areas:
+      "toggle back forward time"
+      "track track track track";
+    gap: 8px 10px;
+  }
+
+  .qfa-track { height: 30px; }
+  .qfa-time { justify-self: end; font-size: 12px; }
+  .qfa-toggle { width: 42px; height: 42px; padding: 10px; }
+  .qfa-skip { width: 36px; height: 36px; padding: 4px; }
+  .qfa-speed { gap: 5px; }
+  .qfa-speed-select { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qfa * { transition: none !important; animation: none !important; }
+}
+
+/* ---------- 单独使用时的深色回退 ---------- */
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-qf-theme]) .qfa {
+    --qfa-surface: #241f2c;
+    --qfa-soft: #1c1822;
+    --qfa-ink: #efe9f6;
+    --qfa-muted: #b3a7c0;
+    --qfa-line: #3d3547;
+    --qfa-accent: #a681cf;
+    --qfa-accent-hover: #b795da;
+    --qfa-focus: #b795da;
+    --qfa-rail: #352e40;
+    --qfa-buffer: #2b2533;
+  }
+
+}
