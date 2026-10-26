@@ -303,7 +303,7 @@ iframe 不允许外网 fetch、脚本/CDN、外部图片、表单提交或访问
 
 用户在设置 → 外观里选的主题和“面板透明度”会告诉题型页面，让题卡可以跟着变成半透明。宿主**不会**替拓展改题卡样式；不读取这些信息的拓展外观不变。
 
-- 读取：`QF.ui.appearance` 返回冻结对象 `{theme, transparency}`。`theme` 为 `default`、`mist`、`paper`、`sepia`、`green`、`image` 之一（以后可能增加，未知值按默认处理）；`transparency` 为 0–0.7 的数字，表示宿主面板透出背景的程度。
+- 读取：`QF.ui.appearance` 返回冻结对象 `{theme, transparency}`。`theme` 为 `default`、`mist`、`paper`、`sepia`、`green`、`coast`（青屿）、`image` 之一（以后可能增加，未知值按默认处理）；`transparency` 为 0–0.7 的数字，表示宿主面板透出背景的程度。
 - 订阅：`QF.ui.onAppearanceChange(value => …)` 在值变化时调用，参数与 `QF.ui.appearance` 相同，返回取消订阅函数。回调抛错会作为页面错误上报，不影响其他回调。
 - CSS：宿主同时在 iframe 的 `<html>` 上设置 `data-qf-theme` 和 `--qf-transparency`，首帧即可用，变化时同步更新。纯 CSS 写法示例：
 

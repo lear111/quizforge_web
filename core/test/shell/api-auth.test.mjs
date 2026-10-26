@@ -33,6 +33,17 @@ test('login exchanges a password without storing it; later requests use only the
   assert.equal(f.calls[0].options.headers['X-QuizForge-Token'],undefined);
 });
 
+test('callers can cancel a read without turning it into a timeout or cancelling the next read',async()=>{
+  let active;
+  const f=fixture(null,{fetch:async(_path,{signal})=>{active=signal;return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true}));}});
+  const controller=new AbortController(),pending=f.request('/api/settings/admin-contact',{signal:controller.signal});controller.abort();
+  await assert.rejects(pending,{name:'AbortError',code:'REQUEST_CANCELLED'});assert.equal(active.aborted,true);
+  await assert.rejects(f.request('/api/settings/admin-contact',{signal:controller.signal}),{code:'REQUEST_CANCELLED'});
+  const success=fixture({ok:true,json:async()=>({ok:true})}),finished=new AbortController();
+  assert.equal((await success.request('/api/health',{signal:finished.signal})).ok,true);finished.abort();
+  assert.equal(success.calls[0].options.signal.aborted,false,'The listener is detached after completion');
+});
+
 test('all requests share a fresh page-only practice session without persisting or accepting an override',async()=>{
   const response={ok:true,json:async()=>({ok:true}),blob:async()=>({size:5,type:'image/png'})},first=fixture(response),second=fixture(response);
   await first.request('/api/catalog');await first.request('/api/collections/bank/demo/summary',{headers:{'X-QuizForge-Practice-Session':'override'}});await first.readResource('a'.repeat(64));await second.request('/api/catalog');
