@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1200" viewBox="0 0 1920 1200">
+  <title>青屿</title>
+  <desc>暖白天空下的青绿色海湾、远山与柔和沙岸。</desc>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#dceae5"/><stop offset=".58" stop-color="#f7efdb"/><stop offset="1" stop-color="#eee6cd"/>
+    </linearGradient>
+    <radialGradient id="light">
+      <stop stop-color="#fff9dd" stop-opacity=".85"/><stop offset="1" stop-color="#fff9dd" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sea" x2=".15" y2="1">
+      <stop stop-color="#a4c8bf"/><stop offset=".58" stop-color="#72aaa1"/><stop offset="1" stop-color="#3e7e76"/>
+    </linearGradient>
+    <linearGradient id="sand" x2=".4" y2="1">
+      <stop stop-color="#f5edce"/><stop offset="1" stop-color="#d9d3ad"/>
+    </linearGradient>
+    <linearGradient id="grove" x2=".4" y2="1">
+      <stop stop-color="#769a7e"/><stop offset="1" stop-color="#356555"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1920v1200H0z"/>
+  <ellipse cx="1450" cy="295" rx="590" ry="420" fill="url(#light)"/>
+  <circle cx="1450" cy="292" r="76" fill="#fff8da" opacity=".85"/>
+  <g fill="#fffdf0" opacity=".4">
+    <path d="M140 265c105-35 250-34 373 0-147 14-271 13-373 0Z"/>
+    <path d="M1040 405c111-21 250-20 353 0-124 11-241 12-353 0Z"/>
+  </g>
+  <path fill="#b7cbb9" d="M0 612c111-43 180-99 273-92 85 6 147 68 227 64 101-6 170-101 278-102 97 0 160 72 258 82 103 11 178-32 263-16 97 18 158 72 252 65 140-10 239-80 369-51v221H0Z"/>
+  <path fill="#8eafa0" d="M0 685c104-4 195-76 307-68 113 9 179 88 301 76 119-12 191-70 315-51 129 20 206 76 326 46 129-32 227-61 355-11 105 41 214 25 316 3v520H0Z"/>
+  <path fill="url(#sea)" d="M0 738c353-20 583-3 883-6 341-3 691-25 1037-5v473H0Z"/>
+  <path fill="#668e79" d="M0 747c90-25 190-68 277-51 75 14 131 51 200 67-196 18-345 23-477 16Z"/>
+  <path fill="#d8e6cd" opacity=".65" d="M1151 791c114-14 223-15 335-8-116 14-228 19-335 8Z"/>
+  <g fill="none" stroke="#edf4e4" stroke-linecap="round" opacity=".43">
+    <path stroke-width="3" d="M960 851h210m70-32h220m-679 91h168m268 26h240m-455 72h170m-547-139h89m838 80h169"/>
+    <path stroke-width="2" d="M521 825h173m-345 64h110m-101 98h200m527 69h230m260-159h123"/>
+  </g>
+  <path fill="url(#sand)" d="M0 867c137-15 286-22 362 15 105 51 71 123 223 148 176 29 298-30 436-14 205 24 257 131 534 103 132-14 246-6 365 23v58H0Z"/>
+  <path fill="none" stroke="#f7f6df" stroke-width="10" opacity=".65" d="M0 857c137-15 286-22 362 15 105 51 71 123 223 148 176 29 298-30 436-14 205 24 257 131 534 103 132-14 246-6 365 23"/>
+  <path fill="url(#grove)" d="M0 976c91-45 207-38 286 13 71 45 130 91 264 103 75 7 127 39 162 108H0Z"/>
+  <path fill="#87a187" d="M0 1071c110-18 213-17 316 25 66 26 150 49 215 47-103 40-272 58-531 57Z"/>
+  <path fill="#547d64" d="M1455 1200c66-48 129-66 205-61 97 6 157-50 260-36v97Z"/>
+  <g fill="none" stroke="#607c6e" stroke-width="3" stroke-linecap="round" opacity=".65">
+    <path d="M489 369q13-10 26 0 13-10 26 0"/>
+    <path d="M568 399q9-8 18 0 9-8 18 0"/>
+  </g>
+</svg>

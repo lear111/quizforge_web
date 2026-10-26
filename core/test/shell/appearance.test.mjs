@@ -77,13 +77,33 @@ test('arrow keys move the theme selection and the mask slider updates live',t=>{
   assert.equal(f.root.dataset.qfTheme,'image');
   const list=f.get('appearance-themes'),key=k=>list.dispatchEvent(new f.dom.window.KeyboardEvent('keydown',{key:k,bubbles:true,cancelable:true}));
   key('ArrowRight');assert.equal(f.root.hasAttribute('data-qf-theme'),false,'Selection wraps from the last theme to the default look');assert.equal(f.saved().theme,'default');
-  key('ArrowLeft');key('ArrowLeft');assert.equal(f.root.dataset.qfTheme,'green');
-  assert.equal(f.document.querySelector('.appearance-theme[data-theme="green"]').tabIndex,0);
+  key('ArrowLeft');key('ArrowLeft');assert.equal(f.root.dataset.qfTheme,'coast');
+  assert.equal(f.document.querySelector('.appearance-theme[data-theme="coast"]').tabIndex,0);
   f.document.querySelector('.appearance-theme[data-theme="image"]').click();
   assert.equal(f.get('appearance-image').hidden,false);
   const dim=f.get('appearance-dim');dim.value='55';dim.dispatchEvent(new f.dom.window.Event('input'));
   assert.equal(f.root.style.getPropertyValue('--qf-dim'),'0.55');assert.equal(f.get('appearance-dim-value').textContent,'55%');assert.equal(f.saved().dim,55);
   assert.equal(f.get('appearance-image-choose').disabled,true,'Without a browser image store the picker is disabled');
+});
+
+test('the coastal preset keeps a saved custom picture and its own panel preference',async t=>{
+  const blob=new Blob(['custom picture'],{type:'image/jpeg'}),removed=[];
+  const f=fixture(t,{saved:{theme:'image',dim:45,clear:{image:55,coast:40},custom:true},images:{get:async()=>blob,remove:async()=>removed.push(true)}});
+  await f.view.ready;
+  const customUrl=f.root.style.getPropertyValue('--qf-image');
+  f.document.querySelector('.appearance-theme[data-theme="coast"]').click();
+  assert.equal(f.root.dataset.qfTheme,'coast');
+  assert.equal(f.get('appearance-image').hidden,false,'Built-in illustrations support the mask slider');
+  assert.equal(f.get('appearance-image-actions').hidden,true,'Choosing a preset never offers to remove the custom picture');
+  assert.equal(f.get('appearance-dim').value,'45');assert.equal(f.get('appearance-clear').value,'40');
+  const clear=f.get('appearance-clear');clear.value='50';clear.dispatchEvent(new f.dom.window.Event('input'));
+  assert.equal(f.saved().clear.coast,50);assert.equal(f.saved().clear.image,55);assert.equal(f.saved().custom,true);
+  const reopened=fixture(t,{saved:f.saved(),images:{get:async()=>blob}});await reopened.view.ready;
+  assert.equal(reopened.root.dataset.qfTheme,'coast');assert.equal(reopened.get('appearance-clear').value,'50');
+  f.document.querySelector('.appearance-theme[data-theme="image"]').click();
+  assert.equal(f.get('appearance-image-actions').hidden,false);assert.equal(f.get('appearance-image-reset').hidden,false);
+  assert.equal(f.root.style.getPropertyValue('--qf-image'),customUrl);assert.equal(f.get('appearance-clear').value,'55');
+  assert.deepEqual(removed,[]);
 });
 
 test('a saved custom picture is restored, and a missing one falls back to the default picture',async t=>{

@@ -1,0 +1,12 @@
+.user-center-help{padding-top:12px;border-top:1px solid var(--line)}
+.user-center-help button{padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--accent);font-size:13px;min-height:38px}
+.admin-contact-dialog{width:min(480px,calc(100vw - 32px));padding:24px;max-height:calc(100dvh - 32px);overflow:auto;color:#40364f}
+.admin-contact-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.admin-contact-heading h2{margin:0;font-size:18px}
+.admin-contact-close{width:30px;height:30px;flex:none;border-radius:7px;color:#62596f;font-size:20px}
+.admin-contact-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.9;font-family:inherit;margin:0;color:#40364f;user-select:text}
+.admin-contact-dialog .admin-contact-status{font-size:13px;line-height:1.8;margin:0;color:#756980}
+.admin-contact-dialog .admin-contact-status[role=alert]{color:#a44e4e}
+.admin-contact-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+.admin-contact-dialog .dialog-actions button{padding:8px 14px;border:1px solid var(--line);border-radius:8px;min-height:38px;font-size:13px}
+#admin-contact-done{background:var(--accent);color:#fff;border-color:var(--accent)}

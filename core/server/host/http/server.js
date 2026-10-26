@@ -28,6 +28,7 @@ import { LanCertificates, hostNames, permittedAddress } from './lan-certificates
 import qrcode from 'qrcode-generator';
 import { TailscaleProbe } from './tailscale.js';
 import { HubConnection } from '../ai/hub-connection.js';
+import { readAdminContact } from './admin-contact.js';
 import { hostKey, sameHost, url as addressUrl, privateAddress, ipv6Bytes, sameIpv6Subnet, interfaceAddresses, ipv6Available,displayAdapterMetadata,recommendedAddresses } from './network-addresses.js';
 
 const loopback = host => hostKey(host) === hostKey('::1') || hostKey(host)?.startsWith('127.');
@@ -64,7 +65,7 @@ const listen = (server, port, host) => new Promise((resolve, reject) => {
 const closeServer = (server, graceful = false) => new Promise(resolve => { if (!server?.listening) return resolve(); server.close(() => resolve()); if (!graceful) server.closeAllConnections(); });
 
 export class QuizForgeServer {
-  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe(), hub = {} } = {}) {
+  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe(), hub = {}, adminContact = {} } = {}) {
     if (token !== null && !/^[A-Za-z0-9._~-]{16,256}$/.test(token)) throw new Error('Token must contain 16..256 URL-safe characters');
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port');
     const layout = resolveLayout(root), service = new QuizForgeServer();
@@ -80,6 +81,7 @@ export class QuizForgeServer {
       service.library = new Library(service.root, service.codeRoot, service.engine, service.developmentSettings);
       service.states = new StateStore(service.root, service.engine); service.resources = new ResourceStore(service.root, { fallback: new ResourceStore(path.join(service.root, '.development')) }); service.editorDrafts = new EditorDraftStore(service.root);
       service.aiSettings = new AiSettings(service.root); service.hub = new HubConnection(service.root, hub); service.aiSettings.attachHub(service.hub); service.aiGateway = new OpenAiCompatibleProvider(service.aiSettings, service.resources);
+      service.readAdminContact = signal => readAdminContact({ ...adminContact, signal });
       service.ai = new AiGradingService(service.root, service.states, service.library, service.aiGateway);
       service.writes = { read: context => service.writeRequest(context), validateOrigin: context => service.validateOrigin(context) };
       service.automaticAi = () => service.aiSettings.profile.enabled && service.aiSettings.profile.autoGrade;
@@ -296,6 +298,18 @@ export class QuizForgeServer {
       if (pathname.endsWith('/credential') && method === 'GET') return this.aiSettings.credential();
       if (pathname === '/api/settings/ai' && method === 'PUT') return { ...await this.aiSettings.update(await this.writeRequest(context)), canManage: true };
       if (pathname.endsWith('/test') && method === 'POST') { await this.writeRequest(context); return this.aiGateway.testConnection(); }
+    }
+    // Public contact keeps user-center access restrictions, without a Hub login.
+    if (pathname === '/api/settings/admin-contact') {
+      this.requireLocal(context);
+      if (method !== 'GET') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Only GET is supported');
+      if (context.url.search) throw bad('This endpoint accepts no query parameters');
+      if (context.request.headers['transfer-encoding'] || Number(context.request.headers['content-length'] || 0) > 0) throw bad('This endpoint accepts no request body');
+      const controller = new AbortController(), cancel = () => controller.abort();
+      context.request.once('aborted', cancel); context.response.once('close', cancel);
+      if (context.request.aborted || context.response.destroyed) cancel();
+      try { return await this.readAdminContact(controller.signal); }
+      finally { context.request.off('aborted', cancel); context.response.off('close', cancel); }
     }
     // Hub account connection for the free AI quota; only the host computer may log in, out or redeem.
     if (pathname.startsWith('/api/settings/ai/hub')) {

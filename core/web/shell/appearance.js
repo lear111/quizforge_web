@@ -6,12 +6,13 @@ export const THEMES=Object.freeze([
   {id:'paper',label:'纸张'},
   {id:'sepia',label:'护眼米黄'},
   {id:'green',label:'护眼豆绿'},
+  {id:'coast',label:'青屿'},
   {id:'image',label:'图片'},
 ]);
 export const DEFAULT_DIM=30;
 // How much the library, outline and bars let the background through, per theme.
 // Each theme has its own default; saved user choices take precedence.
-export const DEFAULT_CLEAR=Object.freeze({mist:40,paper:0,sepia:0,green:0,image:65});
+export const DEFAULT_CLEAR=Object.freeze({mist:40,paper:0,sepia:0,green:0,coast:65,image:65});
 const STORAGE_KEY='quizforge-appearance',MAX_DIM=80,MAX_CLEAR=70,MAX_INPUT_BYTES=30*1024*1024;
 const validStep=(value,max)=>Number.isInteger(value)&&value>=0&&value<=max&&value%5===0;
 
@@ -82,6 +83,7 @@ export function bindAppearanceSettings({document=globalThis.document,storage=glo
   const get=id=>document.getElementById(`appearance-${id}`),root=document.documentElement;
   const dialog=document.getElementById('network-settings-dialog'),tab=document.getElementById('settings-appearance-tab');
   const panel=document.getElementById('appearance-settings-panel'),list=get('themes'),imageBox=get('image'),choose=get('image-choose'),reset=get('image-reset'),file=get('image-file');
+  const imageActions=get('image-actions'),imageHint=get('image-hint');
   const dim=get('dim'),dimValue=get('dim-value'),panels=get('panels'),clear=get('clear'),clearValue=get('clear-value'),error=get('error'),close=get('close');
   const listeners=[],buttons=new Map();
   const listen=(node,event,handler)=>{if(!node)return;node.addEventListener(event,handler);listeners.push(()=>node.removeEventListener(event,handler));};
@@ -93,7 +95,9 @@ export function bindAppearanceSettings({document=globalThis.document,storage=glo
   function setImageUrl(blob){if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=blob?URL.createObjectURL(blob):null;}
   function render(){
     for(const [id,button] of buttons){const selected=id===value.theme;button.setAttribute('aria-checked',String(selected));button.tabIndex=selected?0:-1;}
-    if(imageBox)imageBox.hidden=value.theme!=='image';
+    if(imageBox)imageBox.hidden=!['image','coast'].includes(value.theme);
+    if(imageActions)imageActions.hidden=value.theme!=='image';
+    if(imageHint)imageHint.textContent=value.theme==='coast'?'内置青屿插画。遮罩越高，背景越柔和。':'图片只保存在这台设备的浏览器中，不会上传。遮罩越高，文字越清楚。';
     if(dim){dim.value=String(value.dim);dimValue.textContent=`${value.dim}%`;}
     const themeClear=value.clear[value.theme];
     if(panels)panels.hidden=themeClear===undefined;

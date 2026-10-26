@@ -33,6 +33,9 @@ test('the host reads its theme and panel transparency, with none for the default
   assert.deepEqual(readHostAppearance(root),{theme:'default',transparency:0});
   root.dataset.qfTheme='image';root.style.setProperty('--qf-clear','0.45');
   assert.deepEqual(readHostAppearance(root),{theme:'image',transparency:0.45});
+  root.dataset.qfTheme='coast';
+  assert.deepEqual(readHostAppearance(root),{theme:'coast',transparency:0.45});
+  root.dataset.qfTheme='image';
   root.style.removeProperty('--qf-clear');
   assert.deepEqual(readHostAppearance(root),{theme:'image',transparency:0});
   delete root.dataset.qfTheme;root.style.setProperty('--qf-clear','0.45');

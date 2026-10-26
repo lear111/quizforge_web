@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/practice/practice-summary.css">
   <link rel="stylesheet" href="/shell/network-settings.css">
   <link rel="stylesheet" href="/ai/ai-settings.css">
+  <link rel="stylesheet" href="/shell/admin-contact.css">
   <link rel="stylesheet" href="/development/development.css">
   <link rel="stylesheet" href="/library/library-management.css">
   <link rel="stylesheet" href="/exam/exam-mode.css">
@@ -298,6 +299,7 @@
         <button id="user-center-login" type="button">登录 QuizForge 账号</button>
       </div>
       <p id="user-center-error" class="network-settings-error" role="alert" hidden></p>
+      <div class="user-center-help"><button id="user-center-contact" type="button" hidden>联系管理员</button></div>
       <div class="dialog-actions"><button id="user-center-close" type="button">关闭</button></div>
     </section>
     <section id="development-settings-panel" hidden>
@@ -313,12 +315,12 @@
     <section id="appearance-settings-panel" class="appearance-settings" hidden>
       <div id="appearance-themes" class="appearance-themes" role="radiogroup" aria-label="主题"></div>
       <div id="appearance-image" class="appearance-image" hidden>
-        <div class="appearance-image-actions"><button id="appearance-image-choose" type="button">选择图片</button><button
+        <div id="appearance-image-actions" class="appearance-image-actions"><button id="appearance-image-choose" type="button">选择图片</button><button
             id="appearance-image-reset" type="button" hidden>恢复默认图片</button></div>
         <input id="appearance-image-file" type="file" accept="image/*" hidden>
         <label class="appearance-dim">遮罩<input id="appearance-dim" type="range" min="0" max="80" step="5"
             aria-label="背景遮罩强度"><output id="appearance-dim-value" for="appearance-dim"></output></label>
-        <small class="network-settings-hint">图片只保存在这台设备的浏览器中，不会上传。遮罩越高，文字越清楚。</small>
+        <small id="appearance-image-hint" class="network-settings-hint">图片只保存在这台设备的浏览器中，不会上传。遮罩越高，文字越清楚。</small>
       </div>
       <div id="appearance-panels" class="appearance-panels" hidden>
         <label class="appearance-dim">面板透明度<input id="appearance-clear" type="range" min="0" max="70" step="5"
@@ -329,6 +331,12 @@
       <p id="appearance-error" class="network-settings-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="appearance-close" type="button">关闭</button></div>
     </section>
+  </dialog>
+  <dialog id="admin-contact-dialog" class="admin-contact-dialog" aria-labelledby="admin-contact-title">
+    <div class="admin-contact-heading"><h2 id="admin-contact-title">联系管理员</h2><button id="admin-contact-close" class="admin-contact-close" type="button" aria-label="关闭联系管理员">×</button></div>
+    <p id="admin-contact-status" class="admin-contact-status" role="status"></p>
+    <div id="admin-contact-content" class="admin-contact-content" hidden></div>
+    <div class="dialog-actions"><button id="admin-contact-retry" type="button" hidden>重新读取</button><button id="admin-contact-done" type="button">关闭</button></div>
   </dialog>
   <dialog id="hub-login-dialog" class="hub-login-dialog" aria-labelledby="hub-login-title">
     <h2 id="hub-login-title">登录 QuizForge 账号</h2>
