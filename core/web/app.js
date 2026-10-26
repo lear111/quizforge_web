@@ -709,7 +709,7 @@ function toggleSidebar(key){
   else{sidebarPreferences[key]=!sidebarPreferences[key];try{localStorage.setItem('quizforge-sidebars',JSON.stringify(sidebarPreferences));}catch{}}
   syncSidebars();
 }
-async function refreshCatalog(){
+async function refreshCatalog({openFallback=true}={}){
   const button=$('#refresh');button.classList.add('is-loading');
   try{
     const [value,settings]=await Promise.all([libraryIndexClient().refresh(),request('/api/settings/development')]);
@@ -717,7 +717,7 @@ async function refreshCatalog(){
     const returnToBanks=listMode==='extension'||catalog.developmentEnabled&&!active()||['extension','development','development-bank'].includes(active()?.kind);
     catalog.banks=value.banks;catalog.extensions=value.extensions;catalog.groups=value.groups||{banks:[],extensions:[]};catalog.canManage=value.canManage===true;catalog.developmentEnabled=(value.developmentEnabled??settings.enabled)===true;renderLibrary();
     if(!catalog.developmentEnabled&&returnToBanks){
-      const previous=[...collections.values()].filter(pane=>pane.kind==='bank'&&catalog.banks.some(row=>row.id===pane.id&&!row.error)).at(-1),first=catalog.banks.find(row=>!row.error);
+      const previous=[...collections.values()].filter(pane=>pane.kind==='bank'&&catalog.banks.some(row=>row.id===pane.id&&!row.error)).at(-1),first=openFallback?catalog.banks.find(row=>!row.error):null;
       if(previous||first)await openCollection(previous?.kind||first.kind||'bank',previous?.id||first.id);
       else{await suspendPane(active());activate(null);}
     }
@@ -843,5 +843,5 @@ $('#access-form').addEventListener('submit',async event=>{
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),pendingWrites)){event.preventDefault();event.returnValue='';}});
 window.addEventListener('pagehide',()=>refreshCatalog.client?.stop());
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
-async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
+async function start(){await refreshCatalog({openFallback:false});const imported=takeImportedBank(catalog);if(imported)await transitionTo(()=>openCollection(imported.kind||'bank',imported.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);
