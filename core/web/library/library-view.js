@@ -3,6 +3,8 @@ import {extensionGroups} from './extension-groups.js';
 const nameOrder=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'});
 const compareItems=(left,right)=>nameOrder.compare(left.title||left.name||'',right.title||right.name||'')
   ||nameOrder.compare(left.path||left.id||'',right.path||right.id||'');
+// Discover groups once per page session; polling must preserve manual expansion.
+const seenBankGroups=new WeakMap();
 
 export function renderLibraryView({document,catalog,listMode,activeKey,collapsedGroups,onNotice,onOpen,onManage}){
   const $=selector=>document.querySelector(selector);
@@ -29,7 +31,13 @@ export function renderLibraryView({document,catalog,listMode,activeKey,collapsed
     if(group.kind!=='group'){appendItem(container,group.row);continue;}
     const section=el('section','extension-group'),toggle=el('button','extension-group-toggle'),arrow=el('span','extension-group-arrow'),body=el('div','extension-group-body');
     toggle.type='button';toggle.dataset.extensionGroup=group.path;body.id=`extension-group-${encodeURIComponent(group.path)}`;toggle.setAttribute('aria-controls',body.id);arrow.setAttribute('aria-hidden','true');toggle.append(arrow,el('span','extension-group-label',group.name));
-    const collapseKey=`${listMode}:${group.path}`,sync=()=>{const expanded=!collapsedGroups.has(collapseKey);body.hidden=!expanded;arrow.textContent=expanded?'▾':'▸';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',`${expanded?'折叠':'展开'} ${group.path}`);};
+    const collapseKey=`${listMode}:${group.path}`;
+    if(listMode==='bank'){
+      let seen=seenBankGroups.get(collapsedGroups);
+      if(!seen){seen=new Set();seenBankGroups.set(collapsedGroups,seen);}
+      if(!seen.has(collapseKey)){seen.add(collapseKey);collapsedGroups.add(collapseKey);}
+    }
+    const sync=()=>{const expanded=!collapsedGroups.has(collapseKey);body.hidden=!expanded;arrow.textContent=expanded?'▾':'▸';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',`${expanded?'折叠':'展开'} ${group.path}`);};
     toggle.addEventListener('click',()=>{if(collapsedGroups.has(collapseKey))collapsedGroups.delete(collapseKey);else collapsedGroups.add(collapseKey);sync();});sync();appendGroups(body,group.children);const header=el('div','library-group-header');header.append(toggle,actions('group',{name:group.name,path:group.path,group:group.path.includes('/')?group.path.slice(0,group.path.lastIndexOf('/')):''}));section.append(header,body);container.append(section);
   }};
   const groups=extensionGroups(rows,catalog.groups?.[listMode==='bank'?'banks':'extensions']||[]);
