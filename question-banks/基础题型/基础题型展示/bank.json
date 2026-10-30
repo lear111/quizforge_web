@@ -196,7 +196,7 @@
             {
               "type": "image",
               "attrs": {
-                "assetId": "96fbe7bbe9e76622b6236d0d0fbfddb92f022249ac38bdbbd908efd3bf3791a8",
+                "assetId": "97c5b39b51b8d7f75c85e010672604060eb3c820c5d17e6bd87a68d5c6601afe",
                 "alt": "直角三角形，两条直角边分别长3厘米和4厘米，斜边长度未知",
                 "width": 360,
                 "align": "left"
@@ -1072,7 +1072,7 @@
                 {
                   "type": "image",
                   "attrs": {
-                    "assetId": "96fbe7bbe9e76622b6236d0d0fbfddb92f022249ac38bdbbd908efd3bf3791a8",
+                    "assetId": "97c5b39b51b8d7f75c85e010672604060eb3c820c5d17e6bd87a68d5c6601afe",
                     "alt": "直角三角形，两条直角边分别为3厘米和4厘米",
                     "width": 360,
                     "align": "left"

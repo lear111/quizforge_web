@@ -1,6 +1,6 @@
 {
   "id": "quizforge.short-answer-area",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "name": "简答题（答题区）",
   "description": "沿用基础简答题的富文本题干、共享材料与答案解析，使用宿主答题区完成文字、手写与图片作答。",
   "requiresApi": {

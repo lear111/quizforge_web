@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {historyProgress} from '../../web/history/history-view.js';
 import {collectionFeature} from '../../web/practice/practice-context.js';
+import {checkEditorExit} from '../../web/editor/editor-navigation.js';
 
 const source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 const start=source.indexOf('const historyPath=');
@@ -46,7 +47,7 @@ function fixture({requestImpl=async()=>({}),returnError=null,records=2,view='pra
     $:selector=>document.querySelector(selector),collectionPath:(kind,id)=>`/api/collections/${kind}/${id}`,
     request:async(path,options)=>{requests.push({path,options});return requestImpl(path,options);},
     transitionTo:fn=>{const operation=Promise.resolve().then(fn);transitions.push(operation);operation.catch(()=>{});return operation;},
-    showHistory:async(_pane,id)=>opened.push(id),flushPane:async()=>{},
+    showHistory:async(_pane,id)=>opened.push(id),flushPane:async()=>{},allowDiscardEditor:checkEditorExit,
     returnToPractice:async()=>{if(returnError)throw returnError;pane.view='practice';},
     renderOutline(){},updateChrome(){},saveStatus:value=>status.push(value),
   };

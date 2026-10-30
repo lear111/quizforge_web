@@ -47,6 +47,17 @@ async function stop() {
   }
 }
 async function install(log) { await run(artifact, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOCLOSEAPPLICATIONS', '/NORESTARTAPPLICATIONS', '/DIR=' + app, '/LOG=' + path.join(work, log)], { windowsHide: true, timeout: 120000 }); installed = true; }
+async function uninstall(log) {
+  const logFile = path.join(work, log);
+  await run(path.join(app, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/LOG=' + logFile], { windowsHide: true, timeout: 60000 });
+  // Inno's first phase can exit before its temporary child finishes registry cleanup.
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(logFile) && /Uninstallation process succeeded\./.test(fs.readFileSync(logFile, 'utf8'))) { installed = false; return; }
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  throw new Error('Isolated uninstallation did not finish; see ' + logFile);
+}
 try {
   await run(options.compiler, [`/DPayloadRoot=${payload}`, `/DOutputPath=${work}`, '/DAppVersion=0.1.0-test', '/DCompressionMethod=zip', `/DAppId=${appId}`, `/DAppName=${name}`, `/DQBankExtension=${associationExtension}`, `/DHubScheme=${hubScheme}`, path.join(product, 'core/desktop/installer/QuizForge.iss')], { windowsHide: true, timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
   const protectedDirectory = path.join(work, 'existing-files'); fs.mkdirSync(protectedDirectory); fs.writeFileSync(path.join(protectedDirectory, 'keep.txt'), 'preserve');
@@ -62,7 +73,17 @@ try {
   check('Per-user Hub URI registration quotes the installed path and full URI; the real quizforge scheme is untouched');
   const layout = await command('--layout'); assert.equal(layout.dataRoot, data); assert.equal(layout.installed, true); assert.equal(fs.existsSync(data), false);
   const ready = await start(), api = async (route, body, method = 'POST') => { const response = await fetch(ready.url + route, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); const value = await response.json(); assert.equal(response.status, 200, JSON.stringify(value)); return value; };
-  const index = await api('api/library/index'); assert.equal(index.banks.length, 1); assert.equal(index.extensions.length, 4);
+  const index = await api('api/library/index'); assert.equal(index.banks.length, 1); assert.equal(index.extensions.length, 5);
+  const defaults = await api('api/collections/bank/' + index.banks[0].id);
+  assert.equal(defaults.questions.length, 11);
+  for (const question of defaults.questions) assert.equal((await fetch(ready.url + 'api/collections/bank/' + index.banks[0].id + '/questions/' + question.id)).status, 200);
+  const sample = JSON.parse(fs.readFileSync(path.join(data, 'question-banks/基础题型/基础题型展示/bank.json'))), images = new Set();
+  const visit = value => { if (!value || typeof value !== 'object') return; if (value.type === 'image' && /^[a-f0-9]{64}$/.test(value.attrs?.assetId)) images.add(value.attrs.assetId); for (const item of Object.values(value)) visit(item); }; visit(sample);
+  assert.ok(images.size > 0);
+  for (const id of images) { const image = await fetch(ready.url + 'api/resources/' + id); assert.equal(image.status, 200); assert.match(image.headers.get('content-type'), /^image\//); assert.ok((await image.arrayBuffer()).byteLength > 0); }
+  assert.equal((await fetch(ready.url + 'assets/backgrounds/coast.svg')).status, 200);
+  assert.equal((await fetch(ready.url + 'api/settings/admin-contact?url=https://example.test')).status, 400);
+  check('All eleven default questions, their images, five extensions, coastal artwork and the contact route are present');
   const archive = await fetch(ready.url + 'api/library/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bank: index.banks[0].path }) }); assert.equal(archive.status, 200);
   const packageFile = path.join(work, "下载 空格' & 题库.qbank"); fs.writeFileSync(packageFile, Buffer.from(await archive.arrayBuffer())); const packageBefore = fs.readFileSync(packageFile);
   const queued = JSON.parse((await run(executable, ['--data-root', data, '--no-browser', '--import', packageFile], { windowsHide: true, timeout: 12000, env: { ...process.env, PATH: '' } })).stdout);
@@ -93,7 +114,7 @@ try {
   assert.deepEqual(await (await fetch(next.url + prefix + '/history/' + historyId)).json(), history);
   check('Reinstallation replaces program files and preserves edited banks, settings, answers and frozen history');
   await stop();
-  await run(path.join(app, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/LOG=' + path.join(work, 'uninstall.log')], { windowsHide: true, timeout: 60000 }); installed = false;
+  await uninstall('uninstall.log');
   const end = Date.now() + 12000; while (fs.existsSync(executable) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 200));
   assert.equal(fs.existsSync(executable), false); assert.deepEqual(fs.readFileSync(edited), before); for (const link of await shortcuts()) assert.equal(link.exists, false);
   const registration = (await powershell("Test-Path -LiteralPath ('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\'+$env:QF_INSTALL_TEST_ID+'_is1')", { QF_INSTALL_TEST_ID: appId })).stdout.trim(); assert.equal(registration, 'False');
@@ -104,13 +125,13 @@ try {
   const otherCommand = '"C:\\Other Installation\\QuizForge.exe" --open-url "%1"'; await setProtocolOwner(otherCommand);
   await install('protocol-conflict-install.log'); assert.equal((await protocol()).command, otherCommand);
   assert.match(fs.readFileSync(path.join(work, 'protocol-conflict-install.log'), 'utf8'), /protocol is already owned/);
-  await run(path.join(app, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], { windowsHide: true, timeout: 60000 }); installed = false;
+  await uninstall('protocol-conflict-uninstall.log');
   assert.equal((await protocol()).command, otherCommand); assert.deepEqual(fs.readFileSync(edited), before);
   check('Installation and uninstall preserve a Hub protocol owned by another program or installation and report the conflict');
   report.passed = true;
 } finally {
   try { await stop(); } catch (error) { if (owner?.exitCode === null) { owner.kill(); await exit; } report.cleanupError = error.message; }
-  if (installed && fs.existsSync(path.join(app, 'unins000.exe'))) { try { await run(path.join(app, 'unins000.exe'), ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], { windowsHide: true, timeout: 60000 }); } catch (error) { report.uninstallError = error.message; } }
+  if (installed && fs.existsSync(path.join(app, 'unins000.exe'))) { try { await uninstall('cleanup-uninstall.log'); } catch (error) { report.uninstallError = error.message; } }
   await powershell("$ext=$env:QF_INSTALL_TEST_EXTENSION; if($ext -notmatch '^\\.qbank-qftest-[a-f0-9-]{36}$'){throw 'Invalid test association'}; $testKey='HKCU:\\Software\\Classes\\'+$ext; if(Test-Path -LiteralPath $testKey){Remove-Item -LiteralPath $testKey -Recurse -Force}", { QF_INSTALL_TEST_EXTENSION: associationExtension });
   await powershell("$scheme=$env:QF_INSTALL_TEST_SCHEME; if($scheme -notmatch '^quizforge-test-[a-f0-9-]{36}$'){throw 'Invalid test scheme'}; $testKey='HKCU:\\Software\\Classes\\'+$scheme; if(Test-Path -LiteralPath $testKey){Remove-Item -LiteralPath $testKey -Recurse -Force}", { QF_INSTALL_TEST_SCHEME: hubScheme });
   fs.writeFileSync(path.join(work, 'report.json'), JSON.stringify(report, null, 2));

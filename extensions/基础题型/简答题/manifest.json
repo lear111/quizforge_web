@@ -1,6 +1,6 @@
 {
   "id": "quizforge.short-answer",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "name": "简答题",
   "description": "富文本简答题，支持单问、共享材料、多小问、人工评分与 AI 评分。",
   "requiresApi": {

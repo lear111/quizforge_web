@@ -44,7 +44,7 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     async flush() {
       clearTimeout(timer);timer = null;
       // After submission drafts are never saved, so a leftover draft or old error must not block 重做.
-      if (context().status === 'submitted' || !context().capabilities.canSave) {saved = version;await queue.catch(() => {});lastError = null;return;}
+      if (context().status === 'submitted' || !context().capabilities.canSave) {saved = version;await queue.catch(() => {});await reports.catch(() => {});lastError = null;return;}
       if (version !== saved && context().capabilities.canSave && context().status !== 'submitted') saveDraft();
       await queue;await reports;
       if (lastError) throw lastError;
@@ -52,7 +52,7 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy}) {
     },
     async submit() {await this.flush();return enqueue(async () => unwrap(await QF.save({purpose:'submit',data:{answer:clone(answer())}})));},
     async review(value) {return enqueue(async () => unwrap(await QF.save({purpose:'review',data:{review:value}})));},
-    async retry() {await queue;return enqueue(async () => unwrap(await QF.requestAction({action:'retry'})));},
+    async retry() {await this.flush();return enqueue(async () => unwrap(await QF.requestAction({action:'retry'})));},
     reset() {clearTimeout(timer);timer = null;version = 0;saved = 0;lastError = null;},
     dispose() {disposed = true;clearTimeout(timer);timer = null;}
   };

@@ -47,12 +47,12 @@ function createAnswerSaver({context,answer,statuses,onError,onBusy,onSaved=()=>{
     async flush() {
       clearTimeout(timer);timer=null;
       // After submission drafts are never saved, so a leftover one must not block 重做 or other actions.
-      if(context().status==='submitted'||!context().capabilities.canSave){pending=null;saved=version;settle();await queue;return;}
+      if(context().status==='submitted'||!context().capabilities.canSave){pending=null;saved=version;settle();await queue.catch(()=>{});return;}
       if(pending)await saveDraft();await queue;if(saved<version)throw new Error('答案尚未保存，请重试');
     },
     async submit(){await this.flush();return enqueue(async()=>unwrap(await QF.save({purpose:'submit',data:{answer:clone(answer())}})));},
     review(value){return enqueue(async()=>unwrap(await QF.save({purpose:'review',data:{review:value}})));},
-    retry(){return enqueue(async()=>unwrap(await QF.requestAction({action:'retry'})));},
+    async retry(){await this.flush();return enqueue(async()=>unwrap(await QF.requestAction({action:'retry'})));},
     reset(){generation++;clearTimeout(timer);timer=null;version=saved=0;pending=null;settle();},
     dispose(){disposed=true;clearTimeout(timer);timer=null;settle(new Error('作答页面已释放'));}
   };
