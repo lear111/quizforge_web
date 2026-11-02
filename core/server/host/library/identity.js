@@ -17,6 +17,13 @@ export function instanceIdentity(directory) {
   if (value.schemaVersion !== 1 || !isUuid(value.id)) throw bad('Invalid bank instance');
   return value.id.toLowerCase();
 }
+export function upgradedLocalIdentity(directory) {
+  const file=path.join(directory,INSTANCE_FILE); if(!exists(file))return null;
+  const value=readJson(file,64*1024);
+  if(value.upgradeRoute===undefined && value.upgradeStateKey===undefined)return null;
+  if(!isUuid(value.id)||typeof value.upgradeRoute!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,239}$/.test(value.upgradeRoute)||typeof value.upgradeStateKey!=='string'||!value.upgradeStateKey.startsWith('bank:'+value.upgradeRoute+':')||value.upgradeStateKey.length>1500)throw bad('Invalid upgraded local identity');
+  return {route:value.upgradeRoute,stateKey:value.upgradeStateKey};
+}
 export function groupIdentity(directory) {
   const file = path.join(directory, GROUP_FILE);
   if (!exists(file)) return null;

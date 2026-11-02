@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "examples",
+  "formatVersion": 2,
+  "id": "96e7f377-af8d-42b4-af5f-538e0dbaa122",
   "title": "简答题（答题区）示例",
   "description": "原简答题样例：题干和答案解析保留富文本，仅作答改用宿主答题区。",
   "extension": {
@@ -10,10 +10,6 @@
     {
       "id": "sample-text",
       "title": "单问：普通文字",
-      "outline": {
-        "level": "question",
-        "label": "1"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -92,10 +88,6 @@
     {
       "id": "sample-image-math",
       "title": "单问：图片与公式",
-      "outline": {
-        "level": "question",
-        "label": "2"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -182,10 +174,6 @@
     {
       "id": "sample-material",
       "title": "共享材料：两个小问",
-      "outline": {
-        "level": "question",
-        "label": "3"
-      },
       "data": {
         "formatVersion": 1,
         "material": {
@@ -425,6 +413,25 @@
           }
         ]
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "简答题（答题区）",
+      "items": [
+        {
+          "question": "sample-text",
+          "label": "1"
+        },
+        {
+          "question": "sample-image-math",
+          "label": "2"
+        },
+        {
+          "question": "sample-material",
+          "label": "3"
+        }
+      ]
     }
   ]
 }

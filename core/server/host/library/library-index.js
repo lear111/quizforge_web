@@ -10,6 +10,7 @@ import { developmentFolders, optional } from './collections.js';
 import { LibraryManagement } from './library-management.js';
 import { FileCache, fileIdentity } from '../platform/file-cache.js';
 import { groupIdentity, GROUP_FILE, INSTANCE_FILE, BUNDLE_FILE, instanceIdentity, isUuid, bankLocator, extensionLocator, relativeExtension, referenceIdentity, findExtension } from './identity.js';
+import { upgradedLocalIdentity } from './identity.js';
 
 const relative = (base, file) => path.relative(base, file).replaceAll('\\', '/');
 export function compareVersion(left, right) {
@@ -91,7 +92,7 @@ export class LibraryIndex {
         const groupDirectory = path.dirname(item);
         if (group && !groupIds.has(groupDirectory)) groupIds.set(groupDirectory, groupIdentity(groupDirectory));
         const groupId = group ? groupIds.get(groupDirectory) : null;
-        if (instance) { row.instanceId = instance; row.id = 'g.' + instance; }
+        if (instance) { const upgraded=upgradedLocalIdentity(item); row.instanceId = instance; row.id = upgraded?.route ?? 'g.' + instance; if(upgraded)row.storageKey=upgraded.stateKey; }
         else if (groupId && isUuid(row.bankId)) { row.groupId = groupId; row.id = bankLocator(groupId, row.bankId); }
         if (!Array.isArray(raw.questions) || !raw.questions.length || raw.questions.length > 10000) throw bad('Invalid questions');
         const ids = new Set(), references = new Map();
@@ -101,7 +102,8 @@ export class LibraryIndex {
           const reference = Object.hasOwn(question, 'extension') ? question.extension : raw.extension, key = referenceKey(reference);
           findExtension(reference, packages); if (!references.has(key)) references.set(key, reference);
         }
-        Object.assign(row, { questionCount: raw.questions.length, extension: cloneJson(raw.extension ?? null), extensions: cloneJson([...references.values()]) });
+        const visibleCount = raw.formatVersion===2 && Array.isArray(raw.outline) ? raw.outline.reduce((n,g)=>n+(Array.isArray(g.items)?g.items.length:0),0) : raw.questions.length;
+        Object.assign(row, { questionCount: visibleCount, extension: cloneJson(raw.extension ?? null), extensions: cloneJson([...references.values()]) });
         identities.push(this.files.jsonFingerprint(file, 'index-bank'));
       } catch (error) { catalogError(row, error, 'INVALID_BANK'); }
       candidates.push({ kind: row.kind, id: row.id, source: file, metadata: cloneJson(row) }); banks.push(row);

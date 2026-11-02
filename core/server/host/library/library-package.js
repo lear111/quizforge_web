@@ -10,8 +10,9 @@ import { scanBanks, scanExtensions, bankItem } from './directories.js';
 import { folderName } from './library-management.js';
 import { INSTANCE_FILE, BUNDLE_FILE, relativeExtension, eachReference, findExtension } from './identity.js';
 import { MANIFEST, FORMAT, MAX_UPLOAD, MAX_FILE } from './library-archive.js';
+import { packageFormat4, parseLossless, losslessBytes, UUID } from './format4.js';
 
-export const PACKAGE_VERSION = 3;
+export const PACKAGE_VERSION = 4;
 const invalid = message => new ApiError(422, 'INVALID_LIBRARY_ARCHIVE', message);
 function uniqueName(name, used) {
   folderName(name); let result = name, suffix = 2;
@@ -40,7 +41,8 @@ export async function exportPackage(archive, group, singleFile = null) {
     const rows = inventory(archive.root), required = new Map(), documents = [];
     for (const file of singleFile ? [singleFile] : scanBanks(base).banks.filter(file => path.dirname(bankItem(base, file)) === selected)) {
       if (path.basename(file) !== 'bank.json' || bankItem(base, file) === file) throw new ApiError(422, 'BANK_LAYOUT_UPGRADE_REQUIRED', '请先将旧独立 JSON 迁移到题库文件夹中的 bank.json，再导出。');
-      const raw = readJson(file, MAX_FILE);
+      const raw = parseLossless(fs.readFileSync(file),file);
+      if (!UUID.test(raw.id ?? '') || raw.formatVersion?.literal !== '2') throw new ApiError(422,'BANK_FORMAT_UPGRADE_REQUIRED','请先执行“升级本地题库”，将 UUID 永久保存后再导出格式 4。');
       eachReference(raw, (_owner, reference) => { const row = findExtension(reference, rows); required.set(row.source, row); });
       documents.push({ file, raw });
     }
@@ -55,18 +57,18 @@ export async function exportPackage(archive, group, singleFile = null) {
       const item = bankItem(base, file), name = uniqueName(fs.lstatSync(item).isDirectory() ? path.basename(item) : path.basename(item, '.json'), bankNames);
       const destination = path.join(banks, name);
       archive.copyBank(file, destination); rewrite(raw, rows, paths);
-      raw.id ??= 'bank'; raw.title = name;
-      replaceFile(path.join(destination, 'bank.json'), jsonBytes(raw));
+      replaceFile(path.join(destination, 'bank.json'), losslessBytes(raw));
     }
     replaceFile(path.join(content, MANIFEST), jsonBytes({ format: FORMAT, formatVersion: PACKAGE_VERSION, group, ...(singleFile ? { scope: 'bank' } : {}) }));
+    packageFormat4(content);
     const file = path.join(work, 'group.qbank'); await archive.zip(content, file);
-    if (fs.statSync(file).size > MAX_UPLOAD) throw new ApiError(413, 'LIBRARY_ARCHIVE_LIMIT', '导出的题库包超过 64 MiB');
+    if (fs.statSync(file).size > MAX_UPLOAD) throw new ApiError(413, 'LIBRARY_ARCHIVE_LIMIT', '导出的题库包超过 128 MiB');
     return { workspace: work, file, name: group, close: () => archive.removeWorkspace(work) };
   } catch (error) { archive.removeWorkspace(work); throw error; }
 }
 function incomingGroup(staging, marker) {
   if (marker?.format !== FORMAT) throw invalid('不是 QuizForge 题库包：格式标识不正确');
-  if (marker.formatVersion !== PACKAGE_VERSION) throw new ApiError(422, 'UNSUPPORTED_LIBRARY_ARCHIVE', '仅支持新版题库包（格式 3）。请让制作者升级题库包后重新导入。');
+  if (marker.formatVersion !== PACKAGE_VERSION) throw new ApiError(422, 'UNSUPPORTED_LIBRARY_ARCHIVE', '支持格式 4，格式 3 会在导入前自动升级；其他旧格式请联系制作者。');
   if (marker.scope !== undefined && !['group', 'bank'].includes(marker.scope)) throw invalid('题库包 scope 必须为 group 或 bank');
   if (typeof marker.group !== 'string') throw invalid('题库包缺少分组名称');
   folderName(marker.group);
@@ -99,14 +101,10 @@ export async function installPackage(archive, staging, marker, validator, filena
   // Local namespaces are allocated even for byte-identical repeated imports.
   // Host instance files are not accepted from an archive or exported.
   for (const file of files) {
-    const raw = readJson(file, MAX_FILE); raw.id ??= 'bank'; raw.title = path.basename(path.dirname(file));
+    const raw = parseLossless(fs.readFileSync(file),file);
     eachReference(raw, (_owner, reference) => { if (!reference?.path) throw invalid('新版题库包必须使用准确的拓展相对路径'); });
-    replaceFile(file, jsonBytes(raw));
+    replaceFile(file, losslessBytes(raw));
     replaceFile(path.join(path.dirname(file), INSTANCE_FILE), jsonBytes({ schemaVersion: 1, id: randomUUID() }));
-  }
-  for (const row of rows) {
-    const file = path.join(row.source, 'manifest.json'), manifest = readJson(file, 256 * 1024);
-    manifest.id ??= 'extension'; manifest.version ??= '0.0.0'; manifest.name = path.basename(row.source); replaceFile(file, jsonBytes(manifest));
   }
   await validator(staging);
   const resources = new ResourceStore(staging);
@@ -119,10 +117,10 @@ export async function installPackage(archive, staging, marker, validator, filena
   safeDirectory(targetBankBase, true); safeDirectory(targetExtensionBase, true);
   const bankGroup = uniqueName(name, occupied(targetBankBase)), extensionGroup = uniqueName(name, occupied(targetExtensionBase));
   const paths = new Map(rows.map(row => [row.source, 'extensions/' + extensionGroup + '/' + path.basename(row.source)]));
-  for (const file of files) { const raw = readJson(file, MAX_FILE); rewrite(raw, rows, paths); if (single) raw.title = bankGroup; replaceFile(file, jsonBytes(raw)); }
+  for (const file of files) { const raw = parseLossless(fs.readFileSync(file),file); rewrite(raw, rows, paths); replaceFile(file, losslessBytes(raw)); }
   for (const row of rows) {
-    const file = path.join(row.source, declaration(row.source).examples), raw = readJson(file, MAX_FILE);
-    rewrite(raw, rows, paths); replaceFile(file, jsonBytes(raw));
+    const file = path.join(row.source, declaration(row.source).examples), raw = parseLossless(fs.readFileSync(file),file);
+    rewrite(raw, rows, paths); replaceFile(file, losslessBytes(raw));
   }
   const moves = [{ source: sourceExtensions, destination: path.join(targetExtensionBase, extensionGroup) }, { source: single ? path.dirname(files[0]) : sourceBanks, destination: path.join(targetBankBase, bankGroup) }], installed = [];
   try {

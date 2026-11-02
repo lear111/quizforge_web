@@ -18,7 +18,7 @@ function fixture(t){
   const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));
   t.after(()=>dom.window.close());
   const collections=new Map(),errors=[];
-  const sandbox={renderOutlineView,document:dom.window.document,$:selector=>dom.window.document.querySelector(selector),Promise,collections,activeKey:null,transition:Promise.resolve(),
+  const sandbox={createListeningPlayer:()=>({destroy(){}}),addEventListener(){},request(){},renderOutlineView,document:dom.window.document,$:selector=>dom.window.document.querySelector(selector),Promise,collections,activeKey:null,transition:Promise.resolve(),
     visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor,consecutiveQuestionGroups,navigateOutlineTarget,
     active:()=>collections.get(sandbox.activeKey),notice(){},failure:error=>errors.push(error),updateChrome(){},renderRecovery(){},
     showScoreSummary(){},navigateQuestion(){},closeDrawers(){},
@@ -207,4 +207,10 @@ test('summary and read-only history retain their own saved draft progress',t=>{
   f.host.renderOutline();const root=f.dom.window.document.querySelector('#outline-list');assert.equal(root.querySelectorAll('.draft').length,2);assert.equal(root.querySelector('.correct'),null);
   pane.summaryShown=false;pane.view='history';pane.historyQuestionId='a';pane.historyEntry={};pane.historyView={questions:rows,states:{a:{status:'draft',outlineStates:[{id:'filled',status:'draft'},{id:'blank',status:'unanswered'}]},b:{status:'draft'}}};
   f.host.renderOutline();assert.equal(root.querySelectorAll('.draft').length,2);assert.equal(root.querySelector('.correct'),null);
+});
+
+
+test('central outline preserves separate same-name sections, order and omitted group titles',t=>{
+ const f=fixture(t),pane=f.add('central');pane.collection.questions=[{id:'c',title:'C',outlineGroupIndex:0,outlineGroup:null},{id:'b',title:'B',outlineGroupIndex:1,outlineGroup:'Same'},{id:'a',title:'A',outlineGroupIndex:2,outlineGroup:'Same'}];
+ f.host.renderOutline();const root=f.dom.window.document.querySelector('#outline-list');assert.equal(root.querySelectorAll('.outline-group').length,3);assert.deepEqual([...root.querySelectorAll('.outline-group-title')].map(n=>n.textContent),['Same','Same']);assert.deepEqual([...root.querySelectorAll('.outline-item')].map(n=>n.dataset.questionId),['c','b','a']);
 });

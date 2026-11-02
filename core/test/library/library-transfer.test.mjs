@@ -29,7 +29,7 @@ test('qbank import requires confirmation and preserves the binary file and MIME'
 });
 test('ordinary ZIP, oversized packages and remote clients never import',async t=>{
  const f=fixture(t);f.select('file.zip');assert.equal(f.$('#library-import-confirm').disabled,true);await f.submit();assert.equal(f.calls.length,0);
- f.select('file.qbank',64*1024*1024+1);await f.submit();assert.equal(f.calls.length,0);assert.match(f.$('#library-import-error').textContent,/64 MiB/);
+ f.select('file.qbank',128*1024*1024+1);await f.submit();assert.equal(f.calls.length,0);assert.match(f.$('#library-import-error').textContent,/128 MiB/);
  f.dialog.close();f.context.catalog.canManage=false;f.select();assert.equal(f.dialog.open,false);await f.submit();assert.equal(f.calls.length,0);
 });
 test('cancel and failed preparation do not upload, and failures permit retry',async t=>{

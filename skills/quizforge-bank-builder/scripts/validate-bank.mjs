@@ -6,6 +6,8 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {spawn} from 'node:child_process';
+import {readCentralOutline,UUID,resourceType} from '../../../core/server/host/library/format4.js';
+import {readListening,readQuestionListening} from '../../../core/server/host/resources/listening.js';
 
 const MiB=1024*1024, ID=/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/, ASSET_ID=/^[a-f0-9]{64}$/;
 const FIELDS=['entry','script','style','rules','questionSchema','answerSchema','examples'];
@@ -191,6 +193,7 @@ async function images(directory,location,extension=false){
       if(++entries>1000)fail(location,'ASSET_ENTRY_LIMIT');const file=path.join(folder,name),label=location+'/'+path.relative(assets,file).split(path.sep).map(ptr).join('/');
       await normalPath(file,label);const stat=await lstat(file);
       if(stat.isDirectory()){await visit(file);continue;}
+      if(stat.isFile()&&/\.(mp3|m4a)$/i.test(name)){try{resourceType(name,await readFile(file));}catch{fail(label,'INVALID_AUDIO_RESOURCE');}continue;}
       if(!stat.isFile()||!extension&&stat.size===0||stat.size>4*MiB)fail(label,'IMAGE_SIZE_LIMIT');
       const bytes=await readFile(file),mime=imageMime(bytes);
       // Extension folders may retain prototype media and fonts. Only explicitly
@@ -382,19 +385,30 @@ function documentRows(document,location='',owner=null,allowDevelopment=false){
   collectionFeatures(document,location,Boolean(owner));
   if(own(document,'formatVersion')){
     if(!Number.isInteger(document.formatVersion)||document.formatVersion<1||document.formatVersion>2147483647)fail(location+'/formatVersion','INVALID_BANK_FORMAT');
-    if(document.formatVersion!==1)fail(location+'/formatVersion','UNSUPPORTED_BANK_FORMAT');
+    if(![1,2].includes(document.formatVersion))fail(location+'/formatVersion','UNSUPPORTED_BANK_FORMAT');
   }
-  const bankId=id(document,'id',location);text(document,'title',300,location);text(document,'description',4000,location,true);
+  const format2=document.formatVersion===2;
+  if(format2&&!UUID.test(document.id??''))fail(location+'/id','INVALID_BANK_UUID');
+  const bankId=id(document,'id',location);text(document,'title',300,location,format2);text(document,'description',4000,location,true);
   const fallback=own(document,'extension')?reference(document.extension,location+'/extension',allowDevelopment):null;
   const ownsReference=extension=>extension.path?extension.path===owner.referencePath&&(extension.id===undefined||extension.id===owner.id):key(extension)===key({id:owner.id,version:owner.version})||Boolean(owner.development&&extension.development===owner.development);
-  if(owner&&(bankId!=='examples'||fallback&&!ownsReference(fallback)))fail(location+'/extension','INVALID_EXAMPLE_BINDING');
+  if(owner&&(!format2&&bankId!=='examples'||fallback&&!ownsReference(fallback)))fail(location+'/extension','INVALID_EXAMPLE_BINDING');
   if(!Array.isArray(document.questions)||!document.questions.length||document.questions.length>10000)fail(location+'/questions','QUESTION_COUNT_LIMIT');
+  let central=new Map();
+  if(format2){
+    if(!fields(document,['formatVersion','id','version','title','description','extension','features','listening','outline','questions']))fail(location,'INVALID_BANK_FIELD');
+    const declarations=new Map();for(const q of document.questions??[]){const ref=q.extension??document.extension;if(ref?.path)declarations.set(ref.path,{requiresApi:{major:1,minMinor:1,capabilities:['outline-items']}});}
+    try{central=new Map(readCentralOutline(document,declarations).map(({question,item})=>[question.id,item]));}catch{fail(location+'/outline','INVALID_CENTRAL_OUTLINE');}
+  }
+  let listening;try{listening=readListening(document);}catch{fail(location+'/listening','INVALID_LISTENING');}
   const rows=[],groups=new Map(),seen=new Set();document.questions.forEach((question,index)=>{
     const where=location+'/questions/'+index;if(!object(question))fail(where,'INVALID_QUESTION');const qid=id(question,'id',where);if(seen.has(qid))fail(where+'/id','DUPLICATE_QUESTION_ID');seen.add(qid);text(question,'title',300,where);
+    if(format2&&(!fields(question,['id','title','extension','listening','data'])))fail(where,'INVALID_QUESTION_FIELD');
+    try{readQuestionListening(question,listening);}catch{fail(where+'/listening','INVALID_LISTENING');}
     if(own(question,'features'))fail(where+'/features','QUESTION_FEATURES_NOT_SUPPORTED');
     if(!own(question,'data'))fail(where+'/data','MISSING_QUESTION_DATA');const extension=own(question,'extension')?reference(question.extension,where+'/extension',allowDevelopment):fallback;
     if(!extension)fail(where+'/extension','MISSING_EXTENSION_REFERENCE');if(owner&&!ownsReference(extension))fail(where+'/extension','INVALID_EXAMPLE_BINDING');
-    const row={index,location:where,data:question.data,extension,outline:questionOutline(question,where)};rows.push(row);const values=groups.get(key(extension))??[];values.push(row);groups.set(key(extension),values);
+    const row={index,location:where,data:question.data,extension,outline:format2?(central.get(qid)?.parts?{level:'parts',items:central.get(qid).parts}:central.get(qid)?.label?{level:'question',label:central.get(qid).label}:null):questionOutline(question,where)};rows.push(row);const values=groups.get(key(extension))??[];values.push(row);groups.set(key(extension),values);
   });return {fallback,rows,groups};
 }
 function checkImages(rows,loaded,bankAssets,usedBankAssets,usedExtensionAssets){

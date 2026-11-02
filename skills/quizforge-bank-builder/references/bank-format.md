@@ -21,15 +21,16 @@ question-banks/my-exam/
     <sha256>.png
 ```
 
-应用也读取 `question-banks/*.json`，但带资源的新题库优先用目录。JSON 使用 UTF-8。
+新题库必须使用上述物理题库目录。JSON 使用 UTF-8。
 
 ```json
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "id": "136832c4-69e0-4ef9-9b72-e86ce4317405",
   "version": "1.0.0",
   "title": "我的练习",
   "description": "可选的说明",
+  "outline": [{"group":"练习","items":[{"question":"q-001"}]}],
   "questions": [
     {
       "id": "q-001",
@@ -45,11 +46,11 @@ question-banks/my-exam/
 
 旧 `{id,version}` 和 `extension:{"development":"叶名"}` 兼容读取，多个候选时应改为准确路径。新题库用 `{path}`。管理入口不影响加载，导出在暂存副本规范化绑定。`--preview-only` 不代表真实保存、评分或界面验收。
 
-- bank/question id：`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$`，同题库题 ID 唯一。
-- 顶层 `formatVersion` 当前只支持数字整数 `1`；旧文件缺省按 `1` 读取，不补写。仅为新题库和新拓展示例显式添加；与题型内部 `data.formatVersion` 相互独立。
+- bank id 是创建时生成并落盘的小写随机 UUIDv4，此后导出、改题、打包不得改变；只有另存为新题库生成新 UUID。拓展示例同样独立 UUID，包内题库和示例 UUID 唯一。question id：`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$`，同题库题 ID 唯一。
+- 顶层 `formatVersion` 新建使用整数 `2`；旧题库通过宿主升级，不能靠手改版本号冒充转换；与题型内部 `data.formatVersion` 相互独立。
 - 标题非空，最长 300；简答也需要元数据 title，即使 UI 不单独显示题名。
 - 每库 1–10000 题，bank JSON 不超过 8 MiB。
-- 题目顺序由 `questions` 数组决定，不按类型重新排序。单选、简答、单选就是三个连续分组。
+- 题序及显示范围由顶层 outline 的 items 决定，支持手写分组；未引用题仍校验，但不显示、不计分。禁止逐题 outline。具体字段见宿主 QUESTION_BANK_FORMAT.md。
 - 修改已练习题库涉及内容指纹和历史一致性。材料转换优先创建新 ID、新目录，已有库的修改交给应用编辑功能。
 
 ## 题库分组与交付
@@ -75,7 +76,7 @@ extensions/
 
 - 分组和实体名称取实际文件夹名，不维护另一份逻辑显示名称。题库元数据 id 可使用普通字符串，不要求 UUID/全局唯一；题目和小题 ID 保持稳定。
 - 普通题库用 {path:"extensions/<分组>/<拓展>"} 引用；移动题库不改变路径。普通界面禁止拓展改名、移动和代码编辑。复制新叶仅在授权位置进行，原拓展不改。
-- 交付一个格式 3 .qbank，包含 question-banks/<组>/<题库>/ 与 extensions/<组>/<拓展>/。清单为 {format:"quizforge-bank-group",formatVersion:3,group:"组名"}，由宿主导出器收集依赖、重映射路径并保留资源，源文件不变。
+- 交付一个格式 4 .qbank，包含 question-banks/<组>/<题库>/ 与 extensions/<组>/<拓展>/。清单为 {format:"quizforge-bank-group",formatVersion:4,group:"组名"}，由宿主导出器收集依赖、重映射路径并保留资源，源文件不变。
 - 可以按分组导出，也可只导出一本题库。单题库包在清单增加 scope:"bank"，恰好包含一本题库及其实际依赖；包内沿用暂存分组结构，导入时该题库直接放到题库根目录，名称取下载文件基名，拓展仍有独立物理分组。省略 scope 的整组包不会因只有一本题库而变成根目录题库。使用宿主导出器，不手动混用两种语义；接口见宿主 API 的 Package import HTTP。
 - 导入每次新增独立副本，不比较 UUID、版本或哈希，重名自动编号；作答和历史不共享。旧包格式 1/2 不支持导入，需要重新导出新版。
 - 不包含作答、白板、历史、设置、旧逻辑分组表及宿主内部 .instance.json/.bundle.json。不自行编造内部保存身份。
@@ -151,4 +152,6 @@ extensions/
 
 ## 宿主听力（可选）
 
-支持宿主听力的Web版本可在题库根配置 `listening.materials` 和 `examMaterialId`，在题卡 `data` 同层配置 `listening:{materialId}`。音频归题库 `media/`，多题可共用材料；考试配置一条整卷音轨。复用原有单选等拓展，不往题型里加播放器、不把音频Base64写入data。正式字段/8MiB单文件限制/示例见 [宿主听力文档](../../../core/docs/reference/LISTENING.md)，真实演示位于 `question-banks/基础题型/听力组件演示`。只配置经核对的题意、答案及评分；Web之外的端须确认已同步能力再交付。
+支持宿主听力的Web版本可在题库根配置 `listening.materials` 和 `examMaterialId`，在题卡 `data` 同层配置 `listening:{materialId}`。音频归题库 `assets/`，多题可共用材料；考试配置一条整卷音轨。复用原有单选等拓展，不往题型里加播放器、不把音频Base64写入data。正式字段/资源限制/网络 URL/示例见 [宿主听力文档](../../../core/docs/reference/LISTENING.md)，真实演示位于 `question-banks/基础题型/听力组件演示`。只配置经核对的题意、答案及评分；Web之外的端须确认已同步能力再交付。
+
+网络音频使用 listening.materials[].url，与 file 二选一；匿名完整缓存 64 MiB，导入导出保留链接、不下载。遵循 V2 v0.8 的规范化 HTTPS、2048 字符及公网地址规则；当前 Windows 还有校验差异，详见 core/docs/reference/LISTENING.md 与 docs/reports/format4-network-audit.md。

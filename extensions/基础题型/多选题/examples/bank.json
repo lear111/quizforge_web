@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "examples",
+  "formatVersion": 2,
+  "id": "44b958b9-6754-4d99-a667-06e9cb5b39bd",
   "title": "多选题示例",
   "description": "富文本多选示例：多个正确答案、表格与公式；全部选对得满分。",
   "extension": {
@@ -137,10 +137,6 @@
           ]
         },
         "maxScore": 4
-      },
-      "outline": {
-        "level": "question",
-        "label": "1"
       }
     },
     {
@@ -543,11 +539,22 @@
           ]
         },
         "maxScore": 4
-      },
-      "outline": {
-        "level": "question",
-        "label": "2"
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "多选题",
+      "items": [
+        {
+          "question": "sample-numbers",
+          "label": "1"
+        },
+        {
+          "question": "sample-tables",
+          "label": "2"
+        }
+      ]
     }
   ]
 }

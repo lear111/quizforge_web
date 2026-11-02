@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "9ca3e69d-4991-4151-be9f-ed9ea48a324f",
+  "formatVersion": 2,
+  "id": "1f18683a-4c22-4651-9189-bfd431396eaa",
   "version": "1.0.0",
   "title": "基础题型展示库",
   "description": "基础题型：单选、简答、多选、判断及同框答题区。包含文字、图片、公式、表格及共享材料示例，支持作答保存、评分、编辑、白板、历史和考试。",
@@ -14,10 +14,6 @@
     {
       "id": "single-sample-text",
       "title": "普通文字与强调",
-      "outline": {
-        "level": "question",
-        "label": "1"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -155,10 +151,6 @@
     {
       "id": "single-sample-image-math",
       "title": "图片与公式",
-      "outline": {
-        "level": "question",
-        "label": "2"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -331,10 +323,6 @@
     {
       "id": "single-sample-table-options",
       "title": "表格选项",
-      "outline": {
-        "level": "question",
-        "label": "3"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -942,10 +930,6 @@
     {
       "id": "short-sample-text",
       "title": "单问：普通文字",
-      "outline": {
-        "level": "question",
-        "label": "4"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -1027,10 +1011,6 @@
     {
       "id": "short-sample-image-math",
       "title": "单问：图片与公式",
-      "outline": {
-        "level": "question",
-        "label": "5"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -1120,10 +1100,6 @@
     {
       "id": "short-sample-material",
       "title": "共享材料：两个小问",
-      "outline": {
-        "level": "question",
-        "label": "6"
-      },
       "data": {
         "formatVersion": 1,
         "material": {
@@ -1497,10 +1473,6 @@
           ]
         },
         "maxScore": 4
-      },
-      "outline": {
-        "level": "question",
-        "label": "7"
       },
       "extension": {
         "path": "extensions/基础题型/多选题"
@@ -1907,10 +1879,6 @@
         },
         "maxScore": 4
       },
-      "outline": {
-        "level": "question",
-        "label": "8"
-      },
       "extension": {
         "path": "extensions/基础题型/多选题"
       }
@@ -1950,10 +1918,6 @@
           ]
         },
         "maxScore": 2
-      },
-      "outline": {
-        "level": "question",
-        "label": "9"
       },
       "extension": {
         "path": "extensions/基础题型/判断题"
@@ -2035,10 +1999,6 @@
         },
         "maxScore": 2
       },
-      "outline": {
-        "level": "question",
-        "label": "10"
-      },
       "extension": {
         "path": "extensions/基础题型/判断题"
       }
@@ -2046,10 +2006,6 @@
     {
       "id": "answer-area-information-flow",
       "title": "手机拍照的信息处理流程",
-      "outline": {
-        "level": "question",
-        "label": "11"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -2092,6 +2048,77 @@
       "extension": {
         "path": "extensions/基础题型/简答题（答题区）"
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "单选题",
+      "items": [
+        {
+          "question": "single-sample-text",
+          "label": "1"
+        },
+        {
+          "question": "single-sample-image-math",
+          "label": "2"
+        },
+        {
+          "question": "single-sample-table-options",
+          "label": "3"
+        }
+      ]
+    },
+    {
+      "group": "简答题",
+      "items": [
+        {
+          "question": "short-sample-text",
+          "label": "4"
+        },
+        {
+          "question": "short-sample-image-math",
+          "label": "5"
+        },
+        {
+          "question": "short-sample-material",
+          "label": "6"
+        }
+      ]
+    },
+    {
+      "group": "多选题",
+      "items": [
+        {
+          "question": "multiple-sample-numbers",
+          "label": "7"
+        },
+        {
+          "question": "multiple-sample-tables",
+          "label": "8"
+        }
+      ]
+    },
+    {
+      "group": "判断题",
+      "items": [
+        {
+          "question": "true-false-sample-true",
+          "label": "9"
+        },
+        {
+          "question": "true-false-sample-false",
+          "label": "10"
+        }
+      ]
+    },
+    {
+      "group": "简答题（答题区）",
+      "items": [
+        {
+          "question": "answer-area-information-flow",
+          "label": "11"
+        }
+      ]
     }
   ]
 }

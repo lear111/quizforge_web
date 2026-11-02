@@ -1,3 +1,4 @@
+import { makeFormat4Fixture } from '../../../test/fixtures/format4-library.mjs';
 import { copyFixture, writeFixture } from '../../../test/fixtures/installed-library.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -103,10 +104,11 @@ test('extension example images held in root assets are copied beside nested exam
   const manifest = readJson(path.join(source, 'manifest.json')), raw = readJson(path.join(source, manifest.examples));
   fs.mkdirSync(path.join(source, 'assets')); writeFixture(path.join(source, 'assets', `${imageId}.png`), png);
   fs.mkdirSync(path.join(source, 'examples')); fs.unlinkSync(path.join(source, manifest.examples));
-  raw.description = document; manifest.examples = 'examples/bank.json';
+  raw.questions[0].data.stem = document; manifest.examples = 'examples/bank.json';
   writeFixture(path.join(source, manifest.examples), jsonBytes(raw));
   writeFixture(path.join(source, 'manifest.json'), jsonBytes(manifest));
   resources.read = () => { throw new Error('Export must use extension-local images'); };
+  const example=readJson(path.join(source,manifest.examples));example.formatVersion=2;example.id='f0000000-0000-4000-8000-000000000001';example.outline=[{items:example.questions.map(q=>({question:q.id}))}];writeFixture(path.join(source,manifest.examples),jsonBytes(example));
   const destination = path.join(root, '.temp/copy'); archive.copyExtension(source, destination, 'extensions/Group/choice');
   assert.deepEqual(fs.readFileSync(path.join(destination, 'examples/assets', `${imageId}.png`)), png);
   assert.equal(fs.existsSync(path.join(root, '.state/resources')), false);
@@ -129,6 +131,7 @@ for (const formatVersion of [1, 2, 'single']) test(`case ${formatVersion}: fresh
   raw.version = '1.0';
   const file = bank(source.root); writeFixture(file, jsonBytes(raw));
   if (formatVersion === 2) writeFixture(path.join(source.root, 'question-banks/Group/.group.json'), jsonBytes({ schemaVersion: 1, kind: 'bank-group', id: 'ec7a70a3-4f7d-4fa5-b176-d8cb51dd3a07' }));
+  makeFormat4Fixture(source.root);
   const engine = await RuleEngine.create(code); engine.validationEnvironment = async () => 'image-export-fixture';
   const libraries = [source, target, last].map(({ root }) => new Library(root, code, engine));
   t.after(() => { for (const library of libraries) library.close(); engine.close(); });
