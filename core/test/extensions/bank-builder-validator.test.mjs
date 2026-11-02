@@ -282,14 +282,14 @@ for(const folder of ['基础题型/单选题','基础题型/简答题']){
     const f=fixture(t);
     cpSync(path.join(product,'extensions',folder),path.join(f.root,'extensions',folder),{recursive:true});
     const examples=readFixture(f,'extensions/'+folder+'/examples/bank.json');
-    f.write('bank/bank.json',{...examples,id:'reference-bank',extension:examples.extension});
+    f.write('bank/bank.json',{...examples,id:'f0000000-0000-4000-8000-000000000001',extension:examples.extension});
     const preview=f.run('--allow-development','--preview-only');
     assert.equal(preview.code,0,JSON.stringify(preview.report));
     assert.equal(preview.report.summary.exampleQuestions,examples.questions.length);
     assert.equal(preview.report.summary.maxScore,null);
     assert.equal(preview.report.fullRuntimeValidated,false);
     const invalid=copy(examples);invalid.questions[0].data.formatVersion=99;
-    f.write('bank/bank.json',{...invalid,id:'reference-bank',extension:examples.extension});
+    f.write('bank/bank.json',{...invalid,id:'f0000000-0000-4000-8000-000000000001',extension:examples.extension});
     const rejected=f.run('--allow-development','--preview-only');
     assert.equal(rejected.code,1);assert.match(JSON.stringify(rejected.report),/SCHEMA/);
   });

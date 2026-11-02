@@ -81,7 +81,8 @@ test('bank features remain opt-out and reject invented fields', () => {
 test('old API and bank declarations work; incompatible declarations stay explicit', () => {
   requireBankFormat({}); requireBankFormat({ formatVersion: 1 }); requireManifestApi({});
   requireManifestApi({ requiresApi: { major: 1, minMinor: 1, capabilities: ['outline-items'] } });
-  assert.throws(() => requireBankFormat({ formatVersion: 2 }), { code: 'UNSUPPORTED_BANK_FORMAT' });
+  requireBankFormat({formatVersion:2});
+  assert.throws(() => requireBankFormat({ formatVersion: 3 }), { code: 'UNSUPPORTED_BANK_FORMAT' });
   assert.throws(() => requireManifestApi({ requiresApi: { major: 1, minMinor: 0, capabilities: ['outline-items'] } }), { code: 'INVALID_API_REQUIREMENT' });
   const history = { questions: [{ page: {} }] }; normalizeHistoryApi(history);
   assert.deepEqual(history.apiVersion, { major: 1, minor: 0 });

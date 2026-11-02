@@ -1,3 +1,4 @@
+import {makeFormat4Fixture} from '../fixtures/format4-library.mjs';
 import { copyFixture, writeFixture } from '../fixtures/installed-library.mjs';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -81,7 +82,10 @@ async function gone(pid) {
 }
 
 async function bankPackage(root, file) {
-  const exported = await new LibraryArchive(root, new ResourceStore(root)).exportBank('Bank');
+  const staged=fs.mkdtempSync(path.join(work,'format4-export-'));
+  for(const name of ['question-banks','extensions'])fs.cpSync(path.join(root,name),path.join(staged,name),{recursive:true});
+  makeFormat4Fixture(staged);
+  const exported = await new LibraryArchive(staged, new ResourceStore(staged)).exportBank('Bank');
   try { fs.writeFileSync(file, fs.readFileSync(exported.file)); } finally { exported.close(); }
 }
 
@@ -113,6 +117,7 @@ test('opening a local qbank cold-starts one tray, coalesces pending opens and im
 
 test('running tray imports group packages and reports invalid files without partial installs or another service', {skip:!supported,timeout:90000}, async t=>{
   const f=fixture(t);fs.mkdirSync(path.join(f.root,'question-banks/Group'));fs.renameSync(path.join(f.root,'question-banks/Bank'),path.join(f.root,'question-banks/Group/Bank'));
+  makeFormat4Fixture(f.root);
   const owner=f.start(),ready=await waitFor(f.command,status=>status.state==='运行中');
   const response=await fetch(ready.url+'api/library/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:'Group'})});assert.equal(response.status,200);
   const file=path.join(work,'成套题库.qbank');fs.writeFileSync(file,Buffer.from(await response.arrayBuffer()));
@@ -125,8 +130,8 @@ test('running tray imports group packages and reports invalid files without part
   assert.equal(failed.state,'运行中');assert.match(failed.lastImport.message,/ZIP|压缩包/);assert.equal(failed.pendingImports,0);assert.equal(failed.browserOpenRequests,done.browserOpenRequests);
   const after=await(await fetch(ready.url+'api/library/index')).json();assert.deepEqual(after.banks.map(row=>row.id),before.banks.map(row=>row.id));assert.deepEqual(after.extensions.map(row=>row.id),before.extensions.map(row=>row.id));
   await assert.rejects(f.command('--no-browser','--import',path.join(work,'missing.qbank')),error=>error.code===1&&/不存在/.test(error.stderr));
-  const large=path.join(work,'oversized.qbank'),fd=fs.openSync(large,'w');fs.ftruncateSync(fd,64*1024*1024+1);fs.closeSync(fd);
-  await assert.rejects(f.command('--no-browser','--import',large),error=>error.code===1&&/64 MiB/.test(error.stderr));
+  const large=path.join(work,'oversized.qbank'),fd=fs.openSync(large,'w');fs.ftruncateSync(fd,128*1024*1024+1);fs.closeSync(fd);
+  await assert.rejects(f.command('--no-browser','--import',large),error=>error.code===1&&/128 MiB/.test(error.stderr));
   await f.command('--quit');await owner.exit;await gone(ready.servicePid);
 });
 

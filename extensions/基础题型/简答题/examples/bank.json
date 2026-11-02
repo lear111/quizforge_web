@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "examples",
+  "formatVersion": 2,
+  "id": "9a77925e-f94a-422b-bb96-4bc380bd445d",
   "title": "简答题示例",
   "description": "富文本简答示例：单问、图片与公式、共享材料多问；支持人工及 AI 评分。",
   "extension": {
@@ -10,10 +10,6 @@
     {
       "id": "sample-text",
       "title": "单问：普通文字",
-      "outline": {
-        "level": "question",
-        "label": "1"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -92,10 +88,6 @@
     {
       "id": "sample-image-math",
       "title": "单问：图片与公式",
-      "outline": {
-        "level": "question",
-        "label": "2"
-      },
       "data": {
         "formatVersion": 1,
         "material": null,
@@ -182,10 +174,6 @@
     {
       "id": "sample-material",
       "title": "共享材料：两个小问",
-      "outline": {
-        "level": "question",
-        "label": "3"
-      },
       "data": {
         "formatVersion": 1,
         "material": {
@@ -425,6 +413,25 @@
           }
         ]
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "简答题",
+      "items": [
+        {
+          "question": "sample-text",
+          "label": "1"
+        },
+        {
+          "question": "sample-image-math",
+          "label": "2"
+        },
+        {
+          "question": "sample-material",
+          "label": "3"
+        }
+      ]
     }
   ]
 }

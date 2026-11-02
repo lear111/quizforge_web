@@ -14,15 +14,18 @@ import { bankItem, scanBanks, scanExtensions } from './directories.js';
 import { declaration, developmentRevision, editorPage, readExtension, snapshotPage, staticAssets } from '../extensions/extension-packages.js';
 import { extensionGroup } from './directories.js';
 import { runRuleBatches } from '../practice/outline.js';
-import { catalogRevision, developmentFolders, finishCollection, optional, prepareCollection } from './collections.js';
+import { Collection as CollectionForUpgrade, catalogRevision, developmentFolders, finishCollection, optional, prepareCollection } from './collections.js';
 import { ValidationCache } from '../extensions/validation-cache.js';
 import { LoadCoordinator, SerialTransactions } from '../platform/transactions.js';
 import { LibraryArchive } from './library-archive.js';
 import { FileCache } from '../platform/file-cache.js';
-import { findExtension, referenceIdentity, relativeExtension } from './identity.js';
+import { bankLocator,groupIdentity,instanceIdentity,isUuid,findExtension, referenceIdentity, relativeExtension } from './identity.js';
 import { eachReference } from './identity.js';
 import { BankLocations } from './bank-locations.js';
 import { validateImportLibrary } from './import-validation.js';
+import { upgradeLocalLibrary,discoverUpgradeLibrary,localManifests } from './library-upgrade.js';
+import { BankAuthoring } from './bank-authoring.js';
+import { parseLossless, losslessBytes } from './format4.js';
 
 const RUNTIME_ENVIRONMENT_REUSE_MS = 30 * 1000;
 export class Library {
@@ -154,9 +157,9 @@ export class Library {
       sourceOffset = values.length;
       values.push(scope.source, this.files.hash(scope.source));
       const listening = readListening(this.files.json(scope.source));
-      for (const file of new Set(listening?.materials.map(row => row.file) ?? [])) values.push(file, this.files.hash(safeFile(path.dirname(scope.source), file), 8 * 1024 * 1024));
+      for (const file of new Set(listening?.materials.filter(row => row.file).map(row => row.file) ?? [])) values.push(file, this.files.hash(safeFile(path.dirname(scope.source), file), 32 * 1024 * 1024));
       const assets = path.join(path.dirname(scope.source), 'assets');
-      if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const file of walkFiles(assets).sort()) if (fs.lstatSync(file).isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 4 * 1024 * 1024));
+      if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const file of walkFiles(assets).sort()) if (fs.lstatSync(file).isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 32 * 1024 * 1024));
     }
     const registry = path.join(this.codeRoot, 'shared', 'richtext', 'service.json');
     if (exists(registry)) values.push(readJson(registry, 64 * 1024));
@@ -254,7 +257,7 @@ export class Library {
     else {
       extension = [...available.values()].find(value => value.directory === scope.candidate.source);
       raw = extension.examples ? readJson(extension.examples, 8 * 1024 * 1024) : { id: 'examples', title: extension.name, extension: { path: extension.referencePath }, questions: [{ id: 'preview', title: extension.name, data: {} }] };
-      if (raw.id !== 'examples') throw bad('Invalid example ID');
+      if (raw.formatVersion !== 2 && raw.id !== 'examples') throw bad('Invalid example ID');
       raw = cloneJson(raw);
       eachReference(raw, (_owner, reference) => {
         if (reference.path !== extension.referencePath) throw new ApiError(422, 'EXAMPLE_BINDING_UPGRADE_REQUIRED', '拓展样例必须通过准确路径绑定自身，请同步样例引用。');
@@ -267,6 +270,7 @@ export class Library {
     const result = await finishCollection(options.engine ?? this.engine, prepared, this.validationCache.read(cacheKey, prepared.questions.length));
     const collection = bindListening(result.collection, scope.source ? path.dirname(scope.source) : extension.examples ? path.dirname(extension.examples) : extension.directory), store = this.resources;
     if (kind === 'bank') collection.bankId = raw.id;
+    if (kind === 'bank' && scope.candidate.metadata.storageKey) collection.storageKey=scope.candidate.metadata.storageKey;
     if (kind === 'bank' && scope.candidate.metadata.groupId) {
       collection.groupId = scope.candidate.metadata.groupId; collection.bankId = raw.id;
       // Old global-ID records remain available when only group metadata changes.
@@ -329,7 +333,7 @@ export class Library {
     if (catalogRevision(latest) !== catalogRevision(current)) throw new ApiError(409, 'CONTENT_CONFLICT', 'Bank changed while preparing the edit');
     const loaded = this.loaded.get(current.kind + ':' + current.id), source = loaded?.source;
     if (!source) throw new ApiError(422, 'DEVELOPMENT_NOT_IMPLEMENTED', '请先创建样例题库文件，再保存题目编辑；当前输入已保留。');
-    const before = readBytes(source, 8 * 1024 * 1024), raw = readJson(source, 8 * 1024 * 1024);
+    const before = readBytes(source, 8 * 1024 * 1024), raw = parseLossless(readBytes(source,8*1024*1024),source);
     const parse = async document => {
       if (current.kind === 'extension') {
         document = cloneJson(document);
@@ -337,7 +341,7 @@ export class Library {
           if (reference.id === current.extension.id || reference.development === path.basename(current.extension.directory)) owner.extension = { id: current.extension.id, path: current.extension.referencePath };
         });
       }
-      const prepared = prepareCollection(document, current.kind, current.extension, current.id, loaded.available, current.bankId ?? current.id);
+      const prepared = prepareCollection(JSON.parse(losslessBytes(document)), current.kind, current.extension, current.id, loaded.available, current.bankId ?? current.id);
       prepared.title = current.title;
       const replacement = bindListening((await finishCollection(this.engine, prepared)).collection, path.dirname(source));
       for (const field of ['storageKey', 'bankId', 'groupId']) if (current[field]) replacement[field] = current[field];
@@ -347,7 +351,7 @@ export class Library {
     for (const question of raw.questions) if (question.id === questionId) { question.title = title; question.data = cloneJson(data); }
     const replacement = await parse(raw);
     if (['extension', 'development'].includes(current.kind) || path.basename(source) === 'bank.json' && path.dirname(source) !== path.join(this.root, 'question-banks')) (current.kind.startsWith('development') ? this.developmentResources : this.resources).exportReferences(path.dirname(source), raw);
-    return { path: source, before, after: jsonBytes(raw), collection: replacement, question: replacement.question(questionId) };
+    return { path: source, before, after: losslessBytes(raw), collection: replacement, question: replacement.question(questionId) };
   }
   invalidate() { this.generation++; this.recentEnvironment = null; this.loaded.clear(); this.extensionCache.clear(); this.statuses.clear(); this.coordinator.invalidate(() => true); }
   async developmentPublishPlan() { throw new ApiError(410, 'PUBLICATION_REMOVED', '拓展直接修改和使用，无需发布。'); }
@@ -414,6 +418,24 @@ export class Library {
     });
   }
   exportGroup(group) { return this.managementTransactions.run(() => new LibraryArchive(this.root, this.resources).exportGroup(group)); }
+  createBank(request) { return this.managementTransactions.run(()=>new BankAuthoring(this).create(request)); }
+  readOutline(bank) { return new BankAuthoring(this).readOutline(bank); }
+  saveOutline(request) { return this.managementTransactions.run(()=>new BankAuthoring(this).saveOutline(request)); }
+  upgradeLocal() { return this.managementTransactions.run(()=>{
+    const identities=new Map(),discovered=discoverUpgradeLibrary(this.root),{manifests}=localManifests(this.root,discovered.extensions);
+    const available=new Map([...manifests].map(([referencePath,m])=>['path:'+referencePath,{...m,referencePath,fingerprint:'upgrade-routing',outlineItemsDeclared:m.requiresApi?.capabilities?.includes('outline-items')===true}]));
+    for(const source of discovered.banks)try{
+      const directory=path.dirname(source);if(instanceIdentity(directory))continue;
+      const raw=readJson(source),bankId=id(raw,'id'),parent=path.dirname(directory),group=parent!==path.join(this.root,'question-banks')?groupIdentity(parent):null;
+      const route=group&&isUuid(bankId)?bankLocator(group,bankId):bankId;
+      const prepared=prepareCollection(raw,'bank',null,route,available,bankId);
+      const legacy=new CollectionForUpgrade(prepared);
+      identities.set(path.relative(this.root,source).replaceAll('\\','/'),{route,stateKey:legacy.stateKey()});
+    }catch{/* Invalid leaves have no loadable practice identity; the strict converter reports them independently. */}
+    const report=upgradeLocalLibrary(this.root,{identities});this.invalidate();
+    try{return {...report,catalog:this.index()};}catch{return {...report,catalogUnavailable:true};}
+
+  }); }
   exportBank(bank) { return this.managementTransactions.run(() => new LibraryArchive(this.root, this.resources).exportBank(bank)); }
   importPackage(input, filename) {
     return this.managementTransactions.run(async () => {

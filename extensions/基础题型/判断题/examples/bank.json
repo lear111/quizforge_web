@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "examples",
+  "formatVersion": 2,
+  "id": "71604169-b377-4853-af08-9d7106bec976",
   "title": "判断题示例",
   "description": "富文本判断示例：文字陈述与公式陈述。",
   "extension": {
@@ -42,10 +42,6 @@
           ]
         },
         "maxScore": 2
-      },
-      "outline": {
-        "level": "question",
-        "label": "1"
       }
     },
     {
@@ -123,11 +119,22 @@
           ]
         },
         "maxScore": 2
-      },
-      "outline": {
-        "level": "question",
-        "label": "2"
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "判断题",
+      "items": [
+        {
+          "question": "sample-true",
+          "label": "1"
+        },
+        {
+          "question": "sample-false",
+          "label": "2"
+        }
+      ]
     }
   ]
 }

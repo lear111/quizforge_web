@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "examples",
+  "formatVersion": 2,
+  "id": "45dee2b2-a864-437d-aa1e-4f8f538383f3",
   "title": "单选题示例",
   "description": "富文本单选示例：普通文字、图片与公式、表格选项。",
   "extension": {
@@ -10,10 +10,6 @@
     {
       "id": "sample-text",
       "title": "普通文字与强调",
-      "outline": {
-        "level": "question",
-        "label": "1"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -148,10 +144,6 @@
     {
       "id": "sample-image-math",
       "title": "图片与公式",
-      "outline": {
-        "level": "question",
-        "label": "2"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -321,10 +313,6 @@
     {
       "id": "sample-table-options",
       "title": "表格选项",
-      "outline": {
-        "level": "question",
-        "label": "3"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -925,6 +913,25 @@
         },
         "maxScore": 2
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "单选题",
+      "items": [
+        {
+          "question": "sample-text",
+          "label": "1"
+        },
+        {
+          "question": "sample-image-math",
+          "label": "2"
+        },
+        {
+          "question": "sample-table-options",
+          "label": "3"
+        }
+      ]
     }
   ]
 }
