@@ -1,4 +1,6 @@
 import { createApp, h, render } from 'vue';
+import AppearancePanel from './appearance/AppearancePanel.vue';
+import { createAppearanceSettings, type AppearanceConfig } from './appearance/settings';
 import AiChatPanel from './chat/AiChatPanel.vue';
 import type { ChatRequest } from './chat/session';
 import LibraryList from './library/LibraryList.vue';
@@ -48,4 +50,12 @@ export function mountAiChat({ container, request }: { container: HTMLElement; re
     cancel() { if (!disposed) panel.cancel(); },
     destroy() { if (!disposed) { disposed = true; app.unmount(); } },
   };
+}
+
+// Appearance content is Vue-owned; native settings tabs/dialog remain host-owned.
+export function mountAppearanceSettings({ container, ...config }: AppearanceConfig & { container: HTMLElement }) {
+  const manager = createAppearanceSettings(config, state => render(h(AppearancePanel, { state, themes: config.themes, actions: manager }), container));
+  const ready = manager.initialize();
+  return { ready, get value() { return manager.value; }, clearError: manager.clearError,
+    destroy() { manager.destroy(); render(null, container); } };
 }

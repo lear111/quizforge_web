@@ -79,87 +79,32 @@ export async function prepareImage(file,{document=globalThis.document,maxSide=25
   }finally{bitmap.close?.();}
 }
 
-export function bindAppearanceSettings({document=globalThis.document,storage=globalThis.localStorage,images=createImageStore(),URL=globalThis.URL}={}){
-  const get=id=>document.getElementById(`appearance-${id}`),root=document.documentElement;
+const appearanceViews=new WeakMap();
+export function bindAppearanceSettings({document=globalThis.document,storage=globalThis.localStorage,images=createImageStore(),URL=globalThis.URL,prepare=prepareImage}={}){
+  const container=document.getElementById('appearance-settings-root');
+  if(!container)return {ready:Promise.resolve(),open(){},destroy(){}};
+  appearanceViews.get(container)?.destroy();
   const dialog=document.getElementById('network-settings-dialog'),tab=document.getElementById('settings-appearance-tab');
-  const panel=document.getElementById('appearance-settings-panel'),list=get('themes'),imageBox=get('image'),choose=get('image-choose'),reset=get('image-reset'),file=get('image-file');
-  const imageActions=get('image-actions'),imageHint=get('image-hint');
-  const dim=get('dim'),dimValue=get('dim-value'),panels=get('panels'),clear=get('clear'),clearValue=get('clear-value'),error=get('error'),close=get('close');
-  const listeners=[],buttons=new Map();
+  const panel=document.getElementById('appearance-settings-panel'),listeners=[];
   const listen=(node,event,handler)=>{if(!node)return;node.addEventListener(event,handler);listeners.push(()=>node.removeEventListener(event,handler));};
-  let value=readAppearance(storage),imageUrl=null,busy=false,destroyed=false;
-
-  const apply=()=>applyAppearance(root,value,value.custom?imageUrl:null);
-  const save=()=>writeAppearance(storage,value);
-  function showError(message){if(!error)return;error.textContent=message||'';error.hidden=!message;}
-  function setImageUrl(blob){if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=blob?URL.createObjectURL(blob):null;}
-  function render(){
-    for(const [id,button] of buttons){const selected=id===value.theme;button.setAttribute('aria-checked',String(selected));button.tabIndex=selected?0:-1;}
-    if(imageBox)imageBox.hidden=!['image','coast'].includes(value.theme);
-    if(imageActions)imageActions.hidden=value.theme!=='image';
-    if(imageHint)imageHint.textContent=value.theme==='coast'?'内置青屿插画。遮罩越高，背景越柔和。':'图片只保存在这台设备的浏览器中，不会上传。遮罩越高，文字越清楚。';
-    if(dim){dim.value=String(value.dim);dimValue.textContent=`${value.dim}%`;}
-    const themeClear=value.clear[value.theme];
-    if(panels)panels.hidden=themeClear===undefined;
-    if(clear&&themeClear!==undefined){clear.value=String(themeClear);clearValue.textContent=`${themeClear}%`;}
-    if(reset)reset.hidden=!value.custom;
-    if(choose)choose.disabled=busy||!images;
-  }
-  function select(id,{focus=false}={}){
-    if(!THEMES.some(item=>item.id===id))return;
-    value={...value,theme:id};save();apply();render();showError('');
-    if(focus)buttons.get(id)?.focus();
-  }
-  if(list){
-    for(const item of THEMES){
-      const button=document.createElement('button'),swatch=document.createElement('span'),label=document.createElement('span');
-      button.type='button';button.className='appearance-theme';button.dataset.theme=item.id;button.setAttribute('role','radio');
-      swatch.className='appearance-swatch';swatch.dataset.swatch=item.id;swatch.setAttribute('aria-hidden','true');label.textContent=item.label;
-      button.append(swatch,label);list.append(button);buttons.set(item.id,button);
-      listen(button,'click',()=>select(item.id));
-    }
-    listen(list,'keydown',event=>{
-      const step={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[event.key];if(!step)return;event.preventDefault();
-      const index=THEMES.findIndex(item=>item.id===value.theme),next=THEMES[(index+step+THEMES.length)%THEMES.length];select(next.id,{focus:true});
-    });
-  }
+  const mounted=document.defaultView.QuizForgeUI.mountAppearanceSettings({container,themes:THEMES,initial:readAppearance(storage),images,
+    prepare:file=>prepare(file,{document}),save:value=>writeAppearance(storage,value),
+    apply:(value,url)=>applyAppearance(document.documentElement,value,url),urls:URL,isBlob:value=>value instanceof Blob,
+    close:()=>dialog?.close()});
+  let destroyed=false;
   function open(){
-    for(const node of [document.getElementById('network-settings-form'),document.getElementById('ai-settings-panel'),document.getElementById('development-settings-panel')])if(node)node.hidden=true;
+    if(destroyed)return;
+    for(const id of ['network-settings-form','ai-settings-panel','development-settings-panel']){const node=document.getElementById(id);if(node)node.hidden=true;}
     for(const node of document.querySelectorAll('.settings-tabs [role="tab"]'))node.setAttribute('aria-selected',String(node===tab));
-    panel.hidden=false;showError('');render();
+    panel.hidden=false;mounted.clearError();
   }
   function hide(){panel.hidden=true;tab?.setAttribute('aria-selected','false');}
   listen(tab,'click',open);
   for(const other of document.querySelectorAll('.settings-tabs [role="tab"]'))if(other!==tab)listen(other,'click',hide);
-  listen(dialog,'close',hide);listen(close,'click',()=>dialog?.close());
-  listen(dim,'input',()=>{const next=Number(dim.value);if(!Number.isInteger(next))return;value={...value,dim:next};dimValue.textContent=`${next}%`;apply();save();});
-  listen(clear,'input',()=>{
-    const next=Number(clear.value);if(!Number.isInteger(next)||!(value.theme in DEFAULT_CLEAR))return;
-    value={...value,clear:{...value.clear,[value.theme]:next}};clearValue.textContent=`${next}%`;apply();save();
-  });
-  listen(choose,'click',()=>{showError('');file?.click();});
-  listen(file,'change',async()=>{
-    const picked=file.files?.[0];file.value='';if(!picked||!images||busy)return;
-    busy=true;render();showError('');choose.textContent='正在处理图片…';
-    try{
-      const blob=await prepareImage(picked,{document});
-      await images.put(blob);if(destroyed)return;
-      setImageUrl(blob);value={...value,theme:'image',custom:true};save();apply();
-    }catch(cause){showError(cause?.message||'图片未能保存，请重试');}
-    finally{busy=false;choose.textContent='选择图片';render();}
-  });
-  listen(reset,'click',async()=>{
-    if(busy)return;busy=true;render();
-    try{await images?.remove();setImageUrl(null);value={...value,custom:false};save();apply();showError('');}
-    catch(cause){showError(cause?.message||'未能恢复默认图片，请重试');}
-    finally{busy=false;render();}
-  });
-
-  apply();render();
-  const ready=(async()=>{
-    if(!value.custom||!images)return;
-    try{const blob=await images.get();if(destroyed)return;if(blob instanceof Blob){setImageUrl(blob);apply();}else{value={...value,custom:false};save();render();}}
-    catch{/* The default picture stays in place when the saved image cannot be read. */}
-  })();
-  return {ready,open,get value(){return value;},destroy(){destroyed=true;listeners.forEach(remove=>remove());setImageUrl(null);}};
+  listen(dialog,'close',()=>{if(!dialog.open)hide();});
+  const view={ready:mounted.ready,open,get value(){return mounted.value;},destroy(){
+    if(destroyed)return;destroyed=true;listeners.forEach(remove=>remove());mounted.destroy();
+    if(appearanceViews.get(container)===view)appearanceViews.delete(container);
+  }};
+  appearanceViews.set(container,view);return view;
 }
