@@ -18,7 +18,6 @@ import { catalogRevision, developmentFolders, finishCollection, optional, prepar
 import { ValidationCache } from '../extensions/validation-cache.js';
 import { LoadCoordinator, SerialTransactions } from '../platform/transactions.js';
 import { LibraryArchive } from './library-archive.js';
-import { FileCache } from '../platform/file-cache.js';
 import { findExtension, referenceIdentity, relativeExtension } from './identity.js';
 import { eachReference } from './identity.js';
 import { BankLocations } from './bank-locations.js';
@@ -33,7 +32,9 @@ export class Library {
     this.coordinator = new LoadCoordinator(); this.managementTransactions = new SerialTransactions();
     this.loaded = new Map(); this.extensionCache = new Map(); this.statuses = new Map(); this.closed = false; this.generation = 0; this.environmentPending = null; this.backgroundRunning = false;
     this.recentEnvironment = null; this.now = Date.now;
-    this.files = new FileCache();
+    // Indexing and loading consume the same immutable files. Share their bounded,
+    // identity-checked cache instead of parsing each bank independently twice.
+    this.files = this.indexer.files;
     this.bankLocations = new BankLocations(root);
   }
   indexSnapshot() { return this.indexer.scan(); }
@@ -159,7 +160,7 @@ export class Library {
       if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const file of walkFiles(assets).sort()) if (fs.lstatSync(file).isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 4 * 1024 * 1024));
     }
     const registry = path.join(this.codeRoot, 'shared', 'richtext', 'service.json');
-    if (exists(registry)) values.push(readJson(registry, 64 * 1024));
+    if (exists(registry)) values.push(this.files.json(registry, 64 * 1024));
     const current = fingerprint(values, 'quizforge-node-library-source-v1');
     if (!previousSource || sourceOffset === undefined) return { current };
     values[sourceOffset] = previousSource.path; values[sourceOffset + 1] = previousSource.hash;
@@ -250,7 +251,7 @@ export class Library {
       return { descriptor: snapshotPage(extension), collection: null, row: { validationStatus: 'ready' }, scope, available };
     }
     let extension = null, raw;
-    if (scope.source) raw = readJson(scope.source, 8 * 1024 * 1024);
+    if (scope.source) raw = this.files.json(scope.source, 8 * 1024 * 1024);
     else {
       extension = [...available.values()].find(value => value.directory === scope.candidate.source);
       raw = extension.examples ? readJson(extension.examples, 8 * 1024 * 1024) : { id: 'examples', title: extension.name, extension: { path: extension.referencePath }, questions: [{ id: 'preview', title: extension.name, data: {} }] };

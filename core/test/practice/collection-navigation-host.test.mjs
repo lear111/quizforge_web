@@ -58,19 +58,22 @@ function fixture(t,{drawer=false,developmentEnabled=false}={}){
   return {dom,document,collections,errors,saved,descriptors,sandbox,host:sandbox.host,add,click};
 }
 
-test('startup renders a pending bank before its collection request finishes',async t=>{
-  const f=fixture(t);f.add('bank');let release,started;
+test('startup indexes banks without loading a question until the user selects a bank',async t=>{
+  const f=fixture(t,{developmentEnabled:true});f.add('bank');let release,started,collectionReads=0;
   const loading=new Promise(resolve=>{started=resolve;});const blocked=new Promise(resolve=>{release=resolve;});const request=f.sandbox.request;
   f.sandbox.request=async(path,options)=>{
     if(path==='/api/library/index')return {...f.sandbox.catalog,banks:[{id:'bank',title:'bank',kind:'bank',validationStatus:'pending'}]};
     if(path==='/api/settings/development')return {enabled:false};
-    if(path==='bank:bank'){assert.equal(options.timeoutMs,60000);started();await blocked;}
+    if(path==='bank:bank'){collectionReads++;assert.equal(options.timeoutMs,60000);started();await blocked;}
     return request(path);
   };
-  const start=f.host.start();await loading;assert.doesNotMatch(f.document.querySelector('[data-item-id="bank"]').textContent,/待校验/);assert.equal(f.collections.size,0);
+  t.after(()=>f.host.refreshCatalog.client?.stop());
+  await f.host.start();assert.equal(collectionReads,0);assert.equal(f.collections.size,0);assert.equal(f.sandbox.activeKey,null);
+  assert.equal(f.document.querySelector('#welcome').hidden,false);assert.equal(f.document.querySelector('#collection-loading').hidden,true);
+  const selected=f.click('bank');await loading;assert.doesNotMatch(f.document.querySelector('[data-item-id="bank"]').textContent,/待校验/);assert.equal(f.collections.size,0);
   assert.equal(f.document.querySelector('#collection-loading').hidden,false);
   assert.equal(f.document.querySelector('.library-item.active')?.dataset.itemId,'bank');
-  release();await start;assert.equal(f.sandbox.activeKey,'bank:bank');assert.equal(f.document.querySelector('#collection-loading').hidden,true);f.host.refreshCatalog.client.stop();
+  release();await selected;assert.equal(f.sandbox.activeKey,'bank:bank');assert.equal(f.document.querySelector('#collection-loading').hidden,true);
 });
 
 test('startup opens the installed import hint instead of the first bank and consumes it',async t=>{

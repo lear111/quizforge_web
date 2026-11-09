@@ -118,6 +118,26 @@ test('import rejects content and runtime changes detected at the final validatio
   await assert.rejects(validateImportLibrary(library), { code: 'INVALID_LIBRARY_ARCHIVE' });
 });
 
+test('import reuses indexed bank bytes while still rejecting subsequent on-disk edits', async t => {
+  const { root, library } = await fixture(t);
+  const file = path.join(root, 'question-banks', 'bank-3', 'bank.json');
+  library.indexSnapshot();
+  const originalOpen = fs.openSync;
+  let reads = 0;
+  const open = t.mock.method(fs, 'openSync', function (target, ...args) {
+    if (target === file) reads++;
+    return originalOpen.call(this, target, ...args);
+  });
+  await validateImportLibrary(library);
+  assert.equal(reads, 0, 'identity checks reuse the JSON already read by the index');
+  open.mock.restore();
+  const raw = JSON.parse(fs.readFileSync(file));
+  raw.questions[0].data.options = 'invalid after indexing';
+  writeFixture(file, JSON.stringify(raw));
+  await assert.rejects(validateImportLibrary(library), { code: 'INVALID_LIBRARY_ARCHIVE' });
+  assert.equal(library.loaded.size, 0);
+});
+
 test('real import outlines preserve original per-bank globals and reject a later invalid outline', async t => {
   const { root, library } = await fixture(t), directory = path.join(root, 'extensions', 'Test', 'choice');
   const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));

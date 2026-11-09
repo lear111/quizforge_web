@@ -33,6 +33,21 @@ test('group toggles only visibility and each formal or development leaf opens it
   assert.deepEqual(f.opened,[['extension','standalone'],['extension','choice'],['extension','essay'],['development','essay-dev']]);
 });
 
+test('bank groups start collapsed, keep manual expansion during refresh, and reset on a new page session',t=>{
+  const f=fixture(t),toggle=()=>f.document.querySelector('.extension-group-toggle');
+  f.sandbox.listMode='bank';f.sandbox.render();
+  assert.equal(toggle().getAttribute('aria-expanded'),'false');
+  assert.equal(f.document.getElementById(toggle().getAttribute('aria-controls')).hidden,true);
+  toggle().click();assert.equal(toggle().getAttribute('aria-expanded'),'true');assert.deepEqual(f.opened,[]);
+  f.catalog.banks.push({id:'new-bank',title:'新题库',group:'新分组'});f.sandbox.render();
+  const groups=()=>Object.fromEntries([...f.document.querySelectorAll('.extension-group-toggle')].map(node=>[node.dataset.extensionGroup,node.getAttribute('aria-expanded')]));
+  assert.deepEqual(groups(),{'新分组':'false','题库分组':'true'});
+  f.sandbox.listMode='extension';f.sandbox.render();f.sandbox.listMode='bank';f.sandbox.render();
+  assert.equal(groups()['题库分组'],'true');
+  f.sandbox.collapsedExtensionGroups=new Set();f.sandbox.render();
+  assert.deepEqual(groups(),{'新分组':'false','题库分组':'false'});
+});
+
 test('collapse survives catalog rerenders and list switching without changing mixed-bank or extension identities',t=>{
   const f=fixture(t),getGroup=path=>[...f.document.querySelectorAll('.extension-group-toggle')].find(button=>button.dataset.extensionGroup===path);
   getGroup('语言题型').click();f.sandbox.render();assert.equal(getGroup('语言题型').getAttribute('aria-expanded'),'false');
