@@ -147,22 +147,7 @@
     </form>
   </dialog>
   <dialog id="library-manage-dialog" class="library-manage-dialog" aria-labelledby="library-manage-title">
-    <form id="library-manage-form">
-      <div class="dialog-heading">
-        <h2 id="library-manage-title">编辑目录</h2><button id="library-manage-close" class="icon-button" type="button"
-          aria-label="关闭目录编辑">×</button>
-      </div>
-      <p id="library-manage-hint" class="library-manage-hint"></p>
-      <div id="library-manage-fields"><label>名称<input id="library-manage-name" maxlength="300"
-            autocomplete="off"></label><label>所属分组<select id="library-manage-group"></select></label></div>
-      <p id="library-manage-status" class="library-manage-hint" role="status" hidden></p>
-      <p id="library-manage-error" class="library-manage-error" role="alert" hidden></p>
-      <div class="library-manage-footer">
-        <div id="library-manage-more" class="library-manage-more" hidden><button id="library-manage-export" type="button">导出题库</button><button id="library-manage-delete" type="button">删除</button></div>
-        <div class="dialog-actions"><button id="library-manage-cancel" type="button">取消</button><button
-            id="library-manage-confirm" type="submit">保存</button></div>
-      </div>
-    </form>
+    <div id="library-manage-root"></div>
   </dialog>
   <dialog id="editor-leave-dialog" class="editor-leave-dialog" aria-labelledby="editor-leave-title">
     <h2 id="editor-leave-title">请先处理当前编辑</h2>
