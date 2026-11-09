@@ -16,7 +16,9 @@
     "build:short-answer-ai": "node scripts/build/build-short-answer-ai.mjs",
     "test": "node scripts/test/run.mjs",
     "test:host": "node scripts/test/run.mjs host",
-    "test:rules": "node scripts/test/run.mjs rules"
+    "test:rules": "node scripts/test/run.mjs rules",
+    "build:ui": "node scripts/build/build-ui.mjs",
+    "typecheck:ui": "vue-tsc --project frontend/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.12",
@@ -42,6 +44,11 @@
     "yazl": "3.3.1"
   },
   "devDependencies": {
-    "jsdom": "27.4.0"
+    "jsdom": "27.4.0",
+    "@vitejs/plugin-vue": "6.0.10",
+    "typescript": "5.9.3",
+    "vite": "8.3.7",
+    "vue": "3.5.45",
+    "vue-tsc": "3.3.14"
   }
 }

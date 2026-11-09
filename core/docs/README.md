@@ -4,6 +4,8 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [前端分阶段迁移](design/FRONTEND_MIGRATION.md) | Vue / TypeScript / Vite 的阶段、模块边界、构建与验收 |
+| [本地 AI 对话](reference/AI_CHAT.md) | 单会话聊天、调用来源、临时记录与侧栏调宽 |
 | [使用手册](guides/USER_GUIDE.md) | 启动、目录管理、练习、白板、编辑、导入导出、网络、AI 与更新的完整说明 |
 | [产品功能清单](../../FEATURES.md) | 用户可见功能、操作入口及功能测试预期 |
 | [API 文档](reference/API.md) | 页面 SDK、规则、HTTP 与保存约定 |

@@ -19,6 +19,7 @@ import { DevelopmentSettings } from '../extensions/development-settings.js';
 import { NetworkSettings } from './network-settings.js';
 import { AiSettings } from '../ai/ai-settings.js';
 import { OpenAiCompatibleProvider, AiProviderError } from '../ai/ai-provider.js';
+import { AiChatService } from '../ai/ai-chat.js';
 import { AiGradingService } from '../ai/ai-grading-service.js';
 import { CollectionRoutes } from '../practice/collection-routes.js';
 import { PracticeSessions } from '../practice/practice-sessions.js';
@@ -81,6 +82,7 @@ export class QuizForgeServer {
       service.library = new Library(service.root, service.codeRoot, service.engine, service.developmentSettings);
       service.states = new StateStore(service.root, service.engine); service.resources = new ResourceStore(service.root, { fallback: new ResourceStore(path.join(service.root, '.development')) }); service.editorDrafts = new EditorDraftStore(service.root);
       service.aiSettings = new AiSettings(service.root); service.hub = new HubConnection(service.root, hub); service.aiSettings.attachHub(service.hub); service.aiGateway = new OpenAiCompatibleProvider(service.aiSettings, service.resources);
+      service.chat = new AiChatService(service.aiGateway);
       service.readAdminContact = signal => readAdminContact({ ...adminContact, signal });
       service.ai = new AiGradingService(service.root, service.states, service.library, service.aiGateway);
       service.writes = { read: context => service.writeRequest(context), validateOrigin: context => service.validateOrigin(context) };
@@ -148,6 +150,7 @@ export class QuizForgeServer {
   close({ graceful = false } = {}) {
     if (this.closing) return this.closing;
     this.closed = true; this.ready = false; clearInterval(this.timer); clearInterval(this.certificateTimer); clearInterval(this.tailscaleTimer);
+    this.chat?.close();
     const dispose = () => { this.library?.close(); this.exams?.close(); this.practiceSessions?.close(); this.ai?.close(); this.developmentAi?.close(); this.networkSettings?.invalidateSessions(); this.engine?.close(); };
     this.closing = (async () => {
       if (!graceful) dispose();
@@ -298,6 +301,16 @@ export class QuizForgeServer {
       if (pathname.endsWith('/credential') && method === 'GET') return this.aiSettings.credential();
       if (pathname === '/api/settings/ai' && method === 'PUT') return { ...await this.aiSettings.update(await this.writeRequest(context)), canManage: true };
       if (pathname.endsWith('/test') && method === 'POST') { await this.writeRequest(context); return this.aiGateway.testConnection(); }
+    }
+    if (pathname === '/api/ai/chat') {
+      if (method !== 'POST') throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Only POST is supported');
+      if (context.url.search) throw bad('This endpoint accepts no query parameters');
+      const body = await this.writeRequest(context);
+      const controller = new AbortController(), cancel = () => controller.abort();
+      context.request.once('aborted', cancel); context.response.once('close', cancel);
+      if (context.request.aborted || context.response.destroyed) cancel();
+      try { return await this.chat.reply(body, { signal: controller.signal }); }
+      finally { context.request.off('aborted', cancel); context.response.off('close', cancel); }
     }
     // Public contact keeps user-center access restrictions, without a Hub login.
     if (pathname === '/api/settings/admin-contact') {
