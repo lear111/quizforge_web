@@ -358,7 +358,7 @@ export class Library {
       const loaded = new Map(this.loaded), environment = this.recentEnvironment, relocated = new Map();
       if (request.kind === 'bank' && request.action === 'update') {
         const source = this.management.resolve(this.management.base('bank'), request.path);
-        for (const [key, entry] of loaded) if (entry.collection.kind === 'bank' && entry.source && within(source, entry.source)) {
+        for (const [key, entry] of loaded) if (entry.collection?.kind === 'bank' && entry.source && within(source, entry.source)) {
           try {
             relocated.set(key, { path: entry.source, hash: this.files.hash(entry.source) });
           } catch { /* Changed files must pass the full loader. */ }
@@ -387,7 +387,7 @@ export class Library {
       // whose own inputs still match; the new index alone is not proof of that.
       for (const [key, entry] of loaded) {
         try {
-          if (entry.environment === 'unavailable') continue;
+          if (!entry.collection || entry.environment === 'unavailable') continue;
           const scope = this.scope(after, entry.collection.kind, entry.collection.id), moved = relocated.get(key);
           if (scope.candidate.kind !== entry.collection.kind || scope.candidate.id !== entry.collection.id) continue;
           const raw = scope.source ? this.indexer.files.json(scope.source) : entry.raw;

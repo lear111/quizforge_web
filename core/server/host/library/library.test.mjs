@@ -229,6 +229,22 @@ test('group management preserves bank identity and rejects nested groups', async
   await assert.rejects(library.manage({ kind: 'extension', action: 'delete', target: 'item', path: 'Test/choice' }), { code: 'EXTENSION_IN_USE' });
 });
 
+test('bank and group renames work after loading an extension page descriptor without a collection', async t => {
+  const {root,library}=await fixture(t);
+  const raw=readJson(path.join(root,'extensions/Test/choice/examples.json'));raw.id='one';
+  writeFixture(path.join(root,'question-banks/Group/one/bank.json'),jsonBytes(raw));
+  const bank=await library.collection('bank','one');
+  await library.page('quizforge.single-choice','1.0.0');
+  assert.equal(library.loaded.get('page:quizforge.single-choice@1.0.0').collection,null);
+  const renamed=await library.manage({kind:'bank',action:'update',target:'item',path:'Group/one',name:'Renamed',group:'Group'});
+  assert.equal(renamed.retainedCollections.find(row=>row.id==='one').title,'Renamed');
+  assert.equal((await library.readCollection('bank','one')).questions,bank.questions);
+  await library.page('quizforge.single-choice','1.0.0');
+  await library.manage({kind:'bank',action:'update',target:'group',path:'Group',name:'New Group'});
+  assert.equal((await library.readCollection('bank','one')).questions,bank.questions);
+  assert.ok(fs.existsSync(path.join(root,'question-banks/New Group/Renamed/bank.json')));
+});
+
 test('bank and group renames reuse validated questions and keep unrelated collections warm', async t => {
   const { root, library, engine } = await fixture(t);
   const raw = readJson(path.join(root, 'extensions/Test/choice/examples.json'));
