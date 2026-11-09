@@ -15,6 +15,8 @@ import {createEditorSession} from './editor/editor-session.js';
 import {checkEditorExit,renderEditorStatus,bindEditorLeaveNotice,shouldWarnBeforeUnload} from './editor/editor-navigation.js';
 import {mountPracticeSummary} from './practice/practice-summary.js';
 import {bindNetworkSettings} from './shell/network-settings.js';
+import {bindAiChat} from './ai/ai-chat.js';
+import {bindOutlineResize} from './outline/outline-resize.js';
 import {bindAiSettings} from './ai/ai-settings.js';
 import {bindUserCenter} from './ai/user-center.js';
 import {createHubLogin} from './ai/hub-login.js';
@@ -817,6 +819,9 @@ $('#scrim').addEventListener('click',closeDrawers);syncSidebars();
 bindLibraryResize({shell:$('.app-shell'),library:$('.library'),handle:$('#library-resize')});
 const hubLogin=createHubLogin({request});
 bindAiSettings({request,login:hubLogin});
+const chatSidebar=bindAiChat({document,request});
+window.addEventListener('pagehide',()=>chatSidebar.cancel());
+bindOutlineResize({shell:$('.app-shell'),outline:$('.outline'),handle:$('#outline-resize')});
 bindUserCenter({request,login:hubLogin});
 const examControls=bindExamMode({document,request,active,collectionPath,makeRequestId,onDeadline:()=>updateChrome(),flush:pane=>transitionTo(()=>flushPane(pane)),open:(kind,id)=>transitionTo(()=>openCollection(kind,id)),onError:failure,refresh:(pane,value)=>transitionTo(()=>refreshExam(pane,value))});
 async function refreshExam(pane,exam){

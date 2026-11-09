@@ -45,6 +45,11 @@ test('all browser entry modules load over HTTP including the shared answer model
   assert.ok(loaded.has('/editor/editor-navigation.js'));
   const editorStyle=await api('/editor/editor-navigation.css');assert.equal(editorStyle.status,200);assert.match(editorStyle.headers.get('content-type'),/^text\/css/);
   const entry=await api('/');assert.match(entry.data.toString(),/id="editor-leave-dialog"/);assert.match(entry.data.toString(),/href="\/editor\/editor-navigation.css"/);
+  assert.match(entry.data.toString(),/src="\/ui\/quizforge-ui.js"/);
+  assert.match(entry.data.toString(),/id="ai-chat-root"/);
+  const ui = await api('/ui/quizforge-ui.js'); assert.equal(ui.status, 200); assert.match(ui.headers.get('content-type'), /^text\/javascript/);
+  assert.match(ui.data.toString(), /mountAiChat/);
+  assert.equal((await api('/frontend/src/chat/AiChatPanel.vue')).status, 404, 'frontend build source is not served');
   assert.equal((await api('/shared/answer-area/1.3.0/model.js')).status,200,'old pure model remains available');
   assert.ok(loaded.size > 30, 'check the whole startup graph, not just the new files');
   for (const uri of ['/shared/answer-area/1.3.0/component.js', '/shared/answer-area/1.2.0/model.js', '/shared/ink/1.0.0/renderer.js.map', '/server/host/http/server.js']) assert.equal((await api(uri)).status, 404, uri);

@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyRuntimeDependencies } from './runtime-dependencies.mjs';
 import { stageBasicContent } from './stage-basic-content.mjs';
+import { buildUi } from './build-ui.mjs';
 
 export const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 export async function stageWindowsApp({ root, target, version, node = process.execPath, launcher = path.join(root, 'QuizForge.exe'), license = null, sourceCommit = null, installed = false, applicationId = 'QuizForge.Desktop' }) {
@@ -14,6 +15,8 @@ export async function stageWindowsApp({ root, target, version, node = process.ex
   if (fs.readdirSync(source).filter(name => name.endsWith('.cs')).some(name => fs.statSync(path.join(source, name)).mtimeMs > fs.statSync(launcher).mtimeMs)) throw new Error('Launcher source changed; rebuild QuizForge.exe first');
   const nodeVersion = execFileSync(node, ['--version'], { windowsHide: true, encoding: 'utf8' }).trim();
   if (!/^v24\./.test(nodeVersion)) throw new Error('Node.js 24 is required');
+  // Source builds compile Vue islands before copying static runtime assets.
+  await buildUi(path.join(root, 'core'));
   fs.mkdirSync(target);
   const productFilter = file => {
     const name = path.basename(file);

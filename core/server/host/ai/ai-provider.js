@@ -74,6 +74,19 @@ export class OpenAiCompatibleProvider {
   }
   configured(requireEnabled) { return this.chain(requireEnabled)[0]; }
   freeze() { return this.boundProfile ? this : new OpenAiCompatibleProvider(this.settings, this.resources, this.chain(true).map(profile => ({ ...profile }))); }
+  // Chat shares the selected sources, independently of the automatic grading switch.
+  async chat(messages, { signal } = {}) {
+    const chain = this.chain(false).map(profile => ({ ...profile }));
+    for (let index = 0; ; index++) {
+      const profile = chain[index];
+      try {
+        return await this.complete(profile, { model: profile.model, stream: false, max_tokens: profile.maxOutputTokens,
+          messages: [{ role: 'system', content: '你是 QuizForge AI 助手。根据用户提供的信息进行对话和学习辅导。你不能读取当前题目、题库、文件或界面，也不能执行操作；需要材料时请用户提供。' }, ...messages] }, signal);
+      } catch (error) {
+        if (!(index + 1 < chain.length && profile.official && error instanceof AiProviderError && FALLBACK.has(error.code))) throw error;
+      }
+    }
+  }
   // Tries the free quota first; when it cannot grade this time, the user's own model does.
   async generate(request, { signal } = {}) {
     const chain = this.chain(true);
@@ -110,6 +123,9 @@ export class OpenAiCompatibleProvider {
     const document = { model: profile.model, stream: false, max_tokens: profile.maxOutputTokens, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content }] };
     if (profile.outputMode === 'schema') document.response_format = { type: 'json_schema', json_schema: { name: 'quizforge_grading', strict: true, schema: { type: 'object', additionalProperties: false, properties: { score: { type: 'number' }, feedback: { type: 'string' } }, required: ['score', 'feedback'] } } };
     else if (profile.outputMode === 'json') document.response_format = { type: 'json_object' };
+    return this.complete(profile, document, signal);
+  }
+  async complete(profile, document, signal) {
     const bytes = jsonBytes(document); if (bytes.length > 12 * 1024 * 1024) throw new AiProviderError('AI_INPUT_LIMIT');
     const response = await boundedRequest(profile.baseUrl + '/chat/completions', bytes, profile, signal);
     if (response.status < 200 || response.status >= 300) {
