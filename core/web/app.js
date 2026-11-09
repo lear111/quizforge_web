@@ -31,6 +31,7 @@ import {questionExtension,collectionHasExtension,extensionPageRoute,sameQuestion
 import {renderLibraryView} from './library/library-view.js';
 import {renderOutlineView} from './outline/outline-view.js';
 import {bindLibraryManagement} from './library/library-management.js';
+import {bindBankAuthoring} from './library/bank-authoring.js';
 import {takeImportedBank} from './library/native-import.js';
 import {bindLibraryTransfer} from './library/library-transfer.js';
 import {bindLibraryResize} from './library/library-resize.js';
@@ -782,14 +783,16 @@ async function applyLibraryChange(result,operation){
     notice(operation.action==='delete'?`已移入回收目录：${result.archivedTo}${operation.kind==='bank'?'；配套拓展文件已保留。':''}`:'目录已更新。');
 }
 const libraryManager=bindLibraryManagement({request,getContext:()=>({kind:listMode,catalog}),beforeChange:prepareLibraryChange,
+  onCopy:row=>bankAuthoring.open('copy',row),onOutline:row=>bankAuthoring.open('outline',row),
   onExport:(row,target)=>target==='item'?libraryTransfer.exportBank(row,{throwOnError:true}):libraryTransfer.exportGroup(row,{throwOnError:true}),
   onChanged:(result,operation)=>transitionTo(()=>applyLibraryChange(result,operation))});
 const libraryTransfer=bindLibraryTransfer({request,getContext:()=>({kind:listMode,catalog}),beforeChange:prepareLibraryChange,onMessage:notice,
   onImported:result=>transitionTo(async()=>{
     await refreshCatalog();questionsCache.clear();pagesCache.clear();
     if(!activeKey){const first=catalog.banks.find(row=>!row.error);if(first)await openCollection(first.kind||'bank',first.id);}
-    notice(`已新增「${result.name||result.group}」${result.scope==='bank'?'到题库根目录':''}：${result.importedBanks} 本题库、${result.importedExtensions} 个拓展。已有题库与进度保留。`);
+    notice(`${result.upgradedFrom===3?'旧格式 3 已自动升级为格式 4。':''}已新增「${result.name||result.group}」${result.scope==='bank'?'到题库根目录':''}：${result.importedBanks} 本题库、${result.importedExtensions} 个拓展。已有题库与进度保留。${result.upgradedFrom===3?'拓展示例已升级，上传 V2 需重新审核。':''}`);
   })});
+const bankAuthoring=bindBankAuthoring({request,getContext:()=>({catalog}),beforeChange:prepareLibraryChange,onMessage:notice,onChanged:(result,operation)=>transitionTo(()=>applyLibraryChange(result,operation))});
 $('#library-new-group').addEventListener('click',()=>libraryManager.open('group',null,'create'));
 bindSaveRecovery({document,active,transitionTo,loadQuestion,showQuestion,saveInk,notice,collectionFeature,renderOutline});
 $('#draft-toggle').addEventListener('click',()=>transitionTo(()=>toggleDraftMode()));

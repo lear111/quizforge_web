@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ApiError, bad, text, requireObject } from '../platform/errors.js';
 import { checkPath, exists, readBytes, replaceFile, safeDirectory, safeFile, walkFiles } from '../platform/files.js';
 import { hash } from '../platform/json.js';
+import { resourceType } from '../library/format4.js';
 
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const TYPES = new Map([['image/png', 'png'], ['image/jpeg', 'jpg'], ['image/webp', 'webp'], ['image/gif', 'gif']]);
@@ -87,6 +88,7 @@ export class ResourceStore {
     checkPath(assets, { directory: true });
     for (const file of walkFiles(assets)) {
       if (fs.lstatSync(file).isDirectory()) continue;
+      if (/\.(mp3|m4a)$/i.test(file)) { resourceType(file,readBytes(file,(extension?8:32)*1024*1024)); continue; }
       const bytes = readBytes(file, MAX_IMAGE_BYTES), mime = detectImageMime(bytes);
       if (!mime && (extension || allowed.has(file))) continue;
       if (!mime) throw new Error('Bank assets support only PNG, JPEG, WebP and GIF');
@@ -99,7 +101,13 @@ export class ResourceStore {
     if (!ids.size) return;
     checkPath(directory, { directory: true });
     const assets = safeDirectory(path.join(directory, 'assets'), true);
+    const existingHashes = new Set();
+    for (const name of fs.readdirSync(assets)) {
+      const file=path.join(assets,name); if (!fs.lstatSync(file).isFile() || !/\.(png|jpe?g|webp|gif)$/i.test(name)) continue;
+      const bytes=readBytes(file,MAX_IMAGE_BYTES); if (detectImageMime(bytes)) existingHashes.add(hash(bytes));
+    }
     for (const id of ids) {
+      if (existingHashes.has(id)) continue;
       let resource;
       try { resource = this.read(id); }
       catch (error) { if (error instanceof ApiError) throw new ApiError(422, 'IMAGE_REFERENCE_UNAVAILABLE', 'A referenced image is unavailable; the question was not saved'); throw error; }

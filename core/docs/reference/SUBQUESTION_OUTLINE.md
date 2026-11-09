@@ -4,14 +4,14 @@
 
 ## 大纲与稳定 ID
 
-题库通过 `questions[].outline` 选择父题或小题入口，格式见[题库说明](QUESTION_BANK_FORMAT.md#大纲)。
+格式 2 通过顶层 `outline[].items[]` 选择父题或小题入口；旧格式 1 的逐题 outline 仅供兼容读取，升级时转换。格式见[题库说明](QUESTION_BANK_FORMAT.md#大纲)。
 
 | 形式 | 字段 |
 | --- | --- |
-| 父题 | `{level:"question",label:"三"}` |
-| 小题 | `{level:"parts",items:[{id:"part-a",label:"21"}]}` |
+| 父题 | `{question:"q1",label:"三"}` |
+| 小题 | `{question:"q1",parts:[{id:"part-a",label:"21"}]}` |
 
-父题形式仅允许 level/label，小题形式仅允许 level/items。items 为 1–100 项；每项仅有 id/label，均为非空、无首尾空白、控制字符或 `< >` 的纯文本。小题 ID 最长 128 字符且在父题内唯一，label 最长 80；全库目录元数据最多 8 MiB。
+父题形式仅允许 question/label，小题形式仅允许 question/parts。parts 为 1–100 项；每项仅有 id/label，均为非空、无首尾空白、控制字符或 `< >` 的纯文本。小题 ID 最长 128 字符且在父题内唯一，label 最长 80；全库目录元数据最多 8 MiB。
 
 ID 用于定位、即时状态及评分结果匹配，label 仅用于显示。重新编号不能改变稳定 ID，不在标签中公开答案。显式 parts 要求 Manifest 声明 `outline-items` 且 minMinor 至少 1，缺能力返回 `OUTLINE_CAPABILITY_REQUIRED`。显式目录不调用或接受拓展覆盖。
 

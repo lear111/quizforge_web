@@ -34,7 +34,7 @@ export function requireManifestApi(manifest) {
 export function requireBankFormat(bank) {
   if (!Object.hasOwn(bank, 'formatVersion')) return;
   if (!integer(bank, 'formatVersion', 1)) throw new ApiError(422, 'INVALID_BANK_FORMAT', '题库 formatVersion 必须为正整数；现有题库可省略并按格式 v1 读取。原文件未修改。');
-  if (bank.formatVersion !== 1) throw new ApiError(422, 'UNSUPPORTED_BANK_FORMAT', `题库使用格式 v${bank.formatVersion}，本应用仅支持 v1。请安装支持该格式的应用，或由制作者导出兼容格式；原文件未修改。`);
+  if (![1,2].includes(bank.formatVersion)) throw new ApiError(422, 'UNSUPPORTED_BANK_FORMAT', `题库使用格式 v${bank.formatVersion}，本应用支持 v1/v2。原文件未修改。`);
 }
 export function requireHistoryApi(document) {
   if (!Object.hasOwn(document, 'apiVersion')) return;

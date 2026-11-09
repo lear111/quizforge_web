@@ -5,7 +5,7 @@ import {JSDOM} from 'jsdom';
 import {createListeningPlayer} from '../../web/listening/listening-player.js';
 import {fitWidth,clampPosition} from '../../web/listening/geometry.js';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function fixture(t,requestOverride){
+function fixture(t,requestOverride,networkReader){
   const dom=new JSDOM('<main><section class="question-pane"><div class="question-viewport"></div></section></main>',{url:'http://localhost',runScripts:'outside-only'}),w=dom.window,document=w.document;
   w.matchMedia=()=>({matches:false});w.ResizeObserver=class{observe(){}disconnect(){}};
   Object.defineProperty(w.HTMLElement.prototype,'offsetHeight',{get(){return 240;}});Object.defineProperty(w.HTMLElement.prototype,'offsetWidth',{get(){return parseFloat(this.style.width)||300;}});
@@ -13,10 +13,10 @@ function fixture(t,requestOverride){
   const emit=name=>{for(const fn of handlers.get(name)||[])fn();};
   const player={audio,getCurrentTime:()=>time,getDuration:()=>60,isPlaying:()=>playing,getState:()=>playing?'playing':'paused',pause(){if(playing){playing=false;emit('pause');}},play(){playing=true;emit('play');},toggle(){if(playing)this.pause();else this.play();return Promise.resolve();},setSource(value){src=value;calls.push(value);time=0;if(value)queueMicrotask(()=>audio.dispatchEvent(new w.Event('loadedmetadata')));},seekTo(value){time=value;},setSpeed(value){rate=value;emit('ratechange');},getSpeed:()=>rate,on(name,fn){handlers.set(name,[...handlers.get(name)||[],fn]);},destroy(){this.pause();},get source(){return src;}};
   const request=(path,options)=>{requests.push({path,options});return requestOverride?requestOverride(path,options):Promise.resolve(new Blob(['ID3-demo'],{type:'audio/mpeg'}));};
-  const view=createListeningPlayer({document,request,URL:{createObjectURL(){const url='blob:fixture/'+calls.length;urls.add(url);return url;},revokeObjectURL:url=>urls.delete(url)},createPlayer(host){host.innerHTML='<div class="qfa"><div class="qfa-transport"><button class="qfa-toggle"></button><div class="qfa-track" tabindex="0"></div><span class="qfa-time"></span><button class="qfa-back"></button><button class="qfa-forward"></button></div></div>';return player;}});
+  const view=createListeningPlayer({document,request,networkReader,URL:{createObjectURL(){const url='blob:fixture/'+calls.length;urls.add(url);return url;},revokeObjectURL:url=>urls.delete(url)},createPlayer(host){host.innerHTML='<div class="qfa"><div class="qfa-transport"><button class="qfa-toggle"></button><div class="qfa-track" tabindex="0"></div><span class="qfa-time"></span><button class="qfa-back"></button><button class="qfa-forward"></button></div></div>';return player;}});
   const pane={key:'bank:one',kind:'bank',id:'one',view:'practice',questionId:'q1',node:document.querySelector('section'),viewport:document.querySelector('.question-viewport'),collection:{listening:{materials:[{id:'a',title:'A',revision:'1'},{id:'b',title:'B',revision:'2'},{id:'exam',title:'Whole exam',revision:'3'}],examMaterialId:'exam'},questions:[{id:'q1',listening:{materialId:'a'}},{id:'q2',listening:{materialId:'a'}},{id:'q3'},{id:'q4',listening:{materialId:'b'}}]}};
   Object.defineProperty(pane.viewport,'clientWidth',{value:800});Object.defineProperty(pane.viewport,'clientHeight',{value:600});
-  t.after(()=>{view.destroy();dom.window.close();});return {view,pane,player,calls,requests,urls,w,root:()=>document.querySelector('.qf-listening'),setTime:value=>{time=value;}};
+  t.after(()=>{view.destroy();dom.window.close();});return {view,pane,player,calls,requests,urls,w,emit,root:()=>document.querySelector('.qf-listening'),setTime:value=>{time=value;}};
 }
 test('one shared source continues across listening questions, pauses on ordinary questions, and is independent of answer writes',async t=>{
   const f=fixture(t);f.view.setContext(null);f.view.setContext(null);f.view.setContext(f.pane);await tick();f.player.play();f.setTime(19);const source=f.player.source;
@@ -71,4 +71,30 @@ test('listening styles preserve the host pane positioning for all collections',t
   const base=shell.match(/\.question-pane\{[^}]+\}/)[0];
   const dom=new JSDOM(`<style>${base}\n${css}</style><section class="question-pane"></section>`,{url:'http://localhost'});t.after(()=>dom.window.close());
   assert.equal(dom.window.getComputedStyle(dom.window.document.querySelector('section')).position,'absolute');
+});
+
+test('network material uses its own loader, caches full audio and retains local playback',async t=>{
+  const reads=[],f=fixture(t,null,async(url,options)=>{reads.push({url,options});return new Blob([new Uint8Array(9*1024*1024)],{type:'audio/mpeg'});});
+  f.pane.collection.listening.materials[0].url='https://media.example.test/a.mp3';f.view.setContext(f.pane);await tick();assert.ok(f.player.source.startsWith('blob:'));assert.equal(f.requests.length,0);assert.equal(reads.length,1);
+  f.pane.questionId='q4';f.view.setContext(f.pane);await tick();assert.equal(f.requests.length,1);
+  f.pane.questionId='q1';f.view.setContext(f.pane);await tick();assert.equal(reads.length,1);assert.equal(f.requests.length,1);
+  f.view.destroy();assert.equal(f.urls.size,0);
+});
+test('URL updates during loading cancel old reads even when ID and revision are unchanged',async t=>{
+  const reads=[];const f=fixture(t,null,(url,options)=>new Promise(resolve=>reads.push({url,options,resolve})));
+  const material=f.pane.collection.listening.materials[0];material.url='https://media.example.test/a-v1.mp3';f.view.setContext(f.pane);
+  material.url='https://media.example.test/a-v2.mp3';f.view.setContext(f.pane);assert.equal(reads.length,2);assert.equal(reads[0].options.signal.aborted,true);
+  reads[1].resolve(new Blob(['new'],{type:'audio/mpeg'}));await tick();const source=f.player.source;
+  reads[0].resolve(new Blob(['old'],{type:'audio/mpeg'}));await tick();assert.equal(f.player.source,source);assert.equal(f.urls.size,1);
+});
+test('failed remote reads retry and a bank switch cancels the active request',async t=>{
+  const reads=[],f=fixture(t,null,(url,options)=>{reads.push(options);return reads.length===1?Promise.reject(new Error('网络失败')):new Promise(()=>{});});
+  f.pane.collection.listening.materials[0].url='https://media.example.test/a.mp3';f.view.setContext(f.pane);await tick();assert.equal(f.root().querySelector('.qfl-retry').hidden,false);
+  f.root().querySelector('.qfl-retry').click();assert.equal(reads.length,2);f.view.setContext(null);assert.equal(reads[1].signal.aborted,true);assert.equal(f.root().hidden,true);
+});
+test('retry after a decoder error fetches fresh remote audio instead of reusing the bad Blob',async t=>{
+  const reads=[],f=fixture(t,null,async(url,options)=>{reads.push(options);return new Blob(['ID3-demo'],{type:'audio/mpeg'});});
+  f.pane.collection.listening.materials[0].url='https://media.example.test/a.mp3';f.view.setContext(f.pane);await tick();assert.equal(reads.length,1);
+  f.emit('error');assert.equal(f.root().querySelector('.qfl-retry').hidden,false);
+  f.root().querySelector('.qfl-retry').click();await tick();assert.equal(reads.length,2);assert.equal(reads[1].reload,true);assert.equal(f.root().querySelector('.qfl-retry').hidden,true);
 });

@@ -8,6 +8,7 @@ import { bankItem, scanBanks, scanExtensions } from './directories.js';
 import { GROUP_FILE, freshUuid } from './identity.js';
 import { archiveMove } from './archive-move.js';
 import { removeBank } from './library-removal.js';
+import { parseLossless, losslessBytes } from './format4.js';
 
 const relative = (base, item) => path.relative(base, item).replaceAll('\\', '/');
 export function folderName(name) {
@@ -104,8 +105,8 @@ export class LibraryManagement {
     if (target === 'item') {
       if (kind === 'bank') {
         nameFile = fs.lstatSync(source).isDirectory() ? path.join(source, 'bank.json') : source;
-        before = readBytes(nameFile, 8 * 1024 * 1024); const raw = requireObject(readJson(nameFile, 8 * 1024 * 1024)); raw.title = name;
-        replaceFile(nameFile, jsonBytes(raw));
+        before = readBytes(nameFile, 8 * 1024 * 1024); const raw = parseLossless(before, 'bank.json'); raw.title = name;
+        replaceFile(nameFile, losslessBytes(raw));
       }
     }
     try { if (source !== destination) fs.renameSync(source, destination); }

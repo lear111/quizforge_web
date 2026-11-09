@@ -19,7 +19,7 @@ export function renderOutlineView({document,pane,onNavigate,onSummary}){
   const roundScores=new Map(pane?.summaryShown?(pane.scoreSummary?.questions||[]).map(question=>[question.id,question]):[]);
   const statusLabels={unanswered:'未作答',draft:'已作答，待提交',pending:'已提交，待评分',correct:'正确',incorrect:'错误'};
   for(const group of consecutiveQuestionGroups(rows,extension)){
-    const section=el('section','outline-group'),matrix=el('div','outline-matrix');section.append(el('h2','outline-group-title',group.name),matrix);root.append(section);
+    const section=el('section','outline-group'),matrix=el('div','outline-matrix');if(group.name)section.append(el('h2','outline-group-title',group.name));section.append(matrix);root.append(section);
     for(const {question:row,number}of group.items){
     const children=row.outlineItems||[],label=String(row.outlineLabel??number),state=outlineStateFor(pane,row.id),roundScore=roundScores.get(row.id),submitted=roundScore?roundScore.submitted===true:state.status==='submitted';
     const jump=itemId=>onNavigate(row.id,itemId);

@@ -1,3 +1,4 @@
+import { makeFormat4Fixture } from '../../../test/fixtures/format4-library.mjs';
 import { copyFixture, writeFixture } from '../../../test/fixtures/installed-library.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -221,6 +222,8 @@ test('shared network password protects remote listener and blocks remote setting
   assert.equal((await api('/api/health', { port, headers })).status, 200);
   assert.equal((await api('/api/settings/ai/credential', { port, headers })).status, 403);
   assert.equal((await api('/api/settings/network', { port, headers })).status, 403);
+  for(const uri of ['/api/library/upgrade','/api/library/banks','/api/library/outline'])assert.equal((await api(uri,{port,headers,method:'POST',body:{}})).status,403);
+  assert.equal((await api('/api/library/outline?bank=bank',{port,headers})).status,403);
   await api('/api/settings/network', { method: 'PUT', body: { enabled: false, publicEnabled: false, port } });
   assert.equal(service.networkServer, null);
 });
@@ -315,7 +318,7 @@ test('Hub login starts on the host only and the loopback callback finishes it wi
 });
 
 test('HTTP group export and import transport the native qbank stream and installed versions', async t => {
-  const { api, root, raw } = await fixture(t);
+  const { api, root, raw } = await fixture(t); makeFormat4Fixture(root);
   assert.equal((await api('/api/library/manage', { method: 'POST', body: { kind: 'bank', action: 'create', target: 'group', name: 'HTTP Group' } })).status, 200);
   const moved = await api('/api/library/manage', { method: 'POST', body: { kind: 'bank', action: 'update', target: 'item', path: 'bank', name: raw.title, group: 'HTTP Group' } }); assert.equal(moved.status, 200, JSON.stringify(moved.data));
   const archive = await api('/api/library/export', { method: 'POST', body: { group: 'HTTP Group' } }); assert.equal(archive.status, 200); assert.equal(archive.headers.get('content-type'), archiveMime); assert.ok(archive.headers.get('content-disposition').includes('.qbank'));
@@ -326,7 +329,7 @@ test('HTTP group export and import transport the native qbank stream and install
 });
 
 test('HTTP individual export imports at root and deleting its renamed bank preserves all extensions', async t => {
-  const { api, root, service } = await fixture(t);
+  const { api, root, service } = await fixture(t); makeFormat4Fixture(root);service.library.invalidate();
   for (const body of [{}, {bank:'bank',group:'Group'}, {bank:'bank',extra:true}, []]) assert.equal((await api('/api/library/export', {method:'POST',body})).status, 400);
   assert.equal((await api('/api/library/export', {method:'POST',body:{bank:'../bank'}})).status, 404);
   const exported = await api('/api/library/export', {method:'POST',body:{bank:'bank'}});
@@ -347,7 +350,7 @@ test('HTTP individual export imports at root and deleting its renamed bank prese
   assert.ok(fs.existsSync(path.join(root,'question-banks/bank/bank.json')));
 });
 test('HTTP imports allocate new physical groups by filename without conflict plans',async t=>{
- const source=await fixture(t),target=await fixture(t);
+ const source=await fixture(t),target=await fixture(t);makeFormat4Fixture(source.root);source.service.library.invalidate();
  await source.api('/api/library/manage',{method:'POST',body:{kind:'bank',action:'create',target:'group',name:'Package'}});
  assert.equal((await source.api('/api/library/manage',{method:'POST',body:{kind:'bank',action:'update',target:'item',path:'bank',name:source.raw.title,group:'Package'}})).status,200);
  const exported=await source.api('/api/library/export',{method:'POST',body:{group:'Package'}});assert.equal(exported.status,200);
@@ -402,4 +405,20 @@ test('unused and malformed connections get Node default replies, so browsers ret
   assert.match(await exchange('NOT A REQUEST\r\n\r\n'), /^HTTP\/1\.1 400 Bad Request\r\nConnection: close\r\n\r\n$/);
   const served = await exchange('GET / HTTP/1.1\r\nHost: 127.0.0.1:' + listener.address().port + '\r\n\r\n');
   assert.match(served, /^HTTP\/1\.1 200 OK\r\n/); assert.doesNotMatch(served, /HTTP\/1\.1 4\d\d/);
+});
+
+
+test('HTTP authoring keeps UUIDs, detects outline conflicts and preserves local-only origin boundaries',async t=>{
+  const {api,root}=await fixture(t);makeFormat4Fixture(root);
+  const upgraded=await api('/api/library/upgrade',{method:'POST',body:{}});assert.equal(upgraded.status,200);assert.equal(upgraded.data.successful.length,0);assert.equal(upgraded.data.skipped.length,2);
+  const original=JSON.parse(fs.readFileSync(path.join(root,'question-banks/bank/bank.json')));
+  const read=await api('/api/library/outline?bank=bank');assert.equal(read.status,200);assert.equal(read.data.uuid,original.id);
+  const changed=await api('/api/library/outline',{method:'POST',body:{path:'bank',revision:read.data.revision,outline:[{group:'One visible',items:[{question:original.questions[1].id}]}]}});assert.equal(changed.status,200);
+  assert.equal((await api('/api/library/outline',{method:'POST',body:{path:'bank',revision:read.data.revision,outline:read.data.outline}})).status,409);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root,'question-banks/bank/bank.json'))).id,original.id);
+  const created=await api('/api/library/banks',{method:'POST',body:{name:'New bank',group:'',extension:'extensions/Test/choice'}});assert.equal(created.status,200,JSON.stringify(created.data));assert.notEqual(created.data.uuid,original.id);
+  const copied=await api('/api/library/banks',{method:'POST',body:{name:'Copied bank',source:'bank'}});assert.equal(copied.status,200);assert.notEqual(copied.data.uuid,original.id);assert.notEqual(copied.data.uuid,created.data.uuid);
+  for(const body of [{},[],{name:'Bad',source:'bank',extension:'extensions/Test/choice'},{name:'Bad',source:'../bank'}])assert.notEqual((await api('/api/library/banks',{method:'POST',body})).status,200);
+  assert.equal((await api('/api/library/banks',{method:'POST',body:{name:'Blocked',source:'bank'},headers:{Origin:'https://evil.example'}})).status,403);
+  assert.equal(fs.existsSync(path.join(root,'question-banks/Blocked')),false);
 });

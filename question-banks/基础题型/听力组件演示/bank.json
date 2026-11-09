@@ -1,6 +1,6 @@
 {
-  "formatVersion": 1,
-  "id": "host-listening-demo",
+  "formatVersion": 2,
+  "id": "1163b308-9add-4207-a5f2-cad7b643ffa1",
   "title": "听力组件演示",
   "description": "宿主悬浮听力真实演示：两题共用图书馆音频、普通阅读题、讲座音频；支持真实保存、评分、草稿、编辑及考试。",
   "features": {
@@ -17,17 +17,17 @@
       {
         "id": "library",
         "title": "图书馆开放时间通知",
-        "file": "media/library.mp3"
+        "file": "assets/library.mp3"
       },
       {
         "id": "lecture",
         "title": "英语讲座变更通知",
-        "file": "media/lecture.mp3"
+        "file": "assets/lecture.mp3"
       },
       {
         "id": "exam",
         "title": "整卷听力：图书馆与讲座通知",
-        "file": "media/exam.mp3"
+        "file": "assets/exam.mp3"
       }
     ],
     "examMaterialId": "exam"
@@ -36,10 +36,6 @@
     {
       "id": "library-hours",
       "title": "图书馆周五开放时间",
-      "outline": {
-        "level": "question",
-        "label": "1"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -150,10 +146,6 @@
     {
       "id": "library-weekdays",
       "title": "同一段材料：工作日安排",
-      "outline": {
-        "level": "question",
-        "label": "2"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -264,10 +256,6 @@
     {
       "id": "ordinary-reading",
       "title": "普通阅读题（无听力）",
-      "outline": {
-        "level": "question",
-        "label": "3"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -375,10 +363,6 @@
     {
       "id": "lecture-change",
       "title": "英语讲座时间变更",
-      "outline": {
-        "level": "question",
-        "label": "4"
-      },
       "data": {
         "formatVersion": 1,
         "stem": {
@@ -485,6 +469,29 @@
       "listening": {
         "materialId": "lecture"
       }
+    }
+  ],
+  "outline": [
+    {
+      "group": "单选题",
+      "items": [
+        {
+          "question": "library-hours",
+          "label": "1"
+        },
+        {
+          "question": "library-weekdays",
+          "label": "2"
+        },
+        {
+          "question": "ordinary-reading",
+          "label": "3"
+        },
+        {
+          "question": "lecture-change",
+          "label": "4"
+        }
+      ]
     }
   ]
 }

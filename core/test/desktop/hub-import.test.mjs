@@ -1,3 +1,4 @@
+import {makeFormat4Fixture} from '../fixtures/format4-library.mjs';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -136,7 +137,7 @@ test('Hub downloads enforce origin paths, manifests, content types, exact length
     'download-redirect', 'download-type', 'download-missing-length', 'download-size', 'download-short', 'download-encoding', 'download-changed', 'download-unavailable', 'old-error'];
   for (mode of bad) { await assert.rejects(invoke(['fetch', link(), data, origin], env), error => error.code === 1, mode); assert.equal(uploads, 2, mode); stageEmpty(data); }
   for (const [code, message] of Object.entries({ LOCAL_IMPORT_REQUEST_INVALID: '链接无效', LOCAL_IMPORT_DISABLED: '暂未开启', LOCAL_IMPORT_UNAVAILABLE: '暂不可用', LOCAL_IMPORT_REVISION_CHANGED: '版本已变化',
-    LOCAL_IMPORT_TOO_LARGE: '64 MiB', LOCAL_IMPORT_FORMAT_UNSUPPORTED: '不支持', LOCAL_IMPORT_RATE_LIMITED: '过于频繁', LOCAL_IMPORT_TRAFFIC_LIMIT: '流量额度', LOCAL_IMPORT_SERVER_ERROR: '下载失败', FUTURE_CODE: '下载失败' })) {
+    LOCAL_IMPORT_TOO_LARGE: '128 MiB', LOCAL_IMPORT_FORMAT_UNSUPPORTED: '不支持', LOCAL_IMPORT_RATE_LIMITED: '过于频繁', LOCAL_IMPORT_TRAFFIC_LIMIT: '流量额度', LOCAL_IMPORT_SERVER_ERROR: '下载失败', FUTURE_CODE: '下载失败' })) {
     mode = 'code:' + code;
     await assert.rejects(invoke(['fetch', link(), data, origin], env), error => error.code === 1 && error.stderr.includes(message) && !error.stderr.includes('secret'));
   }
@@ -163,7 +164,8 @@ async function fixture(t, origin) {
   fs.mkdirSync(path.join(root, 'runtime')); fs.copyFileSync(process.execPath, path.join(root, 'runtime/node.exe'));
   copyFixture(path.join(product, 'core/test/fixtures/legacy-extensions/single-choice-1.0.0'), path.join(data, 'extensions/Test/choice'), { recursive: true });
   const raw = JSON.parse(fs.readFileSync(path.join(data, 'extensions/Test/choice/examples.json'))); raw.id = 'hub-test-bank'; writeFixture(path.join(data, 'question-banks/Bank/bank.json'), JSON.stringify(raw));
-  const exported = await new LibraryArchive(data, new ResourceStore(data)).exportBank('Bank'); let bytes;
+  const staged=path.join(root,'format4-export');for(const name of ['question-banks','extensions'])fs.cpSync(path.join(data,name),path.join(staged,name),{recursive:true});makeFormat4Fixture(staged);
+  const exported = await new LibraryArchive(staged, new ResourceStore(staged)).exportBank('Bank'); let bytes;
   try { bytes = fs.readFileSync(exported.file); } finally { exported.close(); }
   // Capacity tests deliberately hold one request while twenty separate EXEs
   // connect. Keep that fixture alive under CPU load; short network deadlines
@@ -245,6 +247,7 @@ test('Hub and file imports share the 20-task bound; failed/old packages preserve
   fs.cpSync(path.join(f.data, 'extensions'), path.join(groupRoot, 'extensions'), { recursive: true });
   fs.mkdirSync(path.join(groupRoot, 'question-banks/Group'), { recursive: true });
   fs.cpSync(path.join(f.data, 'question-banks/Bank'), path.join(groupRoot, 'question-banks/Group/Member'), { recursive: true });
+  makeFormat4Fixture(groupRoot);
   const groupArchive = await new LibraryArchive(groupRoot, new ResourceStore(groupRoot)).exportGroup('Group');
   try { bytes = fs.readFileSync(groupArchive.file); } finally { groupArchive.close(); }
   const groupAccepted = await f.command('--open-url', link(150));

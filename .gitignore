@@ -4,6 +4,7 @@ node_modules/
 .temp/
 /.development/
 /.trash/
+/.backups/
 /.vscode/
 /QuizForge.exe
 /runtime/

@@ -1,3 +1,4 @@
+import { makeFormat4Fixture } from '../../../test/fixtures/format4-library.mjs';
 import { copyFixture, writeFixture } from '../../../test/fixtures/installed-library.mjs';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,6 +34,7 @@ function fixture(t, populated = true) {
     fs.mkdirSync(path.join(root, 'question-banks/Group/leaf'), { recursive: true });
     writeFixture(path.join(root, 'question-banks/Group/.group.json'), JSON.stringify({ schemaVersion: 1, kind: 'bank-group', id: groupId }));
     writeFixture(path.join(root, 'question-banks/Group/leaf/bank.json'), JSON.stringify(raw));
+    makeFormat4Fixture(root);
   }
   return { root, library, file: path.join(root, 'question-banks/Group/leaf/bank.json') };
 }
@@ -137,8 +139,9 @@ test('extension structural writes are blocked and physical group deletion checks
 test('single bank export includes only its dependencies, imports at root, and can be re-exported', async t => {
   const source = fixture(t), target = fixture(t, false);
   const other = install(source.root, 'unused'), another = readJson(source.file);
-  another.extension = { path: 'extensions/Test/unused' }; delete another.questions[1].extension;
+  another.id = randomUUID(); another.extension = { path: 'extensions/Test/unused' }; delete another.questions[1].extension;
   writeFixture(path.join(source.root, 'question-banks/Group/second/bank.json'), JSON.stringify(another));
+  makeFormat4Fixture(source.root);
   const before = fs.readFileSync(source.file), manifestBefore = fs.readFileSync(path.join(other, 'manifest.json'));
   const exported = await source.library.exportBank('Group/leaf');
   let bytes;
@@ -177,6 +180,7 @@ test('a single-bank group remains grouped; invalid single scope cannot install m
   const source = fixture(t), target = fixture(t, false);
   const grouped = await target.library.importPackage(await pack(source)); assert.equal(grouped.scope, 'group'); assert.equal(grouped.group, 'Group');
   copyFixture(path.dirname(source.file), path.join(source.root, 'question-banks/Group/second'), { recursive: true });
+  const second=readJson(source.file);second.id=randomUUID();writeFixture(path.join(source.root,'question-banks/Group/second/bank.json'),JSON.stringify(second));
   const exported = await source.library.exportGroup('Group');
   try {
     const archive = new LibraryArchive(source.root, source.library.resources), staging = path.join(exported.workspace, 'tampered'); fs.mkdirSync(staging);
@@ -185,7 +189,7 @@ test('a single-bank group remains grouped; invalid single scope cannot install m
       const marker = readJson(path.join(staging, 'quizforge-package.json')); marker.scope = scope;
       writeFixture(path.join(staging, 'quizforge-package.json'), JSON.stringify(marker));
       const zip = path.join(exported.workspace, scope + '.qbank'); await archive.zip(staging, zip);
-      await assert.rejects(target.library.importPackage(fs.readFileSync(zip)), { code: 'INVALID_LIBRARY_ARCHIVE' });
+      await assert.rejects(target.library.importPackage(fs.readFileSync(zip)), { code: 'INVALID_QUESTION_BANK' });
     }
     assert.equal(target.library.index().banks.length, 1);
   } finally { exported.close(); }
@@ -205,26 +209,20 @@ test('old logical grouping and labels are ignored without altering their files',
   const row = f.library.index().extensions[0]; assert.equal(row.name, 'choice'); assert.equal(row.group, 'Test');
   assert.equal(fs.readFileSync(path.join(state, 'extension-groups.json'), 'utf8'), 'old invalid metadata');
 });
-test('same original bank IDs within a bundle are independently loaded', async t => {
+test('format 4 rejects duplicate permanent UUIDs within a bundle', async t => {
   const source = fixture(t), target = fixture(t, false);
   copyFixture(path.dirname(source.file), path.join(source.root, 'question-banks/Group/second'), { recursive: true });
-  const result = await target.library.importPackage(await pack(source));
-  assert.equal(result.importedBanks, 2); assert.equal(new Set(result.catalog.banks.map(row => row.id)).size, 2);
-  for (const row of result.catalog.banks) assert.equal((await target.library.collection('bank', row.id)).questions.length, 3);
+  await assert.rejects(pack(source), {code:'INVALID_QUESTION_BANK'});
+  assert.equal(target.library.index().banks.length,0);
 });
-test('authoring UUIDs and versions are optional in new packages and internal instance IDs are not exported', async t => {
-  const source = fixture(t), target = fixture(t, false);
-  const manifestFile = path.join(source.root, 'extensions/Test/choice/manifest.json'), manifest = readJson(manifestFile); delete manifest.id; delete manifest.version;
-  writeFixture(manifestFile, JSON.stringify(manifest));
-  const raw = readJson(source.file); delete raw.id; raw.extension = { path: 'extensions/Test/choice' }; raw.questions[1].extension = { ...raw.extension }; writeFixture(source.file, JSON.stringify(raw));
-  const result = await target.library.importPackage(await pack(source)), row = result.catalog.banks[0];
-  assert.ok(fs.existsSync(path.join(target.root, 'question-banks', row.path, '.instance.json')));
-  const exported = await target.library.exportGroup(result.group);
-  try {
-    const second = fixture(t, false), again = await second.library.importPackage(fs.readFileSync(exported.file));
-    assert.notEqual(again.catalog.banks[0].id, row.id);
-  } finally { exported.close(); }
+test('format 4 rejects missing permanent bank UUIDs and incomplete extension identities',async t=>{
+  const source=fixture(t),raw=readJson(source.file);delete raw.id;writeFixture(source.file,JSON.stringify(raw));
+  await assert.rejects(pack(source),{code:'BANK_FORMAT_UPGRADE_REQUIRED'});
+  raw.id=bankId;writeFixture(source.file,JSON.stringify(raw));
+  const file=path.join(source.root,'extensions/Test/choice/manifest.json'),manifest=readJson(file);delete manifest.version;writeFixture(file,JSON.stringify(manifest));
+  await assert.rejects(pack(source));
 });
+
 test('failed bank directory installation rolls back its paired extension directory and preserves existing files', async t => {
   const source = fixture(t), target = fixture(t), original = fs.readFileSync(target.file), bytes = await pack(source), rename = fs.renameSync;
   fs.renameSync = (from, to) => { if (to === path.join(target.root, 'question-banks/Group（2）')) throw new Error('injected installation failure'); return rename(from, to); };
@@ -242,7 +240,9 @@ test('new imports do not shadow installed path bindings or prevent their later e
 });
 test('same-named extensions from different groups are independently bundled and path-remapped',async t=>{
  const source=fixture(t),target=fixture(t,false),other=path.join(source.root,'extensions/Other/choice');
- copyFixture(path.join(source.root,'extensions/Test/choice'),other,{recursive:true});fs.appendFileSync(path.join(other,'practice.css'),'\n/* different */');
+ copyFixture(path.join(source.root,'extensions/Test/choice'),other,{recursive:true});
+ const examplePath=path.join(other,'examples/bank.json'),example=readJson(examplePath);example.id=randomUUID();writeFixture(examplePath,JSON.stringify(example));
+ fs.appendFileSync(path.join(other,'practice.css'),'\n/* different */');
  const raw=readJson(source.file);raw.questions[1].extension={path:'extensions/Other/choice'};writeFixture(source.file,JSON.stringify(raw));
  const result=await target.library.importPackage(await pack(source));assert.equal(result.importedExtensions,2);
  const collection=await target.library.collection('bank',result.catalog.banks[0].id);
@@ -257,7 +257,7 @@ test('packages cannot supply host instance or bundle metadata to share another c
   for(const relative of ['question-banks/Group/leaf/.instance/bank.json','extensions/Group/.bundle.json']){
    const file=path.join(staging,relative);writeFixture(file,JSON.stringify({schemaVersion:1,id:randomUUID(),kind:'extension-bundle'}));
    const zip=path.join(exported.workspace,'tampered-'+path.basename(file)+'.qbank');await archive.zip(staging,zip);
-   await assert.rejects(target.library.importPackage(fs.readFileSync(zip)),{code:'INVALID_LIBRARY_ARCHIVE'});fs.unlinkSync(file);
+   await assert.rejects(target.library.importPackage(fs.readFileSync(zip)),{code:'INVALID_QUESTION_BANK'});fs.unlinkSync(file);
   }
   assert.equal(fs.readdirSync(path.join(target.root,'question-banks')).length,0);assert.equal(fs.readdirSync(path.join(target.root,'extensions')).length,0);
  } finally { exported.close(); }

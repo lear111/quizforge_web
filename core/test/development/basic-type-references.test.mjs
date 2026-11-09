@@ -39,7 +39,8 @@ test('shared-material reference keeps its explicit parent outline and stable chi
   const question=examples.questions.find(question=>question.data.parts.length>1);
   assert.ok(question,'The reference must include a shared-material example.');
   // The sample chooses a parent outline; part IDs remain available for grading.
-  assert.equal(question.outline.level,'question');
+  const entry=examples.outline.flatMap(group=>group.items).find(item=>item.question===question.id);
+  assert.ok(entry.label);assert.equal(entry.parts,undefined);
   assert.deepEqual(Array.from(type.getOutlineItems(question.data)),[]);
   const result=type.grade(question.data,{responses:{}});
   const score=type.getScore(question.data,{submitted:true,result});

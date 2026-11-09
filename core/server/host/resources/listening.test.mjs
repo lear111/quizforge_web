@@ -1,3 +1,4 @@
+import {makeFormat4Fixture} from '../../../test/fixtures/format4-library.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -37,16 +38,16 @@ test('authenticated binary audio, actual answers and edits work without leaking 
 test('single-bank export and duplicate import preserve bank-local audio and exact extension references',async t=>{
   const f=await fixture(t),row=(await f.api('/api/library/index')).data.banks[0];
   const response=await fetch(f.origin+'/api/library/export',{method:'POST',headers:f.headers,body:JSON.stringify({bank:row.path})});assert.equal(response.status,200);const bytes=Buffer.from(await response.arrayBuffer());
-  const imported=await f.service.library.importPackage(bytes,'听力演示副本.qbank');assert.ok(imported.catalog.banks.length===2);const copy=imported.catalog.banks.find(bank=>bank.id!==row.id),collection=await f.service.library.collection('bank',copy.id);assert.equal(collection.questions[0].listening.materialId,'library');assert.deepEqual(readMaterial(collection,'library').bytes,fs.readFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/media/library.mp3')));
+  const imported=await f.service.library.importPackage(bytes,'听力演示副本.qbank');assert.ok(imported.catalog.banks.length===2);const copy=imported.catalog.banks.find(bank=>bank.id!==row.id),collection=await f.service.library.collection('bank',copy.id);assert.equal(collection.questions[0].listening.materialId,'library');assert.deepEqual(readMaterial(collection,'library').bytes,fs.readFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/assets/library.mp3')));
   await f.service.library.manage({kind:'bank',target:'group',action:'create',name:'新听力分组'});
   await f.service.library.manage({kind:'bank',target:'item',action:'update',path:copy.path,name:'移动后的听力题库',group:'新听力分组'});
   const moved=await f.service.library.collection('bank',copy.id);assert.deepEqual(readMaterial(moved,'library').bytes,audioBytes());
-  function audioBytes(){return fs.readFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/media/library.mp3'));}
+  function audioBytes(){return fs.readFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/assets/library.mp3'));}
 });
 test('exam audio and bindings survive source replacement and service restart',async t=>{
   const f=await fixture(t),started=(await f.api(f.collection+'/exams',{requestId:'listen-exam-snapshot',durationMinutes:null})).data,uri=`/api/collections/exam/${started.id}`;
   const before=await f.api(uri+'/listening/exam');assert.equal(before.status,200);const meta=(await f.api(uri)).data;assert.equal(meta.listening.examMaterialId,'exam');assert.equal(meta.questions[1].listening.materialId,'library');
-  fs.writeFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/media/exam.mp3'),'broken source');await f.service.close();
+  fs.writeFileSync(path.join(f.root,'question-banks/基础题型/听力组件演示/assets/exam.mp3'),'broken source');await f.service.close();
   const service=await QuizForgeServer.create({root:f.root,codeRoot,port:0,tailscale:{read:async()=>({state:'missing'})}});await service.start();t.after(()=>service.close());const response=await fetch(`http://127.0.0.1:${service.port()}${uri}/listening/exam`,{headers:f.headers});assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),before.data);
 });
 test('temporary exam audio enforces page ownership and is removed with its own snapshot',async t=>{

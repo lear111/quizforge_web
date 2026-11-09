@@ -1,4 +1,4 @@
-const MAX_UPLOAD=64*1024*1024;
+const MAX_UPLOAD=128*1024*1024;
 
 export function downloadPackage(blob,name){
   const url=URL.createObjectURL(blob),anchor=document.createElement('a');
@@ -18,7 +18,7 @@ export function bindLibraryTransfer({request,getContext,beforeChange,onImported,
     if(!getContext().catalog.canManage||busy)return;
     file=picker.files?.[0]||null;if(!file)return;
     $('#library-import-name').textContent=file.name;
-    error(file.size>MAX_UPLOAD?'题库包超过 64 MiB，请缩小题库分组':!file.name.toLowerCase().endsWith('.qbank')?'请选择 QuizForge .qbank 文件':'');
+    error(file.size>MAX_UPLOAD?'题库包超过 128 MiB，请缩小题库分组':!file.name.toLowerCase().endsWith('.qbank')?'请选择 QuizForge .qbank 文件':'');
     $('#library-import-confirm').disabled=file.size>MAX_UPLOAD||!file.name.toLowerCase().endsWith('.qbank');dialog.showModal();
   });
   form.addEventListener('submit',async event=>{

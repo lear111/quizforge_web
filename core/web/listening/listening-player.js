@@ -1,9 +1,10 @@
 import {clampPosition,fitWidth,DEFAULT_WIDTH} from './geometry.js';
 import {createPlayerDrag} from './player-drag.js';
 import {dockedPosition,TOOLBAR_ANCHORS} from '../draft/whiteboard-dock.js';
+import {readNetworkAudio,MAX_NETWORK_AUDIO_BYTES} from './network-audio.js';
 
 // One host-owned player. Question iframes never receive paths or network access.
-export function createListeningPlayer({document,request,createPlayer,storage=document.defaultView.localStorage,URL=document.defaultView.URL}){
+export function createListeningPlayer({document,request,createPlayer,networkReader=readNetworkAudio,storage=document.defaultView.localStorage,URL=document.defaultView.URL}){
   const window=document.defaultView,root=document.createElement('section');root.className='qf-listening';root.hidden=true;root.setAttribute('aria-label','悬浮听力播放器');
   const icon=(path,extra='')=>`<svg viewBox="0 0 24 24" aria-hidden="true" ${extra}>${path}</svg>`;
   const playIcon=icon('<path class="qfl-play-icon" d="M8 5v14l11-7Z"/><path class="qfl-pause-icon" d="M7 5h4v14H7zm6 0h4v14h-4z"/>');
@@ -27,11 +28,11 @@ export function createListeningPlayer({document,request,createPlayer,storage=doc
       button.addEventListener('click',()=>{player.setSpeed(rate);closeMenus();speedButton.focus();});item.append(button);speedMenu.append(item);
     }
   }
-  let pane=null,scope=null,questionId=null,selected=null,config=null,exam=false,collapsed=window.matchMedia('(max-width:600px)').matches,examStarted=false,ordinaryExpanded=false,destroyed=false,position=null,width=DEFAULT_WIDTH,geometry=null,motion=null,anchor=null,resizing=null,observer=null,abort=null,generation=0,pendingSeek=0,loading=false,loadedKey=null,objectUrl=null,error=null;
+  let pane=null,scope=null,questionId=null,selected=null,config=null,exam=false,collapsed=window.matchMedia('(max-width:600px)').matches,examStarted=false,ordinaryExpanded=false,destroyed=false,position=null,width=DEFAULT_WIDTH,geometry=null,motion=null,anchor=null,resizing=null,observer=null,abort=null,generation=0,pendingSeek=0,loading=false,loadingKey=null,loadedKey=null,objectUrl=null,error=null;
   const progress=new Map(),blobs=new Map(),geometries=new Map();
   try{const value=JSON.parse(storage.getItem('quizforge-listening-geometry-v2'));if(value?.position&&Number.isFinite(value.position.x)&&Number.isFinite(value.position.y))position=value.position;if(Number.isFinite(value?.width))width=value.width;if(TOOLBAR_ANCHORS.includes(value?.anchor))anchor=value.anchor;}catch{}
   function remember(){if(scope&&selected&&loadedKey)progress.set(`${scope}:${selected}`,player.getCurrentTime());}
-  function cancel(){generation++;abort?.abort();abort=null;loading=false;}
+  function cancel(){generation++;abort?.abort();abort=null;loading=false;loadingKey=null;}
   function save(){if(scope)geometries.set(scope,{position,width,anchor});try{storage.setItem('quizforge-listening-geometry-v2',JSON.stringify({position,width,anchor}));}catch{}}
   function release(){player.pause();player.setSource('');loadedKey=null;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=null;}
   function area(){return {width:pane?.viewport.clientWidth||1,height:pane?.viewport.clientHeight||1};}
@@ -101,17 +102,18 @@ export function createListeningPlayer({document,request,createPlayer,storage=doc
   }
   async function load(id,{retry=false}={}){
     if(!config?.materials.some(row=>row.id===id))return;
-    const material=config.materials.find(row=>row.id===id),key=`${scope}:${id}:${material.revision}`;
-    if(!retry&&selected===id&&(loadedKey===key||loading))return;
-    remember();cancel();release();selected=id;error=null;loading=true;const version=generation,owner=pane;
+    const material=config.materials.find(row=>row.id===id),key=JSON.stringify([scope,id,material.revision,material.url||'']);
+    if(!retry&&selected===id&&(loadedKey===key||loading&&loadingKey===key))return;
+    remember();cancel();release();selected=id;error=null;loading=true;loadingKey=key;const version=generation,owner=pane;
     pendingSeek=progress.get(`${scope}:${id}`)||0;updateMaterialMenu();render();
     const controller=new AbortController();abort=controller;
     try{
+      if(retry)blobs.delete(key);
       let blob=blobs.get(key);
-      if(!blob){blob=await request(`/api/collections/${encodeURIComponent(pane.kind)}/${encodeURIComponent(pane.id)}/listening/${encodeURIComponent(id)}`,{responseType:'blob',headers:{Accept:'audio/*'},signal:controller.signal,timeoutMs:60000});if(blob.size>8*1024*1024||!/^audio\//.test(blob.type))throw new Error('听力材料格式或大小无效。');}
+      if(!blob){blob=material.url?await networkReader(material.url,{signal:controller.signal,reload:retry}):await request(`/api/collections/${encodeURIComponent(pane.kind)}/${encodeURIComponent(pane.id)}/listening/${encodeURIComponent(id)}`,{responseType:'blob',headers:{Accept:'audio/*'},signal:controller.signal,timeoutMs:60000});if(!blob.size||blob.size>(material.url?MAX_NETWORK_AUDIO_BYTES:32*1024*1024)||!/^audio\//.test(blob.type))throw new Error('听力材料格式或大小无效。');}
       if(destroyed||version!==generation||owner!==pane)return;
       blobs.delete(key);blobs.set(key,blob);while(blobs.size>2)blobs.delete(blobs.keys().next().value);
-      objectUrl=URL.createObjectURL(blob);loadedKey=key;loading=false;player.setSource(objectUrl);player.setSpeed(1);render();
+      objectUrl=URL.createObjectURL(blob);loadedKey=key;loading=false;loadingKey=null;player.setSource(objectUrl);player.setSpeed(1);render();
     }catch(e){if(destroyed||version!==generation||controller.signal.aborted)return;loading=false;error=e.message||'听力材料读取失败，请重试。';render();}
     finally{if(abort===controller)abort=null;}
   }

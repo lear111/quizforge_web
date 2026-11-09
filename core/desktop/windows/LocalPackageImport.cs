@@ -28,7 +28,7 @@ namespace QuizForge.Desktop
             if (full.StartsWith(@"\\", StringComparison.Ordinal)) throw new ArgumentException("请先将题库文件下载到本机，再双击导入。");
             var info = new FileInfo(full);
             if (!info.Exists || (info.Attributes & FileAttributes.Directory) != 0) throw new IOException("题库文件不存在，请重新选择。");
-            if (info.Length == 0 || info.Length > 64L * 1024 * 1024) throw new IOException("题库文件不能为空，且不能超过 64 MiB。");
+            if (info.Length == 0 || info.Length > 128L * 1024 * 1024) throw new IOException("题库文件不能为空，且不能超过 128 MiB。");
             return full;
         }
         internal static string CommandFile(string command)
@@ -62,7 +62,7 @@ namespace QuizForge.Desktop
             if (endpoint.Scheme != "http" || endpoint.Host != "127.0.0.1") throw new IOException("本机导入地址无效。");
             using (var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true))
             {
-                if (source.Length == 0 || source.Length > 64L * 1024 * 1024) throw new IOException("题库文件不能为空，且不能超过 64 MiB。");
+                if (source.Length == 0 || source.Length > 128L * 1024 * 1024) throw new IOException("题库文件不能为空，且不能超过 128 MiB。");
                 var request = (HttpWebRequest)WebRequest.Create(endpoint);
                 request.Method = "POST"; request.ContentType = "application/vnd.quizforge.qbank";
                 if (sendFileName) request.Headers["X-QuizForge-Filename"] = Uri.EscapeDataString(Path.GetFileName(file));

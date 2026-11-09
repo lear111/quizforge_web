@@ -1,4 +1,4 @@
-export function bindLibraryManagement({request,getContext,beforeChange,onChanged,onExport}){
+export function bindLibraryManagement({request,getContext,beforeChange,onChanged,onExport,onCopy,onOutline}){
   const $=selector=>document.querySelector(selector),dialog=$('#library-manage-dialog'),form=$('#library-manage-form');
   let operation=null,subject=null,returnEdit=null,busy=false;
   const close=()=>{if(!busy)dialog.close();};
@@ -23,6 +23,7 @@ export function bindLibraryManagement({request,getContext,beforeChange,onChanged
     const hint=removing?`${row?.title||row?.name||row?.path}：${target==='group'?'此分组及其全部内容（包括未显示的文件）':'此'+type}将移入 .trash/library 回收目录，作答与历史数据保留。${kind==='extension'?'仍有题库引用时无法删除。':''}`:target==='group'?'分组名就是文件夹名；改名不会重置作答与历史。':'名称对应实际文件夹或文件名，移动或改名不会重置作答与历史。';
     $('#library-manage-hint').textContent=readOnly?`${row?.name||row?.title||row?.path}：拓展按实际路径引用，不支持改名或移动。可在下方删除；仍有题库引用时无法删除。`:hint+(removing&&kind==='bank'?' 配套拓展文件会保留，不随题库删除。':'');
     $('#library-manage-more').hidden=action!=='update';$('#library-manage-export').hidden=kind!=='bank'||!onExport;$('#library-manage-export').textContent=target==='group'?'导出分组':'导出题库';
+    for(const key of ['copy','outline']){const button=$(`#library-manage-${key}`);if(button)button.hidden=kind!=='bank'||target!=='item'||action!=='update';}
     $('#library-manage-cancel').textContent=readOnly?'关闭':'取消';
     const select=$('#library-manage-group');select.closest('label').hidden=target==='group';$('#library-manage-cancel').hidden=creatingGroup;select.replaceChildren(new Option('未分组（根目录）',''));
     for(const path of catalog.groups?.[kind==='bank'?'banks':'extensions']||[]){
@@ -37,6 +38,7 @@ export function bindLibraryManagement({request,getContext,beforeChange,onChanged
     const previous={target:operation.target,row:subject,name:$('#library-manage-name').value,group:$('#library-manage-group').value};
     open(previous.target,previous.row,'delete');returnEdit=previous;
   });
+  for(const [key,callback]of [['copy',onCopy],['outline',onOutline]])$(`#library-manage-${key}`)?.addEventListener('click',()=>{if(busy||operation?.target!=='item')return;dialog.close();callback?.(subject);});
   $('#library-manage-export').addEventListener('click',async()=>{
     if(busy||operation?.action!=='update'||operation.kind!=='bank'||!onExport)return;
     setBusy(true);error('');status('正在导出已保存的内容…');

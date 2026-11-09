@@ -15,7 +15,7 @@ namespace QuizForge.Desktop
     internal sealed class HubPackageImport
     {
         internal const string Origin = "https://quizforge.treenewbee.cloud";
-        private const long MaxBytes = 64L * 1024 * 1024;
+        private const long MaxBytes = 128L * 1024 * 1024;
         private readonly Func<Uri, HttpWebRequest> createRequest;
         private readonly TimeSpan timeout;
         private static readonly HashSet<string> active = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -78,7 +78,7 @@ namespace QuizForge.Desktop
                 case "LOCAL_IMPORT_DISABLED": return "Hub 暂未开启直接导入，请回到网站下载 .qbank 文件。";
                 case "LOCAL_IMPORT_UNAVAILABLE": return "此题库暂不可用，请回到 Hub 查看。";
                 case "LOCAL_IMPORT_REVISION_CHANGED": return "题库版本已变化，请刷新 Hub 后重新点击，不会自动换成其他版本。";
-                case "LOCAL_IMPORT_TOO_LARGE": return "题库文件超过 64 MiB，请使用文件下载。";
+                case "LOCAL_IMPORT_TOO_LARGE": return "题库文件超过 128 MiB，请使用文件下载。";
                 case "LOCAL_IMPORT_FORMAT_UNSUPPORTED": return "此附件不支持直接导入，请使用文件下载。";
                 case "LOCAL_IMPORT_RATE_LIMITED": return "请求过于频繁，请稍后重试。";
                 case "LOCAL_IMPORT_TRAFFIC_LIMIT": return "Hub 下载流量额度不足，请稍后重试。";

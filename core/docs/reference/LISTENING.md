@@ -1,15 +1,15 @@
 # 宿主悬浮听力
 
-听力材料属于题库，播放器属于宿主，题型只处理题目、答案、评分及编辑。现有拓展无需新增播放器或升级 Extension API。新增配置保持题库格式1和包格式3；未配置的旧题库行为不变。本轮只接入Web，Hub和Android尚未同步。
+听力材料属于题库，播放器属于宿主，题型只处理题目、答案、评分及编辑。现有拓展无需新增播放器或升级 Extension API。当前新题库使用文件格式 2、包格式 4；旧题库可批量升级；未配置的旧题库行为不变。本轮只接入Web，Hub和Android尚未同步。
 
 ## 文件和绑定
 
 ```text
 question-banks/<分组>/<题库>/
   bank.json
-  media/library.mp3
-  media/lecture.mp3
-  media/exam.mp3
+  assets/library.mp3
+  assets/lecture.mp3
+  assets/exam.mp3
 ```
 
 在 `bank.json` 根增加可选 `listening`，在需要听力的题卡上增加宿主字段 `listening`（与 `data` 同层）：
@@ -18,9 +18,9 @@ question-banks/<分组>/<题库>/
 {
   "listening": {
     "materials": [
-      {"id":"library","title":"图书馆通知","file":"media/library.mp3"},
-      {"id":"lecture","title":"讲座通知","file":"media/lecture.mp3"},
-      {"id":"exam","title":"整卷听力","file":"media/exam.mp3"}
+      {"id":"library","title":"图书馆通知","file":"assets/library.mp3"},
+      {"id":"lecture","title":"讲座通知","file":"assets/lecture.mp3"},
+      {"id":"exam","title":"整卷听力","file":"assets/exam.mp3"}
     ],
     "examMaterialId":"exam"
   },
@@ -34,8 +34,8 @@ question-banks/<分组>/<题库>/
 
 示例省略了题库和拓展必填字段，`data` 仍遵守所选拓展Schema。完整演示位于 `question-banks/基础题型/听力组件演示/`，配套拓展是 `extensions/基础题型/单选题/`。四题总分17，四项功能开关全开；音频和前两道听力题取自PR #19的示例材料，整卷音轨由两段材料合并。
 
-- 最多32段材料，每段最多8MiB，总计最多32MiB，继续遵循 `.qbank` 的单文件/总量限制。支持MP3、WAV、OGG、M4A，具体编解码播放仍取决于浏览器。推荐MP3。
-- ID为1–80位字母、数字、下划线或连字符；标题1–160字符。文件为题库 `media/` 下直接文件，不接受URL、目录穿越、符号链接或任意文件路径。
+- 最多 50 段材料，本地每段最多 32 MiB，总计受包展开后 256 MiB 限制，继续遵循 `.qbank` 的单文件/总量限制。格式 4 本地资源支持 MP3、M4A，具体编解码播放仍取决于浏览器。推荐MP3。
+- ID为1–80位字母、数字、下划线或连字符；标题1–160字符。文件为题库 `assets/` 下直接文件，本地 file 不接受 URL、目录穿越、符号链接或任意文件路径；网络资源另用 url。
 - 多题可绑定同一材料；不配置题卡 `listening` 表示普通题。考试使用 `examMaterialId` 指定的一条整卷音轨；没有配置整卷材料时考试不显示播放器。
 - 本轮材料清单及题卡绑定在文件中配置，不提供音频上传/裁剪/换绑编辑器。已有题目编辑器仍能正常修改题干、选项、答案和解析，保存时保留宿主听力配置。
 
@@ -60,3 +60,13 @@ question-banks/<分组>/<题库>/
 ## 验收
 
 后端：`core/server/host/resources/listening.test.mjs`。前端生命周期/取消/模式/几何：`core/test/practice/listening.test.mjs`。另回归集合、HTTP、考试及导入导出。浏览器需覆盖同材料连续播放、普通题暂停、切材料、提交判分、草稿、拖动/缩放、考试及窄屏。自动检查不替代手机/平板真机听音和触摸验收。
+
+## 网络音频 URL（纳入格式 4 PR）
+
+材料可以使用 `{"id":"section-a","title":"第一部分听力","url":"https://media.example.com/listening/section-a.mp3"}`，题目仍通过 `listening.materialId` 绑定。一个材料必须且只能有 `file` 或 `url`；可以在同一本题库混用两种来源。URL 不要求文件后缀，只能是能匿名下载音频的 HTTPS 直链；不要使用网盘预览页、短时签名或依赖 Cookie 的地址。
+
+宿主页直接以 CORS、`credentials: 'omit'`、`referrerPolicy: 'no-referrer'` 读取，禁止重定向；先完整缓存当前段，完成后播放。网络材料每段最多 64 MiB，同时按 Content-Length 与实际读取字节限制；超时、切换或关闭取消未完成的请求，失败可重试。服务端不提供任意 URL 代理；音频服务器须允许 CORS。只显示读取状态，尚无字节进度。
+
+导入、导出、格式 3→4 和考试快照保留原 URL 字符串，不下载、不改成 file、不把远程音频放进包里。修改 URL 会改变题库内容身份；相同 URL 的远端文件被替换则无法发现，历史音频不保证当时的字节，也不承诺离线播放。网络地址只交给宿主播放器，不交给题型 iframe。
+
+**与 V2 v0.8 尚未完全一致：**原有宿主校验最长 4096（V2 要求 2048），不检查 URL 原文等于规范化结果，保留 IP 覆盖不完整；浏览器只有基础 URL 检查，不重复全部主机校验。按作者要求本次列出差异、等待审阅，不自行选择新限制。完整核对见仓库 `docs/reports/format4-network-audit.md`。制作兼容 V2 的包须遵循 v0.8 的 2048 字符、规范化 HTTPS 公网地址限制，不以当前 Windows 宽松校验作为格式契约。

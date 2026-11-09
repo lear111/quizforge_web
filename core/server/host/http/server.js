@@ -39,7 +39,7 @@ const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javasc
 // These pure models are also browser dependencies. Expose exact files only;
 // the rest of shared/ and all server sources remain outside the web root.
 const publicSharedModules = new Set(['shared/answer-area/1.3.0/model.js', 'shared/answer-area/1.4.0/model.js', 'shared/ink/1.0.0/renderer.js']);
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
+const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; media-src 'self' blob:; frame-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
 export function queryValue(context, name) {
   const values = context.url.searchParams.getAll(name); if (values.length > 1) throw bad('Invalid query');
   if (!values.length) return null;
@@ -385,6 +385,17 @@ export class QuizForgeServer {
     if (['/api/library/import/commit', '/api/library/import/cancel'].includes(pathname) && method === 'POST') {
       this.requireLocal(context); const body = await this.writeRequest(context);
       throw new ApiError(410, 'IMPORT_CHOICES_REMOVED', '新版题库包始终新增独立副本，无需选择覆盖。请刷新页面后重新导入。');
+    }
+    if (['/api/library/upgrade','/api/library/banks','/api/library/outline'].includes(pathname)) {
+      this.requireLocal(context);
+      if (pathname==='/api/library/outline' && method==='GET') return this.library.readOutline(queryValue(context,'bank'));
+      if (method==='POST') {
+        const body=await this.writeRequest(context);
+        return this.namespaceTransaction(async()=>{
+          const result=await (pathname==='/api/library/upgrade'?this.library.upgradeLocal():pathname==='/api/library/banks'?this.library.createBank(body):this.library.saveOutline(body));
+          this.states.clearMemory();this.developmentStates.clearMemory();return result;
+        });
+      }
     }
     if (pathname === '/api/library/manage' && method === 'POST') { this.requireLocal(context); const body = await this.writeRequest(context); return this.namespaceTransaction(async () => { const result = await this.library.manage(body); this.states.clearMemory(); this.developmentStates.clearMemory(); return result; }); }
     if (parts.length === 5 && parts[1] === 'extensions' && parts[4] === 'page' && method === 'GET') return this.library.page(routeId(parts[2]), routeId(parts[3]));

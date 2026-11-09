@@ -47,6 +47,7 @@
             hidden>+</button><button id="refresh" class="icon-button" title="刷新目录" aria-label="刷新目录">↻</button></div>
       </div>
       <div id="library-list" class="library-list"></div>
+      <div class="library-author-actions"><button id="library-new-bank" hidden>新建题库</button><button id="library-upgrade" hidden>升级本地题库</button></div>
       <div class="library-footer"><button id="network-settings-open" class="icon-button network-settings-entry"
           aria-label="设置" title="设置"><svg viewBox="0 0 24 24" aria-hidden="true">
             <path
@@ -140,7 +141,7 @@
           aria-label="关闭导入">×</button>
       </div>
       <p id="library-import-name" class="library-manage-hint"></p>
-      <p class="library-manage-hint">导入新版 .qbank 及配套拓展：单题库放到题库根目录，分组包按组添加。每次创建独立副本，重名自动加序号。已有题库、作答和历史保留。旧格式包请联系制作者升级后导入。</p>
+      <p class="library-manage-hint">支持格式 4 .qbank；格式 3 会自动升级后导入。单题库放到题库根目录，分组包按组添加，重名自动加序号。已有题库、作答和历史保留。</p>
       <p id="library-import-error" class="library-manage-error" role="alert" hidden></p>
       <div class="dialog-actions"><button id="library-import-cancel" type="button">取消</button><button
           id="library-import-confirm" type="submit">导入</button></div>
@@ -158,7 +159,7 @@
       <p id="library-manage-status" class="library-manage-hint" role="status" hidden></p>
       <p id="library-manage-error" class="library-manage-error" role="alert" hidden></p>
       <div class="library-manage-footer">
-        <div id="library-manage-more" class="library-manage-more" hidden><button id="library-manage-export" type="button">导出题库</button><button id="library-manage-delete" type="button">删除</button></div>
+        <div id="library-manage-more" class="library-manage-more" hidden><button id="library-manage-outline" type="button" hidden>编辑大纲</button><button id="library-manage-copy" type="button" hidden>另存为</button><button id="library-manage-export" type="button">导出题库</button><button id="library-manage-delete" type="button">删除</button></div>
         <div class="dialog-actions"><button id="library-manage-cancel" type="button">取消</button><button
             id="library-manage-confirm" type="submit">保存</button></div>
       </div>
@@ -376,6 +377,16 @@
   <script src="/listening/audio-player.js"></script>
   <script src="/ui/quizforge-ui.js"></script>
   <script type="module" src="/app.js"></script>
+  <dialog id="bank-author-dialog" class="library-manage-dialog" aria-labelledby="bank-author-title">
+    <form id="bank-author-form">
+      <div class="dialog-heading"><h2 id="bank-author-title">新建题库</h2><button id="bank-author-close" type="button" aria-label="关闭">×</button></div>
+      <p id="bank-author-hint" class="library-manage-hint"></p>
+      <div id="bank-author-create"><label>题库名称<input id="bank-author-name" maxlength="120"></label><label>所属分组<select id="bank-author-group"></select></label><label>从拓展示例创建<select id="bank-author-extension"></select></label></div>
+      <div id="bank-author-outline" hidden><label>集中大纲（JSON）<textarea id="bank-author-json" rows="14" spellcheck="false" aria-label="集中大纲 JSON"></textarea></label><details><summary>题目 ID 参考</summary><pre id="bank-author-questions"></pre></details></div>
+      <pre id="bank-author-report" role="status" hidden></pre><p id="bank-author-error" class="library-manage-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="bank-author-report-save" type="button" hidden>下载报告</button><button id="bank-author-cancel" type="button">关闭</button><button id="bank-author-save" type="submit">保存</button></div>
+    </form>
+  </dialog>
 </body>
 
 </html>
