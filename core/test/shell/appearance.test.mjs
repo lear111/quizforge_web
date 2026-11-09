@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {THEMES,DEFAULT_CLEAR,readAppearance,writeAppearance,applyAppearance,prepareImage,bindAppearanceSettings} from '../../web/shell/appearance.js';
 
 const html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../../web/shell/themes.css',import.meta.url),'utf8');
 function memoryStorage(initial={}){const values=new Map(Object.entries(initial));return {getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,String(value)),values};}
 function fixture(t,{saved,images=null}={}){
-  const dom=new JSDOM(html,{url:'http://localhost/'});t.after(()=>dom.window.close());
+  const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only'});t.after(()=>dom.window.close());
+  loadVueUi(dom);
   const document=dom.window.document,storage=memoryStorage(saved?{'quizforge-appearance':JSON.stringify(saved)}:{});
   let next=0;const urls=new Set();
   const URL={createObjectURL:()=>{const url=`blob:test/${++next}`;urls.add(url);return url;},revokeObjectURL:url=>urls.delete(url)};
