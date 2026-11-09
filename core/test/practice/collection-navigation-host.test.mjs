@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {createLibraryIndexClient} from '../../web/library/library-index-client.js';
 import {createCollectionLoading} from '../../web/practice/collection-loading.js';
 import {previewDraftAnswer,confirmAnswerPreview,answerStateForSave} from '../../web/practice/answer-preview.js';
@@ -26,7 +27,7 @@ const hostSource=part('function transitionTo(', '\nconst active=')+
   part("for(const key of ['library','outline'])$(`#${key}-toggle`)", '\nfor(const media');
 
 function fixture(t,{drawer=false,developmentEnabled=false}={}){
-  const dom=new JSDOM(html,{url:'http://localhost/'});t.after(()=>dom.window.close());
+  const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());
   const document=dom.window.document,collections=new Map(),errors=[],saved=[];
   const descriptors=new Map();
   const sandbox={allowDiscardEditor:checkEditorExit,disposeEditorSession(pane){pane.editorSession?.destroy();pane.editorSession=null;pane.plugin=null;},createLibraryIndexClient,takeImportedBank:catalog=>takeImportedBank(catalog,dom.window.location,dom.window.history),collectionLoading:createCollectionLoading(document),renderLibraryView,document,$:selector=>document.querySelector(selector),collections,activeKey:null,pendingLibraryKey:null,listMode:'bank',transition:Promise.resolve(),

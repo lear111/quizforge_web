@@ -28,7 +28,7 @@ import {createDraftFullscreen} from './draft/draft-fullscreen.js';
 import {visibleQuestions,visibleQuestionId,hasScoreSummary,navigationIndex,stateFor,contextFor,collectionFeature,canEditCollection,practiceSaveLabel,canViewDraft,draftViewActive,examActive} from './practice/practice-context.js';
 import {createExtensionRouter} from './bridge/extension-requests.js';
 import {questionExtension,collectionHasExtension,extensionPageRoute,sameQuestionStamp,unusedPagePrefixes} from './bridge/extension-pages.js';
-import {renderLibraryView} from './library/library-view.js';
+import {renderLibraryView,destroyLibraryView} from './library/library-view.js';
 import {renderOutlineView} from './outline/outline-view.js';
 import {bindLibraryManagement} from './library/library-management.js';
 import {takeImportedBank} from './library/native-import.js';
@@ -846,7 +846,7 @@ $('#access-form').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',()=>refreshCatalog.client?.stop());
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted)destroyLibraryView(document);});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);

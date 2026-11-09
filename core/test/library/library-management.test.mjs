@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {checkEditorExit} from '../../web/editor/editor-navigation.js';
 import {renderLibraryView} from '../../web/library/library-view.js';
 import test from 'node:test';
@@ -11,7 +12,8 @@ import {extensionGroups} from '../../web/library/extension-groups.js';
 const html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8');
 const source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 function fixture(t,overrides={}){
-  const dom=new JSDOM(html,{url:'http://localhost/'}),document=dom.window.document;
+  const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only'}),document=dom.window.document;
+  loadVueUi(dom);
   const saved={document:globalThis.document,Option:globalThis.Option};globalThis.document=document;globalThis.Option=dom.window.Option;
   const dialog=document.querySelector('#library-manage-dialog');dialog.showModal=()=>{dialog.open=true;};dialog.close=()=>{dialog.open=false;};
   t.after(()=>{dom.window.close();Object.assign(globalThis,saved);});

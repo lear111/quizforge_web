@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {renderLibraryView} from '../../web/library/library-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,7 +19,7 @@ test('physical groups stay one level while preserving independent leaves and inp
 });
 
 function fixture(t){
-  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));t.after(()=>dom.window.close());const document=dom.window.document,opened=[],notices=[];
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,opened=[],notices=[];
   const catalog={developmentEnabled:true,banks:[{id:'mixed',title:'混合练习',questionCount:2,group:'题库分组'}],extensions:[{id:'standalone',name:'独立题型',questionCount:1},{id:'choice',name:'单选',version:'1.0.0',group:'基础题型',questionCount:1},{id:'essay',name:'简答',version:'1.3.0',group:'语言题型',questionCount:2},{id:'essay-dev',name:'简答开发',group:'语言题型',kind:'development',questionCount:1,development:{mode:'ui'}}]};
   const sandbox={renderLibraryView,document,$:selector=>document.querySelector(selector),pendingLibraryKey:null,listMode:'extension',activeKey:'extension:essay',catalog,extensionGroups,collapsedExtensionGroups:new Set(),notice:message=>notices.push(message),transitionTo:fn=>fn(),openCollection:(...args)=>opened.push(args),el:(tag,classes,text)=>{const node=document.createElement(tag);node.className=classes||'';if(text!=null)node.textContent=text;return node;}};
   vm.runInNewContext(renderSource+'\nglobalThis.render=renderLibrary;',sandbox);sandbox.render();return {dom,document,opened,notices,sandbox,catalog};

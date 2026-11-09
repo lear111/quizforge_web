@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -32,7 +33,7 @@ test('auth failure stops polling and an explicit retry succeeds',async()=>{
   await assert.rejects(client.refresh(),{status:401});assert.equal(timers.length,0);rejected=false;await client.refresh();assert.equal(seen.length,1);client.stop();
 });
 test('pending and checking rows stay clickable; error rows report their error',t=>{
-  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));t.after(()=>dom.window.close());const opened=[],notices=[];
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const opened=[],notices=[];
   const catalog={...pending,banks:[pending.banks[0],{...pending.banks[0],id:'checking',validationStatus:'checking'},{...pending.banks[0],id:'bad',validationStatus:'error',error:'Invalid rule'}],canManage:false};
   renderLibraryView({document:dom.window.document,catalog,listMode:'bank',activeKey:null,collapsedGroups:new Set(),onNotice:value=>notices.push(value),onOpen:(kind,id)=>opened.push(id)});
   assert.doesNotMatch(dom.window.document.querySelector('[data-item-id="bank"]').textContent,/待校验/);assert.doesNotMatch(dom.window.document.querySelector('[data-item-id="checking"]').textContent,/校验中/);

@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {renderLibraryView} from '../../web/library/library-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,7 +18,7 @@ const html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),
 const part=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 test('developer tab persists a local toggle and switches within the existing settings dialog',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document,calls=[];document.querySelector('#network-settings-dialog').open=true;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,calls=[];document.querySelector('#network-settings-dialog').open=true;
   const request=async(path,options)=>{calls.push([path,options]);return path.endsWith('/development')?{enabled:options?JSON.parse(options.body).enabled:false,canManage:true}:{enabled:false,canManage:true};};
   const ai=bindAiSettings({request,document}),dev=bindDevelopmentSettings({request,document});t.after(()=>{ai.destroy();dev.destroy();});
   document.querySelector('#settings-development-tab').click();await settle();assert.equal(document.querySelector('#development-settings-panel').hidden,false);assert.equal(document.querySelector('#network-settings-form').hidden,true);assert.equal(document.querySelector('#ai-settings-panel').hidden,true);
@@ -29,7 +30,7 @@ test('developer tab persists a local toggle and switches within the existing set
 });
 
 test('developer switch serializes its pending save and captures the chosen value',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
   let finish;const pending=new Promise(resolve=>{finish=resolve;}),writes=[],updated=[];
   const dev=bindDevelopmentSettings({document,request:async(_path,options)=>{if(!options)return {enabled:false,canManage:true};writes.push(JSON.parse(options.body));await pending;return {enabled:true,canManage:true};},onSaved:value=>updated.push(value.enabled)});t.after(()=>dev.destroy());await dev.open();
   const toggle=document.querySelector('#development-settings-enabled');toggle.checked=true;toggle.dispatchEvent(new dom.window.Event('change'));await settle();
@@ -40,7 +41,7 @@ test('developer switch serializes its pending save and captures the chosen value
 
 test('developer switch restores the confirmed setting on failures before and after persistence',async t=>{
   for(const failure of ['prepare','write','refresh']){
-    const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
+    const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
     const dev=bindDevelopmentSettings({document,beforeSave:async()=>{if(failure==='prepare')throw new Error('draft not saved');},request:async(_path,options)=>{if(!options)return {enabled:false,canManage:true};if(failure==='write')throw new Error('offline');return {enabled:true,canManage:true};},onSaved:async()=>{if(failure==='refresh')throw new Error('catalog unavailable');}});t.after(()=>dev.destroy());await dev.open();
     const toggle=document.querySelector('#development-settings-enabled');toggle.checked=true;toggle.dispatchEvent(new dom.window.Event('change'));await settle();
     assert.equal(toggle.checked,failure==='refresh');assert.equal(toggle.disabled,false);assert.equal(document.querySelector('#development-settings-error').hidden,false);assert.equal(document.querySelector('#development-settings-form').getAttribute('aria-busy'),'false');
@@ -48,7 +49,7 @@ test('developer switch restores the confirmed setting on failures before and aft
 });
 
 test('reopening the developer panel waits for its pending save before reading the current setting',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;
   let finish,stored=false,reads=0;const pending=new Promise(resolve=>{finish=resolve;});
   const dev=bindDevelopmentSettings({document,request:async(_path,options)=>{if(options){await pending;stored=JSON.parse(options.body).enabled;}else reads++;return {enabled:stored,canManage:true};}});t.after(()=>dev.destroy());await dev.open();
   const toggle=document.querySelector('#development-settings-enabled');toggle.checked=true;toggle.dispatchEvent(new dom.window.Event('change'));await settle();
@@ -56,13 +57,13 @@ test('reopening the developer panel waits for its pending save before reading th
   finish();await reopening;assert.equal(reads,2);assert.equal(toggle.checked,true);assert.equal(toggle.disabled,false);assert.equal(document.querySelector('#development-settings-status').hidden,true);
 });
 test('remote developer setting is visible and cannot write',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;let calls=0;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;let calls=0;
   const dev=bindDevelopmentSettings({request:async()=>{calls++;return {enabled:true,canManage:false};},document});t.after(()=>dev.destroy());await dev.open();
   assert.equal(document.querySelector('#development-settings-enabled').checked,true);assert.equal(document.querySelector('#development-settings-enabled').disabled,true);
   document.querySelector('#development-settings-enabled').checked=false;document.querySelector('#development-settings-enabled').dispatchEvent(new dom.window.Event('change'));await settle();assert.equal(calls,1);assert.equal(document.querySelector('#development-settings-enabled').checked,true);assert.match(document.querySelector('#development-settings-status').textContent,/只能/);
 });
 test('missing developer endpoint explains restarting the old service and recovers after retry',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;let outdated=true;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document;document.querySelector('#network-settings-dialog').open=true;let outdated=true;
   const dev=bindDevelopmentSettings({request:async()=>{if(outdated)throw Object.assign(new Error('Endpoint not found'),{code:'NOT_FOUND'});return {enabled:false,canManage:true};},document});t.after(()=>dev.destroy());
   await dev.open();
   assert.match(document.querySelector('#development-settings-status').textContent,/尚未提供拓展管理设置接口/);
@@ -76,14 +77,14 @@ test('missing developer endpoint explains restarting the old service and recover
   assert.equal(document.querySelector('#development-settings-status').hidden,true);assert.equal(document.querySelector('#development-settings-enabled').checked,false);
 });
 test('formal and development packages remain in one extension list with distinct routing and badges',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document,opened=[];
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,opened=[];
   const sandbox={renderLibraryView,document,$:selector=>document.querySelector(selector),pendingLibraryKey:null,listMode:'extension',activeKey:null,extensionGroups,collapsedExtensionGroups:new Set(),catalog:{developmentEnabled:true,banks:[],extensions:[{id:'choice',title:'单选',questionCount:2},{id:'choice-dev',title:'单选开发',kind:'development',development:{mode:'ui'}}]},notice(){},transitionTo:fn=>fn(),openCollection:(...args)=>opened.push(args),el:(tag,classes,text)=>{const node=document.createElement(tag);node.className=classes||'';if(text!=null)node.textContent=text;return node;}};
   vm.runInNewContext(part('function renderLibrary(', '\nfunction renderOutline(')+'\nrenderLibrary();',sandbox);
   const items=[...document.querySelectorAll('.library-item')];assert.equal(items.length,2);assert.equal(document.querySelectorAll('#library-list .development-badge').length,1);assert.doesNotMatch(items[1].textContent,/UI 预览|功能调试/);items[0].click();items[1].click();assert.deepEqual(opened,[['extension','choice'],['development','choice-dev']]);
   assert.equal(document.querySelectorAll('.library-switch button').length,2,'No separate developer list group.');
 });
 test('disabling developer mode checks editor changes before removing clean development pages',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const node=dom.window.document.createElement('section');dom.window.document.body.append(node);const steps=[];
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const node=dom.window.document.createElement('section');dom.window.document.body.append(node);const steps=[];
   const pane={id:'bank',key:'development-bank:bank',kind:'development-bank',development:{mode:'runtime'},view:'edit',node,editorDraftWrites:Promise.resolve(),plugin:{destroy(){steps.push('destroy');}},whiteboard:{destroy(){}},sizeObserver:{disconnect(){}},worldObserver:{disconnect(){}},developmentWatcher:{destroy(){steps.push('stop-watch');}}},collections=new Map([[pane.key,pane]]);
   const sandbox={collections,activeKey:pane.key,clearTimeout,allowDiscardEditor:async()=>steps.push('check-edit'),flushPane:async()=>steps.push('flush'),disposeEditorSession(){},disposeScoreSummary(){},questionsCache:{deleteCollection(){}},pagesCache:{deleteCollection(){}},unusedPagePrefixes:()=>[],activateReady:async key=>{assert.equal(key,null);steps.push('activate');},updateChrome(){}};
   vm.runInNewContext(part('async function prepareDevelopmentSettings(', '\nfunction watchDevelopment(')+'\nglobalThis.prepare=prepareDevelopmentSettings;',sandbox);await sandbox.prepare({enabled:false});
@@ -98,7 +99,7 @@ test('unfinished development uses ordinary practice, editor and history branches
 });
 
 test('ordinary candidate-first loading retains the previous frame after a broken development registration, with a local retry',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());const document=dom.window.document,node=document.createElement('section'),frameHost=document.createElement('div');node.append(frameHost);document.body.append(node);
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,node=document.createElement('section'),frameHost=document.createElement('div');node.append(frameHost);document.body.append(node);
   const oldHost=document.createElement('div'),oldFrame=document.createElement('iframe');oldHost.append(oldFrame);frameHost.append(oldHost);let destroyed=0,broken=true,seen;
   const extension={id:'dev.demo',version:'0.0.0',development:{folder:'demo'}},collection={title:'开发样例',extension,questions:[{id:'old'},{id:'q'}],states:{}};
   const pane={key:'development:demo',kind:'development',id:'demo',node,frameHost,collection,development:{folder:'demo'},questionId:'old',payload:{question:{id:'old',data:{}},state:{status:'unanswered'}},plugin:{frame:oldFrame,destroy(){destroyed++;oldHost.remove();}},viewport:{scrollTop:0,scrollLeft:0,clientWidth:1000},whiteboard:{load(){},setMode(){},setReadOnly(){}},ink:createDraftBuffer(),tools:{},draftMode:false};
@@ -110,7 +111,7 @@ test('ordinary candidate-first loading retains the previous frame after a broken
 });
 
 test('development CSS hot refresh uses normal collection and mounts without changing selected question or saved answer',async t=>{
-  const dom=new JSDOM(html);t.after(()=>dom.window.close());let options,shown;
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());let options,shown;
   const pane={id:'demo',kind:'development',key:'development:demo',view:'practice',questionId:'q',viewport:{scrollTop:37},collection:{questions:[{id:'q'}]},development:{folder:'demo'}};
   const descriptor={title:'示例',revision:'new',development:{folder:'demo'}},collection={title:'示例',questions:[{id:'q'}],states:{q:{answer:{text:'saved'},status:'unanswered'}}},catalog={banks:[],extensions:[{id:'demo',kind:'development',mode:'ui'}]};
   const sandbox={catalog,request:async path=>path.includes('/collections/')?collection:descriptor,collectionPath:()=>'/api/collections/development/demo',createDevelopmentWatcher:value=>{options=value;return {setActive(){}};},active:()=>pane,transitionTo:fn=>fn(),flushPane:async()=>true,saveStatus(){},questionsCache:{deleteCollection(){}},loadQuestion:async()=>({question:{id:'q'},state:collection.states.q}),showQuestion:async(target,id,value)=>{shown=value;target.collection=value.collection;},updateChrome(){},renderLibrary(){}};
