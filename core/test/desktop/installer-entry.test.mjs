@@ -64,6 +64,19 @@ test('check-only verifies installed tools without installing dependencies or cre
   assert.match(result.stdout, /环境检查通过/); assert.equal(fs.existsSync(path.join(f.root, '.temp')), false); assert.equal(fs.existsSync(path.join(f.root, 'dist')), false); assert.equal(fs.existsSync(path.join(f.root, 'npm.log')), false);
   assert.equal(f.calls().length, 2);
 });
+
+test('installer entry preserves Chinese output under non-Chinese code page 437', { skip: !supported }, async t => {
+  const f = fixture(t);
+  const script = path.join(f.root, 'core/scripts/build/build-windows-installer.ps1');
+  const command = '[Console]::OutputEncoding=[Text.Encoding]::GetEncoding(437); $OutputEncoding=[Text.Encoding]::GetEncoding(437); & $env:QF_TEST_BUILD -Version 0.1.0-local.test -NodePath $env:QF_TEST_NODE -Compiler $env:QF_TEST_COMPILER -CheckOnly -SkipPause';
+  const result = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(command, 'utf16le').toString('base64')], {
+    windowsHide: true, timeout: 30000, encoding: 'utf8', env: { ...f.env, QF_TEST_BUILD: script, QF_TEST_NODE: f.node, QF_TEST_COMPILER: f.compiler }
+  });
+  assert.match(result.stdout, /环境检查通过/);
+  assert.ok(result.stdout.includes(f.node));
+  assert.ok(result.stdout.includes(f.compiler));
+  assert.equal(fs.existsSync(path.join(f.root, 'dist')), false);
+});
 test('wrong or missing Node, npm and compiler fail early with installation guidance', { skip: !supported }, async t => {
   for (const extra of [{ QF_ENTRY_NODE_VERSION: '22.0.0' }, { QF_ENTRY_ISCC_VERSION: '6.7.3' }]) {
     const f = fixture(t, extra); await assert.rejects(f.call(['-CheckOnly']), error => error.code === 1 && /https:\/\/(nodejs.org|jrsoftware.org)/.test(error.stdout)); assert.equal(fs.existsSync(path.join(f.root, '.temp')), false);

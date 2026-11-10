@@ -15,7 +15,7 @@ import { ResourceStore } from '../../server/host/resources/resources.js';
 
 const run = promisify(execFile), product = fileURLToPath(new URL('../../../', import.meta.url));
 const supported = process.platform === 'win32' && process.arch === 'x64';
-let work, executable;
+let work, executable, encodingExecutable;
 before(async () => {
   if (!supported) return;
   fs.mkdirSync(path.join(product, '.temp'), { recursive: true });
@@ -25,6 +25,13 @@ before(async () => {
     '/nologo', '/target:winexe', '/platform:x64', '/utf8output', '/out:' + executable,
     '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Core.dll', '/reference:System.Web.Extensions.dll',
     ...fs.readdirSync(source).filter(name => name.endsWith('.cs')).map(name => path.join(source, name))
+  ], { windowsHide: true });
+  encodingExecutable = path.join(work, 'ConsoleEncodingHarness.exe');
+  await run(path.join(process.env.WINDIR, 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'), [
+    '/nologo', '/target:exe', '/platform:x64', '/utf8output', '/main:ConsoleEncodingHarness', '/out:' + encodingExecutable,
+    '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll', '/reference:System.Core.dll', '/reference:System.Web.Extensions.dll',
+    ...fs.readdirSync(source).filter(name => name.endsWith('.cs')).map(name => path.join(source, name)),
+    path.join(product, 'core/test/desktop/fixtures/ConsoleEncodingHarness.cs')
   ], { windowsHide: true });
 });
 after(() => {
@@ -84,6 +91,17 @@ async function bankPackage(root, file) {
   const exported = await new LibraryArchive(root, new ResourceStore(root)).exportBank('Bank');
   try { fs.writeFileSync(file, fs.readFileSync(exported.file)); } finally { exported.close(); }
 }
+
+test('launcher control output remains UTF-8 under non-Chinese code page 437', { skip: !supported }, async t => {
+  const root = fs.mkdtempSync(path.join(work, '编码 中文 '));
+  for (const entry of ['entry', 'run']) {
+    const result = await run(encodingExecutable, [entry, '--root', root, '--layout', '--no-browser'], { windowsHide: true, encoding: 'utf8' });
+    assert.match(result.stderr, /forcedOutputCodePage=437/);
+    assert.deepEqual(JSON.parse(result.stdout), { programRoot: root, dataRoot: root, installed: false });
+    t.diagnostic(entry + ': ' + result.stderr.trim().replaceAll('\r\n', '; '));
+  }
+  await assert.rejects(run(encodingExecutable, ['entry', '--no-browser', '--unsupported'], { windowsHide: true, encoding: 'utf8' }), error => error.code === 1 && /未知启动参数/.test(error.stderr));
+});
 
 test('opening a local qbank cold-starts one tray, coalesces pending opens and imports later opens independently', {skip:!supported,timeout:90000}, async t=>{
   const f=fixture(t), file=path.join(work,"下载 中文 & ' 空格.qbank");await bankPackage(f.root,file);

@@ -84,6 +84,13 @@ namespace QuizForge.Desktop
 
     internal static class Program
     {
+        // Control clients emit JSON and errors to redirected streams. Their
+        // encoding must not depend on the Windows/OEM console code page.
+        internal static void ConfigureConsoleEncoding()
+        {
+            Console.OutputEncoding = new UTF8Encoding(false);
+        }
+
         [STAThread]
         private static int Main(string[] args)
         {
@@ -91,6 +98,7 @@ namespace QuizForge.Desktop
             bool quiet = Array.IndexOf(args, "--no-browser") >= 0 || Array.IndexOf(args, "--layout") >= 0 || Array.IndexOf(args, "--status") >= 0 || Array.IndexOf(args, "--quit") >= 0;
             try
             {
+                ConfigureConsoleEncoding();
                 options = Options.Parse(args);
                 return Run(options);
             }
@@ -107,6 +115,7 @@ namespace QuizForge.Desktop
         // the release entry point always parses the strict production options.
         internal static int Run(Options options, HubPackageImport hub = null)
         {
+                ConfigureConsoleEncoding();
                 if (options.Command == "layout")
                 {
                     Console.WriteLine(new JavaScriptSerializer().Serialize(new { programRoot = options.Root, dataRoot = options.DataRoot, installed = options.Installed }));

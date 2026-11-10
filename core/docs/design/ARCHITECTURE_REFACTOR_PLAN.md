@@ -310,6 +310,6 @@ npm --prefix core test
 | A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | 已合并 | 合并提交 `98b6d0a`；完整原始审查记录见 [reviews/A1.md](reviews/A1.md) |
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
 | T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 已合并 | 合并提交 `b60b41c`；[审查记录](reviews/T1.md)；Ubuntu 全绿、Windows 仅原有 19 项、perf 通过 |
-| T2 | `fix/test-baseline-t2` | 第一步调查中 | [审查记录](reviews/T2.md)；临时 Windows pwsh／无 tee 对照，生产及测试代码尚未修改 |
+| T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 编码修复待 CI 与审查 | [审查记录](reviews/T2.md)；pwsh 对照仍为同 19 项，已恢复原 CI；新增 437 代码页回归，不合并 |
 | B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
