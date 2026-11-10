@@ -131,6 +131,8 @@ npm --prefix core test
 
 ### B2 动作路径不再整份克隆状态
 
+本卡按已批准的 [B2 设计与审查记录](reviews/B2.md) 拆分：B2-1（#44）先完成元数据浅复制、普通动作与 AI 绑定、强制提交后冻结、标准答案和 T2 收尾；B2-2 在其合并后另开 PR，处理历史内部只读视图及提交／完成路径。B2-1 验收 draft/whiteboard clone 中位数 <20 ms 并报告原 5 ms 目标的差距；B2-2 验收 submit <50 ms。两者均要求标准答案、冻结开启的全套件和三个 CI job 通过。
+
 **问题**：`act()` 中 `cloneJson(persisted)` 克隆整个题库状态，`commit` 再整份序列化并 `fsync`。实测自写解析器约 130 ms/MB，全部同步阻塞事件循环。
 
 **改法**
@@ -311,7 +313,7 @@ npm --prefix core test
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
 | T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 已合并 | 合并提交 `b60b41c`；[审查记录](reviews/T1.md)；Ubuntu 全绿、Windows 仅原有 19 项、perf 通过 |
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
-| B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 设计已批准，实施中 | [审查记录](reviews/B2.md)；浅复制、普通动作与 AI 绑定、提交后冻结、标准答案及 T2 收尾；draft/whiteboard clone <20 ms 并报告距 5 ms 的差距 |
+| B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 实施与验收完成，等待审查 | [完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，实施 CI 三个 job 全绿；未合并 |
 | B2-2 | 待建立（B2-1 合并后） | 未开始 | 历史内部只读视图与 recordSubmission/recordReview/freezeRound/finish/restart/submitSaved/saveCompletionResult；submit clone <50 ms，另记 reviews/B2-2.md |
 | B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
