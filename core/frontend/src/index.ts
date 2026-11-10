@@ -1,3 +1,5 @@
+import PracticeSummary from './practice-summary/PracticeSummary.vue';
+import { createPracticeSummary, type SummaryConfig } from './practice-summary/summary';
 import NetworkPanel from './network/NetworkPanel.vue';
 export { createPracticeNavigation } from './practice/navigation';
 export { createPracticeLifecycle } from './practice/lifecycle';
@@ -139,4 +141,11 @@ export function mountNetworkSettings({ container, form, dialog, closeButton, cop
   let disposed = false;
   return { open: manager.open, refresh: manager.refresh, save: manager.save, close: manager.close, closed: manager.closed,
     get saving() { return manager.saving; }, destroy() { if (disposed) return; disposed = true; manager.destroy(); render(null, container); component = null; closeButton.disabled = false; } };
+}
+
+
+export function mountPracticeSummary({ container, ...config }: SummaryConfig & { container: HTMLElement }) {
+  const manager = createPracticeSummary(config, model => render(h(PracticeSummary, { model, finish: manager.finish }), container));
+  manager.initialize(); let destroyed = false;
+  return { update: manager.update, destroy() { if (destroyed) return; destroyed = true; manager.destroy(); render(null, container); } };
 }
