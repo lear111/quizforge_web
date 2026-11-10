@@ -1,5 +1,6 @@
 import NetworkPanel from './network/NetworkPanel.vue';
 export { createPracticeNavigation } from './practice/navigation';
+export { createPracticeLifecycle } from './practice/lifecycle';
 import OutlinePanel from './outline/OutlinePanel.vue';
 import { buildOutlineModel, type OutlineInput } from './outline/model';
 import DevelopmentPanel from './development/DevelopmentPanel.vue';

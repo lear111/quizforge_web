@@ -14,13 +14,13 @@ export async function checkEditorExit(pane,{discard=false,confirmDiscard=()=>fal
   throw Object.assign(new Error('当前题目有修改未保存。请先保存或取消当前题目的修改，再离开编辑。'),{code:'UNSAVED_EDITOR_CHANGES'});
 }
 
-export function renderEditorStatus(document,pane){
+export function renderEditorStatus(document,pane,setStatus){
   if(pane?.view!=='edit')return;
   const $=selector=>document.querySelector(selector),dirty=!!pane.editorSession?.isDirty;
   $('#edit-save').textContent='保存本题';$('#edit-cancel').textContent='取消编辑';
   $('#mode-label').textContent=`编辑当前题目 · ${dirty?'本题修改未保存':'本题未修改'}`;
   const status=$('#save-state');
-  if(!pane.loading&&!status.classList.contains('saving')&&!status.classList.contains('error'))status.textContent=dirty?'本题修改未保存':'本题未修改';
+  if(!pane.loading&&!status.classList.contains('saving')&&!status.classList.contains('error')){const text=dirty?'本题修改未保存':'本题未修改';if(setStatus)setStatus(text);else status.textContent=text;}
 }
 
 export function bindEditorLeaveNotice(document){
