@@ -62,7 +62,7 @@ export async function createPerfFixture(destination) {
   write(path.join(root, 'question-banks/Perf/bank/bank.json'), { id: 'perf-bank', title: 'Synthetic performance bank', questions });
   const engine = await RuleEngine.create(codeRoot), library = new Library(root, codeRoot, engine);
   try {
-    const collection = await library.collection('bank', 'perf-bank'), store = new StateStore(root, engine), value = store.load(collection);
+    const collection = await library.collection('bank', 'perf-bank'), store = new StateStore(root, engine), value = cloneJson(store.load(collection));
     for (const [index, question] of collection.questions.entries()) value.questions[question.id] = {
       status: 'draft', revision: 8, fingerprint: question.fingerprint, answer: perfAnswer(index), result: null,
       draft: perfDraft(index % 5 === 0 ? 720 : 40), receipts: []

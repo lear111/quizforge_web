@@ -52,6 +52,8 @@ npm --prefix core test
 
 独立性能测试命令为 `npm --prefix core run test:perf`。CI 失败时会上传命令输出日志，保留 7 天；在 PR 中如实列出失败和环境差异。
 
+状态兼容性由 `core/test/practice/state-golden.test.mjs` 长期验证：当前实现执行固定动作序列，以 `Buffer.equals` 对比 d3505cf 生成的标准答案。后续任务卡若有意改变持久化输出，必须在同一 PR 更新标准答案、记录生成命令与 SHA-256，并解释具体变更原因；不能仅为通过检查而重录。生成方式和覆盖范围见 [B2 审查记录](core/docs/design/reviews/B2.md)。
+
 在仓库根目录执行：
 
 ```powershell

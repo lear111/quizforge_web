@@ -109,6 +109,11 @@ test('launcher control output remains UTF-8 under non-Chinese code page 437', { 
   await assert.rejects(run(encodingExecutable, ['entry', '--no-browser', '--unsupported'], { windowsHide: true, encoding: 'utf8' }), error => error.code === 1 && /未知启动参数/.test(error.stderr));
 });
 
+test('console encoding initialization is idempotent under concurrent and repeated calls', {skip:!supported}, async()=>{
+  const result=await run(encodingExecutable,['once'],{windowsHide:true,encoding:'utf8'});
+  assert.equal(result.stdout.trim(),'encoding-initialized-once');
+});
+
 test('opening a local qbank cold-starts one tray, coalesces pending opens and imports later opens independently', {skip:!supported,timeout:90000}, async t=>{
   const f=fixture(t), file=path.join(work,"下载 中文 & ' 空格.qbank");await bankPackage(f.root,file);
   const bytes=fs.readFileSync(file), original=fs.readFileSync(path.join(f.root,'question-banks/Bank/bank.json'));

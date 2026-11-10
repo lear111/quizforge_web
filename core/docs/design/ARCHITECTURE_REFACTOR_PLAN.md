@@ -311,6 +311,7 @@ npm --prefix core test
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
 | T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 已合并 | 合并提交 `b60b41c`；[审查记录](reviews/T1.md)；Ubuntu 全绿、Windows 仅原有 19 项、perf 通过 |
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
-| B2 | [#44](https://github.com/lear111/quizforge_web/pull/44)（草稿） | 等待设计审查，未实现 | [设计与后续审查记录](reviews/B2.md)；设计提交 CI 三个 job 全绿；先核对全量写点、共享边界、数字元数据和回滚；批准后实施 |
+| B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 设计已批准，实施中 | [审查记录](reviews/B2.md)；浅复制、普通动作与 AI 绑定、提交后冻结、标准答案及 T2 收尾；draft/whiteboard clone <20 ms 并报告距 5 ms 的差距 |
+| B2-2 | 待建立（B2-1 合并后） | 未开始 | 历史内部只读视图与 recordSubmission/recordReview/freezeRound/finish/restart/submitSaved/saveCompletionResult；submit clone <50 ms，另记 reviews/B2-2.md |
 | B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |

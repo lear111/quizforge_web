@@ -12,6 +12,8 @@ $ErrorActionPreference = 'Stop'
 # Native Node/launcher output and redirected build messages share UTF-8,
 # including on non-Chinese Windows and when started without a console.
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+$originalConsoleOutputEncoding = [Console]::OutputEncoding
+$originalOutputEncoding = $OutputEncoding
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
 $productRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
@@ -144,6 +146,8 @@ try {
     Write-Host ("构建未完成：{0}" -f $_.Exception.Message) -ForegroundColor Red
 } finally {
     $env:PATH = $originalProcessPath
+    [Console]::OutputEncoding = $originalConsoleOutputEncoding
+    $OutputEncoding = $originalOutputEncoding
 }
 if (-not $SkipPause -and -not $CheckOnly) { [void](Read-Host '按 Enter 关闭窗口') }
 exit $buildExit
