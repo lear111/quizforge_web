@@ -53,7 +53,7 @@ test('transient samples block unsaved navigation, allow clean exits and explicit
   await sandbox.host.saveEditor(pane);assert.equal(persisted,1);assert.equal(calls.some(call=>call.path.includes('editor-drafts')),false);assert.equal(pane.view,'practice');
   assert.equal(calls.filter(call=>call.path.endsWith('/edit')).length,1);assert.equal(JSON.parse(calls.find(call=>call.path.endsWith('/edit')).options.body).data.text,'saved a');
   await sandbox.host.navigateQuestion(pane,'b');assert.equal(pane.questionId,'b');assert.equal(pane.view,'practice');assert.equal(persisted,1);assert.equal(calls.some(call=>call.path.includes('editor-drafts')),false);
-  assert.doesNotMatch(messages.at(-1),/旧历史/);assert.match(messages.at(-1),/已保存 1 道题目的修改/);
+  assert.doesNotMatch(messages.at(-1),/旧历史/);assert.match(messages.at(-1),/本题修改已保存/);
 });
 
 test('resource uploads are transient only in history-disabled practice, while question editing uploads stay permanent',async()=>{

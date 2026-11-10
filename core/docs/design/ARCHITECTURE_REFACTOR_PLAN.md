@@ -74,7 +74,7 @@ npm --prefix core test
 | C5 | iframe 包装与复用 | 同题型切题明显变快 |
 | C6–C8 | 入口翻转、构建方式、清理 | 首屏略快 |
 
-阶段 B 与阶段 C1–C4 互不依赖，可以并行，但 B1–B3 应最先合并。
+阶段 B 与阶段 C1–C4 互不依赖，可以并行。阶段 B 按基线瓶颈依次执行：**B2 → B2a → B2b → B1 → B3 → B4 → B7 → B6 → B5**；B5 是否执行取决于 B2–B4 完成后的测量结果。
 
 ---
 
@@ -99,6 +99,12 @@ npm --prefix core test
 ---
 
 ## 阶段 B：后端
+
+### 基线结论
+
+依据 [A1 完整基线记录](reviews/A1.md)（v2 数据集、timings on）：约 5 MB 状态下，`draft` / `whiteboard` / `submit` 客户端中位数分别为 **1683 / 1766 / 3517 ms**，其中 `clone` 为 **1146 / 1231 / 2478 ms**，`persist` 为 **318 / 337 / 419 ms**，`library` 为 **146 / 153 / 160 ms**，`rules` 为 **13 / 10 / 17 ms**；`switch` 为 **38 ms**。状态文件构成为 history **55.83%**、ink **22.33%**、receipts **21.11%**（其余为结构开销）。这些是分别统计的中位数，不能相加作为总中位数。
+
+先减少写路径的整份克隆、题库环境解析和历史重写，再处理回执、笔迹与排队。执行顺序为 **B2 → B2a → B2b → B1 → B3 → B4 → B7 → B6 → B5**；以下任务卡编号不代表执行顺序。
 
 涉及文件主要是 `server/host/practice/state-store.js`、`collection-routes.js`、`server/host/extensions/rule-engine.js`、`server/rules-runner.cjs`、`server/host/library/library.js`。
 
@@ -140,6 +146,22 @@ npm --prefix core test
 - 调用次数断言：一次 `draft` 动作中，对整份状态的 `stringifyJson` 调用恰为 1 次，`parseJson` 为 0 次。
 - A1 数据上 `clone` 分段降到 5 ms 以内。
 
+### B2a 写路径不再重复解析题库环境
+
+**先测量，后改动**：用可撤销计时进一步确认写动作 `library` 分段约 150 ms 具体花在 `contentIdentity`、`environment` 还是别处，报告实际分段，不凭函数名称推断瓶颈。确认后再实施本卡。
+
+**改法**：将原 B5 的写路径环境解析调整移至本卡：写路径改用已有的 `runtimeEnvironment()`（带短期复用）代替 `environment()`；完整环境指纹只在启动、导入、冷加载时计算。保留内容变更检测与缓存失效语义，不把性能优化变成接受过期题库环境。
+
+**验收**：A1 数据上 `draft` 动作的 `library` 分段中位数降到 **20 ms 以内**；内容变更检测的既有用例全部通过。PR 同时报告改动前的耗时细分与改动后的对照。
+
+### B2b 历史轮次拆出主状态文件
+
+**开工前**：先提交一页设计说明等待审查，明确文件布局、原子提交与中断恢复、内存模式、兼容读取及回退办法；设计未通过不开始实现。
+
+**改法**：每轮历史单独存放，主状态文件只保留轮次索引（id、时间、状态、摘要）。旧格式状态文件继续可读；普通读取不迁移，仅在该题库下一次写入历史时迁移，迁移过程可中断恢复，并在 PR 中说明回退办法。考试与临时练习的内存模式同样支持，不为其引入落盘。
+
+**验收**：`draft` 动作的 `persist` 分段随历史轮数增加保持不变；打开题库的 `state-load` 分段显著下降并给出前后数值；历史列表、历史详情、删除历史、继续上一轮的既有用例全部通过。
+
 ### B3 白板笔迹独立存储
 
 **问题**：笔迹存在每题状态的 `draft` 里，每 250 ms 一次的白板保存会触发整份状态重写，并占用答题写队列。
@@ -170,15 +192,16 @@ npm --prefix core test
 
 **验收**：新用例覆盖"快速连续 10 次草稿只发出 ≤ 2 个请求且最终保存的是最后一次"、"提交紧跟草稿时顺序正确"、"A 题库保存进行中时读取 B 题库不等待"。A1 数据上 `queue` 分段 P95 < 10 ms。
 
-### B5 规则引擎开销
+### B5 规则引擎开销（按 B2–B4 完成后的测量结果决定是否执行）
 
-**问题**：`rules-runner.cjs` 每个请求新建 Ajv 并编译两份 schema、重新编译规则脚本；worker 空闲 60 秒回收；`library.writeCollection()` 每次写入都调用 `environment()`，遍历 `node_modules` 里 ajv 等依赖目录。
+**执行条件**：按 B2–B4（含 B2a、B2b）完成后的测量结果决定是否执行；先报告规则开销是否仍构成瓶颈，不因原计划列有此卡就自动实施。
+
+**问题**：`rules-runner.cjs` 每个请求新建 Ajv 并编译两份 schema、重新编译规则脚本；worker 空闲 60 秒回收。写路径环境解析已单列为 B2a，不在本卡重复处理。
 
 **改法**
 
 - 常驻 worker（`--serve`）内按"文件路径 + 文件身份"缓存：已解析的 schema、已编译的 Ajv 校验函数、`vm.Script`。每个请求仍然新建 VM 上下文并重新运行脚本，隔离语义不变。文件变化时缓存失效。
 - `WORKER_IDLE_MS` 调到 10 分钟；前台请求优先复用已热的 worker。
-- 写路径改用已有的 `runtimeEnvironment()`（带短期复用）代替 `environment()`；完整环境指纹只在启动、导入、冷加载时计算。
 - 一次性模式（非 `--serve`）行为不变。
 
 **验收**：`rules-runner.test.cjs` 新增"同一 worker 连续两次请求，第二次不读 schema 文件"；"规则文件被修改后下一次请求使用新内容"；"两次请求之间 VM 全局状态不泄漏"。A1 数据上热路径 `rules` 分段中位数下降，并报告具体数值。
@@ -286,5 +309,7 @@ npm --prefix core test
 |---|---|---|---|
 | A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | 已合并 | 合并提交 `98b6d0a`；完整原始审查记录见 [reviews/A1.md](reviews/A1.md) |
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
-| T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 夹具修复待审；保存提示文案断言阻塞 | [审查记录](reviews/T1.md)；CI：Ubuntu 1 失败、Windows 20 失败、perf 通过；生产代码不变，未合并 |
+| T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 审查通过，文案修订待 CI | [审查记录](reviews/T1.md)；前轮 CI 记录保留；现行文案断言已更新，待本轮 CI 后合并；生产代码不变 |
 | T2 | 待建立 | 未开始 | Windows 中文输出调查及修复；等待 T1，未修改 CI shell 或生产编码 |
+| B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
+| B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
