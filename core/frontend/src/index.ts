@@ -1,4 +1,6 @@
 import NetworkPanel from './network/NetworkPanel.vue';
+import AiSettingsPanel from './ai/AiSettingsPanel.vue';
+import { createAiSettings, type AiConfig, type AiFields } from './ai/settings';
 import { createNetworkSettings, type NetworkConfig, type NetworkDraft, type NetworkFields } from './network/settings';
 import { createApp, h, render } from 'vue';
 import AppearancePanel from './appearance/AppearancePanel.vue';
@@ -52,6 +54,25 @@ export function mountAiChat({ container, request }: { container: HTMLElement; re
     cancel() { if (!disposed) panel.cancel(); },
     destroy() { if (!disposed) { disposed = true; app.unmount(); } },
   };
+}
+
+export function mountAiSettings({ container, form, isOpen, show, close, ...config }: AiConfig & {
+  container: HTMLElement; form: HTMLFormElement; isOpen(): boolean; show(): void; close(): void;
+}) {
+  let component: { readFields(): AiFields; readKey(): string; writeKey(key: string): void } | null = null;
+  const manager = createAiSettings(config, {
+    render(state) {
+      form.setAttribute('aria-busy', String(state.busy));
+      const vnode = h(AiSettingsPanel, { state, actions: manager }); render(vnode, container);
+      component = vnode.component?.exposed as typeof component;
+    },
+    readFields: () => component!.readFields(), readKey: () => component!.readKey(), writeKey: key => component?.writeKey(key),
+    isOpen, show, close,
+  });
+  manager.initialize();
+  let disposed = false;
+  return { open: manager.open, save: manager.save, deactivate: manager.deactivate,
+    destroy() { if (disposed) return; disposed = true; manager.destroy(); render(null, container); component = null; } };
 }
 
 // Appearance content is Vue-owned; native settings tabs/dialog remain host-owned.
