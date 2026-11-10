@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -7,7 +8,7 @@ import {ADMIN_CONTACT_PATH} from '../../web/shell/admin-contact.js';
 
 const settle=()=>new Promise(resolve=>setImmediate(resolve)),html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8');
 function fixture(t,read,{local=true,connected=false,asyncClose=false}={}){
-  const dom=new JSDOM(html),document=dom.window.document,calls=[];t.after(()=>dom.window.close());
+  const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);const document=dom.window.document,calls=[];t.after(()=>dom.window.close());
   const dialog=document.getElementById('admin-contact-dialog'),parent=document.getElementById('network-settings-dialog');parent.open=true;
   dialog.showModal=()=>{dialog.open=true;};dialog.close=()=>{dialog.open=false;const fire=()=>dialog.dispatchEvent(new dom.window.Event('close'));if(asyncClose)setImmediate(fire);else fire();};
   const request=async(path,options)=>{
@@ -49,7 +50,9 @@ test('closing cancels the read and late reads or close events cannot overwrite a
   f.get('user-center-contact').click();await settle();assert.equal(f.calls[1].signal.aborted,false,'An old queued close event must not cancel the new read');
   responses[1]({content:'最新示例',revision:2});await settle();responses[0]({content:'旧示例',revision:1});await settle();
   assert.equal(f.get('admin-contact-content').textContent,'最新示例');
-  f.get('admin-contact-done').click();f.get('user-center-contact').click();f.parent.dispatchEvent(new f.document.defaultView.Event('close'));
+  // A native close event observes open=false. A queued old event while open=true
+  // must instead preserve a newly opened settings session.
+  f.get('admin-contact-done').click();f.get('user-center-contact').click();f.parent.open=false;f.parent.dispatchEvent(new f.document.defaultView.Event('close'));
   assert.equal(f.calls[2].signal.aborted,true);assert.equal(f.dialog.open,false);
 });
 

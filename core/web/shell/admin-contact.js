@@ -1,7 +1,7 @@
 export const ADMIN_CONTACT_PATH='/api/settings/admin-contact';
 const failure='暂时无法读取联系方式，请重试。';
 
-export function bindAdminContact({request,document=globalThis.document}){
+export function bindAdminContact({request,document=globalThis.document,bindButton=true}){
   const get=id=>document.getElementById(`admin-contact-${id}`),dialog=get('dialog'),button=document.getElementById('user-center-contact');
   const status=get('status'),content=get('content'),retry=get('retry'),listeners=[];
   let pending=null,epoch=0,destroyed=false;
@@ -23,7 +23,7 @@ export function bindAdminContact({request,document=globalThis.document}){
   }
   function open(){if(destroyed||dialog.open)return;dialog.showModal();void read();}
   function close(){cancel();content.textContent='';content.hidden=true;if(dialog.open)dialog.close();}
-  listen(button,'click',open);listen(retry,'click',()=>void read());listen(get('close'),'click',close);listen(get('done'),'click',close);
+  if(bindButton)listen(button,'click',open);listen(retry,'click',()=>void read());listen(get('close'),'click',close);listen(get('done'),'click',close);
   listen(dialog,'cancel',event=>{event.preventDefault();close();});listen(dialog,'close',()=>{if(dialog.open)return;cancel();content.textContent='';content.hidden=true;});
-  return {close,destroy(){destroyed=true;close();listeners.forEach(remove=>remove());}};
+  return {open,close,destroy(){destroyed=true;close();listeners.forEach(remove=>remove());}};
 }

@@ -187,24 +187,7 @@
       </form>
     </section>
     <section id="user-center-panel" class="user-center" hidden>
-      <p id="user-center-status" class="network-settings-hint" role="status">正在读取账号…</p>
-      <div id="user-center-account" class="user-center-account" hidden>
-        <div class="user-center-who"><span id="user-center-avatar" class="user-center-avatar" aria-hidden="true"></span><span><strong
-              id="user-center-name"></strong><small id="user-center-device"></small></span></div>
-        <div class="user-center-points"><small>免费 AI 额度</small><strong id="user-center-points"></strong></div>
-        <form id="user-center-redeem" class="user-center-redeem"><label for="user-center-code">兑换码</label><div><input id="user-center-code"
-              maxlength="64" autocomplete="off" spellcheck="false" placeholder="AI-XXXX-XXXX-XXXX-XXXX"><button id="user-center-redeem-submit"
-              type="submit">兑换</button></div><small id="user-center-redeem-result" role="status"></small></form>
-        <div class="user-center-actions"><a id="user-center-manage" target="_blank" rel="noopener">在题库广场管理设备</a><button
-            id="user-center-refresh" type="button">刷新</button><button id="user-center-logout" type="button">退出登录</button></div>
-      </div>
-      <div id="user-center-guest" class="user-center-guest" hidden>
-        <p>登录 QuizForge 账号后，可以使用免费 AI 额度评分，并用兑换码获取额度。登录只用于免费 AI 额度，题库和作答仍只保存在这台电脑上。</p>
-        <button id="user-center-login" type="button">登录 QuizForge 账号</button>
-      </div>
-      <p id="user-center-error" class="network-settings-error" role="alert" hidden></p>
-      <div class="user-center-help"><button id="user-center-contact" type="button" hidden>联系管理员</button></div>
-      <div class="dialog-actions"><button id="user-center-close" type="button">关闭</button></div>
+      <div id="user-center-root"></div>
     </section>
     <section id="development-settings-panel" hidden>
       <form id="development-settings-form" class="development-settings-form"><label
