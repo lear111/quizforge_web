@@ -123,6 +123,41 @@ export function stringifyJson(value, { canonical = false } = {}) {
 }
 export function jsonBytes(value, options) { return Buffer.from(stringifyJson(value, options), 'utf8'); }
 export function cloneJson(value) { return timed('clone', () => value === undefined ? undefined : parseJson(stringifyJson(value))); }
+/** Copy selected own fields without losing numeric node kinds. Array fields
+ * are projected to consecutive indexes; object fields retain the given order.
+ * Child containers are borrowed and must already belong to a frozen graph. */
+export function projectJson(value, fields) {
+  return timed('clone', () => {
+    const result = Array.isArray(value) ? [] : {}, metadata = new Map(), source = numericSources.get(value);
+    for (const field of fields) {
+      if (!Object.hasOwn(value, field)) continue;
+      const key = Array.isArray(result) ? String(result.length) : String(field);
+      let child = value[field];
+      if (typeof child === 'number') {
+        if (!Number.isFinite(child)) throw new TypeError('Non-finite JSON number');
+        const original = source?.get(String(field));
+        // Refresh this node exactly as cloneJson's serialize/parse boundary:
+        // stale literals cannot reappear after a later assignment, integer -0
+        // becomes 0, and newly computed exponent numbers gain their node kind.
+        const literal = original && Object.is(original.value, child) ? javaNumber(child, original.literal) : JSON.stringify(child);
+        child = Number(literal); metadata.set(key, { literal, value: child });
+      }
+      Object.defineProperty(result, key, { value: child, enumerable: true, configurable: true, writable: true });
+    }
+    if (metadata.size) numericSources.set(result, metadata);
+    return result;
+  });
+}
+export function shallowCopyJson(value) { return projectJson(value, Object.keys(value)); }
+/** Committed state is deeply immutable. Incremental walks may stop at nodes
+ * previously frozen by this boundary; full loads also inspect frozen roots. */
+export function freezeJson(value, { incremental = true } = {}) {
+  if (value !== null && typeof value === 'object' && (!incremental || !Object.isFrozen(value))) {
+    for (const child of Object.values(value)) freezeJson(child, { incremental });
+    Object.freeze(value);
+  }
+  return value;
+}
 export function fingerprint(value, namespace) {
   return createHash('sha256').update(namespace, 'utf8').update(Buffer.from([0])).update(jsonBytes(value, { canonical: true })).digest('hex');
 }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { ApiError, bad, id, text, requireObject } from '../platform/errors.js';
-import { cloneJson, decimalSum, fingerprint, hash, integralField, jsonBytes, jsonEqual, stringifyJson } from '../platform/json.js';
+import { cloneJson, shallowCopyJson, freezeJson, decimalSum, fingerprint, hash, integralField, jsonBytes, jsonEqual, stringifyJson } from '../platform/json.js';
 import { exists, readJson, replaceFile, safeDirectory } from '../platform/files.js';
 import { EditJournal } from '../editor/edit-journal.js';
 import { SerialTransactions } from '../platform/transactions.js';
@@ -110,7 +110,7 @@ export class StateStore {
           this.persist(collection, value);
         }
       }
-      validateSaved(value, key); value = this.adaptDevelopmentState(value, collection); this.verifyCompatibility(value, collection); this.remember(key, value, jsonBytes(value).length); return value;
+      validateSaved(value, key); value = this.adaptDevelopmentState(value, collection); this.verifyCompatibility(value, collection); freezeJson(value, { incremental: false }); this.remember(key, value, jsonBytes(value).length); return value;
     } catch (error) { if (['COLLECTION_CHANGED', 'PRACTICE_SESSION_LIMIT'].includes(error.code) || historyFailure(error)) throw error; throw new ApiError(503, 'STATE_UNAVAILABLE', 'Saved state cannot be read; preserve the state directory for recovery', { cause: error }); }
   }
   verifyCompatibility(state, collection) {
@@ -137,6 +137,7 @@ export class StateStore {
   }
   remember(key, value, bytes) {
     if (this.memoryOnly) this.checkMemory(key, bytes);
+    freezeJson(value);
     this.cachedBytes += bytes - (this.cache.get(key)?.bytes ?? 0); this.cache.delete(key); this.cache.set(key, { value, bytes });
     if (!this.memoryOnly) while (this.cache.size > 8 || this.cachedBytes > 64 * 1024 * 1024) { const oldest = this.cache.keys().next().value; this.cachedBytes -= this.cache.get(oldest).bytes; this.cache.delete(oldest); }
   }
@@ -357,7 +358,7 @@ export class StateStore {
     const persisted = this.load(collection), current = questionState(persisted, collection, question), receipt = receiptResult(current.receipts, action); if (receipt) return receipt;
     if (Object.hasOwn(action, 'contentVersion')) { if (!digest(action.contentVersion)) throw bad('Invalid contentVersion'); if (action.contentVersion !== this.stampValue(collection, question, current).contentVersion) throw new ApiError(409, 'CONTENT_CONFLICT', '题目内容或题型拓展已更新，请刷新题目后重试；本次修改未保存。'); }
     if (action.revision !== current.revision) throw new ApiError(409, 'REVISION_CONFLICT', 'Question changed; reload its latest state');
-    const next = cloneJson(current); next.revision = increment(current.revision); let projected;
+    const next = shallowCopyJson(current); next.receipts = shallowCopyJson(current.receipts); next.revision = increment(current.revision); let projected;
     if (name === 'draft' || name === 'submit') {
       if (current.status === 'submitted') throw new ApiError(409, 'ALREADY_SUBMITTED', 'Retry before changing a submitted answer'); if (!Object.hasOwn(data, 'answer')) throw bad('Missing answer');
       const extension = collection.extensionFor(question);
@@ -382,13 +383,24 @@ export class StateStore {
       if (target !== null && trustedAi === null) { next.result = cloneJson(evaluated.result); delete next.result.aiAssessment; const assessments = object(current.result?.aiAssessments) ? cloneJson(current.result.aiAssessments) : {}; delete assessments[target]; next.result.aiAssessments = assessments; next.result.gradingSource = 'manual'; }
       else next.result = decorateReview(evaluated.result, current.result, trustedAi);
       if (target === null) { next.gradingGeneration = increment(current.gradingGeneration ?? 0); delete next.aiTaskIds; delete next.aiTargetGenerations; if (trustedAi === null) next.aiTaskId = null; }
-      else { ownSet(this.targetMap(next, 'aiTargetGenerations', target), target, increment(this.targetGeneration(current, target))); next.aiTaskId = null; if (trustedAi === null && object(next.aiTaskIds)) delete next.aiTaskIds[target]; }
+      else { if (object(next.aiTargetGenerations)) next.aiTargetGenerations = shallowCopyJson(next.aiTargetGenerations); ownSet(this.targetMap(next, 'aiTargetGenerations', target), target, increment(this.targetGeneration(current, target))); next.aiTaskId = null; if (trustedAi === null && object(next.aiTaskIds)) { next.aiTaskIds = shallowCopyJson(next.aiTaskIds); delete next.aiTaskIds[target]; } }
     } else if (name === 'whiteboard') { collection.features.requireWhiteboard(); validateDraft(data.draft); next.draft = cloneJson(data.draft); }
     else throw bad('Unknown action');
-    const result = await this.response(collection, question, next, projected), replacement = cloneJson(persisted);
-    if (name === 'whiteboard' && object(replacement.upgradedCompletion)) ownSet(replacement.upgradedCompletion.completionVersions, question.id, next.revision); else delete replacement.upgradedCompletion;
+    const result = await this.response(collection, question, next, projected), replacement = shallowCopyJson(persisted);
+    replacement.questions = shallowCopyJson(persisted.questions);
+    if (name === 'whiteboard' && object(replacement.upgradedCompletion)) {
+      replacement.upgradedCompletion = shallowCopyJson(replacement.upgradedCompletion);
+      replacement.upgradedCompletion.completionVersions = shallowCopyJson(replacement.upgradedCompletion.completionVersions);
+      ownSet(replacement.upgradedCompletion.completionVersions, question.id, next.revision);
+    } else delete replacement.upgradedCompletion;
     replacement.extensionFingerprint = collection.extensionFingerprint; ownSet(replacement.questions, question.id, next);
     result.capabilities = name === 'submit' ? { canReview: manualResult(next), canAiGrade: manualResult(next) && await this.supportsAi(collection.extensionFor(question)) } : await this.reviewCapabilities(collection, question, next, replacement);
+    // History writers keep their existing mutable implementation in B2-1.
+    // Own the active round before passing it to them; closed rounds are read-only.
+    if (['submit', 'review'].includes(name) && replacement.historyRounds) {
+      replacement.historyRounds = shallowCopyJson(replacement.historyRounds);
+      if (activeRound(persisted)) replacement.historyRounds[replacement.historyRounds.length - 1] = cloneJson(activeRound(persisted));
+    }
     if (name === 'submit') await this.recordSubmission(collection, question, replacement, result); if (name === 'review') this.recordReview(collection, question, replacement, result);
     result.capabilities = await this.reviewCapabilities(collection, question, next, replacement);
     next.receipts.push({ id: key, request: cloneJson(action), response: cloneJson(result), ...(trustedAi ? { aiConfirmation: cloneJson(trustedAi.confirmation) } : {}) }); retainReceipts(next.receipts, true);
@@ -446,8 +458,9 @@ export class StateStore {
     if (collection.stateKey() !== snapshot.stateKey || question.fingerprint !== snapshot.questionFingerprint || collection.extensionFor(question).fingerprint !== snapshot.extensionFingerprint || active?.id !== snapshot.roundId || !this.reviewAvailable(collection, question, state, persisted) || (state.submissionGeneration ?? 0) !== snapshot.submissionGeneration || (state.gradingGeneration ?? 0) !== snapshot.gradingGeneration || (snapshot.targetId !== null && this.targetGeneration(state, snapshot.targetId) !== snapshot.targetGeneration) || fingerprint(state.answer, 'quizforge-ai-answer-v1') !== snapshot.answerHash || taskId !== null && taskId !== this.aiTaskId(state, snapshot.targetId)) throw new ApiError(409, 'AI_RESULT_STALE', '题目、答案或评分已变化，这份 AI 建议不能覆盖当前结果。');
   }
   bindAiTask(collection, question, snapshot, taskId) {
-    this.assertAiCurrent(collection, question, snapshot); const replacement = cloneJson(this.load(collection)), next = cloneJson(questionState(replacement, collection, question));
-    if (snapshot.targetId === null) { next.aiTaskId = taskId; delete next.aiTaskIds; } else { ownSet(this.targetMap(next, 'aiTaskIds', snapshot.targetId), snapshot.targetId, taskId); next.aiTaskId = null; }
+    this.assertAiCurrent(collection, question, snapshot); const persisted = this.load(collection), replacement = shallowCopyJson(persisted), next = shallowCopyJson(questionState(persisted, collection, question));
+    replacement.questions = shallowCopyJson(persisted.questions);
+    if (snapshot.targetId === null) { next.aiTaskId = taskId; delete next.aiTaskIds; } else { if (object(next.aiTaskIds)) next.aiTaskIds = shallowCopyJson(next.aiTaskIds); ownSet(this.targetMap(next, 'aiTaskIds', snapshot.targetId), snapshot.targetId, taskId); next.aiTaskId = null; }
     ownSet(replacement.questions, question.id, next); this.commit(collection, replacement);
   }
   aiCurrent(collection, question, snapshot, taskId = null) { try { this.assertAiCurrent(collection, question, snapshot, taskId); return true; } catch (error) { if (['AI_RESULT_STALE', 'COLLECTION_CHANGED'].includes(error.code)) return false; throw error; } }

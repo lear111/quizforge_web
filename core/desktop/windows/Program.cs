@@ -84,14 +84,21 @@ namespace QuizForge.Desktop
 
     internal static class Program
     {
+        private static readonly object ConsoleEncodingLock = new object();
+        private static bool ConsoleEncodingConfigured;
         // Control clients emit JSON and errors to redirected streams. Their
         // encoding must not depend on the Windows/OEM console code page.
         internal static void ConfigureConsoleEncoding()
         {
-            // A WinExe may have redirected streams but no console handle.
-            // Encode those streams explicitly without changing a console code page.
-            Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
-            Console.SetError(new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true });
+            lock (ConsoleEncodingLock)
+            {
+                if (ConsoleEncodingConfigured) return;
+                // A WinExe may have redirected streams but no console handle.
+                // Encode those streams explicitly without changing a console code page.
+                Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
+                Console.SetError(new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true });
+                ConsoleEncodingConfigured = true;
+            }
         }
 
         [STAThread]
