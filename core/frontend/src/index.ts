@@ -1,3 +1,8 @@
+import WorkspaceIdentity from './workspace/WorkspaceIdentity.vue';
+import WorkspaceActions from './workspace/WorkspaceActions.vue';
+import CollectionLoading from './workspace/CollectionLoading.vue';
+import SaveRecovery from './workspace/SaveRecovery.vue';
+import type { WorkspaceModel, WorkspaceCommand } from './workspace/workspace';
 import ExamActionsView from './exam/ExamActions.vue';
 import ExamSettings from './exam/ExamSettings.vue';
 import ExamDelete from './exam/ExamDelete.vue';
@@ -22,7 +27,7 @@ import { createUserCenter, type UserConfig, type UserHooks } from './user-center
 import AiSettingsPanel from './ai/AiSettingsPanel.vue';
 import { createAiSettings, type AiConfig, type AiFields } from './ai/settings';
 import { createNetworkSettings, type NetworkConfig, type NetworkDraft, type NetworkFields } from './network/settings';
-import { createApp, h, render } from 'vue';
+import { createApp, createTextVNode, h, render } from 'vue';
 import AppearancePanel from './appearance/AppearancePanel.vue';
 import { createAppearanceSettings, type AppearanceConfig } from './appearance/settings';
 import AiChatPanel from './chat/AiChatPanel.vue';
@@ -184,6 +189,55 @@ export function mountHistoryList({ container, confirmationContainer, dialog, con
       confirmation.removeEventListener('cancel', cancelConfirmation); confirmation.removeEventListener('close', closedConfirmation);
       manager.destroy(); render(null, container); render(null, confirmationContainer);
     } };
+}
+
+export function mountWorkspaceChrome({ identity, actions, progress, notice, run }: {
+  identity: HTMLElement; actions: HTMLElement; progress: HTMLElement; notice: HTMLElement; run(command: WorkspaceCommand): void;
+}) {
+  for (const node of [identity, actions, progress, notice]) node.replaceChildren(); notice.hidden = true;
+  let destroyed = false;
+  return {
+    update(model: WorkspaceModel) {
+      if (destroyed) return;
+      render(h(WorkspaceIdentity, { title: model.title, group: model.group }), identity);
+      render(h(WorkspaceActions, { model, run: (command: WorkspaceCommand) => { if (!destroyed && actions.isConnected) run(command); } }), actions);
+      render(createTextVNode(model.progress), progress);
+    },
+    notice(message: string) { if (!destroyed) { notice.hidden = !message; render(createTextVNode(message), notice); } },
+    destroy() { if (destroyed) return; destroyed = true; for (const node of [identity, actions, progress, notice]) render(null, node); },
+  };
+}
+
+export function mountSaveStatus(container: HTMLElement) {
+  const initial = container.textContent || ''; container.replaceChildren(); render(createTextVNode(initial), container);
+  let destroyed = false;
+  return {
+    update(value: { text: string; type: string }) { if (!destroyed) { container.className = `save-state ${value.type}`; render(createTextVNode(value.text), container); } },
+    // Keep the last message visible on departure, without retaining a mounted view.
+    destroy() { if (destroyed) return; const text = container.textContent; destroyed = true; render(null, container); container.textContent = text; },
+  };
+}
+
+export function mountCollectionLoading(container: HTMLElement) {
+  container.replaceChildren();
+  let destroyed = false;
+  return {
+    update(model: { title: string; detail: string; hidden: boolean }) {
+      if (destroyed) return; container.hidden = model.hidden;
+      if (model.hidden) container.parentElement?.removeAttribute('aria-busy'); else container.parentElement?.setAttribute('aria-busy', 'true');
+      render(h(CollectionLoading, { title: model.title, detail: model.detail }), container);
+    },
+    destroy() { if (destroyed) return; destroyed = true; render(null, container); container.hidden = true; container.parentElement?.removeAttribute('aria-busy'); },
+  };
+}
+
+export function mountSaveRecovery({ container, run }: { container: HTMLElement; run(command: 'retry' | 'load'): void }) {
+  container.replaceChildren();
+  let destroyed = false;
+  return {
+    update(model: { message: string; busy: boolean; hidden: boolean }) { if (!destroyed) { container.hidden = model.hidden; render(h(SaveRecovery, { ...model, run: (command: 'retry' | 'load') => { if (!destroyed && container.isConnected) run(command); } }), container); } },
+    destroy() { if (destroyed) return; destroyed = true; render(null, container); container.hidden = true; },
+  };
 }
 
 export function mountExamUi({ container, dialog, confirmation, actions }: {

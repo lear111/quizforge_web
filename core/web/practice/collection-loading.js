@@ -1,18 +1,19 @@
 /** Keep the status visible until the first extension frame is ready. */
 export function createCollectionLoading(document) {
-  const node=document.querySelector('#collection-loading'),title=node.querySelector('.collection-loading-title'),detail=node.querySelector('.collection-loading-detail');
-  let generation=0;
+  const factory=document.defaultView.QuizForgeUI?.mountCollectionLoading;
+  if(!factory)throw Error('缺少界面构建文件，请运行 npm --prefix core run build:ui。');
+  const widget=factory(document.querySelector('#collection-loading'));
+  let generation=0,disposed=false,model={title:'',detail:'',hidden:true};
+  const publish=()=>{if(!disposed)widget.update(model);};publish();
   return {
     begin(name) {
-      const current=++generation;
-      title.textContent=name||'';
-      detail.textContent='正在校验并加载题库…';
-      node.hidden=false;
-      node.parentElement.setAttribute('aria-busy','true');
+      if(disposed)return {setDetail(){},finish(){}};
+      const current=++generation;model={title:name||'',detail:'正在校验并加载题库…',hidden:false};publish();
       return {
-        setDetail(text){if(current===generation)detail.textContent=text;},
-        finish(){if(current!==generation)return;node.hidden=true;node.parentElement.removeAttribute('aria-busy');},
+        setDetail(text){if(!disposed&&current===generation){model={...model,detail:text};publish();}},
+        finish(){if(!disposed&&current===generation){++generation;model={...model,hidden:true};publish();}},
       };
     },
+    destroy(){if(disposed)return;disposed=true;++generation;widget.destroy();},
   };
 }
