@@ -155,19 +155,10 @@
     <div class="dialog-actions"><button id="editor-leave-return" type="button" autofocus>返回编辑</button></div>
   </dialog>
   <dialog id="history-dialog" class="history-dialog" aria-labelledby="history-title">
-    <div class="dialog-heading">
-      <h2 id="history-title">历史记录</h2><button id="history-close" class="icon-button" aria-label="关闭历史记录">×</button>
-    </div>
-    <p class="history-hint">练习和已完成的考试在这里统一管理，考试记录带有“考试”标记。打开后可逐题查看作答与保存的草稿。</p>
-    <p id="history-error" class="history-error" role="alert" hidden></p>
-    <div id="history-list" class="history-list" aria-busy="false"></div>
+    <div id="history-root"></div>
   </dialog>
   <dialog id="history-delete-dialog" class="history-delete-dialog" aria-labelledby="history-delete-title">
-    <h2 id="history-delete-title">删除这轮历史记录？</h2>
-    <p id="history-delete-detail"></p>
-    <p>删除后无法恢复，当前作答和草稿会保留。</p>
-    <div class="dialog-actions"><button id="history-delete-cancel" autofocus>取消</button><button
-        id="history-delete-confirm" class="danger-button">删除记录</button></div>
+    <div id="history-confirm-root"></div>
   </dialog>
   <dialog id="network-settings-dialog" class="network-settings-dialog" aria-labelledby="network-settings-title">
     <div class="dialog-heading">
