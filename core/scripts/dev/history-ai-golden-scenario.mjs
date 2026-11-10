@@ -77,11 +77,13 @@ export async function runHistoryAiScenario(codeRoot,{memory=false,observe=()=>{}
       }
       const saved=memory?jsonBytes(store.load(collection)):fs.readFileSync(store.file(collection));
       for(const round of store.load(collection).historyRounds)validateRound(round);
-      states[name]=JSON.parse(saved.toString('utf8'));
+      const parsed=JSON.parse(saved.toString('utf8'));
+      assert.ok(jsonBytes(parsed).equals(saved),'fixture envelope must preserve every saved state byte: '+name);
+      states[name]=parsed;
       await observe({name,state:store.load(collection),store,collection});
     }
-    // Only synthetic integer-valued data is used here. The fixture is a JSON
-    // envelope of six actual final state files, compared as a complete Buffer.
+    // Each state's serialization is checked above before enveloping the six
+    // actual final files. The entire fixture is compared as a complete Buffer.
     const bytes=jsonBytes(states);return {bytes,checks,payloadPairs};
   } finally {
     library?.close();await engine?.close();
