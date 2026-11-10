@@ -14,7 +14,7 @@ export function renderOutlineView({document,pane,onNavigate,onSummary}){
     pane?.summaryShown?pane.scoreSummary?.questions:null,
     rows.map(row=>{const state=outlineStateFor(pane,row.id);return [state.status,state.result?.score,state.result?.maxScore,state.result?.gradingStatus,state.outlineStates];})]);
   const previous=renderedOutlines.get(root);
-  if(previous?.pane===pane&&previous.signature===signature)return;
+  if(previous&&previous.pane===pane&&previous.signature===signature)return;
   root.replaceChildren();
   const roundScores=new Map(pane?.summaryShown?(pane.scoreSummary?.questions||[]).map(question=>[question.id,question]):[]);
   const statusLabels={unanswered:'未作答',draft:'已作答，待提交',pending:'已提交，待评分',correct:'正确',incorrect:'错误'};
