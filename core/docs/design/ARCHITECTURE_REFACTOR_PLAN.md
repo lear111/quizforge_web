@@ -286,5 +286,5 @@ npm --prefix core test
 |---|---|---|---|
 | A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | 已合并 | 合并提交 `98b6d0a`；完整原始审查记录见 [reviews/A1.md](reviews/A1.md) |
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
-| T1 | `fix/test-baseline-t1` | 夹具修复待审；保存提示文案断言阻塞 | [审查记录](reviews/T1.md)；生产代码不变，保留指定断言，未合并 |
+| T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 夹具修复待审；保存提示文案断言阻塞 | [审查记录](reviews/T1.md)；CI：Ubuntu 1 失败、Windows 20 失败、perf 通过；生产代码不变，未合并 |
 | T2 | 待建立 | 未开始 | Windows 中文输出调查及修复；等待 T1，未修改 CI shell 或生产编码 |
