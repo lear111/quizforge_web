@@ -1,3 +1,4 @@
+import { timeMethods } from '../platform/timing.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
@@ -68,6 +69,7 @@ function retainReceipts(receipts, limitBytes = false) { while (receipts.length >
 
 export class StateStore {
   constructor(root, rules, { stateRoot = root, memoryOnly = false, resources = null } = {}) {
+    timeMethods(this, 'state-load', ['load']); timeMethods(this, 'persist', ['persist']);
     this.root = root; this.directory = path.join(stateRoot, '.state'); this.rules = rules; this.memoryOnly = memoryOnly;
     this.resources=resources??new ResourceStore(root,{memory:memoryOnly});
     this.edits = new EditJournal(root, stateRoot); this.cache = new Map(); this.cachedBytes = 0; this.aiSupport = new Map(); this.outlineCache = new Map(); this.outlineCachedBytes = 0; this.stampKey = randomBytes(32); this.transactions = new SerialTransactions();

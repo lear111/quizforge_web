@@ -1,3 +1,4 @@
+import { timeMethods } from '../platform/timing.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -27,6 +28,7 @@ export class RuleEngine {
     this.codeRoot = path.resolve(codeRoot); this.node = node; this.deadline = deadline;
     this.children = new Set(); this.closed = false; this.permissions = false;
     this.fileDigests = new Map(); this.pools = new Map();
+    timeMethods(this, 'rules', ['run']);
   }
   static async create(codeRoot, options) { const result = new RuleEngine(codeRoot, options); await result.initialize(); return result; }
   async initialize() {

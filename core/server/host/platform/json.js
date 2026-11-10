@@ -1,3 +1,4 @@
+import { timed } from './timing.js';
 import { createHash } from 'node:crypto';
 
 // Retain the distinction between Jackson integer and floating-point nodes.
@@ -121,7 +122,7 @@ export function stringifyJson(value, { canonical = false } = {}) {
   return encode(value, null, null);
 }
 export function jsonBytes(value, options) { return Buffer.from(stringifyJson(value, options), 'utf8'); }
-export function cloneJson(value) { return value === undefined ? undefined : parseJson(stringifyJson(value)); }
+export function cloneJson(value) { return timed('clone', () => value === undefined ? undefined : parseJson(stringifyJson(value))); }
 export function fingerprint(value, namespace) {
   return createHash('sha256').update(namespace, 'utf8').update(Buffer.from([0])).update(jsonBytes(value, { canonical: true })).digest('hex');
 }

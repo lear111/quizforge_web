@@ -1,3 +1,4 @@
+import { timeMethods } from '../platform/timing.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ApiError, bad, id, text } from '../platform/errors.js';
@@ -35,6 +36,7 @@ export class Library {
     this.recentEnvironment = null; this.now = Date.now;
     this.files = new FileCache();
     this.bankLocations = new BankLocations(root);
+    timeMethods(this, 'library', ['readCollection', 'writeCollection', 'collection']);
   }
   indexSnapshot() { return this.indexer.scan(); }
   index() {
