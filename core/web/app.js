@@ -36,7 +36,8 @@ import {bindLibraryTransfer} from './library/library-transfer.js';
 import {bindLibraryResize} from './library/library-resize.js';
 import {bindSaveRecovery} from './practice/save-recovery.js';
 import {bindAppearanceSettings} from './shell/appearance.js';
-import {createQuestionStepper,stepTarget,adjacentQuestionIds,navigationShortcut,scheduleIdle} from './practice/question-navigation.js';
+import {adjacentQuestionIds,scheduleIdle} from './practice/question-navigation.js';
+import {bindPracticeNavigation} from './practice/practice-navigation.js';
 
 const $=selector=>document.querySelector(selector);
 const catalog={banks:[],extensions:[],groups:{banks:[],extensions:[]},canManage:false,developmentEnabled:false},collections=new Map();
@@ -49,7 +50,7 @@ const sidebarPreferences={library:true,outline:true};
 try{const saved=JSON.parse(localStorage.getItem('quizforge-sidebars')||'{}');for(const key of Object.keys(sidebarPreferences))if(typeof saved[key]==='boolean')sidebarPreferences[key]=saved[key];}catch{}
 const libraryDrawer=matchMedia('(max-width:800px)'),outlineDrawer=matchMedia('(max-width:1100px)');
 const phoneLayout=matchMedia('(max-width:600px)');
-let listMode='bank',activeKey=null,pendingLibraryKey=null,transition=Promise.resolve(),pendingWrites=0;
+let listMode='bank',activeKey=null,pendingLibraryKey=null,transition=Promise.resolve(),pendingWrites=0,questionStepper=null;
 const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;};
 // Apply the saved appearance before the first question renders.
 const appearanceSettings=bindAppearanceSettings({document});
@@ -660,10 +661,11 @@ function renderLibrary(){
     onManage:(target,row,action)=>libraryManager.open(target,row,action)});
 }
 function renderOutline(){
+  questionStepper?.sync();
   const pane=active();
   renderOutlineView({document,pane,
-    onNavigate:(qid,itemId)=>transitionTo(async()=>{await navigateOutlineTarget(pane,qid,itemId,{navigateQuestion,renderOutline});closeDrawers();}),
-    onSummary:()=>transitionTo(async()=>{await showScoreSummary(pane);closeDrawers();})});
+    onNavigate:(qid,itemId)=>questionStepper.jump(pane,qid,itemId),
+    onSummary:()=>questionStepper.summary(pane)});
 }
 const listeningPlayer=createListeningPlayer({document,request});
 addEventListener('pagehide',()=>listeningPlayer.destroy(),{once:true});
@@ -793,14 +795,7 @@ const libraryTransfer=bindLibraryTransfer({request,getContext:()=>({kind:listMod
 $('#library-new-group').addEventListener('click',()=>libraryManager.open('group',null,'create'));
 bindSaveRecovery({document,active,transitionTo,loadQuestion,showQuestion,saveInk,notice,collectionFeature,renderOutline});
 $('#draft-toggle').addEventListener('click',()=>transitionTo(()=>toggleDraftMode()));
-const questionStepper=createQuestionStepper(take=>transitionTo(async()=>{
-  const offset=take(),pane=active();if(!pane)return;
-  const rows=visibleQuestions(pane),target=stepTarget(navigationIndex(pane),offset,rows.length,{summary:hasScoreSummary(pane)});
-  if(target==null)return;
-  if(target===rows.length)await showScoreSummary(pane);else await navigateQuestion(pane,rows[target].id);
-}));
-for(const [id,offset]of [['previous',-1],['next',1]])$(`#${id}`).addEventListener('click',()=>questionStepper.step(offset));
-document.addEventListener('keydown',event=>{const pane=active();if(!pane||pane.richtextFrame)return;const offset=navigationShortcut(event,{document,draft:draftViewActive(pane)});if(!offset)return;event.preventDefault();questionStepper.step(offset);});
+questionStepper=bindPracticeNavigation({document,active,transitionTo,navigateQuestion,navigateOutlineTarget,showScoreSummary,renderOutline,closeDrawers,draftViewActive});
 for(const id of ['history-open','history-choose'])$(`#${id}`).addEventListener('click',()=>transitionTo(()=>openHistoryList(active())));
 $('#history-close').addEventListener('click',()=>$('#history-dialog').close());
 $('#history-dialog').addEventListener('cancel',event=>{if(historyDeleting)event.preventDefault();});
@@ -846,7 +841,7 @@ $('#access-form').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){questionStepper.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);
