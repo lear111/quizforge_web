@@ -1,3 +1,4 @@
+import {renderSaveStatus} from '../shell/workspace-view.js';
 import {historyProgress} from '../history/history-view.js';
 import {collectionFeature} from '../practice/practice-context.js';
 
@@ -45,7 +46,7 @@ export function renderEditorStatus(document,pane,setStatus){
   if(pane?.view!=='edit')return;
   const $=selector=>document.querySelector(selector),dirty=!!pane.editorSession?.isDirty;
   const status=$('#save-state');
-  if(!pane.loading&&!status.classList.contains('saving')&&!status.classList.contains('error')){const text=dirty?'本题修改未保存':'本题未修改';if(setStatus)setStatus(text);else status.textContent=text;}
+  if(!pane.loading&&!status.classList.contains('saving')&&!status.classList.contains('error')){const text=dirty?'本题修改未保存':'本题未修改';if(setStatus)setStatus(text);else renderSaveStatus(document,{text,type:''});}
 }
 
 export function bindEditorLeaveNotice(document){

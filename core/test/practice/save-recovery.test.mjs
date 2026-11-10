@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {bindSaveRecovery} from '../../web/practice/save-recovery.js';
 import {createDraftBuffer,createWriteQueue} from '../../web/shared/write-queue.js';
 
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 async function fixture(t,{readError,mountError,persistent=true,confirmed=true}={}){
-  const dom=new JSDOM('<section></section><button id="retry-save"></button><button id="load-saved"></button>');
+  const dom=new JSDOM('<section></section><div id="save-recovery"></div>',{runScripts:'outside-only'});loadVueUi(dom);
   t.after(()=>dom.window.close());
   const calls=[],ink=createDraftBuffer();ink.replace({strokes:['unsaved']});
   const plugin={flush:async()=>{calls.push('flush');throw new Error('尚未保存的输入无法提交');},setActive:value=>calls.push(['active',value]),destroy:()=>calls.push('destroy')};
@@ -70,4 +71,25 @@ test('retry replays preserved failures with their original content version',asyn
 
 test('session-only recovery reports the current browser session',async t=>{
   const f=await fixture(t,{persistent:false});await f.recovery.loadSaved();assert.deepEqual(f.calls.at(-1),['notice','已读取当前会话状态。']);
+});
+
+test('Vue recovery controls render conflict feedback and lock duplicate requests immediately',async t=>{
+  const f=await fixture(t);let release;f.plugin.flush=()=>new Promise(resolve=>{release=resolve;});
+  const document=f.dom.window.document,button=document.querySelector('#retry-save');assert.match(document.querySelector('#recovery-message').textContent,/题目内容已更改/);
+  button.click();button.click();assert.equal(button.disabled,true);assert.equal(document.querySelector('#load-saved').disabled,true);
+  release();await tick();assert.equal(button.disabled,false);assert.equal(f.calls.filter(value=>value==='save-ink').length,1);
+});
+
+for(const change of ['pane','question','dispose'])test('a queued recovery cannot change a different context: '+change,async t=>{
+  const f=await fixture(t);let queued,active=f.pane;f.options.active=()=>active;f.options.transitionTo=fn=>new Promise(resolve=>{queued=async()=>{await fn();resolve();};});f.recovery.destroy();
+  const recovery=bindSaveRecovery(f.options);t.after(()=>recovery.destroy());const pending=recovery.loadSaved();
+  if(change==='pane')active=null;else if(change==='question')f.pane.questionId='q2';else recovery.destroy();
+  await queued();await pending;assert.equal(f.calls.some(value=>value[0]==='read'),false);assert.equal(f.pane.ink.pending,true);assert.equal(f.pane.writes.hasFailures,true);
+});
+
+for(const change of ['question','dispose'])test('late recovery reads preserve failed input after '+change,async t=>{
+  const f=await fixture(t);let release;f.options.loadQuestion=()=>new Promise(resolve=>{release=resolve;});f.recovery.destroy();
+  const recovery=bindSaveRecovery(f.options);t.after(()=>recovery.destroy());const pending=recovery.loadSaved();await tick();
+  if(change==='question')f.pane.questionId='q2';else recovery.destroy();release({});await pending;
+  assert.equal(f.calls.some(value=>value[0]==='mount'),false);assert.equal(f.pane.ink.pending,true);assert.equal(f.pane.writes.hasFailures,true);
 });

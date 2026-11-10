@@ -1,3 +1,4 @@
+import {bindWorkspaceChrome} from '../../web/shell/workspace-view.js';
 import {renderEditorStatus} from '../../web/editor/editor-navigation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,6 +44,7 @@ function fixture(t){
   const sandbox={renderEditorStatus,tutorConnection:null,listeningPlayer:{setContext(){}},catalog:{banks:[],extensions:[]},...context,document,structuredClone,syncQuestionLayout,createHistoryView,historyProgress,phoneLayout:{matches:false},active:()=>pane,$:selector=>document.querySelector(selector),draftFullscreen:{sync(){}},historyTime:()=> '时间',developmentTitle:()=> '',prepareAssets:async value=>structuredClone(value),disposeEditorSession(){},disposeScoreSummary(target){target.summaryShown=false;target.node.classList.remove('is-summary');},allowDiscardEditor:async()=>true,allowLeaveDevelopmentInput:()=>true,flushPane:async()=>{calls.push('flush');},historyPath:()=>'/history',request:async()=>{calls.push('request');return record;},renderOutline(){},saveStatus(){},setEditorLayout(){},pageRequest(){},notice(){},el:(tag,classes,text)=>{const element=document.createElement(tag);element.className=classes;if(text!=null)element.textContent=text;return element;},mountExtension:(container,_page,ctx)=>{
     const frame=document.createElement('iframe');Object.defineProperty(frame,'offsetHeight',{value:400});container.append(frame);mounts.push(ctx);return {frame,ready:Promise.resolve(),destroy(){frame.remove();}};
   }};
+  sandbox.workspaceChrome=bindWorkspaceChrome({document,getPane:()=>pane});t.after(()=>sandbox.workspaceChrome.destroy());
   vm.runInNewContext(hostSource+'\nglobalThis.host={toggleDraftMode,showHistory,showHistoryQuestion,updateChrome,syncPracticeCamera,resizeStage};',sandbox);
   return {...sandbox.host,pane,record,document,changes,mounts,calls,phone:sandbox.phoneLayout,setWidth:value=>{width=value;}};
 }
