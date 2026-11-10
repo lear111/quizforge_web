@@ -101,7 +101,7 @@ test('arrow keys and buttons share the merged stepper and reach the score summar
     transitionTo:fn=>{const run=transition.then(fn);transition=run.catch(()=>{});return run;},
     navigateQuestion:async(target,qid)=>{seen.push(qid);target.questionId=qid;},
     showScoreSummary:async target=>{seen.push('summary');target.summaryShown=true;target.view='summary';}};
-  vm.runInNewContext(part('questionStepper=bindPracticeNavigation',"\nfor(const id of ['history-open'"),sandbox);
+  vm.runInNewContext(part('questionStepper=bindPracticeNavigation',"\n$('#history-open').addEventListener"),sandbox);
   t.after(()=>sandbox.questionStepper.destroy());
   for(let index=0;index<3;index++)document.body.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
   await transition;

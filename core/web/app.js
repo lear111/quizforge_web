@@ -10,10 +10,10 @@ import {createWriteQueue,createDraftBuffer} from './shared/write-queue.js';
 import {createQuestionCache} from './practice/question-cache.js';
 import {navigateOutlineTarget} from './outline/outline-navigation.js';
 import {syncQuestionLayout,rememberDraftView,rememberDraftScroll} from './practice/question-layout.js';
-import {createHistoryView,historyProgress} from './history/history-view.js';
+import {createHistoryView} from './history/history-view.js';
 import {bindHistoryList} from './history/history-list.js';
 import {createEditorSession} from './editor/editor-session.js';
-import {checkEditorExit,renderEditorStatus,bindEditorLeaveNotice,shouldWarnBeforeUnload} from './editor/editor-navigation.js';
+import {checkEditorExit,renderEditorStatus,bindEditorUi,shouldWarnBeforeUnload} from './editor/editor-navigation.js';
 import {mountPracticeSummary} from './practice/practice-summary.js';
 import {bindNetworkSettings} from './shell/network-settings.js';
 import {bindAiChat} from './ai/ai-chat.js';
@@ -61,7 +61,14 @@ function failure(error){notice(error.message||String(error));if(error.code==='UN
 const practiceLifecycle=bindPracticeLifecycle({document,panes:()=>collections.values(),notice,failure,updateChrome:()=>updateChrome(),renderRecovery:()=>renderRecovery()});
 function transitionTo(fn){return practiceLifecycle.transition(fn);}
 const active=()=>collections.get(activeKey);
-const showEditorLeaveNotice=bindEditorLeaveNotice(document);
+const editorUi=bindEditorUi({document,getPane:active,onCommand:(command,pane,isCurrent)=>transitionTo(()=>{
+  if(!isCurrent())return;
+  if(command==='save')return saveEditor(pane);
+  if(command==='cancel')return returnToPractice(pane,{discard:true});
+  if(command==='choose')return openHistoryList(pane);
+  return returnToPractice(pane);
+})});
+const showEditorLeaveNotice=editorUi.showNotice;
 const draftFullscreen=createDraftFullscreen(document,{
   canEnter:()=>draftViewActive(active()),
   onChange:state=>{const shell=$('.app-shell');if(state.active&&!shell.classList.contains('draft-fullscreen'))closeDrawers();shell.classList.toggle('draft-fullscreen',state.active);for(const pane of collections.values())pane.whiteboard?.setFullscreenState(state);},
@@ -376,7 +383,6 @@ async function restartPractice(pane,summary){
   });
 }
 const historyPath=pane=>`${collectionPath(pane.exam?.bankKind??pane.kind,pane.exam?.bankId??pane.id)}/history`;
-const historyTime=value=>new Date(value).toLocaleString('zh-CN',{hour12:false});
 const historyManager=bindHistoryList({document,onOpen:(pane,id)=>transitionTo(()=>showHistory(pane,id)),onDelete:(pane,id)=>transitionTo(async()=>{
   try{await request(`${historyPath(pane)}/${encodeURIComponent(id)}`,{method:'DELETE'});}
   catch(error){if(error.status!==404)throw error;}
@@ -645,10 +651,6 @@ function updateChrome(){
   $('#edit-open').hidden=!pane?.payload||!canEditCollection(pane)||view!=='practice';$('#edit-open').disabled=!!pane?.loading;
   $('#development-badge').hidden=true;
   for(const id of ['development-edit','development-return','development-publish-open'])$(`#${id}`).hidden=true;
-  $('#mode-bar').hidden=!pane||['practice','summary'].includes(view);
-  $('#history-choose').hidden=!collectionFeature(pane,'history')||!['history','history-deleted'].includes(view);$('#return-practice').hidden=!['history','history-deleted'].includes(view);
-  for(const id of ['edit-cancel','edit-save']){$(`#${id}`).hidden=view!=='edit';$(`#${id}`).disabled=!!pane?.loading;}
-  $('#mode-label').textContent=view==='history'?`只读历史 · ${pane.historyEntry.mode==='exam'?'考试 · ':''}${historyProgress(pane.historyEntry)} · ${historyTime(pane.historyEntry.createdAt)}`:view==='history-deleted'?'记录已删除，请选择其他记录或返回作答。':'';
   renderEditorStatus(document,pane,saveStatus);
   if(!pane){$('#document-title').textContent='选择一本题库';$('#progress-text').textContent='';$('#previous').disabled=true;$('#next').disabled=true;saveStatus('');return;}
   const rows=visibleQuestions(pane),index=navigationIndex(pane),count=rows.length;
@@ -762,11 +764,8 @@ $('#library-new-group').addEventListener('click',()=>libraryManager.open('group'
 bindSaveRecovery({document,active,transitionTo,loadQuestion,showQuestion,saveInk,notice,collectionFeature,renderOutline});
 $('#draft-toggle').addEventListener('click',()=>transitionTo(()=>toggleDraftMode()));
 questionStepper=bindPracticeNavigation({document,active,transitionTo,navigateQuestion,navigateOutlineTarget,showScoreSummary,renderOutline,closeDrawers,draftViewActive});
-for(const id of ['history-open','history-choose'])$(`#${id}`).addEventListener('click',()=>transitionTo(()=>openHistoryList(active())));
-$('#return-practice').addEventListener('click',()=>transitionTo(()=>returnToPractice(active())));
+$('#history-open').addEventListener('click',()=>transitionTo(()=>openHistoryList(active())));
 $('#edit-open').addEventListener('click',()=>transitionTo(()=>openEditor(active())));
-$('#edit-save').addEventListener('click',()=>transitionTo(()=>saveEditor(active())));
-$('#edit-cancel').addEventListener('click',()=>transitionTo(()=>returnToPractice(active(),{discard:true})));
 for(const key of ['library','outline'])$(`#${key}-toggle`).addEventListener('click',()=>toggleSidebar(key));
 for(const media of [libraryDrawer,outlineDrawer])media.addEventListener('change',closeDrawers);
 phoneLayout.addEventListener('change',()=>{for(const pane of collections.values())syncPracticeCamera(pane);});
@@ -801,7 +800,7 @@ $('#access-form').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),practiceLifecycle.pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){practiceLifecycle.destroy();questionStepper.destroy();historyManager.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){practiceLifecycle.destroy();questionStepper.destroy();historyManager.destroy();editorUi.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);

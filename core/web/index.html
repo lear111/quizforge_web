@@ -86,10 +86,7 @@
             <path d="M15 4v16" />
           </svg></button>
       </section>
-      <div id="mode-bar" class="mode-bar" hidden><span id="mode-label"></span>
-        <div><button id="history-choose" hidden>选择记录</button><button id="return-practice" hidden>返回作答</button><button
-            id="edit-cancel" hidden>取消编辑</button><button id="edit-save" hidden>保存修改</button></div>
-      </div>
+      <div id="mode-bar" class="mode-bar" hidden></div>
       <div id="notice" class="notice" role="alert" hidden></div>
       <div id="save-recovery" class="save-recovery" hidden><span id="recovery-message"></span>
         <div><button id="retry-save">重试保存</button><button id="load-saved">读取已保存内容</button></div>
@@ -150,9 +147,7 @@
     <div id="library-manage-root"></div>
   </dialog>
   <dialog id="editor-leave-dialog" class="editor-leave-dialog" aria-labelledby="editor-leave-title">
-    <h2 id="editor-leave-title">请先处理当前编辑</h2>
-    <p id="editor-leave-message">当前题目有修改未保存，请先保存或取消编辑。</p>
-    <div class="dialog-actions"><button id="editor-leave-return" type="button" autofocus>返回编辑</button></div>
+    <div id="editor-leave-root"></div>
   </dialog>
   <dialog id="history-dialog" class="history-dialog" aria-labelledby="history-title">
     <div id="history-root"></div>

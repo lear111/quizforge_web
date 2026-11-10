@@ -11,7 +11,7 @@ import {shouldWarnBeforeUnload,renderEditorStatus} from '../../web/editor/editor
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture(t){
-  const dom=new JSDOM('<button id="previous"></button><button id="next"></button><span id="save-state" role="status"></span><button id="edit-save"></button><button id="edit-cancel"></button><span id="mode-label"></span>',{runScripts:'outside-only'});loadVueUi(dom);
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);
   const panes=[{node:{inert:false}}],events=[],errors=[],document=dom.window.document;
   const config={document,panes:()=>panes,notice:value=>events.push(['notice',value]),failure:error=>errors.push(error),updateChrome(){events.push(['chrome']);document.getElementById('previous').disabled=false;document.getElementById('next').disabled=false;},renderRecovery:()=>events.push(['recovery'])};
   let lifecycle;const bind=()=>lifecycle=bindPracticeLifecycle(config);bind();t.after(()=>{lifecycle.destroy();dom.window.close();});
@@ -91,10 +91,10 @@ test('real host write-queue busy callbacks release after success and failure, pr
 
 test('pagehide keeps BFCache state and disposes the coordinator only on actual departure',t=>{
   const f=fixture(t),source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');let otherDestroyed=0;
-  const disposable={destroy(){otherDestroyed++;}},sandbox={window:f.dom.window,practiceLifecycle:f.lifecycle,refreshCatalog:{client:{stop(){}}},questionStepper:disposable,historyManager:disposable,destroyLibraryView(){},destroyOutlineView(){},document:f.document,libraryManager:disposable,appearanceSettings:disposable,networkSettings:disposable,aiSettings:disposable,userCenter:disposable,developmentSettings:disposable};
+  const disposable={destroy(){otherDestroyed++;}},sandbox={window:f.dom.window,practiceLifecycle:f.lifecycle,refreshCatalog:{client:{stop(){}}},questionStepper:disposable,historyManager:disposable,editorUi:disposable,destroyLibraryView(){},destroyOutlineView(){},document:f.document,libraryManager:disposable,appearanceSettings:disposable,networkSettings:disposable,aiSettings:disposable,userCenter:disposable,developmentSettings:disposable};
   const start=source.indexOf("window.addEventListener('pagehide',event=>");vm.runInNewContext(source.slice(start,source.indexOf('\ndocument.addEventListener',start)),sandbox);
   f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:true}));f.lifecycle.setSaveStatus('retained');assert.equal(otherDestroyed,0);
-  f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:false}));f.lifecycle.setSaveStatus('late');assert.equal(f.document.getElementById('save-state').textContent,'retained');assert.equal(otherDestroyed,8);
+  f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:false}));f.lifecycle.setSaveStatus('late');assert.equal(f.document.getElementById('save-state').textContent,'retained');assert.equal(otherDestroyed,9);
 });
 
 for(const fail of [false,true])test('finishing practice holds unload protection until the real host operation settles: '+fail,async t=>{

@@ -1,3 +1,6 @@
+import EditorModeBar from './editor/EditorModeBar.vue';
+import EditorLeaveNotice from './editor/EditorLeaveNotice.vue';
+import { createEditorUi } from './editor/editor';
 import HistoryPanel from './history/HistoryPanel.vue';
 import HistoryConfirmation from './history/HistoryConfirmation.vue';
 import { createHistoryList } from './history/history';
@@ -177,4 +180,24 @@ export function mountHistoryList({ container, confirmationContainer, dialog, con
       confirmation.removeEventListener('cancel', cancelConfirmation); confirmation.removeEventListener('close', closedConfirmation);
       manager.destroy(); render(null, container); render(null, confirmationContainer);
     } };
+}
+
+export function mountEditorUi({ container, noticeContainer, dialog, isCurrent }: {
+  container: HTMLElement; noticeContainer: HTMLElement; dialog: HTMLDialogElement; isCurrent(): boolean;
+}) {
+  const manager = createEditorUi({
+    isCurrent,
+    render(model, message) {
+      container.hidden = model.hidden;
+      render(h(EditorModeBar, { model, run: manager.run }), container);
+      render(h(EditorLeaveNotice, { message, close: manager.closeNotice }), noticeContainer);
+    },
+    showNotice: () => { if (!dialog.open) dialog.showModal(); }, closeNotice: () => { if (dialog.open) dialog.close(); },
+  });
+  const closed = () => { if (!dialog.open) manager.closed(); };
+  dialog.addEventListener('close', closed); manager.initialize(); let destroyed = false;
+  return { update: manager.update, notice: manager.notice, destroy() {
+    if (destroyed) return; destroyed = true; dialog.removeEventListener('close', closed); manager.destroy();
+    render(null, container); render(null, noticeContainer); container.hidden = true;
+  } };
 }
