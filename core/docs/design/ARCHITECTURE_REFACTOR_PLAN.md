@@ -314,6 +314,6 @@ npm --prefix core test
 | T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 已合并 | 合并提交 `b60b41c`；[审查记录](reviews/T1.md)；Ubuntu 全绿、Windows 仅原有 19 项、perf 通过 |
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
 | B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 已合并 | 合并提交 `6403696`；[完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，CI 三个 job 全绿 |
-| B2-2 | 独立 PR 待建立 | 实施完成，验收中 | [完整记录](reviews/B2-2.md)；历史及完成路径写时复制；三轮 submit clone 8.6725 ms；磁盘及内存标准答案逐字节通过，完整测试与 CI 待完成 |
+| B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 实施与验收完成，等待审查 | [完整记录](reviews/B2-2.md)；三轮 submit clone 8.6725 ms；磁盘及内存标准答案逐字节通过；冻结开启下 CI 三个 job 全绿，本地保留既有 9 项 ACL 失败；未合并 |
 | B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
