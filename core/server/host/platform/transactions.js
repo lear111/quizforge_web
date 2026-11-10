@@ -1,3 +1,4 @@
+import { startTiming, bindTiming } from './timing.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ApiError } from './errors.js';
 
@@ -8,7 +9,9 @@ export class SerialTransactions {
   run(operation) {
     const inherited = this.context.getStore();
     if (inherited?.active) return operation();
+    const endWait = startTiming('queue');
     const result = this.tail.then(() => {
+      endWait();
       const token = { active: true };
       return this.context.run(token, async () => { try { return await operation(); } finally { token.active = false; } });
     });
@@ -31,7 +34,7 @@ export class LoadCoordinator {
     if (this.foreground.length + this.background.length >= 1200) return Promise.reject(new ApiError(503, 'SERVER_BUSY', 'Library load queue is full'));
     let resolve, reject;
     const promise = new Promise((accept, decline) => { resolve = accept; reject = decline; });
-    job = { key, foreground, operation, promise, resolve, reject, started: false, cancelled: false };
+    job = { key, foreground, operation: bindTiming(operation), promise, resolve, reject, started: false, cancelled: false };
     this.jobs.set(key, job); (foreground ? this.foreground : this.background).push(job); this.pump(foreground ? 'foreground' : 'background');
     return promise;
   }

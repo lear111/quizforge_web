@@ -1,3 +1,4 @@
+import { Timing, withTiming, timed, timingHeader } from '../platform/timing.js';
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
@@ -66,11 +67,12 @@ const listen = (server, port, host) => new Promise((resolve, reject) => {
 const closeServer = (server, graceful = false) => new Promise(resolve => { if (!server?.listening) return resolve(); server.close(() => resolve()); if (!graceful) server.closeAllConnections(); });
 
 export class QuizForgeServer {
-  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe(), hub = {}, adminContact = {} } = {}) {
+  static async create({ root = '.', host = '127.0.0.1', port = 8080, token = null, node = process.execPath, codeRoot = null, initialContent = null, tailscale = new TailscaleProbe(), hub = {}, adminContact = {}, timings = true } = {}) {
     if (token !== null && !/^[A-Za-z0-9._~-]{16,256}$/.test(token)) throw new Error('Token must contain 16..256 URL-safe characters');
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port');
     const layout = resolveLayout(root), service = new QuizForgeServer();
     Object.assign(service, layout, { root: layout.dataRoot, codeRoot: codeRoot === null ? layout.codeRoot : checkPath(codeRoot, { directory: true }), host, token, active: 0, ready: false, closed: false, tailscaleProbe: tailscale, tailscale: { state: 'unavailable' } });
+    service.timings = timings;
     service.server = service.newListener(false);
     try {
       // Reserve the port and data directory before any state recovery or upgrade.
@@ -408,8 +410,13 @@ export class QuizForgeServer {
     throw new ApiError(404, 'NOT_FOUND', 'Endpoint not found');
   }
   async editorDraft(context, store, scope, question) { if (context.request.method === 'GET') return store.get(scope, question); if (context.request.method === 'PUT') return store.put(scope, question, await this.writeRequest(context)); if (context.request.method === 'DELETE') { this.validateOrigin(context); return store.delete(scope, question); } throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Method is not supported'); }
-  send(response, status, type, bytes) { if (response.destroyed || response.headersSent) return; response.writeHead(status, { 'Content-Type': type, 'Content-Length': bytes.length }); response.end(bytes); }
+  send(response, status, type, bytes) { if (response.destroyed || response.headersSent) return; const timing = timingHeader(); if (timing) response.setHeader('Server-Timing', timing); response.writeHead(status, { 'Content-Type': type, 'Content-Length': bytes.length }); response.end(bytes); }
   async handle(context) {
+    let pathname = context.request.url.split('?')[0]; try { pathname = decodeURIComponent(pathname); } catch { /* Existing request validation reports malformed paths. */ }
+    const enabled = this.timings !== false && pathname.startsWith('/api/collections/');
+    return withTiming(enabled ? new Timing() : undefined, () => this.handleRequest(context));
+  }
+  async handleRequest(context) {
     const { request, response } = context; let acquired = false;
     response.setHeader('X-Content-Type-Options', 'nosniff'); response.setHeader('Referrer-Policy', 'no-referrer'); response.setHeader('Cache-Control', 'no-store');
     try {
@@ -432,7 +439,7 @@ export class QuizForgeServer {
           const single = Object.hasOwn(selection, 'bank'), value = text(selection, single ? 'bank' : 'group', single ? 1000 : 120);
           const download = await this.namespaceTransaction(() => single ? this.library.exportBank(value) : this.library.exportGroup(value));
           try { response.writeHead(200, { 'Content-Type': archiveMime, 'Content-Length': fs.statSync(download.file).size, 'Content-Disposition': "attachment; filename=quizforge-package.qbank; filename*=UTF-8''" + encodeURIComponent(download.name + '.qbank') }); await pipeline(fs.createReadStream(download.file), response); } finally { download.close(); }
-        } else this.send(response, 200, 'application/json; charset=utf-8', jsonBytes(await this.api(context, pathname)));
+        } else this.send(response, 200, 'application/json; charset=utf-8', await this.api(context, pathname).then(value => timed('response-json', () => jsonBytes(value))));
       } else if (pathname === HUB_CALLBACK) {
         // The Hub returns the browser here after the user allows or denies; host computer only.
         if (request.method !== 'GET' || !this.canManage(context)) throw new ApiError(404, 'NOT_FOUND', 'Page not found');

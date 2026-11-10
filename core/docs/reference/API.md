@@ -34,6 +34,28 @@ Declared package paths are relative to their extension leaf; bank assets are rel
 
 ## HTTP contract
 
+### Collection diagnostics (A1)
+
+Responses under `/api/collections/` (including errors and exam routes) include a `Server-Timing` header. This is diagnostic information only: response JSON, status codes, rule inputs, revisions, receipts, persistence formats and permission checks are unchanged. No question text, answers, filenames or identifiers appear in the header. Other routes do not emit this header.
+
+Durations are milliseconds from the host's monotonic high-resolution clock. Categories partition **wall time**, not CPU time. Nested or simultaneous intervals are counted once, using the following precedence (highest first): `response-json`, `queue`, `clone`, `rules`, `persist`, `state-load`, `library`. For example, cloning rule input is counted in `clone`, not again in `rules`; simultaneous rules count as their union, not summed worker time.
+
+| Metric | Boundary |
+| --- | --- |
+| `library` | Collection read/write/resolve calls, including binding checks, validation and shared-load waiting, excluding measured child categories. |
+| `state-load` | StateStore load, including cache lookup, state-file read/parse and compatibility checks, excluding measured child categories. |
+| `rules` | RuleEngine.run, including runner queue/startup/IPC/validation/output parsing, excluding measured child categories. It is not isolated VM execution time. Work shared from an already-running load remains in the caller's `library` interval. |
+| `clone` | Existing cloneJson calls, retaining numeric-source metadata and original semantics. |
+| `persist` | StateStore.persist, including serialization, limits, durable replacement (or memory-store checks). |
+| `queue` | Waiting for SerialTransactions ownership, excluding execution and reentrant helpers. Runner queues belong to `rules`, not this metric. |
+| `response-json` | Final success-response JSON encoding before sending; error encoding remains in `other`. |
+| `other` | Remaining host processing, including body receive/parse, authentication, validations and uninstrumented operations. |
+| `total` | Request diagnostics entry (after classifying the path) to the snapshot immediately before sending headers. Sum of the exclusive categories, subject to header rounding. |
+
+Header calculation, socket write completion, network transfer and browser rendering are **outside** `total`; the benchmark separately measures client elapsed time through the last response byte. The header does not measure individual SQL-like operations, per-worker CPU or JS heap. An `incomplete` marker means the bounded interval buffer filled and the sample must be discarded. Request-local AsyncLocalStorage prevents requests from sharing counters; no per-request logging or cumulative global sample storage is added. A host created programmatically with `QuizForgeServer.create({timings:false, ...})` disables diagnostics for comparison; there is no remote toggle.
+
+Synthetic fixture and repeatable benchmark instructions: [performance baseline](../guides/PERFORMANCE_BASELINE.md). These helpers are local development tools, not a data migration or an application load test.
+
 Mixed binding details: a bank using any question-level reference (or omitting the root default) has `extension:null` and an `extensions` array; each question identifies its effective extension. UUID bank state uses `bank:<routeId>:mixed`, including root-default banks; legacy string-ID root-default banks retain `bank:<id>:<extensionId>:<version>`. Content changes invalidate affected current answers with backups, never frozen history. Bindings distinguish physical paths, while bounded rule batches share identical ID/version/runtime fingerprints and restore original question order. Mixed history uses immutable `pages[pageKey]` and per-question keys including optional physical path, preserving old snapshots without that field. Cache capacities remain unchanged.
 
 - `GET /api/catalog` -> `{banks:[{id,title,description,questionCount,extension:{id,version},error?}],extensions:[{id,version,name,description,questionCount,error?}]}`. Bad entries are reported separately without breaking good entries. Directory rescanned on refresh.

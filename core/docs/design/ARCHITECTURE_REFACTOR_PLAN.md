@@ -1,0 +1,277 @@
+# QuizForge Web 架构整改执行计划
+
+基于 `main` 分支 `2a529cd`（PR #39 之后）的代码分析。执行者：Codex。审查者：Claude。
+建议放在 `core/docs/design/ARCHITECTURE_REFACTOR_PLAN.md`，每个 PR 合并后在文末"进度"一节追加一行。
+
+## 1. 目标与边界
+
+**目标**
+
+1. 消除题库切换、题目切换、提交评分时的明显卡顿。
+2. 明确前后端职责：后端是数据、规则、密钥的唯一事实来源；前端只负责展示与交互。
+3. 前端从"旧宿主 `app.js` 内嵌 Vue 岛屿"翻转为"Vue 应用为根"。
+
+**已确定、不再讨论的决定**
+
+- 评分留在后端，`rules.js` 继续在 Node 子进程里执行。
+- 保留 iframe 沙箱和现有拓展契约（`practice.html` / `QF` SDK / `rules.js`），已发布拓展必须继续可用。
+- 考试模式继续保留，所有改动都必须保持其行为不变。
+- 产品定位是个人使用；局域网访问只是让同一个用户在其他设备上使用，不按多人并发场景设计。
+
+**不做**
+
+- 不重写 `bridge/frame.js`、`draft/whiteboard.js`、富文本 SDK，只做包装。
+- 不引入 UI 组件库，不重做视觉。
+- 不改题库格式、拓展 manifest 的既有字段和 `QF` SDK 的既有方法语义。
+
+## 2. 对执行者的通用规则
+
+1. **一个 PR 只做一个任务卡。** 不顺带格式化、移动目录或改无关代码（见 `CONTRIBUTING.md`）。
+2. **兼容性是硬约束。** 旧题库、旧答案、旧状态文件、冻结历史必须可读。普通读取不迁移数据；需要改写旧数据时，只能发生在该数据本来就要被写入的时候，并在 PR 中说明回退办法。
+3. **不要把 `cloneJson` 全局替换成 `structuredClone`。** `platform/json.js` 用 `numericSources` 记录数字的原始字面量（区分 `1` 和 `1.0`），`structuredClone` 会丢掉它，导致序列化结果和指纹变化。优化手段是"少克隆"，不是"换克隆函数"；确需替换时逐处证明该值不参与指纹和持久化。
+4. **先写会失败的测试，再改实现。** 性能类改动用计时断言或调用次数断言（例如"一次 draft 动作中整份状态序列化次数 ≤ 1"），不要只靠人工感觉。
+5. **接口或行为变化时，同一 PR 更新** `core/docs/reference/API.md` 及相关文档。
+6. **Vue 源码改动后必须重新构建**并通过 `npm --prefix core run build:ui -- --check`。
+7. 遇到本计划与代码实际不符之处，停下来在 PR 描述里写明，不要自行扩大范围。
+
+**每个 PR 必须通过**
+
+```powershell
+npm --prefix core run typecheck:ui
+npm --prefix core run build:ui -- --check
+npm --prefix core test
+```
+
+## 3. 审查流程
+
+每个 PR 的描述按以下模板填写，缺项不审：
+
+```
+任务卡：<编号>
+改了什么：
+明确没改什么：
+兼容性：旧状态文件 / 旧拓展 / 历史回放 各自如何验证
+计时对比：改动前后 Server-Timing 或 data-load-ms 数值（阶段 A、B 必填）
+测试：新增用例列表 + 完整测试命令输出摘要（通过数 / 失败数）
+未解决或存疑：
+```
+
+审查者关注点，按优先级：数据是否可能丢失或损坏 → 旧数据与旧拓展兼容 → 并发与竞态（串写、晚到响应） → 是否越出任务卡范围 → 测试是否真的覆盖改动 → 代码清晰度。
+
+说明：审查环境无法安装 npm 依赖，审查者只能阅读差异和运行不依赖第三方包的片段，因此 PR 中的测试输出必须完整可信。
+
+## 4. 执行顺序总览
+
+| 阶段 | 内容 | 用户可感知的效果 |
+|---|---|---|
+| A | 建立计时基线 | 无 |
+| B1–B5 | 后端状态存储与规则引擎修复 | 保存、提交、切题库明显变快 |
+| B7 | 导入导出 | 导入导出变快，期间不影响答题 |
+| B6 | 后端分层（纯重构） | 无 |
+| C1–C4 | Pinia 与状态迁移 | 无 |
+| C5 | iframe 包装与复用 | 同题型切题明显变快 |
+| C6–C8 | 入口翻转、构建方式、清理 | 首屏略快 |
+
+阶段 B 与阶段 C1–C4 互不依赖，可以并行，但 B1–B3 应最先合并。
+
+---
+
+## 阶段 A：计时基线
+
+### A1 接口分段计时与合成数据
+
+- 在 `server/host/http/server.js` 为 `/api/collections/**` 的响应加 `Server-Timing` 头，分段至少包含：`library`（解析题库绑定）、`state-load`、`rules`、`clone`、`persist`、`queue`（在事务队列中的等待时间）。
+- 新增 `core/scripts/dev/create-perf-fixture.mjs`：在指定临时目录生成合成题库（200 题、含 outline 小题的题型若干）和一份约 5 MB 的状态文件（含白板笔迹、32 条回执、2 轮历史）。
+- 新增 `core/scripts/dev/measure-perf.mjs`：对合成数据依次执行"打开题库、连续切 20 题、保存 20 次草稿、保存 20 次白板、提交 10 题"，输出各接口的中位数和 P95。
+- 验收：脚本可重复运行；把当前 `main` 的结果表写进 PR 描述，作为后续对比基线。
+- 不改任何业务逻辑。
+
+---
+
+## 阶段 B：后端
+
+涉及文件主要是 `server/host/practice/state-store.js`、`collection-routes.js`、`server/host/extensions/rule-engine.js`、`server/rules-runner.cjs`、`server/host/library/library.js`。
+
+### B1 回执瘦身
+
+**问题**：`act()` 末尾 `next.receipts.push({ id, request: cloneJson(action), response: cloneJson(result) })`，每题保留 32 条。白板动作的请求和响应各含一份完整笔迹，状态文件因此成倍膨胀；`retainReceipts(…, true)` 每次还要序列化全部回执。
+
+**改法**
+
+- 回执只存：`id`、`requestHash`（对请求做规范化指纹）、`revision`（该动作产生的版本号）、`action`，以及 AI 确认所需的既有字段。
+- 重放逻辑（`receiptResult`）：
+  - `requestHash` 不一致 → 维持 `REQUEST_ID_REUSED`。
+  - 回执的 `revision` 等于该题当前版本 → 用当前状态重新生成完整响应（状态未变，结果与原响应一致）。
+  - 回执已不是最新 → 返回 `409 REVISION_CONFLICT`，前端已有"409 后重新加载最新状态"的处理。
+- 集合级回执（`submitSaved` / `finish` / `restart` 使用的那一组）同样处理，但先确认其重放语义，不能破坏"完成练习"的幂等。
+- 旧格式回执：读取时兼容；某题下一次写入时把该题的旧回执转成新格式。不主动迁移未触及的题目。
+- `short-answer-upgrade.js` 里对回执的两处使用要一并核对。
+
+**验收**
+
+- 新用例：同一 `requestId` 重发最新动作得到与首次相同的响应；重发非最新动作得到 409；不同请求体复用 `requestId` 得到 `REQUEST_ID_REUSED`；旧格式状态文件可读且写入后被压缩；AI 评分确认回执流程不变。
+- A1 合成数据上，白板保存 20 次后状态文件增长应接近 0（笔迹只存一份）。
+- `API.md` 更新重放语义。
+
+### B2 动作路径不再整份克隆状态
+
+**问题**：`act()` 中 `cloneJson(persisted)` 克隆整个题库状态，`commit` 再整份序列化并 `fsync`。实测自写解析器约 130 ms/MB，全部同步阻塞事件循环。
+
+**改法**
+
+- 用"写时复制"构造新状态：新对象浅拷贝顶层和 `questions` 映射，只替换被修改的那一题；仅当本次动作确实要改历史轮次时才复制对应的那一轮。旧对象保持不可变，写盘失败时直接丢弃新对象即可，事务语义不变。
+- 检查 `act()`、`recordSubmission`、`recordReview`、`restart`、`finish`、`submitSaved` 中所有对 `persisted` 的原地修改，确保都落在新对象上。
+- `publicState`、`unsubmittedState`、`response()` 中的防御性克隆只保留跨越信任边界（返回给调用方或交给规则引擎）的那些。
+- 本卡不改文件格式，仍然一个题库一个 JSON。
+
+**验收**
+
+- 新用例：注入一个会在 `replaceFile` 抛错的存储，动作失败后内存中的状态与失败前逐字节一致。
+- 调用次数断言：一次 `draft` 动作中，对整份状态的 `stringifyJson` 调用恰为 1 次，`parseJson` 为 0 次。
+- A1 数据上 `clone` 分段降到 5 ms 以内。
+
+### B3 白板笔迹独立存储
+
+**问题**：笔迹存在每题状态的 `draft` 里，每 250 ms 一次的白板保存会触发整份状态重写，并占用答题写队列。
+
+**改法**
+
+- 笔迹按题单独存文件：`.state/drafts/<题库状态键哈希>/<题目 id 哈希>.json`，独立的版本号，不进回执、不进事务队列里的答题序列（但要有自己的按题串行）。
+- 新接口 `GET/PUT /api/collections/{kind}/{id}/questions/{qid}/draft`；`PUT` 带 `revision` 做乐观并发。
+- 旧数据：题目状态里已有的 `draft` 继续可读；该题第一次通过新接口写入白板时迁到新位置并从状态里移除。旧的 `whiteboard` 动作保留一个小版本周期，内部转调新存储。
+- 题目响应里的 `draft` 字段暂时保留（由新存储填充），前端在阶段 C 再改为单独取。
+- 历史轮次中冻结的 `draft` 不动。
+- 旧的 `whiteboard` 动作只有宿主前端在调用，拓展 SDK 不涉及。保留它作为兼容入口，直到 C3 合并后的下一个发行版再移除，移除时在发行说明中写明。
+- 考试和临时练习使用内存状态（`StateStore.memory`），新的笔迹存储必须同样支持纯内存模式并计入其容量上限。
+- `retry` 动作里 `draftWithoutAnswerInk` 的逻辑要跟着改到新存储。
+
+**验收**：白板保存不再改变题库状态文件的修改时间；旧状态文件中的笔迹能显示、能继续编辑；重做题目后答题区笔迹被清除的行为不变；临时练习（不落盘）模式下笔迹仍只存在内存。
+
+### B4 读写并发：按题库加锁，读不排在写后面；前端写入合并
+
+**问题**：`SerialTransactions` 是全局单队列，`overview` / `question` / `stamp` 等读操作也排在里面；前端 `write-queue.js` 严格串行且不合并。
+
+**改法**
+
+- 后端：事务队列按题库状态键分开；只读方法读取上一次提交后的不可变快照（B2 完成后自然具备），不进入写队列。跨题库操作（改名、移动、导入）仍须排他，逐个核对 `library` 与 `states` 的交互点。考试会话各自持有独立的内存状态库，确认其事务不受影响。
+- 同一用户可能在两台设备上同时打开同一题库：依靠现有的版本号冲突机制处理，补一条用例确认即可，不做额外的多人并发设计。
+- 前端 `web/shared/write-queue.js`：同一题、同一类别（答案 / 白板）的待发送写入只保留最新一条；正在发送中的不取消。`submit` 和 `retry` 不参与合并，并且必须排在同题此前的 `draft` 之后。
+- 切题前的 `flushPane` 行为不变，但因为合并，等待的请求数应至多为 2。
+
+**验收**：新用例覆盖"快速连续 10 次草稿只发出 ≤ 2 个请求且最终保存的是最后一次"、"提交紧跟草稿时顺序正确"、"A 题库保存进行中时读取 B 题库不等待"。A1 数据上 `queue` 分段 P95 < 10 ms。
+
+### B5 规则引擎开销
+
+**问题**：`rules-runner.cjs` 每个请求新建 Ajv 并编译两份 schema、重新编译规则脚本；worker 空闲 60 秒回收；`library.writeCollection()` 每次写入都调用 `environment()`，遍历 `node_modules` 里 ajv 等依赖目录。
+
+**改法**
+
+- 常驻 worker（`--serve`）内按"文件路径 + 文件身份"缓存：已解析的 schema、已编译的 Ajv 校验函数、`vm.Script`。每个请求仍然新建 VM 上下文并重新运行脚本，隔离语义不变。文件变化时缓存失效。
+- `WORKER_IDLE_MS` 调到 10 分钟；前台请求优先复用已热的 worker。
+- 写路径改用已有的 `runtimeEnvironment()`（带短期复用）代替 `environment()`；完整环境指纹只在启动、导入、冷加载时计算。
+- 一次性模式（非 `--serve`）行为不变。
+
+**验收**：`rules-runner.test.cjs` 新增"同一 worker 连续两次请求，第二次不读 schema 文件"；"规则文件被修改后下一次请求使用新内容"；"两次请求之间 VM 全局状态不泄漏"。A1 数据上热路径 `rules` 分段中位数下降，并报告具体数值。
+
+### B5b（按测量结果决定）提交时的历史快照
+
+仅当 B1–B5 完成后 A1 数据显示"每轮第一次提交"仍超过 200 ms 才做。方向：`freezeRound` 中对未提交题目不再立即 `projectBatch`，改为在完成练习或该题提交时补齐；历史文件格式保持可读。开工前先提交一页设计说明给审查者确认。
+
+### B7 导入导出
+
+涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。可拆成 B7a（1–3）、B7b（4–5）、B7c（6–7）三个 PR。
+
+**问题与改法**
+
+1. **解压时的 CRC 校验是逐位 JS 实现**（`crcUpdate`）。实测 32 MB 需约 1.6 秒，`zlib.crc32` 只需约 15 毫秒。改用 `node:zlib` 的 `crc32`（项目要求 Node 24，已内置），保留现有"校验失败即拒绝"的行为。
+2. **导入导出期间占用全局状态事务**（`namespaceTransaction` 包住整个过程），期间所有题库的读题和保存都在排队。改为：解压、复制、校验、打包在事务外进行，只有"把暂存目录改名到正式位置并刷新索引"这一小步在事务内。导出只读文件，不需要进入练习状态的事务；用开始和结束时的内容指纹比对来发现导出过程中的并发修改，发现后重试或报错。依赖 B4 的按题库加锁。
+3. **导出时压缩不可压缩的文件**。`yazl` 的 `addFile` 默认压缩，对 png、jpg、webp、gif、mp3 等改为仅存储（`compress: false`）。
+4. **导出先整树复制到临时目录再打包**，数据写两遍盘。改为直接从源文件加入压缩包，只有需要改写的文件（`bank.json`、`manifest.json`、示例题库）用内存缓冲加入；仅存在于 `.state` 的旧图片同样从内存加入。保留现有的私有路径过滤、单文件和总量上限。
+5. **大量同步文件操作阻塞事件循环**：`copyTree` 逐文件 `copyFileSync` 加多次 `statSync`，`removeWorkspace` 逐文件 `checkPath` 后再删除，`installPackage` 中多次 `replaceFile`（每次 `fsync`）。暂存目录内的中间文件不需要 `fsync`，只在最终改名前对目录做一次落盘保证；遍历和复制改为异步并限制并发，或每处理一批文件让出一次事件循环。安全检查（路径越界、符号链接、保留名）一项都不能少。
+6. **导入校验做了两遍**。暂存目录中的校验结果没有写入校验缓存，而且缓存键包含绝对路径，安装到正式位置后必然不命中，新题库首次打开时又完整校验一次。改法：安装完成后，用正式位置的内容指纹把刚才的校验结果写入 `ValidationCache`。前提是安装步骤对文件内容的改写（拓展路径重写）发生在校验之前，或者证明该改写不影响校验结论；做不到就只对未被改写的部分复用。
+7. **导入后前端清空全部缓存并重新加载目录**（`questionsCache.clear(); pagesCache.clear()`）。新版题库包"始终新增独立副本"，不会改动已有题库，所以只需把新条目并入目录，不清缓存、不重载当前题目。后端 `importPackage` 末尾的 `invalidate()` 同理，改为只让索引感知新增分组。
+8. **没有进度反馈**。导入和导出都是一个最长 135 秒、只显示"正在导入…"的请求。增加阶段提示（上传、解压、校验第 n/m 本、安装）。实现方式自选（轮询任务状态或流式响应），但不要为此引入新的长连接基础设施。
+
+**验收**
+
+- A1 的合成数据增加一个约 40 MB、含 500 张图片和 3 段音频的题库分组；报告导入、导出改动前后的总耗时，以及期间对另一题库执行"保存草稿"的延迟（目标：不受导入导出影响）。
+- 既有 `library-archive`、`library-package`、`library-export-images`、`import-validation`、`library-transfer` 测试全部保留并通过；恶意压缩包用例（路径越界、重复路径、CRC 错误、超限）结果不变。
+- 新用例：导出过程中修改源题库，结果是报错或得到一致的包，不能得到半新半旧的包；导入中途失败不留下暂存目录和半安装的分组；导入后首次打开新题库不再触发规则校验。
+- 导出包与旧版本导出包可互相导入（格式版本 3 不变）。
+
+### B6 后端分层（纯重构，行为零变化）
+
+- `collection-routes.js` 中 `finish` 路由里的流程（提交草稿 → 启动自动 AI 评分 → 查询任务 → 汇总 → 完成）移入服务层新文件 `server/host/practice/practice-service.js`；路由层只做解析和调用。
+- `state-store.js` 按职责拆分：存储与缓存（读、写、内存缓存、兼容加载）、练习动作（`act` 及其辅助）、历史与汇总、AI 任务绑定。对外导出的类和方法名不变，测试不需要改。
+- 验收：全部既有测试不改一行即通过；A1 数值无回退。
+
+---
+
+## 阶段 C：前端
+
+考试模式保留。阶段 C 的每张任务卡都要把考试路径（`pane.exam`、`examActive`、`/api/collections/exam/**`）一并迁移并回归 `test/exam/` 下的用例。
+
+### C1 引入 Pinia；题库索引与设置入库
+
+- 新增依赖 `pinia`（devDependency，随构建产物打包；更新 `THIRD_PARTY_NOTICES.txt`）。
+- 新建 `frontend/src/stores/library.ts`（目录索引、分组、列表模式、折叠状态）和 `stores/settings.ts`。
+- 过渡期入口仍是 `app.js`：通过 `window.QuizForgeUI` 暴露 store 的读写接口，`app.js` 中的 `catalog` 对象改为读写 store。所有 Vue 岛屿共用同一个 Pinia 实例。
+- 大型对象（题库描述、题目内容）用 `shallowRef` / `markRaw`，不做深层响应式。
+- 验收：界面与行为无变化；现有 JSDOM 测试通过；新增 store 单元测试。
+
+### C2 练习状态：读路径
+
+- 新建 `stores/practice.ts`：打开的题库（原 `collections` Map 和 `pane` 对象中的数据部分）、当前题目、每题状态、题目缓存与页面缓存。
+- `loadQuestion`、`prefetchAdjacent`、`openCollection` 的取数部分变成 store action；`app.js` 调用它们。
+- 配合后端：题库概览一次返回所有题目的版本戳，切到已缓存题目时前端自行比对，不一致才请求（需要后端在概览响应里加字段，属于向后兼容的新增，更新 `API.md`）。
+- 验收：切到已缓存且未变化的题目时网络请求数为 0；晚到的响应不能覆盖已切走的题目（新增竞态用例）。
+
+### C3 练习状态：写路径
+
+- `mutate`、`saveInk`、`flushPane`、写队列、保存失败恢复、答案预览迁入 store。白板改用 B3 的独立接口。
+- 验收：既有的 `write-queue`、`save-recovery`、`answer-preview`、`pending-answer` 测试语义全部保留；断网后恢复的手工用例通过。
+
+### C4 切换流程
+
+- `navigateQuestion`、`activateReady`、`suspendPane`、`returnToPractice`、`transitionTo` 串行队列迁入 store。视图模式（练习 / 编辑 / 历史 / 汇总）成为 store 中的一个字段。
+- 至此 `app.js` 应只剩 DOM 挂载和事件绑定。
+
+### C5 `ExtensionFrame.vue` 与 iframe 复用
+
+- 把 `mountExtension` 包成组件：`onMounted` 创建，`onBeforeUnmount` 销毁，`props` 变化时调用 `plugin.update(context)`。`frame.js` 内部逻辑不改。
+- **复用规则**：拓展 manifest 的 `requiresApi.capabilities` 新增可选能力 `question-reuse`，拓展 API 升到 1.6（`minMinor: 6`）；宿主的能力列表同步加入该项。已声明且"题型 id、版本、指纹、富文本依赖"完全相同的相邻题目，切换时不重建 iframe，发送新的 context。未声明的拓展保持每题重建，行为与现在完全一致。
+- 内置五个题型逐个适配并声明该能力：收到新题目的 context 时必须重置界面、未保存输入、计时器和上传中的资源。
+- 复用前仍要先 `flush` 旧题目的未保存输入。
+- 历史回放、编辑器 iframe、考试题目页面不参与复用。
+- 验收：对每个内置题型新增用例"连续切换 A → B → A，B 的输入不出现在 A，A 的草稿正确恢复"；未声明能力的旧版夹具拓展仍是每题一个新 iframe；同题型切题的 `data-load-ms` 中位数明显下降并给出数值；`EXTENSIONS.md` 与题库制作技能参考文档同步更新。
+
+### C6 `WhiteboardCanvas.vue`
+
+- 同样只做生命周期包装。笔迹数据不进响应式系统。视口、缩放、纸张样式改存本机（`localStorage`），不再随笔迹发往后端；旧数据里的这些字段读取时作为初始值。
+
+### C7 入口翻转
+
+- 新建 `frontend/src/main.ts` 和 `App.vue`，`index.html` 只保留一个挂载点。各面板从"独立挂载的岛屿"改为根组件的子组件，删除 `web/` 下所有适配文件（`ai-chat.js`、`library-view.js`、`outline-view.js` 等）和 `window.QuizForgeUI`。
+- 原生 `<dialog>` 的顶层与焦点行为保留。
+- JSDOM 测试夹具（`test/fixtures/vue-ui.mjs` 等）改为加载新入口。这一步测试改动量大，单独一个 PR，不混入功能变化。
+
+### C8 构建方式与清理
+
+- Vite 从 IIFE 库模式改为标准应用构建，输出带内容哈希的分块；设置面板、编辑器相关、AI 聊天按需加载。
+- 后端静态服务对带哈希的文件返回长期缓存头，`index.html` 保持 `no-store`；核对静态文件白名单和 `build:ui -- --check`、Windows 安装包暂存脚本。
+- 删除 `app.js` 及已无引用的 `web/` 模块。
+
+---
+
+## 5. 已确认的决定
+
+1. 考试模式保留。
+2. 白板旧接口（`whiteboard` 动作）在 C3 合并后的下一个发行版移除。
+3. iframe 复用的能力名为 `question-reuse`，拓展 API 升到 1.6。
+4. 个人使用为主，局域网仅用于本人跨设备访问；并发只需保证版本号冲突机制正确。
+
+## 6. 进度
+
+| 任务卡 | PR | 状态 | 备注 |
+|---|---|---|---|
+| A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | v2 修订完成，测试基线阻塞，未合并 | 计时实现审查通过；v2 数据与九轮对照见 PR，默认完整测试仍有 13 项既有失败 |
