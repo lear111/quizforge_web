@@ -23,6 +23,11 @@ jobs:
     name: Checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    # T2 diagnostic only: compare Windows PowerShell Core without tee.
+    # Restore the original workflow after collecting this run.
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
     strategy:
       fail-fast: false
       matrix:
@@ -35,17 +40,38 @@ jobs:
           cache: npm
           cache-dependency-path: core/package-lock.json
       - name: Install dependencies
+        if: runner.os != 'Windows'
         run: |
           mkdir -p ci-logs
           npm --prefix core ci --ignore-scripts 2>&1 | tee ci-logs/install.log
       - name: Typecheck UI
+        if: runner.os != 'Windows'
         run: npm --prefix core run typecheck:ui 2>&1 | tee ci-logs/typecheck.log
       - name: Check UI build
+        if: runner.os != 'Windows'
         run: npm --prefix core run build:ui -- --check 2>&1 | tee ci-logs/build.log
       - name: Run tests
+        if: runner.os != 'Windows'
         run: npm --prefix core test 2>&1 | tee ci-logs/test.log
+      - name: Windows encoding environment (T2 diagnostic)
+        if: runner.os == 'Windows'
+        run: |
+          [pscustomobject]@{parentOutput=[Console]::OutputEncoding.CodePage; parentInput=[Console]::InputEncoding.CodePage; psVersion=$PSVersionTable.PSVersion.ToString()} | ConvertTo-Json -Compress
+          & powershell.exe -NoProfile -NonInteractive -Command '[pscustomobject]@{output=[Console]::OutputEncoding.CodePage; input=[Console]::InputEncoding.CodePage; pipeline=$OutputEncoding.CodePage; ansi=[Text.Encoding]::Default.CodePage; psVersion=$PSVersionTable.PSVersion.ToString()} | ConvertTo-Json -Compress'
+      - name: Install dependencies (Windows, no tee)
+        if: runner.os == 'Windows'
+        run: npm --prefix core ci --ignore-scripts
+      - name: Typecheck UI (Windows, no tee)
+        if: runner.os == 'Windows'
+        run: npm --prefix core run typecheck:ui
+      - name: Check UI build (Windows, no tee)
+        if: runner.os == 'Windows'
+        run: npm --prefix core run build:ui -- --check
+      - name: Run tests (Windows, no tee)
+        if: runner.os == 'Windows'
+        run: npm --prefix core test
       - name: Upload failure logs
-        if: failure()
+        if: failure() && runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs-${{ matrix.os }}-${{ github.run_attempt }}
