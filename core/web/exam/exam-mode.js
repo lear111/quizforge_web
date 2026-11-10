@@ -8,24 +8,22 @@ export function examTimeLabel(exam,now=Date.now()){
 export function canStartExam(pane){return !!pane?.collection&&!pane.exam&&['bank','development-bank'].includes(pane.kind)&&collectionFeature(pane,'exam')&&pane.view==='practice';}
 
 export function bindExamMode({document,request,active,flush,open,refresh,onError,collectionPath,makeRequestId,onDeadline,now=Date.now}){
-  const create=(tag,text,className)=>{const node=document.createElement(tag);if(text)node.textContent=text;if(className)node.className=className;return node;};
-  const actions=document.querySelector('.document-actions'),start=create('button','开始考试','header-action'),status=create('span','','exam-status'),submit=create('button','交卷','header-action'),back=create('button','返回练习','header-action');
-  start.id='exam-start';submit.id='exam-submit';status.id='exam-status';back.id='exam-return';status.setAttribute('role','status');
-  for(const button of [start,submit,back])button.type='button';actions.prepend(start,status,submit,back);
-  const dialog=create('dialog',null,'exam-dialog'),form=create('form'),header=create('div',null,'exam-dialog-heading'),heading=create('h2','开始考试'),close=create('button','×','exam-dialog-close'),intro=create('p','设置本次考试时长，或继续未完成的考试。','exam-intro');
-  heading.id='exam-dialog-title';dialog.setAttribute('aria-labelledby',heading.id);close.type='button';close.setAttribute('aria-label','关闭考试设置');header.append(heading,close);
-  const settings=create('section',null,'exam-settings'),label=create('label','考试时长','exam-duration-label'),durationControl=create('div',null,'exam-duration-control'),duration=create('input'),unit=create('span','分钟'),unlimitedLabel=create('label',null,'exam-unlimited'),unlimited=create('input'),hint=create('p','到时自动交卷；交卷后锁定答案，统一评分。','exam-hint');
-  duration.type='number';duration.min='1';duration.max='1440';duration.value='60';duration.required=true;duration.id='exam-duration';duration.setAttribute('aria-label','考试时长（分钟）');label.htmlFor=duration.id;
-  durationControl.append(duration,unit);unlimited.type='checkbox';unlimitedLabel.append(unlimited,document.createTextNode('不限时'));settings.append(label,durationControl,unlimitedLabel,hint);
-  const recordsSection=create('section',null,'exam-resume-section'),recordsHeading=create('h3','未完成考试'),list=create('div',null,'exam-records'),error=create('p',null,'exam-error'),buttons=create('div',null,'dialog-actions'),cancel=create('button','取消'),confirm=create('button','开始考试');
-  recordsSection.hidden=true;recordsSection.append(recordsHeading,list);error.hidden=true;error.setAttribute('role','alert');cancel.type='button';confirm.type='submit';buttons.append(cancel,confirm);form.append(header,intro,settings,recordsSection,error,buttons);dialog.append(form);document.body.append(dialog);
-  const deleteDialog=create('dialog',null,'exam-delete-dialog'),deleteHeading=create('h2','删除这次考试？'),deleteDetail=create('p',null,'exam-delete-detail'),deleteHint=create('p','删除后无法继续这次考试，已保存的答案和草稿将不再显示。普通练习和其他历史记录会保留。'),deleteButtons=create('div',null,'dialog-actions'),deleteCancel=create('button','取消'),deleteConfirm=create('button','删除考试','danger-button');
-  deleteHeading.id='exam-delete-title';deleteDialog.setAttribute('aria-labelledby',deleteHeading.id);deleteCancel.type='button';deleteCancel.autofocus=true;deleteConfirm.type='button';deleteButtons.append(deleteCancel,deleteConfirm);deleteDialog.append(deleteHeading,deleteDetail,deleteHint,deleteButtons);document.body.append(deleteDialog);
-  let source=null,command=null,busy=false,polling=false,lastPoll=0,records=[],listGeneration=0,deleteDecision=null,deadlineTimer=null,scheduledPane=null,scheduledAt=null;const offsets=new Map();
-  const setError=message=>{error.textContent=message||'';error.hidden=!message;};
+  const factory=document.defaultView.QuizForgeUI?.mountExamUi;
+  if(!factory)throw Error('缺少界面构建文件，请运行 npm --prefix core run build:ui。');
+  const container=document.createElement('div');container.style.display='contents';container.id='exam-controls-root';
+  document.querySelector('.document-actions').prepend(container);
+  const dialog=document.createElement('dialog'),deleteDialog=document.createElement('dialog');
+  dialog.className='exam-dialog';dialog.setAttribute('aria-labelledby','exam-dialog-title');
+  deleteDialog.className='exam-delete-dialog';deleteDialog.setAttribute('aria-labelledby','exam-delete-title');
+  document.body.append(dialog,deleteDialog);
+  let source=null,command=null,busy=false,polling=false,lastPoll=0,records=[],listGeneration=0,deleteDecision=null,deadlineTimer=null,scheduledPane=null,scheduledAt=null;
+  let disposed=false,errorMessage='',deleteDetail='',connectionMessage='',connectionPane=null;const offsets=new Map();
+  const widget=factory({container,dialog,confirmation:deleteDialog,actions:{start:startExam,create:createExam,submit:submitExam,back:returnToPractice,close:closeSettings,resume:resumeExam,remove:removeExam,decide:decideDelete}});
+  const setError=message=>{errorMessage=message||'';sync();};
   const recordTime=row=>new Date(row.startedAt).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
   const observe=exam=>{if(exam?.serverTime)offsets.set(exam.id,Date.parse(exam.serverTime)-now());};
   function sync(){
+    if(disposed)return false;
     const pane=active(),exam=pane?.exam,time=now()+(offsets.get(exam?.id)||0),expired=exam?.status==='in-progress'&&!!exam.deadline&&time>=Date.parse(exam.deadline);
     if(exam){
       if(expired&&!pane.examDeadlineReached){pane.examDeadlineReached=true;onDeadline?.(pane);}
@@ -37,56 +35,61 @@ export function bindExamMode({document,request,active,flush,open,refresh,onError
       clearTimeout(deadlineTimer);deadlineTimer=null;scheduledAt=deadline;scheduledPane=pane;
       if(Number.isFinite(deadline))deadlineTimer=setTimeout(()=>{deadlineTimer=null;sync();pollExam();},Math.max(0,deadline-now()));
     }
-    start.hidden=!canStartExam(pane);start.disabled=busy||!!pane?.loading;
-    status.hidden=!exam;submit.hidden=!exam||exam.status==='completed'||pane?.view==='history';back.hidden=!exam;back.disabled=busy;
-    if(exam){const issue=exam.gradingErrors?.length||exam.aiErrors?.length;status.textContent=expired?'时间已到 · 正在自动交卷':examActive(pane)?examTimeLabel(exam,time):exam.status==='completed'?'考试已完成':issue?'评分失败，待处理':'已交卷 · 评分中';submit.textContent=expired?'正在交卷…':examActive(pane)?'交卷':issue?'重试评分':'评分中';submit.disabled=busy||!!pane.loading||!examActive(pane)&&!issue;}
-    for(const button of dialog.querySelectorAll('button'))button.disabled=busy;unlimited.disabled=busy;duration.disabled=busy||unlimited.checked;
-    list.setAttribute('aria-busy',String(busy));
+    const issue=exam?.gradingErrors?.length||exam?.aiErrors?.length;
+    widget.update({busy,startHidden:!canStartExam(pane),startDisabled:busy||!!pane?.loading,
+      statusHidden:!exam,status:(connectionPane===pane?connectionMessage:'')||(exam?(expired?'时间已到 · 正在自动交卷':examActive(pane)?examTimeLabel(exam,time):exam.status==='completed'?'考试已完成':issue?'评分失败，待处理':'已交卷 · 评分中'):''),
+      submitHidden:!exam||exam.status==='completed'||pane?.view==='history',backHidden:!exam,
+      submitLabel:expired?'正在交卷…':examActive(pane)?'交卷':issue?'重试评分':'评分中',submitDisabled:busy||!!pane?.loading||!examActive(pane)&&!issue,
+      error:errorMessage,deleteDetail,rows:records.filter(row=>!['completed','deleted'].includes(row.status)).map(row=>({id:row.id,title:row.status==='in-progress'?'继续考试':'查看评分',detail:`开始于 ${recordTime(row)} · ${row.durationMinutes==null?'不限时':row.durationMinutes+' 分钟'}`,badge:row.status==='in-progress'?'进行中':row.gradingErrors?.length||row.aiErrors?.length?'评分失败':'评分中',deleteLabel:`删除 ${recordTime(row)} 的考试`}))});
     return expired;
   }
   function decideDelete(accepted){const resolve=deleteDecision;deleteDecision=null;deleteDialog.close();resolve?.(accepted);}
-  deleteCancel.addEventListener('click',()=>decideDelete(false));deleteConfirm.addEventListener('click',()=>decideDelete(true));
-  deleteDialog.addEventListener('cancel',event=>{event.preventDefault();decideDelete(false);});deleteDialog.addEventListener('close',()=>{if(deleteDecision)decideDelete(false);});
-  dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
-  for(const button of [cancel,close])button.addEventListener('click',()=>{if(!busy)dialog.close();});
-  unlimited.addEventListener('change',()=>{duration.disabled=unlimited.checked;hint.textContent=unlimited.checked?'不限时考试持续计时，由你手动交卷。':'到时自动交卷；交卷后锁定答案，统一评分。';});
-  function renderRecords(){
-    list.replaceChildren();const unfinished=records.filter(row=>!['completed','deleted'].includes(row.status));recordsSection.hidden=!unfinished.length;
-    for(const row of unfinished){
-      const item=create('div',null,'exam-record-row'),button=create('button',null,'exam-record'),body=create('span',null,'exam-record-body'),title=create('span',row.status==='in-progress'?'继续考试':'查看评分','exam-record-title'),detail=create('span',`开始于 ${recordTime(row)} · ${row.durationMinutes==null?'不限时':row.durationMinutes+' 分钟'}`,'exam-record-detail'),badge=create('span',row.status==='in-progress'?'进行中':row.gradingErrors?.length||row.aiErrors?.length?'评分失败':'评分中','exam-record-status'),remove=create('button',null,'exam-record-delete');
-      button.type='button';remove.type='button';body.append(title,detail);button.append(body,badge);remove.title='删除考试';remove.setAttribute('aria-label',`删除 ${recordTime(row)} 的考试`);
-      remove.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-      button.addEventListener('click',async()=>{if(busy)return;busy=true;sync();dialog.close();try{await open('exam',row.id);}catch(e){onError(e);}finally{busy=false;sync();}});
-      remove.addEventListener('click',async()=>{
-        if(busy)return;busy=true;setError();sync();deleteDetail.textContent=`${row.status==='in-progress'?'未完成考试':'待处理评分'} · ${recordTime(row)}`;deleteDialog.showModal();
-        try{
-          if(!await new Promise(resolve=>{deleteDecision=resolve;}))return;
-          try{await request(`${collectionPath('exam',row.id)}/exam`,{method:'DELETE'});}catch(e){if(e.status!==404)throw e;}
-          records=records.filter(record=>record.id!==row.id);renderRecords();
-        }catch(e){
-          if(e.code==='EXAM_COMPLETED')try{await loadRecords(source);}catch{}
-          setError(e.code==='REQUEST_TIMEOUT'?'连接超时，请重新打开考试设置确认是否已删除。':e.message);
-        }finally{busy=false;sync();(list.querySelector('.exam-record-delete')||confirm).focus();}
-      });
-      item.append(button,remove);list.append(item);
-    }
+  const cancelDelete=event=>{event.preventDefault();decideDelete(false);};
+  const closeDelete=()=>{if(!deleteDialog.open&&deleteDecision)decideDelete(false);};
+  const cancelSettings=event=>{if(busy)event.preventDefault();};
+  deleteDialog.addEventListener('cancel',cancelDelete);deleteDialog.addEventListener('close',closeDelete);dialog.addEventListener('cancel',cancelSettings);
+  function closeSettings(){if(!disposed&&!busy)dialog.close();}
+  async function resumeExam(id){
+    if(disposed||busy||!dialog.open||!records.some(row=>row.id===id&&!['completed','deleted'].includes(row.status)))return;
+    busy=true;sync();dialog.close();try{await open('exam',id);}catch(e){if(!disposed)onError(e);}finally{busy=false;sync();}
   }
-  async function loadRecords(bank){const generation=++listGeneration;const value=await request(`${collectionPath(bank.kind,bank.id)}/exams`);if(source!==bank||generation!==listGeneration||!dialog.open)return;records=value.records||[];renderRecords();}
-  start.addEventListener('click',async()=>{try{
-    if(busy)return;source=active();if(!canStartExam(source))return;busy=true;sync();await flush(source);command=null;setError();records=[];renderRecords();dialog.showModal();await loadRecords(source);
-  }catch(e){if(dialog.open)setError(e.message);else onError(e);}finally{busy=false;sync();}});
-  form.addEventListener('submit',async event=>{event.preventDefault();if(busy||!source)return;busy=true;sync();setError();try{
-    const minutes=unlimited.checked?null:Number(duration.value);if(minutes!==null&&(!Number.isInteger(minutes)||minutes<1||minutes>1440))throw new Error('请输入 1–1440 分钟，或选择不限时');
+  async function removeExam(id){
+    const row=records.find(row=>row.id===id&&!['completed','deleted'].includes(row.status));if(disposed||busy||!dialog.open||!row)return;
+    busy=true;deleteDetail=`${row.status==='in-progress'?'未完成考试':'待处理评分'} · ${recordTime(row)}`;setError();sync();deleteDialog.showModal();
+    try{
+      if(!await new Promise(resolve=>{deleteDecision=resolve;})||disposed)return;
+      try{await request(`${collectionPath('exam',row.id)}/exam`,{method:'DELETE'});}catch(e){if(e.status!==404)throw e;}
+      if(disposed)return;records=records.filter(record=>record.id!==row.id);
+    }catch(e){
+      if(disposed)return;if(e.code==='EXAM_COMPLETED')try{await loadRecords(source);}catch{}
+      if(!disposed)setError(e.code==='REQUEST_TIMEOUT'?'连接超时，请重新打开考试设置确认是否已删除。':e.message);
+    }finally{busy=false;sync();if(!disposed&&dialog.open)widget.focus();}
+  }
+  async function loadRecords(bank){const generation=++listGeneration;const value=await request(`${collectionPath(bank.kind,bank.id)}/exams`);if(disposed||source!==bank||generation!==listGeneration||!dialog.open)return;records=value.records||[];sync();}
+  async function startExam(){try{
+    if(disposed||busy)return;source=active();if(!canStartExam(source))return;busy=true;sync();await flush(source);if(disposed)return;command=null;records=[];setError();dialog.showModal();await loadRecords(source);
+  }catch(e){if(!disposed){if(dialog.open)setError(e.message);else onError(e);}}finally{busy=false;sync();}}
+  async function createExam(){if(disposed||busy||!source||!dialog.open)return;busy=true;sync();setError();try{
+    const fields=widget.readFields(),minutes=fields.unlimited?null:Number(fields.duration);if(minutes!==null&&(!Number.isInteger(minutes)||minutes<1||minutes>1440))throw new Error('请输入 1–1440 分钟，或选择不限时');
     if(!command||command.durationMinutes!==minutes)command={requestId:makeRequestId(),durationMinutes:minutes};
-    const value=await request(`${collectionPath(source.kind,source.id)}/exams`,{method:'POST',body:JSON.stringify(command),timeoutMs:135000});observe(value);dialog.close();await open('exam',value.id);
-  }catch(e){if(dialog.open)setError(e.message);else onError(e);}finally{busy=false;sync();}});
-  submit.addEventListener('click',async()=>{const pane=active();if(!pane?.exam||busy)return;if(examActive(pane)&&!globalThis.confirm('交卷后将锁定全部答案，确定交卷吗？'))return;busy=true;sync();try{
-    if(examActive(pane))await flush(pane);
-    const value=await request(`${collectionPath('exam',pane.id)}/exam`,{method:'POST',body:JSON.stringify({requestId:makeRequestId()}),timeoutMs:135000});observe(value);await refresh(pane,value);
-  }catch(e){onError(e);}finally{busy=false;sync();}});
-  back.addEventListener('click',()=>{const exam=active()?.exam;if(exam)open(exam.bankKind,exam.bankId).catch(onError);});
+    const value=await request(`${collectionPath(source.kind,source.id)}/exams`,{method:'POST',body:JSON.stringify(command),timeoutMs:135000});if(disposed)return;observe(value);dialog.close();await open('exam',value.id);
+  }catch(e){if(!disposed){if(dialog.open)setError(e.message);else onError(e);}}finally{busy=false;sync();}}
+  async function submitExam(){const pane=active();if(disposed||!pane?.exam||busy||pane.loading||pane.view==='history'||pane.exam.status==='completed')return;if(examActive(pane)&&!globalThis.confirm('交卷后将锁定全部答案，确定交卷吗？'))return;busy=true;sync();try{
+    if(examActive(pane))await flush(pane);if(disposed)return;
+    const value=await request(`${collectionPath('exam',pane.id)}/exam`,{method:'POST',body:JSON.stringify({requestId:makeRequestId()}),timeoutMs:135000});if(disposed)return;observe(value);await refresh(pane,value);
+  }catch(e){if(!disposed)onError(e);}finally{busy=false;sync();}}
+  function returnToPractice(){const exam=active()?.exam;if(!disposed&&!busy&&exam)open(exam.bankKind,exam.bankId).catch(error=>{if(!disposed)onError(error);});}
   sync();
-  async function pollExam(){const expired=sync(),pane=active();if(!pane?.exam||pane.exam.status==='completed'||polling||busy||!expired&&now()-lastPoll<3000)return;polling=true;lastPoll=now();try{const value=await request(`${collectionPath('exam',pane.id)}/exam`);observe(value);await refresh(pane,value);}catch(e){status.textContent=expired?'时间已到，答案已锁定 · 正在重试交卷状态':'考试连接中断，正在重试';}finally{polling=false;}}
+  async function pollExam(){
+    if(disposed)return;const expired=sync(),pane=active();if(!pane?.exam||pane.exam.status==='completed'||polling||busy||!expired&&now()-lastPoll<3000)return;
+    polling=true;lastPoll=now();try{
+      const value=await request(`${collectionPath('exam',pane.id)}/exam`);if(disposed)return;connectionMessage='';observe(value);await refresh(pane,value);
+    }catch(e){if(!disposed&&active()===pane){connectionPane=pane;connectionMessage=expired?'时间已到，答案已锁定 · 正在重试交卷状态':'考试连接中断，正在重试';sync();}}finally{polling=false;}
+  }
   const timer=setInterval(pollExam,1000);
-  return {sync,observe,destroy(){clearInterval(timer);clearTimeout(deadlineTimer);if(deleteDecision)decideDelete(false);dialog.remove();deleteDialog.remove();for(const node of [start,status,submit,back])node.remove();}};
+  return {sync,observe,destroy(){
+    if(disposed)return;disposed=true;++listGeneration;clearInterval(timer);clearTimeout(deadlineTimer);if(deleteDecision)decideDelete(false);
+    deleteDialog.removeEventListener('cancel',cancelDelete);deleteDialog.removeEventListener('close',closeDelete);dialog.removeEventListener('cancel',cancelSettings);
+    widget.destroy();dialog.remove();deleteDialog.remove();container.remove();
+  }};
 }

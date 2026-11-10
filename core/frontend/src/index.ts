@@ -1,3 +1,7 @@
+import ExamActionsView from './exam/ExamActions.vue';
+import ExamSettings from './exam/ExamSettings.vue';
+import ExamDelete from './exam/ExamDelete.vue';
+import type { ExamModel, ExamActions, ExamFields } from './exam/exam';
 import EditorModeBar from './editor/EditorModeBar.vue';
 import EditorLeaveNotice from './editor/EditorLeaveNotice.vue';
 import { createEditorUi } from './editor/editor';
@@ -180,6 +184,31 @@ export function mountHistoryList({ container, confirmationContainer, dialog, con
       confirmation.removeEventListener('cancel', cancelConfirmation); confirmation.removeEventListener('close', closedConfirmation);
       manager.destroy(); render(null, container); render(null, confirmationContainer);
     } };
+}
+
+export function mountExamUi({ container, dialog, confirmation, actions }: {
+  container: HTMLElement; dialog: HTMLDialogElement; confirmation: HTMLDialogElement; actions: ExamActions;
+}) {
+  let destroyed = false, component: { readFields(): ExamFields } | null = null;
+  // Detached buttons and disposed mounts cannot invoke the host controller.
+  const guarded = Object.fromEntries(Object.entries(actions).map(([key, action]) => [key, (...args: never[]) => {
+    if (!destroyed && container.isConnected) return action(...args);
+  }])) as unknown as ExamActions;
+  return {
+    update(model: ExamModel) {
+      if (destroyed) return;
+      render(h(ExamActionsView, { model, actions: guarded }), container);
+      const vnode = h(ExamSettings, { model, actions: guarded }); render(vnode, dialog);
+      component = vnode.component?.exposed as typeof component;
+      render(h(ExamDelete, { detail: model.deleteDetail, decide: guarded.decide }), confirmation);
+    },
+    readFields: () => component!.readFields(),
+    focus: () => (dialog.querySelector<HTMLElement>('.exam-record-delete') || dialog.querySelector<HTMLElement>('button[type=submit]'))?.focus(),
+    destroy() {
+      if (destroyed) return; destroyed = true;
+      render(null, container); render(null, dialog); render(null, confirmation); component = null;
+    },
+  };
 }
 
 export function mountEditorUi({ container, noticeContainer, dialog, isCurrent }: {

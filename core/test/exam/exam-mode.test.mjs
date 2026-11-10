@@ -4,6 +4,8 @@ import {contextFor,hasScoreSummary,canEditCollection} from '../../web/practice/p
 import {createExtensionRouter} from '../../web/bridge/extension-requests.js';
 import {canStartExam,examTimeLabel,bindExamMode} from '../../web/exam/exam-mode.js';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
+function page(html){const dom=new JSDOM(html,{runScripts:'outside-only'});loadVueUi(dom);return dom;}
 
 const pane=status=>({kind:'exam',id:'attempt',view:'practice',exam:{id:'attempt',status},collection:{features:{editing:true,whiteboard:true,history:true},questions:[{id:'q1'}]},payload:{question:{id:'q1',data:{}},state:{status:'draft',answer:{text:'answer'},result:null},capabilities:{canReview:true,canAiGrade:true}}});
 test('bank exam entry defaults on and only an explicit false hides it',()=>{
@@ -31,7 +33,7 @@ test('clock shows remaining time without extending past zero, or elapsed time wh
 });
 
 test('deadline locks the answer and whiteboard immediately and polls without the normal delay',async t=>{
- const dom=new JSDOM('<div class="document-actions"></div><div id="frame"></div>');t.after(()=>dom.window.close());
+ const dom=page('<div class="document-actions"></div><div id="frame"></div>');t.after(()=>dom.window.close());
  const start=Date.parse('2026-10-12T10:00:00Z'),target=pane('in-progress'),readOnly=[];let clock=start,poll,requests=0,deadlines=0;
  target.exam={...target.exam,startedAt:new Date(start).toISOString(),deadline:new Date(start+1000).toISOString()};target.frameHost=dom.window.document.getElementById('frame');target.whiteboard={setReadOnly:value=>readOnly.push(value)};
  const realInterval=globalThis.setInterval;globalThis.setInterval=callback=>{poll=callback;return 0;};
@@ -48,7 +50,7 @@ test('countdown displays the final partial second as one instead of reaching zer
  const exam={deadline:new Date(1000).toISOString()};assert.equal(examTimeLabel(exam,900),'剩余 0:01');assert.equal(examTimeLabel(exam,1000),'剩余 0:00');
 });
 test('host starts an unlimited exam, flushes before hand-in and returns to the original practice',async t=>{
-  const dom=new JSDOM('<div class="document-actions"></div>'),document=dom.window.document,calls=[];
+  const dom=page('<div class="document-actions"></div>'),document=dom.window.document,calls=[];
   dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
   const previous=globalThis.confirm;globalThis.confirm=()=>true;t.after(()=>{globalThis.confirm=previous;});
   let current={kind:'bank',id:'b',view:'practice',collection:{features:{exam:true}}};
@@ -62,7 +64,7 @@ test('host starts an unlimited exam, flushes before hand-in and returns to the o
 });
 
 test('exam entry lists only unfinished attempts and grading issues, keeping both resumable',async t=>{
-  const dom=new JSDOM('<div class="document-actions"></div>'),document=dom.window.document,opened=[];
+  const dom=page('<div class="document-actions"></div>'),document=dom.window.document,opened=[];
   dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
   const current={kind:'bank',id:'b',view:'practice',collection:{features:{exam:true}}};
   const controls=bindExamMode({document,active:()=>current,makeRequestId:()=> 'unused',collectionPath:(kind,id)=>`/api/collections/${kind}/${id}`,flush:async()=>{},request:async()=>({records:['completed','in-progress','grading'].map((status,i)=>({id:`e${i}`,status,startedAt:'2026-10-11T00:00:00Z'}))}),open:async(kind,id)=>opened.push([kind,id]),refresh:async()=>{},onError:error=>{throw error;}});
@@ -70,11 +72,11 @@ test('exam entry lists only unfinished attempts and grading issues, keeping both
   const tick=()=>new Promise(resolve=>setImmediate(resolve));document.querySelector('#exam-start').click();await tick();
   const buttons=[...document.querySelectorAll('.exam-record')];assert.equal(buttons.length,2);
   assert.match(buttons[0].textContent,/继续考试/);assert.match(buttons[1].textContent,/查看评分/);assert.doesNotMatch(document.querySelector('.exam-dialog').textContent,/查看成绩/);
-  buttons[0].click();await tick();buttons[1].click();await tick();assert.deepEqual(opened,[['exam','e1'],['exam','e2']]);
+  buttons[0].click();await tick();document.querySelector('#exam-start').click();await tick();document.querySelectorAll('.exam-record')[1].click();await tick();assert.deepEqual(opened,[['exam','e1'],['exam','e2']]);
 });
 
 test('a created exam that fails to open reports the error outside the closed settings dialog',async t=>{
-  const dom=new JSDOM('<div class="document-actions"></div>'),document=dom.window.document,errors=[],requests=[],opened=[];
+  const dom=page('<div class="document-actions"></div>'),document=dom.window.document,errors=[],requests=[],opened=[];
   dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
   const controls=bindExamMode({document,active:()=>({kind:'bank',id:'b',view:'practice',collection:{features:{exam:true}}}),makeRequestId:()=> 'create-once',collectionPath:(kind,id)=>`/api/collections/${kind}/${id}`,flush:async()=>{},request:async(path,options)=>{requests.push({path,options});return options?{id:'created-attempt'}:{records:[]};},open:async(kind,id)=>{opened.push([kind,id]);throw new Error('题卡加载失败');},refresh:async()=>{},onError:error=>errors.push(error)});
   t.after(()=>{controls.destroy();dom.window.close();});const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -85,7 +87,7 @@ test('a created exam that fails to open reports the error outside the closed set
 });
 
 async function deletionFixture(t,{rows=[{id:'attempt',status:'in-progress',startedAt:'2026-10-11T02:00:00Z',durationMinutes:60}],remove=async()=>({deleted:'attempt'})}={}){
-  const dom=new JSDOM('<div class="document-actions"></div>'),document=dom.window.document,requests=[],opened=[];
+  const dom=page('<div class="document-actions"></div>'),document=dom.window.document,requests=[],opened=[];
   dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new dom.window.Event('close'));};
   const controls=bindExamMode({document,active:()=>({kind:'bank',id:'b',view:'practice',collection:{features:{exam:true}}}),makeRequestId:()=> 'new-exam-request',collectionPath:(kind,id)=>`/api/collections/${kind}/${id}`,flush:async()=>{},request:async(path,options)=>{requests.push({path,options});if(!options)return {records:rows};return remove(path,options);},open:async(kind,id)=>opened.push([kind,id]),refresh:async()=>{},onError:error=>{throw error;}});
   t.after(()=>{controls.destroy();dom.window.close();});const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -123,7 +125,7 @@ test('a completed-while-confirming exam moves out of the dialog with a history e
 
 test('duration and unlimited controls keep their values after canceled deletion',async t=>{
   const f=await deletionFixture(t);const unlimited=f.document.querySelector('.exam-unlimited input'),duration=f.document.querySelector('#exam-duration');
-  duration.value='90';unlimited.checked=true;unlimited.dispatchEvent(new f.document.defaultView.Event('change'));assert.equal(duration.disabled,true);assert.match(f.document.querySelector('.exam-hint').textContent,/手动交卷/);
+  duration.value='90';duration.dispatchEvent(new f.document.defaultView.Event('input'));unlimited.checked=true;unlimited.dispatchEvent(new f.document.defaultView.Event('change'));await f.tick();assert.equal(duration.disabled,true);assert.match(f.document.querySelector('.exam-hint').textContent,/手动交卷/);
   f.remove();f.cancel();await f.tick();assert.equal(unlimited.checked,true);assert.equal(unlimited.disabled,false);assert.equal(duration.disabled,true);assert.equal(duration.value,'90');
-  unlimited.checked=false;unlimited.dispatchEvent(new f.document.defaultView.Event('change'));assert.equal(duration.disabled,false);assert.match(f.document.querySelector('.exam-hint').textContent,/自动交卷/);
+  unlimited.checked=false;unlimited.dispatchEvent(new f.document.defaultView.Event('change'));await f.tick();assert.equal(duration.disabled,false);assert.match(f.document.querySelector('.exam-hint').textContent,/自动交卷/);
 });
