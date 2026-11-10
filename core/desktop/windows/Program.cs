@@ -88,7 +88,10 @@ namespace QuizForge.Desktop
         // encoding must not depend on the Windows/OEM console code page.
         internal static void ConfigureConsoleEncoding()
         {
-            Console.OutputEncoding = new UTF8Encoding(false);
+            // A WinExe may have redirected streams but no console handle.
+            // Encode those streams explicitly without changing a console code page.
+            Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
+            Console.SetError(new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true });
         }
 
         [STAThread]

@@ -94,6 +94,12 @@ async function bankPackage(root, file) {
 
 test('launcher control output remains UTF-8 under non-Chinese code page 437', { skip: !supported }, async t => {
   const root = fs.mkdtempSync(path.join(work, '编码 中文 '));
+  // The shipped WinExe has no console handle; cover it as well as the
+  // console harness that can explicitly select a non-Chinese code page.
+  const real = await run(executable, ['--root', root, '--layout', '--no-browser'], { windowsHide: true, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(real.stdout), { programRoot: root, dataRoot: root, installed: false });
+  assert.equal(real.stderr, '');
+  await assert.rejects(run(executable, ['--no-browser', '--unsupported'], { windowsHide: true, encoding: 'utf8' }), error => error.code === 1 && /未知启动参数/.test(error.stderr));
   for (const entry of ['entry', 'run']) {
     const result = await run(encodingExecutable, [entry, '--root', root, '--layout', '--no-browser'], { windowsHide: true, encoding: 'utf8' });
     assert.match(result.stderr, /forcedOutputCodePage=437/);
