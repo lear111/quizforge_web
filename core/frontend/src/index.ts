@@ -1,3 +1,6 @@
+import HistoryPanel from './history/HistoryPanel.vue';
+import HistoryConfirmation from './history/HistoryConfirmation.vue';
+import { createHistoryList } from './history/history';
 import PracticeSummary from './practice-summary/PracticeSummary.vue';
 import { createPracticeSummary, type SummaryConfig } from './practice-summary/summary';
 import NetworkPanel from './network/NetworkPanel.vue';
@@ -148,4 +151,30 @@ export function mountPracticeSummary({ container, ...config }: SummaryConfig & {
   const manager = createPracticeSummary(config, model => render(h(PracticeSummary, { model, finish: manager.finish }), container));
   manager.initialize(); let destroyed = false;
   return { update: manager.update, destroy() { if (destroyed) return; destroyed = true; manager.destroy(); render(null, container); } };
+}
+
+export function mountHistoryList({ container, confirmationContainer, dialog, confirmation, isCurrent }: {
+  container: HTMLElement; confirmationContainer: HTMLElement; dialog: HTMLDialogElement; confirmation: HTMLDialogElement; isCurrent(): boolean;
+}) {
+  const manager = createHistoryList({
+    render(state) { render(h(HistoryPanel, { state, actions: manager }), container); render(h(HistoryConfirmation, { detail: state.detail, decide: manager.decide }), confirmationContainer); },
+    isCurrent, isOpen: () => dialog.open,
+    show: () => { if (!dialog.open) dialog.showModal(); }, close: () => { if (dialog.open) dialog.close(); },
+    showConfirmation: () => confirmation.showModal(), closeConfirmation: () => { if (confirmation.open) confirmation.close(); },
+    focus: () => { if (dialog.open) (container.querySelector<HTMLElement>('.history-row, .history-delete') || container.querySelector<HTMLElement>('#history-close'))?.focus(); },
+  });
+  const cancel = (event: Event) => { if (manager.busy) event.preventDefault(); };
+  const closed = () => { if (!dialog.open) manager.closed(); };
+  const cancelConfirmation = (event: Event) => { event.preventDefault(); manager.decide(false); };
+  const closedConfirmation = () => { if (!confirmation.open) manager.decide(false); };
+  dialog.addEventListener('cancel', cancel); dialog.addEventListener('close', closed);
+  confirmation.addEventListener('cancel', cancelConfirmation); confirmation.addEventListener('close', closedConfirmation);
+  manager.initialize(); let destroyed = false;
+  return { update: manager.update, error: manager.error, show: manager.show, get busy() { return manager.busy; },
+    destroy() {
+      if (destroyed) return; destroyed = true;
+      dialog.removeEventListener('cancel', cancel); dialog.removeEventListener('close', closed);
+      confirmation.removeEventListener('cancel', cancelConfirmation); confirmation.removeEventListener('close', closedConfirmation);
+      manager.destroy(); render(null, container); render(null, confirmationContainer);
+    } };
 }

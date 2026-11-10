@@ -11,6 +11,7 @@ import {createQuestionCache} from './practice/question-cache.js';
 import {navigateOutlineTarget} from './outline/outline-navigation.js';
 import {syncQuestionLayout,rememberDraftView,rememberDraftScroll} from './practice/question-layout.js';
 import {createHistoryView,historyProgress} from './history/history-view.js';
+import {bindHistoryList} from './history/history-list.js';
 import {createEditorSession} from './editor/editor-session.js';
 import {checkEditorExit,renderEditorStatus,bindEditorLeaveNotice,shouldWarnBeforeUnload} from './editor/editor-navigation.js';
 import {mountPracticeSummary} from './practice/practice-summary.js';
@@ -376,66 +377,29 @@ async function restartPractice(pane,summary){
 }
 const historyPath=pane=>`${collectionPath(pane.exam?.bankKind??pane.kind,pane.exam?.bankId??pane.id)}/history`;
 const historyTime=value=>new Date(value).toLocaleString('zh-CN',{hour12:false});
-let historyDeleting=false,historyDeleteDecision=null;
-function historyError(message=''){const node=$('#history-error');node.textContent=message;node.hidden=!message;}
-function confirmHistoryDelete(row){
-  $('#history-delete-detail').textContent=`${row.mode==='exam'?'考试 · ':''}${row.collectionTitle} · ${historyTime(row.createdAt)}`;
-  $('#history-delete-dialog').showModal();
-  return new Promise(resolve=>{historyDeleteDecision=resolve;});
-}
-function finishHistoryDelete(accepted){
-  const resolve=historyDeleteDecision;historyDeleteDecision=null;
-  $('#history-delete-dialog').close();resolve?.(accepted);
-}
-function setHistoryDeleting(busy){
-  historyDeleting=busy;$('#history-list').setAttribute('aria-busy',String(busy));
-  for(const button of $('#history-dialog').querySelectorAll('button'))button.disabled=busy;
-}
+const historyManager=bindHistoryList({document,onOpen:(pane,id)=>transitionTo(()=>showHistory(pane,id)),onDelete:(pane,id)=>transitionTo(async()=>{
+  try{await request(`${historyPath(pane)}/${encodeURIComponent(id)}`,{method:'DELETE'});}
+  catch(error){if(error.status!==404)throw error;}
+  await removeHistoryRecord(pane,id);
+})});
+function historyError(message='',pane){historyManager.error(message,pane);}
 async function removeHistoryRecord(pane,id){
-  pane.historyRecords=pane.historyRecords.filter(record=>record.id!==id);renderHistoryList(pane);setHistoryDeleting(true);
+  pane.historyRecords=pane.historyRecords.filter(record=>record.id!==id);renderHistoryList(pane);
   if(pane.view!=='history'||pane.historyEntry.id!==id)return;
   disposeScoreSummary(pane);
   pane.plugin?.destroy();pane.plugin=null;pane.view='history-deleted';
   pane.historyEntry=null;pane.historyView=null;pane.historyQuestion=null;pane.historyQuestionId=null;
   pane.frameHost.replaceChildren(el('p','list-empty','此历史记录已删除。可以选择其他记录或返回作答。'));
   pane.whiteboard.load(null);renderOutline();updateChrome();saveStatus('记录已删除');
-  try{await returnToPractice(pane);}catch(error){historyError(`记录已删除，但返回作答失败：${error.message}`);}
+  try{await returnToPractice(pane);}catch(error){historyError(`记录已删除，但返回作答失败：${error.message}`,pane);}
 }
-function renderHistoryList(pane){
-  const list=$('#history-list');list.replaceChildren();$('#history-title').textContent=`${pane.collection.title} · 历史记录`;
-  for(const row of pane.historyRecords){
-    const item=el('div','history-list-item'),button=el('button','history-row'),body=el('span','history-row-body'),remove=el('button','history-delete');
-    item.dataset.historyId=row.id;button.type='button';remove.type='button';
-    const title=el('strong','',row.collectionTitle);if(row.mode==='exam')title.append(el('span','history-exam-badge','考试'));
-    body.append(title,el('small','',`${historyTime(row.updatedAt||row.createdAt)} · ${historyProgress(row)}`));
-    button.append(body,el('span','history-score',`${row.summary?.score??row.score} / ${row.summary?.maxScore??row.maxScore}`));
-    remove.title='删除记录';remove.setAttribute('aria-label',`删除 ${historyTime(row.createdAt)} 的${row.mode==='exam'?'考试':''}历史记录`);
-    remove.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
-    button.addEventListener('click',()=>{if(historyDeleting)return;$('#history-dialog').close();transitionTo(()=>showHistory(pane,row.id));});
-    remove.addEventListener('click',async()=>{
-      if(historyDeleting)return;
-      historyError();setHistoryDeleting(true);
-      try{
-        if(!await confirmHistoryDelete(row))return;
-        await transitionTo(async()=>{
-          try{await request(`${historyPath(pane)}/${encodeURIComponent(row.id)}`,{method:'DELETE'});}
-          catch(error){if(error.status!==404)throw error;}
-          await removeHistoryRecord(pane,row.id);
-        });
-      }catch(error){historyError(error.code==='REQUEST_TIMEOUT'?'连接超时，请重新打开历史列表确认是否已删除。':`删除失败：${error.message}`);}
-      finally{setHistoryDeleting(false);($('#history-list').querySelector('.history-delete, .history-row')||$('#history-close')).focus();}
-    });
-    item.append(button,remove);list.append(item);
-  }
-  if(!pane.historyRecords.length)list.append(el('p','list-empty','还没有历史记录。练习提交后或考试完成后，会在这里保存记录。'));
-}
+function renderHistoryList(pane){historyManager.update(pane);}
 async function openHistoryList(pane){
-  if(!pane||!collectionFeature(pane,'history'))return;if(!await allowDiscardEditor(pane))return;await flushPane(pane);
+  if(!pane||!collectionFeature(pane,'history')||historyManager.busy)return;if(!await allowDiscardEditor(pane))return;await flushPane(pane);
   const value=await request(historyPath(pane));pane.historyRecords=value.records;
-  historyError();renderHistoryList(pane);
+  historyManager.prepare(pane);
   if(pane.view==='history'&&!value.records.some(row=>row.id===pane.historyEntry.id))await removeHistoryRecord(pane,pane.historyEntry.id);
-  setHistoryDeleting(false);
-  $('#history-dialog').showModal();
+  historyManager.show();
 }
 async function showHistory(pane,id){
   if(!collectionFeature(pane,'history'))return;
@@ -799,12 +763,6 @@ bindSaveRecovery({document,active,transitionTo,loadQuestion,showQuestion,saveInk
 $('#draft-toggle').addEventListener('click',()=>transitionTo(()=>toggleDraftMode()));
 questionStepper=bindPracticeNavigation({document,active,transitionTo,navigateQuestion,navigateOutlineTarget,showScoreSummary,renderOutline,closeDrawers,draftViewActive});
 for(const id of ['history-open','history-choose'])$(`#${id}`).addEventListener('click',()=>transitionTo(()=>openHistoryList(active())));
-$('#history-close').addEventListener('click',()=>$('#history-dialog').close());
-$('#history-dialog').addEventListener('cancel',event=>{if(historyDeleting)event.preventDefault();});
-$('#history-delete-cancel').addEventListener('click',()=>finishHistoryDelete(false));
-$('#history-delete-confirm').addEventListener('click',()=>finishHistoryDelete(true));
-$('#history-delete-dialog').addEventListener('cancel',event=>{event.preventDefault();finishHistoryDelete(false);});
-$('#history-delete-dialog').addEventListener('close',()=>{const resolve=historyDeleteDecision;historyDeleteDecision=null;resolve?.(false);});
 $('#return-practice').addEventListener('click',()=>transitionTo(()=>returnToPractice(active())));
 $('#edit-open').addEventListener('click',()=>transitionTo(()=>openEditor(active())));
 $('#edit-save').addEventListener('click',()=>transitionTo(()=>saveEditor(active())));
@@ -843,7 +801,7 @@ $('#access-form').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),practiceLifecycle.pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){practiceLifecycle.destroy();questionStepper.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){practiceLifecycle.destroy();questionStepper.destroy();historyManager.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);

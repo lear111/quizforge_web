@@ -91,10 +91,10 @@ test('real host write-queue busy callbacks release after success and failure, pr
 
 test('pagehide keeps BFCache state and disposes the coordinator only on actual departure',t=>{
   const f=fixture(t),source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');let otherDestroyed=0;
-  const disposable={destroy(){otherDestroyed++;}},sandbox={window:f.dom.window,practiceLifecycle:f.lifecycle,refreshCatalog:{client:{stop(){}}},questionStepper:disposable,destroyLibraryView(){},destroyOutlineView(){},document:f.document,libraryManager:disposable,appearanceSettings:disposable,networkSettings:disposable,aiSettings:disposable,userCenter:disposable,developmentSettings:disposable};
+  const disposable={destroy(){otherDestroyed++;}},sandbox={window:f.dom.window,practiceLifecycle:f.lifecycle,refreshCatalog:{client:{stop(){}}},questionStepper:disposable,historyManager:disposable,destroyLibraryView(){},destroyOutlineView(){},document:f.document,libraryManager:disposable,appearanceSettings:disposable,networkSettings:disposable,aiSettings:disposable,userCenter:disposable,developmentSettings:disposable};
   const start=source.indexOf("window.addEventListener('pagehide',event=>");vm.runInNewContext(source.slice(start,source.indexOf('\ndocument.addEventListener',start)),sandbox);
   f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:true}));f.lifecycle.setSaveStatus('retained');assert.equal(otherDestroyed,0);
-  f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:false}));f.lifecycle.setSaveStatus('late');assert.equal(f.document.getElementById('save-state').textContent,'retained');assert.equal(otherDestroyed,7);
+  f.dom.window.dispatchEvent(new f.dom.window.PageTransitionEvent('pagehide',{persisted:false}));f.lifecycle.setSaveStatus('late');assert.equal(f.document.getElementById('save-state').textContent,'retained');assert.equal(otherDestroyed,8);
 });
 
 for(const fail of [false,true])test('finishing practice holds unload protection until the real host operation settles: '+fail,async t=>{
