@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {mountWhiteboard} from '../../web/draft/whiteboard.js';
 import {emptyDraft} from '../../web/draft/whiteboard-model.js';
 import {syncQuestionLayout,draftHomeView,rememberDraftView,LEGACY_DRAFT_LAYOUT} from '../../web/practice/question-layout.js';
@@ -20,7 +21,7 @@ const hostSource=part('async function toggleDraftMode(', '\nfunction setEditorLa
 
 function frozen(value){for(const child of Object.values(value||{}))if(child&&typeof child==='object')frozen(child);return Object.freeze(value);}
 function fixture(t){
-  const dom=new JSDOM(html),{document}=dom.window;t.after(()=>dom.window.close());
+  const dom=new JSDOM(html,{runScripts:'outside-only'}),{document}=dom.window;loadVueUi(dom);t.after(()=>dom.window.close());
   dom.window.requestAnimationFrame=()=>1;dom.window.cancelAnimationFrame=()=>{};
   dom.window.ResizeObserver=class{observe(){}disconnect(){}};
   dom.window.HTMLCanvasElement.prototype.getContext=()=>({});

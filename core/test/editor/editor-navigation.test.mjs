@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {createEditorSession} from '../../web/editor/editor-session.js';
 import {checkEditorExit,renderEditorStatus,bindEditorLeaveNotice,shouldWarnBeforeUnload} from '../../web/editor/editor-navigation.js';
 
@@ -48,7 +49,7 @@ test('refreshing does not warn or save authoring edits; practice and in-flight s
 });
 
 test('top bar describes only the current question without replacing save errors',t=>{
-  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));t.after(()=>dom.window.close());const document=dom.window.document,f=editor();
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,f=editor();
   renderEditorStatus(document,f.pane);assert.equal(document.querySelector('#edit-save').textContent,'保存本题');assert.equal(document.querySelector('#edit-cancel').textContent,'取消编辑');
   assert.match(document.querySelector('#mode-label').textContent,/本题未修改/);f.form.changed=true;renderEditorStatus(document,f.pane);assert.match(document.querySelector('#mode-label').textContent,/本题修改未保存/);
   const status=document.querySelector('#save-state');status.textContent='network error';status.classList.add('error');renderEditorStatus(document,f.pane);assert.equal(status.textContent,'network error');
@@ -56,7 +57,7 @@ test('top bar describes only the current question without replacing save errors'
 });
 
 test('blocked navigation shows a return-only dialog and renders error text safely',t=>{
-  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));t.after(()=>dom.window.close());const document=dom.window.document,dialog=document.querySelector('#editor-leave-dialog');
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());const document=dom.window.document,dialog=document.querySelector('#editor-leave-dialog');
   dialog.showModal=()=>{dialog.open=true;};dialog.close=()=>{dialog.open=false;};const show=bindEditorLeaveNotice(document);
   show(new Error('<img src=x> 请先保存'));assert.equal(dialog.open,true);assert.equal(dialog.querySelector('img'),null);assert.equal(dialog.querySelectorAll('button').length,1);
   document.querySelector('#editor-leave-return').click();assert.equal(dialog.open,false);
@@ -97,6 +98,6 @@ test('directory operations reject current edits before flushing other panes or s
 });
 
 test('actual cancel-button handler explicitly requests discard, while navigation does not',()=>{
-  const line=source.split('\n').find(line=>line.startsWith("$('#edit-cancel').addEventListener"));assert.match(line,/discard:true/);
+  assert.match(source,/if\(command==='cancel'\)return returnToPractice\(pane,\{discard:true\}\)/);
   assert.doesNotMatch(source,/editor-drafts|persistEditorDraft|exportDraft|saveAll|editor-pending/);
 });
