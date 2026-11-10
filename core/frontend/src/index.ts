@@ -1,4 +1,6 @@
 import NetworkPanel from './network/NetworkPanel.vue';
+import UserCenterPanel from './user-center/UserCenterPanel.vue';
+import { createUserCenter, type UserConfig, type UserHooks } from './user-center/account';
 import AiSettingsPanel from './ai/AiSettingsPanel.vue';
 import { createAiSettings, type AiConfig, type AiFields } from './ai/settings';
 import { createNetworkSettings, type NetworkConfig, type NetworkDraft, type NetworkFields } from './network/settings';
@@ -54,6 +56,19 @@ export function mountAiChat({ container, request }: { container: HTMLElement; re
     cancel() { if (!disposed) panel.cancel(); },
     destroy() { if (!disposed) { disposed = true; app.unmount(); } },
   };
+}
+
+export function mountUserCenter({ container, panel, isOpen, show, close, openContact, closeContact, ...config }: UserConfig & Pick<UserHooks, 'isOpen' | 'show' | 'close' | 'openContact' | 'closeContact'> & { container: HTMLElement; panel: HTMLElement }) {
+  let component: { readCode(): string; clearCode(): void } | null = null;
+  const manager = createUserCenter(config, {
+    render(state) {
+      panel.setAttribute('aria-busy', String(state.busy));
+      const vnode = h(UserCenterPanel, { state, actions: manager }); render(vnode, container); component = vnode.component?.exposed as typeof component;
+    },
+    readCode: () => component!.readCode(), clearCode: () => component?.clearCode(), isOpen, show, close, openContact, closeContact,
+  });
+  manager.initialize(); let disposed = false;
+  return { open: manager.open, deactivate: manager.deactivate, destroy() { if (disposed) return; disposed = true; manager.destroy(); render(null, container); component = null; } };
 }
 
 export function mountAiSettings({ container, form, isOpen, show, close, ...config }: AiConfig & {
