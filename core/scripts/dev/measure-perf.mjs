@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { perfDraft } from './create-perf-fixture.mjs';
+import { perfDraft, perfAnswer } from './create-perf-fixture.mjs';
 
 const defaultServer = new URL('../../server/host/http/server.js', import.meta.url);
 export function summarizeSamples(samples) {
@@ -24,7 +24,7 @@ export async function measurePerf(seed, { runs = 3, timings = true, serverModule
   if (serverUrl.protocol !== 'file:') throw Error('Only a local server module is accepted');
   const { QuizForgeServer } = await import(serverUrl.href), codeRoot = fileURLToPath(new URL('../../../', serverUrl));
   const root = path.resolve(seed), fixture = JSON.parse(fs.readFileSync(path.join(root, 'perf-fixture.json'), 'utf8'));
-  if (fixture.fixture !== 'quizforge-perf-a1-v1') throw Error('Only the generated synthetic fixture is accepted');
+  if (fixture.fixture !== 'quizforge-perf-a1-v2') throw Error('Only the generated v2 synthetic fixture is accepted');
   if (!Number.isInteger(runs) || runs < 1 || runs > 30 || Object.values(counts).some(n => !Number.isInteger(n) || n < 1 || n > 20)) throw Error('Invalid benchmark counts');
   const samples = [];
   for (let run = 0; run < runs; run++) {
@@ -52,7 +52,7 @@ export async function measurePerf(seed, { runs = 3, timings = true, serverModule
         for (let i = 0; i < counts[operation]; i++) {
         const id = opened.questions[i].id, result = await request(operation, '/questions/' + id + '/actions', {
           action: operation, requestId: `perf-${operation}-${run}-${i}`, revision: revisions.get(id),
-          data: operation === 'whiteboard' ? { draft: perfDraft(120 + i) } : { answer: { value: 'A' } }
+          data: operation === 'whiteboard' ? { draft: perfDraft(120 + i) } : { answer: perfAnswer(i) }
         }); revisions.set(id, result.state.revision);
         }
         onProgress({ run: run + 1, operation });

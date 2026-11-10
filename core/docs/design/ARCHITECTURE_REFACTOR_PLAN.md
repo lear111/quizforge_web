@@ -274,4 +274,4 @@ npm --prefix core test
 
 | 任务卡 | PR | 状态 | 备注 |
 |---|---|---|---|
-| A1 | | 未开始 | |
+| A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | v2 修订完成，测试基线阻塞，未合并 | 计时实现审查通过；v2 数据与九轮对照见 PR，默认完整测试仍有 13 项既有失败 |

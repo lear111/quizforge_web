@@ -17,6 +17,7 @@
     "test": "node scripts/test/run.mjs",
     "test:host": "node scripts/test/run.mjs host",
     "test:rules": "node scripts/test/run.mjs rules",
+    "test:perf": "node scripts/test/run.mjs perf",
     "build:ui": "node scripts/build/build-ui.mjs",
     "typecheck:ui": "vue-tsc --project frontend/tsconfig.json --noEmit"
   },
