@@ -284,5 +284,7 @@ npm --prefix core test
 
 | 任务卡 | PR | 状态 | 备注 |
 |---|---|---|---|
-| A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | v2 修订完成，测试基线阻塞，未合并 | 计时实现审查通过；v2 数据与九轮对照见 PR，默认完整测试仍有 13 项既有失败 |
-| A2 | 独立 PR（`feat/architecture-a2-ci`） | CI 已配置，首次运行结果见 PR 描述 | 基于未合并的 A1；三项 job 的实际结果与基线对照在 PR 内报告，不修复测试基线 |
+| A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | 已合并 | 合并提交 `98b6d0a`；完整原始审查记录见 [reviews/A1.md](reviews/A1.md) |
+| A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
+| T1 | `fix/test-baseline-t1` | 夹具修复待审；保存提示文案断言阻塞 | [审查记录](reviews/T1.md)；生产代码不变，保留指定断言，未合并 |
+| T2 | 待建立 | 未开始 | Windows 中文输出调查及修复；等待 T1，未修改 CI shell 或生产编码 |
