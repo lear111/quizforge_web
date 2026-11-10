@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
-import {createQuestionStepper,stepTarget,adjacentQuestionIds,navigationShortcut,scheduleIdle} from '../../web/practice/question-navigation.js';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
+import {bindPracticeNavigation} from '../../web/practice/practice-navigation.js';
+import {adjacentQuestionIds,navigationShortcut,scheduleIdle} from '../../web/practice/question-navigation.js';
 import {createQuestionCache} from '../../web/practice/question-cache.js';
 import {visibleQuestions,navigationIndex,hasScoreSummary} from '../../web/practice/practice-context.js';
 import {questionExtension,collectionHasExtension,extensionPageRoute} from '../../web/bridge/extension-pages.js';
@@ -11,30 +13,6 @@ import {questionExtension,collectionHasExtension,extensionPageRoute} from '../..
 const source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 const part=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-
-test('steps requested during a loading switch merge into one navigation',async()=>{
-  const runs=[];let release;const gate=new Promise(resolve=>{release=resolve;});
-  let chain=Promise.resolve();
-  const stepper=createQuestionStepper(take=>{const run=chain.then(async()=>{runs.push(take());await gate;});chain=run;return run;});
-  const first=stepper.step(1);await tick();
-  assert.deepEqual(runs,[1]);
-  const second=stepper.step(1);stepper.step(1);stepper.step(-1);stepper.step(1);
-  assert.equal(second,stepper.step(0),'A zero step returns the scheduled run');
-  assert.equal(stepper.pending,2);
-  release();await first;await second;
-  assert.deepEqual(runs,[1,2]);assert.equal(stepper.pending,0);
-});
-
-test('step targets clamp to the first question and the summary slot',()=>{
-  assert.equal(stepTarget(0,-1,3),null);
-  assert.equal(stepTarget(0,5,3),2);
-  assert.equal(stepTarget(2,1,3),null);
-  assert.equal(stepTarget(2,1,3,{summary:true}),3);
-  assert.equal(stepTarget(3,-1,3,{summary:true}),2);
-  assert.equal(stepTarget(1,-4,3),0);
-  assert.equal(stepTarget(-1,1,3),null,'No relative step while the current card is unknown');
-  assert.equal(stepTarget(0,1,0),null);
-});
 
 test('adjacent questions list the next card before the previous one',()=>{
   const rows=['a','b','c','d'].map(id=>({id}));
@@ -116,14 +94,15 @@ test('exam prefetch reads the frozen exam page route',async()=>{
 });
 
 test('arrow keys and buttons share the merged stepper and reach the score summary',async t=>{
-  const dom=new JSDOM(`<body><button id="previous"></button><button id="next"></button><button id="history-open"></button></body>`);t.after(()=>dom.window.close());
+  const dom=new JSDOM(`<body><button id="previous"></button><button id="next"></button><button id="history-open"></button></body>`,{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());
   const document=dom.window.document,seen=[];let transition=Promise.resolve();
   const pane={view:'practice',questionId:'a',collection:{questions:[{id:'a'},{id:'b'},{id:'c'}]}};
-  const sandbox={document,$:selector=>document.querySelector(selector),active:()=>pane,createQuestionStepper,stepTarget,navigationShortcut,visibleQuestions,navigationIndex,hasScoreSummary,draftViewActive:()=>false,
+  const sandbox={document,$:selector=>document.querySelector(selector),active:()=>pane,bindPracticeNavigation,navigateOutlineTarget(){},renderOutline(){},closeDrawers(){},draftViewActive:()=>false,
     transitionTo:fn=>{const run=transition.then(fn);transition=run.catch(()=>{});return run;},
     navigateQuestion:async(target,qid)=>{seen.push(qid);target.questionId=qid;},
     showScoreSummary:async target=>{seen.push('summary');target.summaryShown=true;target.view='summary';}};
-  vm.runInNewContext(part('const questionStepper=',"\nfor(const id of ['history-open'"),sandbox);
+  vm.runInNewContext(part('questionStepper=bindPracticeNavigation',"\nfor(const id of ['history-open'"),sandbox);
+  t.after(()=>sandbox.questionStepper.destroy());
   for(let index=0;index<3;index++)document.body.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
   await transition;
   assert.deepEqual(seen,['summary'],'Three quick presses jump straight to the summary');

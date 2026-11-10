@@ -1,26 +1,3 @@
-// Relative question steps. Presses that arrive while an earlier switch is
-// loading are merged, so holding a key jumps once instead of mounting every
-// intermediate card.
-export function createQuestionStepper(run){
-  let pending=0,scheduled=null;
-  const take=()=>{const offset=pending;pending=0;scheduled=null;return offset;};
-  return {
-    step(offset){
-      if(!Number.isInteger(offset)||!offset)return scheduled||Promise.resolve();
-      pending+=offset;
-      return scheduled ||= run(take);
-    },
-    get pending(){return pending;},
-  };
-}
-
-// Index of a relative step: the summary sits after the last question.
-export function stepTarget(index,offset,count,{summary=false}={}){
-  if(index<0||!count||!offset)return null;
-  const target=Math.max(0,Math.min(summary?count:count-1,index+offset));
-  return target===index?null:target;
-}
-
 // Next first: forward is the usual direction while practicing.
 export function adjacentQuestionIds(rows,index,radius=1){
   const ids=[];

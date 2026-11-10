@@ -9,6 +9,7 @@ import {visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor} from '../..
 import {consecutiveQuestionGroups} from '../../web/outline/outline-groups.js';
 import {navigateOutlineTarget} from '../../web/outline/outline-navigation.js';
 import {createHistoryView} from '../../web/history/history-view.js';
+import {bindPracticeNavigation} from '../../web/practice/practice-navigation.js';
 
 const source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 const part=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
@@ -27,6 +28,10 @@ function fixture(t){
   };
   vm.runInNewContext(`${hostSource}\nglobalThis.host={renderOutline};`,sandbox);
   const host=sandbox.host;
+  sandbox.questionStepper=bindPracticeNavigation({document:dom.window.document,active:sandbox.active,
+    transitionTo:fn=>sandbox.transitionTo(fn),navigateQuestion:(...args)=>sandbox.navigateQuestion(...args),navigateOutlineTarget,
+    showScoreSummary:(...args)=>sandbox.showScoreSummary(...args),renderOutline:host.renderOutline,closeDrawers(){},draftViewActive:()=>false});
+  t.after(()=>sandbox.questionStepper.destroy());
   function add(id){
     const node=dom.window.document.createElement('section');dom.window.document.querySelector('#panes').append(node);
     const pane={id,key:`bank:${id}`,kind:'bank',node,closed:false,view:'practice',questionId:'a',
