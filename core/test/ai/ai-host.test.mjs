@@ -1,3 +1,4 @@
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -55,7 +56,7 @@ for(const method of ['ai-grade','ai-retry'])test(`an immediately confirmed ${met
 });
 
 async function fixture(request){
-  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'));
+  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);
   const document=dom.window.document,dialog=document.getElementById('network-settings-dialog');dialog.open=true;dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
   const ui=bindAiSettings({request,document});
   return {ui,document,dom,get:id=>document.getElementById(`ai-settings-${id}`)};
@@ -195,7 +196,7 @@ test('checking the custom model without a saved address shows the fields and wai
 });
 
 test('choosing the free quota while logged out opens the login dialog; cancelling unchecks it, logging in saves it and shows the points',async()=>{
-  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'));
+  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);
   const document=dom.window.document,dialog=document.getElementById('network-settings-dialog');dialog.open=true;dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
   let connected=false,timers=[];const opened=[],bodies=[];
   const request=async(path,options)=>{
@@ -229,7 +230,7 @@ test('remote devices see the sources but cannot change them or log in',async()=>
 });
 
 async function userCenter(request){
-  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'));
+  const dom=new JSDOM(await readFile(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});loadVueUi(dom);
   const document=dom.window.document,dialog=document.getElementById('network-settings-dialog');dialog.open=true;dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
   const timers=[],login=createHubLogin({request,document,openWindow:()=>{},setTimer:fn=>{timers.push(fn);return timers.length;},clearTimer:()=>{}});
   const ui=bindUserCenter({request,login,document});
