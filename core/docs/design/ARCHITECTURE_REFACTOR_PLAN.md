@@ -309,7 +309,7 @@ npm --prefix core test
 |---|---|---|---|
 | A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | 已合并 | 合并提交 `98b6d0a`；完整原始审查记录见 [reviews/A1.md](reviews/A1.md) |
 | A2 | [#41](https://github.com/lear111/quizforge_web/pull/41) | 已合并 | 合并提交 `6b7c2c2`；改基后仅含 CI 与文档；仅 PR 事件取消旧运行，main push 不取消 |
-| T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 审查通过，文案修订待 CI | [审查记录](reviews/T1.md)；前轮 CI 记录保留；现行文案断言已更新，待本轮 CI 后合并；生产代码不变 |
+| T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 审查通过，满足合并条件 | [审查记录](reviews/T1.md)；CI：Ubuntu 全绿、Windows 仅原有 19 项、perf 通过；现行文案断言通过，生产代码不变 |
 | T2 | 待建立 | 未开始 | Windows 中文输出调查及修复；等待 T1，未修改 CI shell 或生产编码 |
 | B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
