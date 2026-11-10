@@ -41,6 +41,17 @@ node core/server/main.mjs --root . --port 8787
 
 ## 验证改动
 
+PR 需要 GitHub Actions CI 通过，以 CI 结果为准；CI 在 Windows 和 Ubuntu 上检查 Node.js 24，性能测试另在 Ubuntu 独立运行。对应的本地四条命令如下；安装时保留 `--ignore-scripts`，不要通过跳过测试或忽略退出码掩盖失败。
+
+```powershell
+npm --prefix core ci --ignore-scripts
+npm --prefix core run typecheck:ui
+npm --prefix core run build:ui -- --check
+npm --prefix core test
+```
+
+独立性能测试命令为 `npm --prefix core run test:perf`。CI 失败时会上传命令输出日志，保留 7 天；在 PR 中如实列出失败和环境差异。
+
 在仓库根目录执行：
 
 ```powershell
