@@ -1,4 +1,6 @@
 import NetworkPanel from './network/NetworkPanel.vue';
+import DevelopmentPanel from './development/DevelopmentPanel.vue';
+import { createDevelopmentSettings, type DevelopmentConfig, type DevelopmentHooks } from './development/settings';
 import UserCenterPanel from './user-center/UserCenterPanel.vue';
 import { createUserCenter, type UserConfig, type UserHooks } from './user-center/account';
 import AiSettingsPanel from './ai/AiSettingsPanel.vue';
@@ -56,6 +58,15 @@ export function mountAiChat({ container, request }: { container: HTMLElement; re
     cancel() { if (!disposed) panel.cancel(); },
     destroy() { if (!disposed) { disposed = true; app.unmount(); } },
   };
+}
+
+export function mountDevelopmentSettings({ container, form, isOpen, show, close, ...config }: DevelopmentConfig & Pick<DevelopmentHooks, 'isOpen' | 'show' | 'close'> & { container: HTMLElement; form: HTMLFormElement }) {
+  const manager = createDevelopmentSettings(config, {
+    render(state) { form.setAttribute('aria-busy', String(state.busy)); render(h(DevelopmentPanel, { state, actions: manager }), container); },
+    isOpen, show, close,
+  });
+  manager.initialize(); let disposed = false;
+  return { open: manager.open, deactivate: manager.deactivate, destroy() { if (disposed) return; disposed = true; manager.destroy(); render(null, container); form.setAttribute('aria-busy', 'false'); } };
 }
 
 export function mountUserCenter({ container, panel, isOpen, show, close, openContact, closeContact, ...config }: UserConfig & Pick<UserHooks, 'isOpen' | 'show' | 'close' | 'openContact' | 'closeContact'> & { container: HTMLElement; panel: HTMLElement }) {
