@@ -1,25 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {bindNetworkSettings} from '../../web/shell/network-settings.js';
 
+const html=readFileSync(new URL('../../web/index.html',import.meta.url),'utf8');
+const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 function fixture(request,options={}) {
-  class Element {
-    constructor(){this.listeners=new Map();this.value='';this.checked=false;this.open=false;this.attributes={};this.children=[];}
-    addEventListener(name,handler){this.listeners.set(name,handler);}
-    removeEventListener(name){this.listeners.delete(name);}
-    setAttribute(name,value){this.attributes[name]=value;}
-    replaceChildren(){this.children=[];}
-    append(...nodes){this.children.push(...nodes);}
-    showModal(){this.open=true;}
-    close(){this.open=false;}
-    focus(){this.focused=true;}
-    emit(name,event={preventDefault(){}}){return this.listeners.get(name)?.(event);}
-  }
-  const nodes=new Map();
-  const document={getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},createElement:()=>new Element()};
+  const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only'}),document=dom.window.document;
+  loadVueUi(dom);
+  const dialog=document.getElementById('network-settings-dialog');dialog.showModal=()=>{dialog.open=true;};dialog.close=()=>{dialog.open=false;dialog.dispatchEvent(new dom.window.Event('close'));};
+  dom.window.HTMLElement.prototype.emit=async function(name,event={}) {
+    const next=new dom.window.Event(name,{bubbles:true,cancelable:true});
+    this.dispatchEvent(next);if(next.defaultPrevented)event.preventDefault?.();await flush();
+  };
+  Object.defineProperty(dom.window.HTMLElement.prototype,'focused',{get(){return document.activeElement===this;}});
   const copied=[];
   const view=bindNetworkSettings({request,document,clipboard:{writeText:async value=>{copied.push(value);}},...options});
-  return {view,copied,node:id=>nodes.get(`network-settings-${id}`)};
+  const destroy=view.destroy;view.destroy=()=>{destroy();dom.window.close();};
+  return {view,copied,node:id=>document.getElementById(`network-settings-${id}`)};
 }
 
 test('network save preserves exact password, locks repeated save and Escape, then clears secret',async()=>{
@@ -40,13 +40,13 @@ test('network save preserves exact password, locks repeated save and Escape, the
   assert.equal(blocked,true);assert.equal(f.node('save').disabled,true);
   assert.equal(calls,1);assert.equal(flushes,1);
   assert.deepEqual(submitted,{enabled:true,publicEnabled:false,publicUrl:'',port:8790,password:'  secret88  '});
-  release();await pending;
+  release();await pending;await flush();
   assert.equal(f.node('password').value,'');assert.equal(f.node('save').disabled,false);
   assert.equal(f.node('lan-urls').children[0].children[0].textContent,'http://192.168.1.2:8790/');
   f.view.destroy();
 });
 
-const urlsOf=(f,key)=>f.node(`${key}-urls`).children.map(line=>line.children[0].textContent);
+const urlsOf=(f,key)=>[...f.node(`${key}-urls`).children].map(line=>line.children[0].textContent);
 
 test('outside switch needs the shared password; the custom address is optional but validated',async()=>{
   let saves=0,submitted;
@@ -59,7 +59,7 @@ test('outside switch needs the shared password; the custom address is optional b
   await f.view.open();
   assert.match(f.node('custom-note').textContent,/开启“外网连接”后可用/);
   f.node('public-enabled').checked=true;f.node('public-enabled').emit('change');
-  assert.equal(f.node('password').required,true);assert.equal(f.node('public-url').required,undefined,'the custom address is never required');
+  assert.equal(f.node('password').required,true);assert.equal(f.node('public-url').required,false,'the custom address is never required');
   await f.node('form').emit('submit');assert.equal(saves,0);assert.equal(f.node('password').focused,true);
   f.node('password').value='secret-password';
   await f.node('form').emit('submit');assert.equal(saves,1,'saving works without any typed address');

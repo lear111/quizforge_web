@@ -835,7 +835,7 @@ async function refreshExam(pane,exam){
   }
   if(active()===pane)updateChrome();
 }
-bindNetworkSettings({request,beforeSave:()=>transitionTo(async()=>{for(const pane of collections.values())await flushPane(pane);})});
+const networkSettings=bindNetworkSettings({request,beforeSave:()=>transitionTo(async()=>{for(const pane of collections.values())await flushPane(pane);})});
 bindDevelopmentSettings({request,beforeSave:settings=>transitionTo(()=>prepareDevelopmentSettings(settings)),onSaved:settings=>transitionTo(async()=>{for(const pane of collections.values())if(pane.development&&settings.enabled)pane.developmentWatcher?.invalidate();await refreshCatalog();})});
 document.addEventListener('quizforge-auth-required',()=>{const dialog=$('#access-dialog');if(!dialog.open)dialog.showModal();});
 $('#access-form').addEventListener('submit',async event=>{
@@ -846,7 +846,7 @@ $('#access-form').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){destroyLibraryView(document);libraryManager.destroy();appearanceSettings.destroy();}});
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){destroyLibraryView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();}});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);

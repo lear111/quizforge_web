@@ -1,3 +1,5 @@
+import NetworkPanel from './network/NetworkPanel.vue';
+import { createNetworkSettings, type NetworkConfig, type NetworkDraft, type NetworkFields } from './network/settings';
 import { createApp, h, render } from 'vue';
 import AppearancePanel from './appearance/AppearancePanel.vue';
 import { createAppearanceSettings, type AppearanceConfig } from './appearance/settings';
@@ -58,4 +60,24 @@ export function mountAppearanceSettings({ container, ...config }: AppearanceConf
   const ready = manager.initialize();
   return { ready, get value() { return manager.value; }, clearError: manager.clearError,
     destroy() { manager.destroy(); render(null, container); } };
+}
+
+// The host owns the stable native form/dialog, Vue owns only its contents.
+export function mountNetworkSettings({ container, form, dialog, closeButton, copy, ...config }: NetworkConfig & {
+  container: HTMLElement; form: HTMLFormElement; dialog: HTMLDialogElement; closeButton: HTMLButtonElement; copy(value: string): Promise<unknown>;
+}) {
+  let component: { readFields(): NetworkFields; readDraft(): NetworkDraft; clearPassword(): void; focus(target: string): void } | null = null;
+  const manager = createNetworkSettings(config, {
+    render(state) {
+      form.setAttribute('aria-busy', String(state.loading || state.saving)); closeButton.disabled = state.saving;
+      const vnode = h(NetworkPanel, { state, actions: manager, copy }); render(vnode, container);
+      component = vnode.component?.exposed as typeof component;
+    },
+    readFields: () => component!.readFields(), readDraft: () => component!.readDraft(), clearPassword: () => component?.clearPassword(), focus: target => component?.focus(target),
+    isOpen: () => dialog.open, show: () => dialog.showModal(), close: () => dialog.close(),
+  });
+  manager.initialize();
+  let disposed = false;
+  return { open: manager.open, refresh: manager.refresh, save: manager.save, close: manager.close, closed: manager.closed,
+    get saving() { return manager.saving; }, destroy() { if (disposed) return; disposed = true; manager.destroy(); render(null, container); component = null; closeButton.disabled = false; } };
 }
