@@ -66,6 +66,7 @@ export async function runHistoryAiScenario(codeRoot,{memory=false,observe=()=>{}
       } else {
         await finish();const seed=cloneJson(store.load(collection)),q=seed.questions.q1;
         Object.assign(q,{aiTaskId:'a'.repeat(64),aiTaskIds:{p0:'b'.repeat(64)},aiTargetGenerations:{p0:1},submissionGeneration:1,gradingGeneration:2,answerState:{status:'draft',outlineStates:[{id:'p0',status:'draft'}]},outlineStates:[{id:'p0',status:'correct'}],receipts:[{id:'optional-old',request:{requestId:'optional-old'},response:{saved:true}}]});
+        for(const field of ['aiTaskId','aiTaskIds','aiTargetGenerations','submissionGeneration','gradingGeneration','answerState','outlineStates','receipts'])assert.ok(Object.hasOwn(q,field),'optional coverage missing '+field);
         if(name==='allOptionalDraft'){q.status='draft';q.result=null;}
         q.draft={schemaVersion:1,viewport:{x:0,y:0,zoom:1},paper:{color:'#ffffff',pattern:'plain'},strokes:[{id:'optional-ink',color:'#334455',width:2,points:[{x:1,y:2,pressure:0.5}]}]};
         store.commit(collection,seed);

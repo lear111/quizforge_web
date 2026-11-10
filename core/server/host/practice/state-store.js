@@ -218,7 +218,7 @@ export class StateStore {
   // Borrowed views never leave these private history builders. Public helpers,
   // response values and rule inputs retain their defensive-copy boundary.
   #unsubmittedView(state) {
-    const value = projectJson(state, ['status', 'revision', 'answer', 'result', 'answerState', 'draft']);
+    const value = projectJson(state, ['status', 'revision', 'answer', 'result', 'answerState', 'draft', 'aiTaskId', 'aiTaskIds']);
     if (state.status === 'submitted') delete value.answerState;
     value.status = value.answer === null ? 'unanswered' : 'draft'; value.result = null; return value;
   }
@@ -230,27 +230,13 @@ export class StateStore {
     else if (persisted.upgradedCompletion === source) persisted.upgradedCompletion = round;
     return round;
   }
-  #summarizeRound(round) {
-    const scores = [], maxima = [], states = {}; let submitted = 0, graded = 0, pending = 0;
-    for (const {payload} of round.questions) {
-      ownSet(states, payload.question.id, payload.state);
-      if (payload.state.status !== 'submitted') continue;
-      submitted++; maxima.push(payload.state.result.maxScore);
-      if (gradingStatus(payload.state.result) === 'pending') pending++;
-      else { graded++; scores.push(payload.state.result.score); }
-    }
-    Object.assign(round, {questionCount: round.questions.length, submittedCount: submitted, gradedCount: graded, pendingCount: pending, score: round.summary?.score ?? decimalSum(scores), maxScore: round.summary?.maxScore ?? decimalSum(maxima)});
-    round.collection.states = states;
-    if (!round.explicitCompletion && round.status === 'in-progress' && submitted === round.questions.length && pending === 0) round.status = 'completed';
-    return round;
-  }
   async #freezeRoundValue(collection, persisted, states, borrowDraft) {
     const now = new Date().toISOString(), round = { schemaVersion: 2, id: randomUUID(), createdAt: now, updatedAt: now, status: 'in-progress', explicitCompletion: true, legacy: false, incomplete: false, questionCountKnown: true, collectionTitle: collection.title, extensionFingerprint: collection.extensionFingerprint, fingerprints: Object.fromEntries(collection.questions.map(question => [question.id, question.fingerprint])), questions: [] };
     this.freezePages(round, collection); round.collection = await this.overviewValue(collection, persisted);
     const projected = await runRuleBatches(this.rules, collection.questions, 'projectBatch', 'projected', collection.questions.map((question, index) => ({ data: question.data, state: { submitted: states[index].status === 'submitted', result: borrowDraft ? cloneJson(states[index].result) : states[index].result } })));
     const visible = await this.publicStates(collection, collection.questions, states);
     for (let i = 0; i < collection.questions.length; i++) round.questions.push({ ...this.historyEntry(collection, collection.questions[i]), payload: await this.#responseValue(collection, collection.questions[i], states[i], projected[i], visible[i], borrowDraft) });
-    return borrowDraft ? this.#summarizeRound(round) : summarize(round);
+    return summarize(round, { borrowState: borrowDraft });
   }
   async unsubmittedHistoryStates(collection, persisted, round, skip = null) {
     const questions = round.questions.filter(entry => entry.payload.question.id !== skip && entry.payload.state.status !== 'submitted').map(entry => collection.question(entry.payload.question.id));
@@ -274,11 +260,11 @@ export class StateStore {
       }
       active.updatedAt = new Date().toISOString();
     }
-    active.explicitCompletion = true; this.#summarizeRound(active);
+    active.explicitCompletion = true; summarize(active, { borrowState: true });
   }
   recordReview(collection, question, persisted, reviewed) {
     const active = this.#ownRound(persisted, activeRound(persisted)), index = active.questions.findIndex(entry => entry.payload.question.id === question.id), entry = shallowCopyJson(active.questions[index]), title = entry.payload.question.title;
-    active.questions[index] = entry; entry.payload = cloneJson(reviewed); entry.payload.question.title = title; active.updatedAt = new Date().toISOString(); this.#summarizeRound(active);
+    active.questions[index] = entry; entry.payload = cloneJson(reviewed); entry.payload.question.title = title; active.updatedAt = new Date().toISOString(); summarize(active, { borrowState: true });
   }
   summaryRound(persisted, collection) {
     const active = activeRound(persisted); if (active) return roundCompatible(active, collection) ? active : null;
@@ -383,7 +369,7 @@ export class StateStore {
       for (let i = 0; i < collection.questions.length; i++) { const entry = shallowCopyJson(round.questions[i]), payload = shallowCopyJson(entry.payload), question = collection.questions[i]; entry.payload = payload; round.questions[i] = entry; if (payload.state.status !== 'submitted') payload.state = visible[question.id]; payload.draft = questionState(replacement, collection, question).draft; }
     }
     const now = new Date().toISOString(); Object.assign(round, { explicitCompletion: true, status: 'completed', finishedAt: now, updatedAt: now, completionVersions: Object.fromEntries(collection.questions.map(question => [question.id, questionState(replacement, collection, question).revision])) });
-    const saved = cloneJson(current); delete saved.summaryVersion; Object.assign(saved, { roundId: round.id, finished: true, status: 'completed' }); round.summary = saved; this.#summarizeRound(round);
+    const saved = cloneJson(current); delete saved.summaryVersion; Object.assign(saved, { roundId: round.id, finished: true, status: 'completed' }); round.summary = saved; summarize(round, { borrowState: true });
     const result = { ...cloneJson(saved), historyId: this.memoryOnly ? null : round.id, summaryVersion: this.summaryVersion(collection, replacement, saved) };
     const receipts = replacement.finishReceipts = replacement.finishReceipts ? shallowCopyJson(replacement.finishReceipts) : []; receipts.push({ id: key, request: cloneJson(request), response: cloneJson(result) }); retainReceipts(receipts); this.commit(collection, replacement); return result;
   }

@@ -54,7 +54,7 @@ npm --prefix core test
 
 状态兼容性由 `core/test/practice/state-golden.test.mjs` 长期验证：当前实现执行固定动作序列，以 `Buffer.equals` 对比 d3505cf 生成的标准答案。后续任务卡若有意改变持久化输出，必须在同一 PR 更新标准答案、记录生成命令与 SHA-256，并解释具体变更原因；不能仅为通过检查而重录。生成方式和覆盖范围见 [B2 审查记录](core/docs/design/reviews/B2.md)。
 
-磁盘与内存模式分别对比各自的标准答案；内存文件的生成命令及其与磁盘文件的既有差异见 [B2-2 审查记录](core/docs/design/reviews/B2-2.md)。上述更新要求对两份标准答案同样适用。
+磁盘与内存模式分别对比各自的标准答案；内存文件的生成命令及其与磁盘文件的既有差异见 [B2-2 审查记录](core/docs/design/reviews/B2-2.md)。上述更新要求对全部标准答案同样适用，包括第二个 AI 历史轮次场景的 `history-ai-disk-d3505cf.json` 和 `history-ai-memory-d3505cf.json`，不得只为测试变绿而重新生成。
 
 在仓库根目录执行：
 
