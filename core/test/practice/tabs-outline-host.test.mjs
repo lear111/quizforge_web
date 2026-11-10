@@ -1,3 +1,4 @@
+import {bindPracticeLifecycle} from '../../web/practice/practice-lifecycle.js';
 import {renderOutlineView} from '../../web/outline/outline-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,6 +27,9 @@ function fixture(t){
     showScoreSummary(){},navigateQuestion(){},closeDrawers(){},
     el:(tag,className,text)=>{const node=dom.window.document.createElement(tag);node.className=className||'';if(text!=null)node.textContent=text;return node;},
   };
+  sandbox.practiceLifecycle=bindPracticeLifecycle({document:dom.window.document,panes:()=>collections.values(),notice:sandbox.notice,failure:sandbox.failure,updateChrome:()=>sandbox.updateChrome(),renderRecovery:()=>sandbox.renderRecovery()});
+  Object.defineProperty(sandbox,'transition',{get:()=>sandbox.practiceLifecycle.settled()});
+  t.after(()=>sandbox.practiceLifecycle.destroy());
   vm.runInNewContext(`${hostSource}\nglobalThis.host={renderOutline};`,sandbox);
   const host=sandbox.host;
   sandbox.questionStepper=bindPracticeNavigation({document:dom.window.document,active:sandbox.active,

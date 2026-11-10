@@ -38,6 +38,7 @@ import {bindSaveRecovery} from './practice/save-recovery.js';
 import {bindAppearanceSettings} from './shell/appearance.js';
 import {adjacentQuestionIds,scheduleIdle} from './practice/question-navigation.js';
 import {bindPracticeNavigation} from './practice/practice-navigation.js';
+import {bindPracticeLifecycle} from './practice/practice-lifecycle.js';
 
 const $=selector=>document.querySelector(selector);
 const catalog={banks:[],extensions:[],groups:{banks:[],extensions:[]},canManage:false,developmentEnabled:false},collections=new Map();
@@ -50,13 +51,14 @@ const sidebarPreferences={library:true,outline:true};
 try{const saved=JSON.parse(localStorage.getItem('quizforge-sidebars')||'{}');for(const key of Object.keys(sidebarPreferences))if(typeof saved[key]==='boolean')sidebarPreferences[key]=saved[key];}catch{}
 const libraryDrawer=matchMedia('(max-width:800px)'),outlineDrawer=matchMedia('(max-width:1100px)');
 const phoneLayout=matchMedia('(max-width:600px)');
-let listMode='bank',activeKey=null,pendingLibraryKey=null,transition=Promise.resolve(),pendingWrites=0,questionStepper=null;
+let listMode='bank',activeKey=null,pendingLibraryKey=null,questionStepper=null;
 const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;};
 // Apply the saved appearance before the first question renders.
 const appearanceSettings=bindAppearanceSettings({document});
 function notice(message){$('#notice').textContent=message||'';$('#notice').hidden=!message;}
 function failure(error){notice(error.message||String(error));if(error.code==='UNSAVED_EDITOR_CHANGES')showEditorLeaveNotice(error);}
-function transitionTo(fn){const run=transition.then(async()=>{notice('');$('#previous').disabled=true;$('#next').disabled=true;try{return await fn();}finally{for(const pane of collections.values())pane.node.inert=false;updateChrome();renderRecovery();}});transition=run.catch(()=>{});run.catch(failure);return run;}
+const practiceLifecycle=bindPracticeLifecycle({document,panes:()=>collections.values(),notice,failure,updateChrome:()=>updateChrome(),renderRecovery:()=>renderRecovery()});
+function transitionTo(fn){return practiceLifecycle.transition(fn);}
 const active=()=>collections.get(activeKey);
 const showEditorLeaveNotice=bindEditorLeaveNotice(document);
 const draftFullscreen=createDraftFullscreen(document,{
@@ -65,7 +67,7 @@ const draftFullscreen=createDraftFullscreen(document,{
   onError:failure,
 });
 function disposeScoreSummary(pane){pane.summaryCard?.destroy();pane.summaryCard=null;pane.summaryShown=false;pane.node.classList.remove('is-summary');}
-function saveStatus(text,type=''){const node=$('#save-state');node.textContent=text;node.className=`save-state ${type}`;}
+function saveStatus(text,type=''){practiceLifecycle.setSaveStatus(text,type);}
 const questionCacheKey=(pane,qid)=>`${pane.key}:${qid}`;
 async function loadQuestion(pane,qid,{fresh=false}={}){
   const key=questionCacheKey(pane,qid);if(fresh)questionsCache.delete(key);
@@ -80,7 +82,7 @@ async function loadQuestion(pane,qid,{fresh=false}={}){
 function makeWriteQueue(pane){return createWriteQueue({
     makeRequestId,revisionFor:qid=>stateFor(pane,qid).revision,
     send:(qid,body)=>{if(pane.closed)throw new Error('题库页面已关闭');return request(`${questionPath(pane.kind,pane.id,qid)}/actions`,{method:'POST',body:JSON.stringify(body)});},
-    onBusy:busy=>{pendingWrites+=busy?1:-1;if(busy&&active()===pane)saveStatus(collectionFeature(pane,'history')?'保存中…':'当前会话','saving');},
+    onBusy:busy=>{practiceLifecycle.setWriteBusy(pane,busy);if(busy&&active()===pane)saveStatus(collectionFeature(pane,'history')?'保存中…':'当前会话','saving');},
     onSaved:(qid,action,value)=>{
       questionsCache.set(questionCacheKey(pane,qid),value);
       pane.collection.states[qid]=value.state;
@@ -333,7 +335,7 @@ async function showScoreSummary(pane){
 async function finishPractice(pane,summary){
   if (summary.answeredUnsubmittedCount > 0 && !confirm(`还有 ${summary.answeredUnsubmittedCount} 道已作答题目未提交，完成练习将统一提交评分。是否继续？`)) return summary;
   return transitionTo(async()=>{
-    pane.loading=true;pendingWrites++;pane.node.inert=true;updateChrome();saveStatus(collectionFeature(pane,'history')?'保存中…':'当前会话 · 正在完成','saving');
+    pane.loading=true;const finishWrite=practiceLifecycle.beginWrite();pane.node.inert=true;updateChrome();saveStatus(collectionFeature(pane,'history')?'保存中…':'当前会话 · 正在完成','saving');
     try{
       if(!pane.finishRequest||pane.finishRequest.summaryVersion!==summary.summaryVersion)pane.finishRequest={requestId:makeRequestId(),roundId:summary.roundId,summaryVersion:summary.summaryVersion};
       const value=await request(`${collectionPath(pane.kind,pane.id)}/finish`,{method:'POST',body:JSON.stringify(pane.finishRequest),timeoutMs:135000});
@@ -345,13 +347,13 @@ async function finishPractice(pane,summary){
         try{const value=await request(`${collectionPath(pane.kind,pane.id)}/summary`);pane.scoreSummary=value;pane.summaryCard.update(value);pane.finishRequest=null;error.message='练习数据已更新，已刷新分值，请再次确认完成。';}catch{/* Keep the displayed summary until the server can be read. */}
       }
       saveStatus('完成练习未保存','error');throw error;
-    }finally{pane.loading=false;pendingWrites--;}
+    }finally{pane.loading=false;finishWrite();}
   });
 }
 async function restartPractice(pane,summary){
   return transitionTo(async()=>{
     if(pane.closed||pane.view!=='summary')return;
-    pane.loading=true;pendingWrites++;pane.node.inert=true;updateChrome();saveStatus('正在开始新一轮…','saving');
+    pane.loading=true;const finishWrite=practiceLifecycle.beginWrite();pane.node.inert=true;updateChrome();saveStatus('正在开始新一轮…','saving');
     try{
       if(!pane.restartApplied){
         if(!pane.restartRequest||pane.restartRequest.summaryVersion!==summary.summaryVersion)pane.restartRequest={requestId:makeRequestId(),roundId:summary.roundId,summaryVersion:summary.summaryVersion};
@@ -369,7 +371,7 @@ async function restartPractice(pane,summary){
         try{const value=await request(`${collectionPath(pane.kind,pane.id)}/summary`);pane.scoreSummary=value;pane.summaryCard?.update(value);pane.restartRequest=null;error.message='练习数据已更新，请重新确认后再开始新一轮。';}catch{/* Keep the displayed summary until the server can be read. */}
       }
       saveStatus(pane.restartApplied?'新一轮已开始，题卡加载失败':'未能开始新一轮','error');throw error;
-    }finally{pane.loading=false;pendingWrites--;}
+    }finally{pane.loading=false;finishWrite();}
   });
 }
 const historyPath=pane=>`${collectionPath(pane.exam?.bankKind??pane.kind,pane.exam?.bankId??pane.id)}/history`;
@@ -487,7 +489,7 @@ async function showEditorQuestion(pane,qid){
     value.editor=await prepareAssets(value.editor);
     container=el('div','editor-question-container');container.hidden=true;pane.frameHost.append(container);
     plugin=mountExtension(container,value.editor,{mode:'edit',question:value.question,...(pane.development?{development:pane.development}:{}),capabilities:{canEdit:true}},{
-      onDirty:()=>{if(pane.plugin===plugin)renderEditorStatus(document,pane);},
+      onDirty:()=>{if(pane.plugin===plugin)renderEditorStatus(document,pane,saveStatus);},
       onLayout:(options,frame)=>setEditorLayout(pane,options,frame),
       onRequest:(method,args)=>['resource-get','sdk-editor'].includes(method)||pane.plugin===plugin?pageRequest({...pane,view:'edit',editState:value},method,args):Promise.resolve({ok:false,error:{code:'READ_ONLY',message:'当前编辑题卡未处于活动状态'}}),
       onError:message=>{if(active()===pane&&pane.plugin===plugin){if(pane.development)showPageFailure(pane,new Error(message),qid);else notice(message);}}
@@ -516,7 +518,7 @@ async function openEditor(pane){
 async function saveEditor(pane){
   if(!canEditCollection(pane)||pane.view!=='edit'||pane.loading)return;
   pane.node.inert=true;
-  const session=pane.editorSession;let confirmed=false;pane.loading=true;pendingWrites++;updateChrome();saveStatus('保存中…','saving');
+  const session=pane.editorSession;let confirmed=false;pane.loading=true;const finishWrite=practiceLifecycle.beginWrite();updateChrome();saveStatus('保存中…','saving');
   try{
     await pane.plugin.flush();
     const saved=await session.saveCurrent(async({id,entry,document})=>{
@@ -537,7 +539,7 @@ async function saveEditor(pane){
     saveStatus(confirmed?'本题已保存，读取失败':'本题修改未保存','error');
     const reason=error.status===409?'题目或练习状态已更新，当前编辑内容已保留。':error.message;
     error.message=confirmed?'本题已保存，但重新读取失败。'+reason:reason;throw error;
-  }finally{pane.loading=false;pendingWrites--;}
+  }finally{pane.loading=false;finishWrite();}
 }
 
 const developmentPath=pane=>`/api/development/${pane.kind==='development-bank'?'banks':'extensions'}/${encodeURIComponent(pane.id)}`;
@@ -683,7 +685,7 @@ function updateChrome(){
   $('#history-choose').hidden=!collectionFeature(pane,'history')||!['history','history-deleted'].includes(view);$('#return-practice').hidden=!['history','history-deleted'].includes(view);
   for(const id of ['edit-cancel','edit-save']){$(`#${id}`).hidden=view!=='edit';$(`#${id}`).disabled=!!pane?.loading;}
   $('#mode-label').textContent=view==='history'?`只读历史 · ${pane.historyEntry.mode==='exam'?'考试 · ':''}${historyProgress(pane.historyEntry)} · ${historyTime(pane.historyEntry.createdAt)}`:view==='history-deleted'?'记录已删除，请选择其他记录或返回作答。':'';
-  renderEditorStatus(document,pane);
+  renderEditorStatus(document,pane,saveStatus);
   if(!pane){$('#document-title').textContent='选择一本题库';$('#progress-text').textContent='';$('#previous').disabled=true;$('#next').disabled=true;saveStatus('');return;}
   const rows=visibleQuestions(pane),index=navigationIndex(pane),count=rows.length;
   const libraryRow=(['extension','development'].includes(pane.kind)?catalog.extensions:catalog.banks).find(row=>row.id===pane.id&&(row.kind||(['extension','development'].includes(pane.kind)?'extension':'bank'))===pane.kind);
@@ -840,8 +842,8 @@ $('#access-form').addEventListener('submit',async event=>{
   catch(error){$('#access-error').textContent=error.code==='PASSWORD_REQUIRED'||error.code==='TOKEN_REQUIRED'?'密码不正确，请重试。':error.code==='LOGIN_RATE_LIMITED'?'尝试次数过多，请等待一分钟后再连接。':error.message;}
   finally{button.disabled=false;}
 });
-window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),pendingWrites)){event.preventDefault();event.returnValue='';}});
-window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){questionStepper.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
+window.addEventListener('beforeunload',event=>{if(shouldWarnBeforeUnload(collections.values(),practiceLifecycle.pendingWrites)){event.preventDefault();event.returnValue='';}});
+window.addEventListener('pagehide',event=>{refreshCatalog.client?.stop();if(!event.persisted){practiceLifecycle.destroy();questionStepper.destroy();destroyLibraryView(document);destroyOutlineView(document);libraryManager.destroy();appearanceSettings.destroy();networkSettings.destroy();aiSettings.destroy();userCenter.destroy();developmentSettings.destroy();}});
 document.addEventListener('visibilitychange',()=>{refreshCatalog.client?.visibilityChanged();if(document.visibilityState==='hidden'){const pane=active();if(pane&&!pane.loading&&pane.view==='practice'){pane.whiteboard.flush();saveInk(pane).catch(()=>{});}}});
 async function start(){await refreshCatalog();const imported=takeImportedBank(catalog),first=imported||catalog.banks.find(row=>!row.error);if(first&&(!collections.size||imported))await transitionTo(()=>openCollection(first.kind||'bank',first.id));if(imported)notice(`已导入并打开「${imported.title}」。`);}
 start().catch(failure);

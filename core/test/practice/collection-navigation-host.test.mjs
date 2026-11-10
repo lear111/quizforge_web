@@ -1,3 +1,4 @@
+import {bindPracticeLifecycle} from '../../web/practice/practice-lifecycle.js';
 import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {createLibraryIndexClient} from '../../web/library/library-index-client.js';
 import {createCollectionLoading} from '../../web/practice/collection-loading.js';
@@ -47,6 +48,9 @@ function fixture(t,{drawer=false,developmentEnabled=false}={}){
       pane.plugin={flush:async()=>{},setActive(){},destroy(){this.destroyed=true;}};
     },
   };
+  sandbox.practiceLifecycle=bindPracticeLifecycle({document:dom.window.document,panes:()=>collections.values(),notice:sandbox.notice,failure:sandbox.failure,updateChrome:()=>sandbox.updateChrome(),renderRecovery:()=>sandbox.renderRecovery()});
+  Object.defineProperty(sandbox,'transition',{get:()=>sandbox.practiceLifecycle.settled()});
+  t.after(()=>sandbox.practiceLifecycle.destroy());
   vm.runInNewContext(`${hostSource}\n${part('async function start(){','\nstart().catch')}\nglobalThis.host={start,openCollection,suspendPane,activateReady,renderLibrary,syncSidebars,refreshCatalog};`,sandbox);
   function add(id,kind='bank'){
     const row={id,title:id,questions:[{id:'first',title:'甲'},{id:'second',title:'乙'}],states:{}};
