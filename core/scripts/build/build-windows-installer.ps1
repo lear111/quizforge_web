@@ -9,6 +9,11 @@ param(
     [switch]$SkipPause
 )
 $ErrorActionPreference = 'Stop'
+# Native Node/launcher output and redirected build messages share UTF-8,
+# including on non-Chinese Windows and when started without a console.
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
 $productRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
 $originalProcessPath = $env:PATH
 $buildExit = 0

@@ -21,6 +21,7 @@ internal static class HubImportHarness
     [STAThread]
     private static int Main(string[] args)
     {
+        Program.ConfigureConsoleEncoding();
         try
         {
             if (args[0] == "framework")
