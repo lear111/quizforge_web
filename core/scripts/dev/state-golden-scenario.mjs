@@ -18,7 +18,7 @@ const rulesSource = `QF.defineType({
   prepareAiGrading: (d,a,c) => ({protocolVersion:1,question:[{type:'text',text:d.stem}],answer:[{type:'text',text:a.value}],referenceAnswer:[{type:'text',text:'A'}],maxScore:3,scoreStep:0.5})
 });`;
 
-export async function runScenario(codeRoot, {memory = false, observe = () => {}} = {}) {
+export async function runScenario(codeRoot, {memory = false, observe = () => {}, beforeAction = () => {}, afterAction = () => {}} = {}) {
   // Keep real Date.now/performance clocks and rule-runner timeout behavior.
   const RealDate = globalThis.Date;
   globalThis.Date = class extends RealDate { constructor(...args) { super(...(args.length ? args : ['2026-11-10T12:00:00.000Z'])); } };
@@ -62,7 +62,9 @@ export async function runScenario(codeRoot, {memory = false, observe = () => {}}
     async function guarded(label, fn, {failure = false} = {}) {
       const before=store.load(collection), bytes=jsonBytes(before), disk=memory?null:fs.readFileSync(store.file(collection)), cached=store.cachedBytes;
       let result;
+      beforeAction(label);
       if(failure) await assert.rejects(fn,failure); else result=await fn();
+      afterAction(label);
       assert.ok(jsonBytes(before).equals(bytes),'old state mutated: '+label);
       if(failure) {assert.equal(store.load(collection),before);assert.equal(store.cachedBytes,cached);if(disk)assert.ok(fs.readFileSync(store.file(collection)).equals(disk));}
       events.push(label); await observe({label,before,after:store.load(collection),store,collection,bytes});return result;

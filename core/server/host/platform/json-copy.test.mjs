@@ -21,6 +21,15 @@ test('projection remaps numeric metadata when array positions move', () => {
   const object=projectJson(parseJson(source),['big','n','child']);
   assert.equal(stringifyJson(object),'{"big":9223372036854775807,"n":1.0,"child":{"n":2.0}}');
 });
+test('copy refreshes stale literals and computed exponent node kinds like cloneJson',()=>{
+  const value=parseJson('{"n":1.0,"changed":2.0}');value.n=2;value.changed='text';
+  const copy=shallowCopyJson(value),deep=cloneJson(value);
+  copy.n=1;deep.n=1;copy.changed=2;deep.changed=2;
+  assert.equal(stringifyJson(copy),stringifyJson(deep));assert.equal(integralField(copy,'n'),true);
+  const computed={large:1e21,small:1e-7,zero:-0};
+  assert.equal(stringifyJson(shallowCopyJson(computed)),stringifyJson(cloneJson(computed)));
+  assert.throws(()=>shallowCopyJson({n:Infinity}),/Non-finite/);
+});
 test('freezing retains numericSources/integralField on frozen parent identities', () => {
   const value=freezeJson(parseJson(source));assert.ok(Object.isFrozen(value.child));
   assert.equal(integralField(value,'n'),false);assert.equal(integralField(value,'big'),false);

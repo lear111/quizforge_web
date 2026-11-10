@@ -132,14 +132,17 @@ export function projectJson(value, fields) {
     for (const field of fields) {
       if (!Object.hasOwn(value, field)) continue;
       const key = Array.isArray(result) ? String(result.length) : String(field);
-      let child = value[field], original = source?.get(String(field));
-      // cloneJson normalizes integer -0 through its serialized form, whereas
-      // floating -0.0 retains its sign and node kind.
-      if (Object.is(child, -0) && (!original || !/[.eE]/.test(original.literal))) {
-        child = 0; original = original ? { literal: '0', value: 0 } : undefined;
+      let child = value[field];
+      if (typeof child === 'number') {
+        if (!Number.isFinite(child)) throw new TypeError('Non-finite JSON number');
+        const original = source?.get(String(field));
+        // Refresh this node exactly as cloneJson's serialize/parse boundary:
+        // stale literals cannot reappear after a later assignment, integer -0
+        // becomes 0, and newly computed exponent numbers gain their node kind.
+        const literal = original && Object.is(original.value, child) ? javaNumber(child, original.literal) : JSON.stringify(child);
+        child = Number(literal); metadata.set(key, { literal, value: child });
       }
       Object.defineProperty(result, key, { value: child, enumerable: true, configurable: true, writable: true });
-      if (original) metadata.set(key, original);
     }
     if (metadata.size) numericSources.set(result, metadata);
     return result;
