@@ -36,6 +36,8 @@
 
 **每个 PR 必须通过**
 
+以 CI 结果为准。
+
 ```powershell
 npm --prefix core run typecheck:ui
 npm --prefix core run build:ui -- --check
@@ -76,7 +78,7 @@ npm --prefix core test
 
 ---
 
-## 阶段 A：计时基线
+## 阶段 A：计时基线与持续集成
 
 ### A1 接口分段计时与合成数据
 
@@ -85,6 +87,14 @@ npm --prefix core test
 - 新增 `core/scripts/dev/measure-perf.mjs`：对合成数据依次执行"打开题库、连续切 20 题、保存 20 次草稿、保存 20 次白板、提交 10 题"，输出各接口的中位数和 P95。
 - 验收：脚本可重复运行；把当前 `main` 的结果表写进 PR 描述，作为后续对比基线。
 - 不改任何业务逻辑。
+
+### A2 GitHub Actions CI
+
+- 所有目标分支的 PR 与 main 的 push 触发 CI；同一分支的新提交取消旧运行，令牌仅授予 contents: read。
+- Node.js 24 在 Windows / Ubuntu 矩阵中依次执行依赖安装（`npm --prefix core ci --ignore-scripts`）、UI 类型检查、构建一致性检查和完整测试；各 job 限时 20 分钟，矩阵不因一端失败取消另一端。
+- Ubuntu 独立执行 `npm --prefix core run test:perf`，限时 10 分钟；失败日志作为 artifact 保留 7 天。
+- 官方 action 固定主版本；保留真实退出码，不跳过或放宽测试。PR 记录首次 CI 的用例、各 job 耗时和本地基线对照；测试基线修复只提出后续任务卡，不在本卡实现。
+- 仅修改 CI 和贡献/计划文档，不修改业务代码、测试、依赖锁文件或构建产物。
 
 ---
 
@@ -275,3 +285,4 @@ npm --prefix core test
 | 任务卡 | PR | 状态 | 备注 |
 |---|---|---|---|
 | A1 | [#40](https://github.com/lear111/quizforge_web/pull/40) | v2 修订完成，测试基线阻塞，未合并 | 计时实现审查通过；v2 数据与九轮对照见 PR，默认完整测试仍有 13 项既有失败 |
+| A2 | 独立 PR（`feat/architecture-a2-ci`） | CI 已配置，首次运行结果见 PR 描述 | 基于未合并的 A1；三项 job 的实际结果与基线对照在 PR 内报告，不修复测试基线 |

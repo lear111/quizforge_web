@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # Git Bash is available on Windows runners. Explicit bash enables pipefail,
+    # so tee records the output without hiding a failed npm command.
+    shell: bash
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: core/package-lock.json
+      - name: Install dependencies
+        run: |
+          mkdir -p ci-logs
+          npm --prefix core ci --ignore-scripts 2>&1 | tee ci-logs/install.log
+      - name: Typecheck UI
+        run: npm --prefix core run typecheck:ui 2>&1 | tee ci-logs/typecheck.log
+      - name: Check UI build
+        run: npm --prefix core run build:ui -- --check 2>&1 | tee ci-logs/build.log
+      - name: Run tests
+        run: npm --prefix core test 2>&1 | tee ci-logs/test.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ci-logs/*.log
+          retention-days: 7
+
+  performance:
+    name: Performance (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: core/package-lock.json
+      - name: Install dependencies
+        run: |
+          mkdir -p ci-logs
+          npm --prefix core ci --ignore-scripts 2>&1 | tee ci-logs/install.log
+      - name: Run performance tests
+        run: npm --prefix core run test:perf 2>&1 | tee ci-logs/performance.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-performance-${{ github.run_attempt }}
+          path: ci-logs/*.log
+          retention-days: 7
