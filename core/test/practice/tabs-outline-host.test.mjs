@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor} from '../../web/practice/practice-context.js';
 import {consecutiveQuestionGroups} from '../../web/outline/outline-groups.js';
 import {navigateOutlineTarget} from '../../web/outline/outline-navigation.js';
@@ -12,11 +13,11 @@ import {createHistoryView} from '../../web/history/history-view.js';
 const source=readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 const part=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 const hostSource=part('function transitionTo(', '\nconst active=')+
-  part('function renderOutline(', '\nfunction updateChrome(');
+  part('function renderOutline(', '\nconst listeningPlayer=');
 
 function fixture(t){
-  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'));
-  t.after(()=>dom.window.close());
+  const dom=new JSDOM(readFileSync(new URL('../../web/index.html',import.meta.url),'utf8'),{runScripts:'outside-only'});
+  loadVueUi(dom);t.after(()=>dom.window.close());
   const collections=new Map(),errors=[];
   const sandbox={renderOutlineView,document:dom.window.document,$:selector=>dom.window.document.querySelector(selector),Promise,collections,activeKey:null,transition:Promise.resolve(),
     visibleQuestions,visibleQuestionId,hasScoreSummary,stateFor,consecutiveQuestionGroups,navigateOutlineTarget,
@@ -48,7 +49,7 @@ test('whiteboard-only revisions retain the outline nodes and focus, while visibl
   assert.equal(f.dom.window.document.activeElement,original);
   pane.collection.states.a={status:'submitted',result:{score:1,maxScore:1}};f.host.renderOutline();
   const submitted=f.dom.window.document.querySelector('.outline-item');
-  assert.notEqual(submitted,original);assert.equal(submitted.classList.contains('correct'),true);
+  assert.equal(submitted,original);assert.equal(submitted.classList.contains('correct'),true);
   pane.collection.questions[0].outlineLabel='新编号';f.host.renderOutline();
   assert.equal(f.dom.window.document.querySelector('.outline-item').textContent,'新编号');
 });

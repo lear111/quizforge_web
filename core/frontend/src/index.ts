@@ -1,4 +1,6 @@
 import NetworkPanel from './network/NetworkPanel.vue';
+import OutlinePanel from './outline/OutlinePanel.vue';
+import { buildOutlineModel, type OutlineInput } from './outline/model';
 import DevelopmentPanel from './development/DevelopmentPanel.vue';
 import { createDevelopmentSettings, type DevelopmentConfig, type DevelopmentHooks } from './development/settings';
 import UserCenterPanel from './user-center/UserCenterPanel.vue';
@@ -49,6 +51,14 @@ export function renderLibrary({ container, ...props }: LibraryActions & { contai
   render(h(LibraryList, props), container);
 }
 export function unmountLibrary(container: HTMLElement) { render(null, container); }
+
+export function renderOutline({ container, identity, input, onNavigate, onSummary }: {
+  container: HTMLElement; identity: symbol; input: OutlineInput;
+  onNavigate(questionId: string, itemId: string | null): unknown; onSummary(): unknown;
+}) {
+  render(h(OutlinePanel, { key: identity, model: buildOutlineModel(input), onNavigate, onSummary }), container);
+}
+export function unmountOutline(container: HTMLElement) { render(null, container); }
 
 export function mountAiChat({ container, request }: { container: HTMLElement; request: ChatRequest }) {
   const app = createApp(AiChatPanel, { request });

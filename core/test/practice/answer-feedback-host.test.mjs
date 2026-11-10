@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {loadVueUi} from '../fixtures/vue-ui.mjs';
 import {createWriteQueue} from '../../web/shared/write-queue.js';
 import {previewDraftAnswer,confirmAnswerPreview,reportAnswerPreview,answerStateForSave} from '../../web/practice/answer-preview.js';
 import {renderOutlineView} from '../../web/outline/outline-view.js';
@@ -10,7 +11,7 @@ import {stateFor,collectionFeature,practiceSaveLabel} from '../../web/practice/p
 const source=fs.readFileSync(new URL('../../web/app.js',import.meta.url),'utf8');
 const mutate=source.slice(source.indexOf('async function mutate('),source.indexOf('\nfunction renderRecovery('));
 function fixture(t){
- const dom=new JSDOM('<div id="outline-list"></div>');t.after(()=>dom.window.close());
+ const dom=new JSDOM('<div id="outline-list"></div>',{runScripts:'outside-only'});loadVueUi(dom);t.after(()=>dom.window.close());
  const pane={view:'practice',questionId:'q',renderedContentVersion:'version',collection:{questions:[{id:'q',title:'question'}],states:{q:{status:'unanswered',revision:0,answer:null,result:null}}}};
  const labels=[],requests=[];let release,reject;
  pane.writes=createWriteQueue({makeRequestId:()=> 'save',revisionFor:qid=>stateFor(pane,qid).revision,send:(_qid,request)=>{requests.push(request);return new Promise((ok,no)=>{release=ok;reject=no;});},onSaved:(qid,_action,value)=>{pane.collection.states[qid]=value.state;}});
