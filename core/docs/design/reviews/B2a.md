@@ -141,7 +141,7 @@ contentIdentity 是 contentIdentities 的外包装；两行来自同一段工作
 | switch/Library.indexSnapshot | 0 | 0 / 0 | 0 | 0 / 0 / 0 | 0 | 0 / 0 |
 | switch/dependency | 0 | 0 / 0 | 0 | 0 / 0 / 0 | 0 | 0 / 0 |
 
-整个 draft 的两个根绑定区间合计 **799 次显式 stat API 调用（723 次文件、74 次目录、2 次失败）**，716 次 native realpath；遍历 64 个不同目录，实际 readdir 访问 67 次。失败检查是两个 content 检查中的 assets 不存在探测（正常 ENOENT），不是业务失败。文件内容哈希只发生 1 次，路径为 server/rules-runner.cjs。
+整个 draft 的两个根绑定区间合计 **799 次显式 stat API 调用（723 次文件、74 次目录、2 次失败）**，716 次 native realpath；遍历 64 个不同目录，实际 readdir 访问 67 次。按代码和种子布局，这两个失败探测对应 content 检查中不存在的 assets；此处是源码核对，报告数据只保留失败次数，不宣称记录了每条失败的路径/错误码。所有 HTTP 动作均成功。文件内容哈希只发生 1 次，路径为 server/rules-runner.cjs。
 
 ### environment 内部的耗时（包含子调用）
 
@@ -190,5 +190,18 @@ contentIdentity 是 contentIdentities 的外包装；两行来自同一段工作
 - `npm --prefix core run typecheck:ui`：退出 0，无类型错误。
 - `npm --prefix core run build:ui -- --check`：退出 0，产物和许可证匹配。
 - `node --test core/server/host/library/library.test.mjs core/server/host/platform/file-cache.test.mjs core/server/host/extensions/rule-engine.test.mjs`：**32 项、32 通过、0 失败、0 跳过**，26272.5525 ms；完整检查以本 PR 两个平台 CI 为准。没有为测量而跳过、删除或放宽测试，不处理本机已知凭据 ACL 问题。
-- CI 三个 job 的结果、耗时和失败名单：待运行后填写。
-- 测量完成后推送独立 PR，等待审查；不合并、不改实现、不开始 B2b 或其他任务卡。
+- 本次没有重跑本机默认完整套件，也不将已知的本机 ACL 问题说成本次新增失败。完整套件在以下干净 CI 环境执行，诊断脚本仅在本机 Windows 验证；CI 的常规套件不执行完整六轮诊断，不能声称本次验证了 Ubuntu 插桩性能。
+
+### 完整 CI 摘要（可直接从 git 阅读）
+
+PR **#46** 实施提交 `7d383aa6e14a15d71650cef8cf55d33d0eb324d9`，运行 **42941752894**，Node **v24.22.2**。通过 GitHub API 读取全部 job 的原始日志和起止时间，结果如下。两个 Checks 均在 `npm ci --ignore-scripts` 后依次通过 typecheck、build check 和完整测试，没有修改 CI。
+
+| job / ID | 结果 | 测试总数 | 通过 | 失败 | 跳过 | job 墙钟秒 | 测试秒 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Checks (windows-latest) / 130264968216 | success | 1213 | 1213 | 0 | 0 | 224 | 183.3046581 |
+| Checks (ubuntu-latest) / 130264968132 | success | 1213 | 1179 | 0 | 34 | 108 | 90.109921319 |
+| Performance (ubuntu-latest) / 130264967906 | success | 2 | 2 | 0 | 0 | 30 | 17.085517079 |
+
+失败用例完整名单：**Windows 空；Ubuntu 空；Performance 空**。34 个平台跳过与 B2-2 相同，没有新增跳过、重试或放宽断言；四份标准答案均包含在原完整测试中，未修改。
+
+此后只补充这份记录和架构计划的 PR 链接，不再改诊断脚本、数字证据或生产文件。PR 描述与本文件保持一致，工作分支 `perf/architecture-b2a-diagnostics`。**仅测量已完成，等待审查；不合并 #46、不实施候选方案、不开始 B2b 或其他任务卡。**
