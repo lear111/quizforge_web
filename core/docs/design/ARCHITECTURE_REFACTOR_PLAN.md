@@ -372,6 +372,6 @@ B2b 与 B1 推迟，触发条件为：**任一真实状态文件超过 5 MB，�
 | C5a-M | [#52](https://github.com/lear111/quizforge_web/pull/52) | 已合并，审查通过 | 合并提交 `1459c61`；[真实 Chromium 测量](reviews/C5a-M.md)；72 组各 30 次，CI 三 job 全绿；两个 iframe 方案均搁置，转向 S2 保存和 O1 题库打开诊断 |
 | S2 | [#53](https://github.com/lear111/quizforge_web/pull/53) | 已合并，审查通过 | 合并 `34d24c6`；[端到端分解](reviews/S2.md)；不推进后台保存切题，不改250 ms防抖；共同内容检查问题转K1 |
 | K1 | [#55](https://github.com/lear111/quizforge_web/pull/55) | 已合并，审查通过 | 合并 `725a550`；[完整记录](reviews/K1.md)；采纳 e 与 a 的同观察点 stat 复用为 K2，b 留待 K3，跨重启摘要留待 K4，c / d 不采纳 |
-| K2 | 待建立 | 实施，待审查 | [完整记录](reviews/K2.md)；独立摘要预算、同步 stat 复用，保留 1000 项限制与全部检查；规模测量到 900 张图片，超限提示仅报告 |
+| K2 | [#56](https://github.com/lear111/quizforge_web/pull/56) | 实施，待审查 | [完整记录](reviews/K2.md)；独立摘要预算、同步 stat 复用，保留 1000 项限制与全部检查；规模测量到 900 张图片，超限提示仅报告 |
 | K3 | 未建立 | 后续设计，未排期 | 同请求复用绑定检查（原 B2c / K1 候选 b）；须审查权限、租约、请求体与前后观察点顺序，不在 K2 实施 |
 | K4 | 未建立 | 后续设计，未排期 | 依赖文件摘要跨重启保留；须设计身份/目录变更、损坏回退及冷加载保证，不在 K2 实施 |
