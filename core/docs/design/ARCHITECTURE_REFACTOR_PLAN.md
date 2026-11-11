@@ -323,6 +323,6 @@ npm --prefix core test
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
 | B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 已合并 | 合并提交 `6403696`；[完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，CI 三个 job 全绿 |
 | B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 已合并 | 合并提交 `fdadc76`；[完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，汇总去重；submit clone 6.938 ms，四份标准答案逐字节通过，CI 三个 job 全绿 |
-| B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46) 已合并；实现 PR 待建立 | 哨兵实现完成，等待 CI/审查 | 测量合并 `91c73ce`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过 |
+| B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46) 已合并；实现 [#47](https://github.com/lear111/quizforge_web/pull/47) | 哨兵实现及验收完成，等待审查 | 测量合并 `91c73ce`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过，CI 三个 job 全绿；未合并 |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
