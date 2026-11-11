@@ -46,6 +46,26 @@ JSON output contains every sample (operation, elapsed milliseconds, byte count, 
 
 Diagnostic phase definitions and overlap precedence are in [API](../reference/API.md#collection-diagnostics-a1). Restore normal behavior by omitting `timings:false`. Reverting A1 removes the instrumentation; no saved-data rollback is necessary because A1 never changes its format or migration rules.
 
+## Inspect real state sizes (S1, read-only)
+
+Unlike the synthetic generators above, this command is intended for the project owner to run on their own application **data root** (the directory containing `.state`). It starts no server, uses no network and does not create, migrate, repair or write any file:
+
+```powershell
+node core/scripts/dev/inspect-state-sizes.mjs "D:/QuizForge-data"
+```
+
+Standard output is JSON Lines: one row for each regular `<64-hex>.json` practice file directly under `.state` or `.development/.state`, followed by one summary. Other settings/resources, backups and symbolic links/junctions are not traversed. The caller may redirect stdout to a file **outside** the data directory if wanted; that is a shell operation, not a script write. Normal reads may update filesystem access-time metadata according to OS policy; content hashes and modification times are not altered by the script. Run with no simultaneous app writes for an interpretable snapshot.
+
+Rows identify only `scope` (`local` / `development`) and the hash filename. They contain file bytes/mtime, question and current-record counts, modern round count/bytes, legacy record count/bytes, receipt/ink metrics, largest current-question draft and the receipt-heaviest current question's count/bytes. No question ID, title, content, answer, exception text, absolute path, username or model credentials are printed. A current question has records if it is draft/submitted, has a non-null answer/result/draft, or has receipts; a revision number alone is not evidence of a current record.
+
+`allReceiptCount` / `allReceiptBytes` inspect all known receipt containers (`receipts`, `finishReceipts`, `restartReceipts`, `completionReceipts`, `editReceipts`), including frozen history and nested copies. `allDraftBytes` includes every field named `draft`, including receipt/history copies. These occurrence metrics **overlap** and must not be added to percentages. The max-per-question metrics apply to current `questions`, not frozen copies; no identifying question key is emitted.
+
+`categoryBytes` is the exclusive partition used for aggregate percentages: top-level `historyRounds`, `history` (`legacyHistory`), and `upgradedCompletion` each own their full subtree; outside these, receipt arrays own theirs, then draft fields (`ink`), then answer/result fields, with no descent into an already-owned value. `other` owns all remaining data, keys, punctuation and source whitespace. JSON value sizes use `parseJson` and parent-aware `projectJson` / `jsonBytes`, retaining spellings such as `1.0` / `1e0`, even when the value itself is primitive. Empty arrays and null fields include their encoded bytes. `answerResultBytes` / `otherBytes` are the corresponding exclusive parts. `breakdown` projects this to A1's four categories (`receipts`, `ink`, `history`, `other`); on its v2 seed it equals `perf-fixture.json` exactly.
+
+Every discovered state receives a before SHA-256, and all receive an after SHA-256 in a second pass; the file set is checked again. `hashesUnchanged` and `fileSetUnchanged` confirm what was observed, not filesystem transaction isolation. Concurrent changes or unavailable verification return exit code **2**; an invalid/unreadable root returns **1** with a generic error. A malformed state still reports `无法解析`, byte size and available hashes, then processing continues. Malformed bytes have their own `unparsed` aggregate category. Summary size statistics include these files; median is the arithmetic middle, P90 is nearest-rank, and empty-input statistics are null. No assumptions about real-state size distribution are made before the owner runs this command.
+
+The S1 v2 regression reuses the existing generated fixture in `test:perf`; it does not add a second expensive generator run. Fast corruption/privacy/literal/read-only tests run in the default suite. S1 does not change StateStore, B2b's paused status or any persistent layout.
+
 ## Known limitations
 
 The current measurement script is completely serial. Its `queue` phase does not represent concurrent queueing; concurrency scenarios will be added in task card B4. Mock rules for type1/type2 and the absence of a browser also limit what this baseline can establish. Type0 exercises real single-choice schemas and rules, but this dataset does not represent every real extension or real AI/network performance.
