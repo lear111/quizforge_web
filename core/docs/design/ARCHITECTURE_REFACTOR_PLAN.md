@@ -371,4 +371,4 @@ B2b 与 B1 推迟，触发条件为：**任一真实状态文件超过 5 MB，�
 | C5 / C5a | 设计 [#51](https://github.com/lear111/quizforge_web/pull/51) | 搁置 | 复用与预建均不实施；干净切题 155–163 ms，理想收益 58–75 / 82–110 ms 不抵契约与串题风险；干净切题中位数 >300 ms 或有新的低风险方案时再审查；[盘点和竞态](reviews/C5a.md) 保留 |
 | C5a-M | [#52](https://github.com/lear111/quizforge_web/pull/52) | 已合并，审查通过 | 合并提交 `1459c61`；[真实 Chromium 测量](reviews/C5a-M.md)；72 组各 30 次，CI 三 job 全绿；两个 iframe 方案均搁置，转向 S2 保存和 O1 题库打开诊断 |
 | S2 | [#53](https://github.com/lear111/quizforge_web/pull/53) | 已合并，审查通过 | 合并 `34d24c6`；[端到端分解](reviews/S2.md)；不推进后台保存切题，不改250 ms防抖；共同内容检查问题转K1 |
-| K1 | 待创建 | 诊断与方案，待审查 | [完整记录](reviews/K1.md)；只测量和设计，文件规模/路径安全/重复检查/磁盘校验缓存；不改生产代码，候选未实施 |
+| K1 | [#55](https://github.com/lear111/quizforge_web/pull/55) | 诊断与方案，待审查 | [完整记录](reviews/K1.md)；只测量和设计，文件规模/路径安全/重复检查/磁盘校验缓存；不改生产代码，候选未实施 |
