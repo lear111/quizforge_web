@@ -166,6 +166,8 @@ npm --prefix core test
 
 ### B2b 历史轮次拆出主状态文件
 
+**状态：暂停，待真实数据。** 候选 B 未批准；撤回“写入量完全不随历史轮数增长”和“submit 只写两个文件”两条过严目标。是否实施及简化布局待 S1 对真实状态统计后再审查。以下原任务范围保留作历史参考，不据此开始实现；有效盘点及风险见 [reviews/B2b.md](reviews/B2b.md) 第 1、8 节。
+
 **开工前**：先提交设计说明等待审查，明确文件布局、原子提交与中断恢复、内存模式、兼容读取及回退办法；设计未通过不开始实现。现状、两个候选与待决问题见 [reviews/B2b.md](reviews/B2b.md)，尚未实现历史拆分。
 
 **改法**：每轮历史单独存放，主状态文件只保留轮次索引（id、时间、状态、摘要）。旧格式状态文件继续可读；普通读取不迁移，仅在该题库下一次写入历史时迁移，迁移过程可中断恢复，并在 PR 中说明回退办法。考试与临时练习的内存模式同样支持，不为其引入落盘。
@@ -324,5 +326,5 @@ npm --prefix core test
 | B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 已合并 | 合并提交 `6403696`；[完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，CI 三个 job 全绿 |
 | B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 已合并 | 合并提交 `fdadc76`；[完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，汇总去重；submit clone 6.938 ms，四份标准答案逐字节通过，CI 三个 job 全绿 |
 | B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46)；实现 [#47](https://github.com/lear111/quizforge_web/pull/47) | 已合并 | 测量合并 `91c73ce`，实现合并 `c5a9166`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过，CI 三个 job 全绿；依赖名单收尾随 B2b 设计提交 |
-| B2b | 设计 [#48](https://github.com/lear111/quizforge_web/pull/48) | 设计待审，未实施 | [设计与交付记录](reviews/B2b.md)；现状字节盘点、两个布局候选、多文件提交/恢复、旧格式迁移与降级、内存模式、标准答案及分 PR 验收；CI 三个 job 全绿；不开始实现 |
+| B2b | 记录 [#48](https://github.com/lear111/quizforge_web/pull/48) | 暂停，待真实数据 | 候选 B 未批准，严格写量/两文件目标撤回；[盘点和风险](reviews/B2b.md) 第 1、8 节有效；#48 仅合 B2a 收尾和设计记录，不实施历史拆分 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
