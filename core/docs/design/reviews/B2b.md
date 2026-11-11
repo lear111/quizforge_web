@@ -129,6 +129,8 @@
 
 finish 将自己的完成轮摘要加入同一个对象头；restart 只清当前状态，不新增轮。删除历史时允许另建 index-only 元数据对象，按现行 first-match 删除一个 entryKey、保留别名边界，并重建活索引后提交主文件；不重写所有关闭正文。index-only 对象可包含多条摘要，属于删除/迁移等目录重建成本，不在 submit 中写入。
 
+对象头指向本对象正文时使用明确的 `self-body` 标记，由引用该对象的外部摘要定位正文；不在被哈希字节中写自身 D，避免自摘要循环。此标记只允许正文角色，不允许递归成自身索引；所有其他引用仍是显式摘要，并做有界的环检测。
+
 引用按角色解释：`roundRef` 只使用该对象正文；`indexRef` 才跟随头部索引链。删除后重建索引，新主 closedIndexRef 不再依赖旧活动头时，后续活动写不得重新引入旧索引链。GC 也必须按角色遍历，不能把正文对象中已失去权威性的旧头链接当作永久根。该部分复杂度是真实成本，须专项故障/空间用例；若审查不接受，改为显式目录文件并承认特殊 submit 多于两个文件，不能暗中放宽当前目标。
 
 ### 写量与打开题库的对比
@@ -303,6 +305,20 @@ B2a 依赖名单改为 rule-engine.js 导出冻结的 RULE_DEPENDENCIES，原顺
 | history-ai-disk-d3505cf.json | ec4bce06913a99f1fc7629c1ed437d7ecd49e0b203aec0cfc0da6d07ecc1c292 |
 | history-ai-memory-d3505cf.json | 35ca3dfabf1ca5643b0148c19f9fc9bd1e0d16390a04f971110acf1a551803f7 |
 
-完整默认套件由推送后的 Windows/Ubuntu 干净 CI 执行，独立 perf job 不变；本机已知凭据 ACL 环境的整套失败本次不重复运行，也不改断言去规避。CI 三 job 的实际结果/失败名单会直接补在本文件与 PR 描述。未运行 B2b 实现或性能优化测试，因为根本没有实现。
+完整默认套件由推送后的 Windows/Ubuntu 干净 CI 执行，独立 perf job 不变；本机已知凭据 ACL 环境的整套失败本次不重复运行，也不改断言去规避。未运行 B2b 实现或性能优化测试，因为根本没有实现。
+
+### PR #48 的 CI 与交付
+
+本设计为非草稿 [PR #48](https://github.com/lear111/quizforge_web/pull/48)，分支 `docs/architecture-b2b-history-design`，实际代码/测试提交 `935afa7cbbddada1652001537e45d0d5222b4f6c`。CI 运行 **42955090339**；根据 job API 起止时间和每个 job 原始日志，三个 job 全绿：
+
+| job / ID | 结果 | 总用例 | 通过 | 失败 | 跳过 | job 墙钟秒 | 测试秒 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Checks (windows-latest) / 130308168796 | success | 1234 | 1234 | 0 | 0 | 184 | 153.5079033 |
+| Checks (ubuntu-latest) / 130308168788 | success | 1234 | 1200 | 0 | 34 | 107 | 92.722275299 |
+| Performance (ubuntu-latest) / 130308168527 | success | 3 | 3 | 0 | 0 | 27 | 12.738161945 |
+
+失败完整名单：**Windows 空；Ubuntu 空；Performance 空**。相对已合并 #47 默认套件 1233 项，本 PR 仅新增 1 项依赖集合/原指纹验证；Ubuntu 原有 34 项平台跳过不变。未改 CI、未新增跳过、未删除/放宽断言、不加重试或延长超时。源码类型检查与构建一致性也在两系统通过。
+
+随后提交仅补充设计细节、此 CI 记录和 PR 编号，不改任何实现/测试/标准答案；最新头部的 CI 仍需再次通过，不能用旧运行覆盖后续实现变更。本文件和 PR 描述同步。B2a #47 已合并；B2b #48 保持开放等待设计审查，不开始实现。
 
 本文件同时是完整 PR 描述。文件清单：rule-engine.js、write-environment.js 的名单去重；write-environment.test.mjs 新用例；B2b.md 设计；ARCHITECTURE_REFACTOR_PLAN.md 进度。没有提交临时分析脚本、真实数据或 B2b 代码。推送后等待审查，不自行合并。
