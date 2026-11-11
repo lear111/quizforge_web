@@ -2,7 +2,7 @@ import { timeMethods } from '../platform/timing.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ApiError, bad, id, text } from '../platform/errors.js';
-import { checkPath, exists, readBytes, readJson, replaceFile, safeDirectory, safeFile, walkFiles, within } from '../platform/files.js';
+import { checkPath, exists, readBytes, readJson, replaceFile, safeDirectory, safeFile, walkEntries, within } from '../platform/files.js';
 import { cloneJson, fingerprint, hash, jsonBytes, jsonEqual } from '../platform/json.js';
 import { BankFeatures } from './features.js';
 import { bindListening, readListening } from '../resources/listening.js';
@@ -147,9 +147,9 @@ export class Library {
       if (!inputs) {
         const config = declaration(directory);
         inputs = [directory, config];
-        for (const file of walkFiles(directory).sort()) {
-          if (!fs.lstatSync(file).isFile()) continue;
-          inputs.push(path.relative(directory, file), this.files.hash(file));
+        for (const { file, stat } of walkEntries(directory).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0)) {
+          if (!stat.isFile()) continue;
+          inputs.push(path.relative(directory, file), this.files.hash(file, 8 * 1024 * 1024, stat));
         }
         folders.set(directory, inputs);
       }
@@ -162,7 +162,7 @@ export class Library {
       const listening = readListening(this.files.json(scope.source));
       for (const file of new Set(listening?.materials.map(row => row.file) ?? [])) values.push(file, this.files.hash(safeFile(path.dirname(scope.source), file), 8 * 1024 * 1024));
       const assets = path.join(path.dirname(scope.source), 'assets');
-      if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const file of walkFiles(assets).sort()) if (fs.lstatSync(file).isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 4 * 1024 * 1024));
+      if (path.basename(scope.source) === 'bank.json' && path.dirname(scope.source) !== path.join(this.root, 'question-banks') && exists(assets)) for (const { file, stat } of walkEntries(assets).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0)) if (stat.isFile()) values.push(path.relative(path.dirname(scope.source), file), this.files.hash(file, 4 * 1024 * 1024, stat));
     }
     const registry = path.join(this.codeRoot, 'shared', 'richtext', 'service.json');
     if (exists(registry)) values.push(readJson(registry, 64 * 1024));
