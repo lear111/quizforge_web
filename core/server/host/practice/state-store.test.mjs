@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { StateStore } from './state-store.js';
+import { StateStore, publicState, unsubmittedState } from './state-store.js';
 import { Library } from '../library/library.js';
 import { RuleEngine } from '../extensions/rule-engine.js';
 import { cloneJson, jsonBytes } from '../platform/json.js';
@@ -23,6 +23,68 @@ async function fixture(t, activeReports = false) {
   t.after(() => { library.close(); engine.close(); assert.ok(within(temporaryRoot, root) && root !== temporaryRoot); fs.rmSync(root, { recursive: true, force: true }); }); return { root, library, engine, store, collection };
 }
 const action = (revision, name, data, requestId = 'request-' + Math.random().toString(36).slice(2)) => ({ requestId, revision, action: name, data });
+
+test('history borrows only internally; current edits and caller mutations cannot change a frozen round', async t => {
+  const {store, collection, engine} = await fixture(t), question = collection.questions[0];
+  const ink = x => ({schemaVersion:1,viewport:{x:0,y:0,zoom:1},paper:{color:'#ffffff',pattern:'plain'},strokes:[{id:'test-ink',color:'#334455',width:2,points:[{x,y:1,pressure:0.5}]}]});
+  const originalRun = engine.run.bind(engine);
+  // Rules must receive independent states, not a reference into the persisted
+  // graph (checking descendants as well as the immediate state container).
+  engine.run = async (extension, input) => {
+    const graph = new Set();
+    const collect = v => {if(v && typeof v==='object' && !graph.has(v)){graph.add(v);for(const child of Object.values(v))collect(child);}};
+    collect(store.load(collection));
+    const independent = v => {if(v && typeof v==='object'){assert.equal(graph.has(v),false,'persisted object leaked to a rule state');for(const child of Object.values(v))independent(child);}};
+    if(input.state)independent(input.state);
+    for(const row of input.questions ?? [])if(row.state)independent(row.state);
+    return originalRun(extension,input);
+  };
+  await store.act(collection,question,action(0,'whiteboard',{draft:ink(1)}));
+  const submitted = await store.act(collection,question,action(1,'submit',{answer:{selectedOptionId:'A'}}));
+  const before = store.load(collection), round = before.historyRounds.at(-1), roundBytes = jsonBytes(round);
+  submitted.draft.strokes[0].points[0].x=500;submitted.state.answer.selectedOptionId='D';
+  await store.act(collection,question,action(2,'whiteboard',{draft:ink(9)}));
+  await store.act(collection,question,action(3,'retry',{}));
+  await store.act(collection,question,action(4,'draft',{answer:{selectedOptionId:'B'}}));
+  assert.ok(jsonBytes(round).equals(roundBytes));assert.equal(store.load(collection).historyRounds.at(-1),round);
+  const publicRound=await store.history(collection.kind,collection.id,round.id);
+  publicRound.questions[0].payload.draft.strokes[0].points[0].x=900;
+  publicRound.questions[0].payload.state.answer.selectedOptionId='C';
+  publicRound.collection.states[question.id].answer.selectedOptionId='D';
+  assert.ok(jsonBytes(store.load(collection).historyRounds.at(-1)).equals(roundBytes));
+  const state=store.load(collection).questions[question.id];
+  const plain=publicState(state), unsubmitted=unsubmittedState(state);
+  plain.answer.selectedOptionId='D';unsubmitted.draft.strokes[0].points[0].x=42;
+  assert.equal(state.answer.selectedOptionId,'B');assert.equal(state.draft.strokes[0].points[0].x,9);
+  const exported=await store.freezeRound(collection,store.load(collection),collection.questions.map(q=>store.load(collection).questions[q.id] ?? {status:'unanswered',revision:0,answer:null,result:null,draft:null,receipts:[]}));
+  exported.questions[0].payload.draft.strokes[0].points[0].x=99;
+  exported.questions[0].payload.state.answer.selectedOptionId='D';
+  assert.equal(state.answer.selectedOptionId,'B');assert.equal(state.draft.strokes[0].points[0].x,9,'public freezeRound still returns independent snapshots');
+  const summary=await store.summary(collection), finished=await store.finish(collection,{requestId:'finish-history-cow',roundId:summary.roundId,summaryVersion:summary.summaryVersion});
+  const frozen=store.load(collection).historyRounds.at(-1), frozenBytes=jsonBytes(frozen);
+  await store.act(collection,question,action(5,'whiteboard',{draft:ink(77)}));
+  await store.act(collection,question,action(6,'draft',{answer:{selectedOptionId:'C'}}));
+  assert.ok(jsonBytes(frozen).equals(frozenBytes));assert.equal(store.load(collection).historyRounds.at(-1),frozen);
+  assert.notEqual(finished.historyId,null);
+});
+
+for(const memory of [false,true])test(`completion receipts own modified containers and preserve old graphs (${memory?'memory':'disk'})`,async t=>{
+  const f=await fixture(t),{collection}=f,store=memory?StateStore.memory(f.root,f.engine):f.store,question=collection.questions[0];
+  await store.act(collection,question,action(0,'draft',{answer:{selectedOptionId:'A'}}));
+  const summary=await store.summary(collection), request={requestId:'complete-cow',roundId:summary.roundId,summaryVersion:summary.summaryVersion};
+  let previous=store.load(collection), bytes=jsonBytes(previous);
+  await store.submitSaved(collection,request);
+  assert.ok(jsonBytes(previous).equals(bytes));assert.equal(store.load(collection).questions[question.id].status,'submitted');
+  previous=store.load(collection);bytes=jsonBytes(previous);
+  const response={saved:true,nested:{text:'stable'}};
+  await store.saveCompletionResult(collection,request,response);
+  assert.ok(jsonBytes(previous).equals(bytes));assert.equal(store.load(collection).questions,previous.questions);
+  assert.notEqual(store.load(collection).completionReceipts,previous.completionReceipts);
+  response.nested.text='caller modified';assert.equal((await store.completionResult(collection,request)).nested.text,'stable');
+  const replay=await store.completionResult(collection,request);replay.nested.text='changed again';assert.equal((await store.completionResult(collection,request)).nested.text,'stable');
+  const current=store.load(collection);await store.submitSaved(collection,request);assert.equal(store.load(collection),current,'replay does not persist');
+  await store.saveCompletionResult(collection,{requestId:'missing'},{});assert.equal(store.load(collection),current);
+});
 
 test('a fused draft outline response is cached without spawning a second scoring operation',async t=>{
  const {store,collection,engine}=await fixture(t),question=collection.questions[0];question.outlineItems=[{id:'child',label:'1'}];

@@ -11,10 +11,12 @@ const invalid = message => { throw new Error(message); };
 export const gradingStatus = result => typeof result?.gradingStatus === 'string' ? result.gradingStatus : 'graded';
 export function pageKey(id, version, fingerprintValue, typeId = null, referencePath = null) { return fingerprint({ id, version, ...(typeId === null ? {} : { typeId }), ...(referencePath === null ? {} : { path: referencePath }) }, fingerprintValue); }
 export function matchesId(record, id) { return record.id === id || record.legacyIds?.includes(id) === true; }
-export function summarize(round) {
+// borrowState is only for StateStore's private immutable-history builders.
+// Public/legacy callers keep independent state snapshots by default.
+export function summarize(round, { borrowState = false } = {}) {
   const scores = [], maxima = [], states = {}; let submitted = 0, graded = 0, pending = 0;
   for (const { payload } of round.questions) {
-    Object.defineProperty(states, payload.question.id, { value: cloneJson(payload.state), enumerable: true, writable: true, configurable: true });
+    Object.defineProperty(states, payload.question.id, { value: borrowState ? payload.state : cloneJson(payload.state), enumerable: true, writable: true, configurable: true });
     if (payload.state.status !== 'submitted') continue;
     submitted++; maxima.push(payload.state.result.maxScore);
     if (gradingStatus(payload.state.result) === 'pending') pending++;

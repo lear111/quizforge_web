@@ -23,10 +23,14 @@ for(const memory of [false,true])test(`deterministic state scenario preserves ol
       assert.equal(after.questions.q020,before.questions.q020);
       assert.equal(after.historyRounds[0],before.historyRounds[0]);
       assert.notEqual(after.historyRounds.at(-1),before.historyRounds.at(-1));
+      assert.equal(after.historyRounds.at(-1).questions[19],before.historyRounds.at(-1).questions[19],'review shares untouched history entries');
     }
+    if(label==='submit:q002')assert.equal(after.historyRounds.at(-1).questions[0],before.historyRounds.at(-1).questions[0],'submitting another question shares an already submitted history entry');
   }});}finally{delete globalThis.__qfStateJsonProbe;}
   assert.deepEqual(calls,{stringify:1,parse:0},'a draft only serializes the whole state for persistence, never parses it');
   assert.equal(result.questions,20);
   for(const label of ['replay','rule-rejected','submit:q001','submit:q002','review:q001','review:q003','bind:target','bind:whole','confirm-ai','finish','restart'])assert.ok(observed.includes(label),label);
-  if(!memory){assert.ok(observed.includes('write-failed'));assert.ok(result.bytes.equals(fs.readFileSync(new URL('../fixtures/state-golden-d3505cf.json',import.meta.url))),'persisted bytes differ from d3505cf golden');}
+  if(!memory)assert.ok(observed.includes('write-failed'));
+  const golden=memory?'state-golden-memory-d3505cf.json':'state-golden-d3505cf.json';
+  assert.ok(result.bytes.equals(fs.readFileSync(new URL('../fixtures/'+golden,import.meta.url))),'persisted bytes differ from d3505cf '+golden);
 });

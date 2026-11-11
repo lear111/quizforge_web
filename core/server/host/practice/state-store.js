@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { ApiError, bad, id, text, requireObject } from '../platform/errors.js';
-import { cloneJson, shallowCopyJson, freezeJson, decimalSum, fingerprint, hash, integralField, jsonBytes, jsonEqual, stringifyJson } from '../platform/json.js';
+import { cloneJson, shallowCopyJson, projectJson, freezeJson, decimalSum, fingerprint, hash, integralField, jsonBytes, jsonEqual, stringifyJson } from '../platform/json.js';
 import { exists, readJson, replaceFile, safeDirectory } from '../platform/files.js';
 import { EditJournal } from '../editor/edit-journal.js';
 import { SerialTransactions } from '../platform/transactions.js';
@@ -196,9 +196,12 @@ export class StateStore {
   }
   async reviewCapabilities(collection, question, state, persisted) { const allowed = manualResult(state) && this.reviewAvailable(collection, question, state, persisted); return { canReview: allowed, canAiGrade: allowed && await this.supportsAi(collection.extensionFor(question)) }; }
   async response(collection, question, state, projected = undefined, visibleState = undefined) {
-    if (projected === undefined || projected === null) { const evaluated = await this.rules.run(collection.extensionFor(question), { op: 'project', withCapabilities: true, data: question.data, state: { submitted: state.status === 'submitted', result: state.result } }); this.rememberAiSupport(collection.extensionFor(question), evaluated); projected = evaluated.projected; }
+    return this.#responseValue(collection, question, state, projected, visibleState, false);
+  }
+  async #responseValue(collection, question, state, projected, visibleState, borrowDraft) {
+    if (projected === undefined || projected === null) { const evaluated = await this.rules.run(collection.extensionFor(question), { op: 'project', withCapabilities: true, data: question.data, state: { submitted: state.status === 'submitted', result: cloneJson(state.result) } }); this.rememberAiSupport(collection.extensionFor(question), evaluated); projected = evaluated.projected; }
     const persisted = this.cache.get(collection.stateKey())?.value;
-    return { features: collection.features.json(), question: { id: question.id, title: question.title, data: projected }, state: visibleState ?? (await this.publicStates(collection, [question], [state]))[0], draft: cloneJson(state.draft), stamp: this.stampValue(collection, question, state), capabilities: persisted ? await this.reviewCapabilities(collection, question, state, persisted) : { canReview: false, canAiGrade: false }, aiTask: typeof state.aiTaskId === 'string' ? { taskId: state.aiTaskId } : null, ...(object(state.aiTaskIds) ? { aiTasks: cloneJson(state.aiTaskIds) } : {}), extension: extensionMetadata(collection.extensionFor(question)) };
+    return { features: collection.features.json(), question: { id: question.id, title: question.title, data: projected }, state: visibleState ?? (await this.publicStates(collection, [question], [state]))[0], draft: borrowDraft ? state.draft : cloneJson(state.draft), stamp: this.stampValue(collection, question, state), capabilities: persisted ? await this.reviewCapabilities(collection, question, state, persisted) : { canReview: false, canAiGrade: false }, aiTask: typeof state.aiTaskId === 'string' ? { taskId: state.aiTaskId } : null, ...(object(state.aiTaskIds) ? { aiTasks: cloneJson(state.aiTaskIds) } : {}), extension: extensionMetadata(collection.extensionFor(question)) };
   }
   question(collection, question) { return this.response(collection, question, questionState(this.load(collection), collection, question)); }
   historyEntry(collection, question) { const extension = collection.extensionFor(question); return collection.extension ? {} : { pageKey: pageKey(extension.id, extension.version, extension.fingerprint, null, extension.referencePath ?? null) }; }
@@ -210,37 +213,58 @@ export class StateStore {
     } catch (error) { throw new ApiError(422, 'INVALID_EXTENSION', 'Practice page cannot be frozen for history; submission was not saved', { cause: error }); }
   }
   async freezeRound(collection, persisted, states) {
+    return this.#freezeRoundValue(collection, persisted, states, false);
+  }
+  // Borrowed views never leave these private history builders. Public helpers,
+  // response values and rule inputs retain their defensive-copy boundary.
+  #unsubmittedView(state) {
+    const value = projectJson(state, ['status', 'revision', 'answer', 'result', 'answerState', 'draft', 'aiTaskId', 'aiTaskIds']);
+    if (state.status === 'submitted') delete value.answerState;
+    value.status = value.answer === null ? 'unanswered' : 'draft'; value.result = null; return value;
+  }
+  #ownRound(persisted, source) {
+    const round = shallowCopyJson(source);
+    round.collection = shallowCopyJson(source.collection); round.questions = shallowCopyJson(source.questions);
+    const index = persisted.historyRounds?.indexOf(source) ?? -1;
+    if (index >= 0) persisted.historyRounds[index] = round;
+    else if (persisted.upgradedCompletion === source) persisted.upgradedCompletion = round;
+    return round;
+  }
+  async #freezeRoundValue(collection, persisted, states, borrowDraft) {
     const now = new Date().toISOString(), round = { schemaVersion: 2, id: randomUUID(), createdAt: now, updatedAt: now, status: 'in-progress', explicitCompletion: true, legacy: false, incomplete: false, questionCountKnown: true, collectionTitle: collection.title, extensionFingerprint: collection.extensionFingerprint, fingerprints: Object.fromEntries(collection.questions.map(question => [question.id, question.fingerprint])), questions: [] };
     this.freezePages(round, collection); round.collection = await this.overviewValue(collection, persisted);
-    const projected = await runRuleBatches(this.rules, collection.questions, 'projectBatch', 'projected', collection.questions.map((question, index) => ({ data: question.data, state: { submitted: states[index].status === 'submitted', result: states[index].result } })));
+    const projected = await runRuleBatches(this.rules, collection.questions, 'projectBatch', 'projected', collection.questions.map((question, index) => ({ data: question.data, state: { submitted: states[index].status === 'submitted', result: borrowDraft ? cloneJson(states[index].result) : states[index].result } })));
     const visible = await this.publicStates(collection, collection.questions, states);
-    for (let i = 0; i < collection.questions.length; i++) round.questions.push({ ...this.historyEntry(collection, collection.questions[i]), payload: await this.response(collection, collection.questions[i], states[i], projected[i], visible[i]) });
-    return summarize(round);
+    for (let i = 0; i < collection.questions.length; i++) round.questions.push({ ...this.historyEntry(collection, collection.questions[i]), payload: await this.#responseValue(collection, collection.questions[i], states[i], projected[i], visible[i], borrowDraft) });
+    return summarize(round, { borrowState: borrowDraft });
   }
   async unsubmittedHistoryStates(collection, persisted, round, skip = null) {
     const questions = round.questions.filter(entry => entry.payload.question.id !== skip && entry.payload.state.status !== 'submitted').map(entry => collection.question(entry.payload.question.id));
-    const states = await this.publicStates(collection, questions, questions.map(question => unsubmittedState(questionState(persisted, collection, question)))); return Object.fromEntries(questions.map((question, index) => [question.id, states[index]]));
+    const states = await this.publicStates(collection, questions, questions.map(question => this.#unsubmittedView(questionState(persisted, collection, question)))); return Object.fromEntries(questions.map((question, index) => [question.id, states[index]]));
   }
   async recordSubmission(collection, question, persisted, submitted) {
-    let active = activeRound(persisted); if (active && !roundCompatible(active, collection)) { interruptRound(persisted, 'collection-changed'); active = null; }
+    let active = activeRound(persisted);
+    if (active) active = this.#ownRound(persisted, active);
+    if (active && !roundCompatible(active, collection)) { interruptRound(persisted, 'collection-changed'); active = null; }
     if (!active) {
-      const states = collection.questions.map(item => unsubmittedState(questionState(persisted, collection, item)));
-      active = await this.freezeRound(collection, persisted, states); active.collection.states = {};
+      const states = collection.questions.map(item => this.#unsubmittedView(questionState(persisted, collection, item)));
+      active = await this.#freezeRoundValue(collection, persisted, states, true); active.collection.states = {};
       const entry = active.questions.find(entry => entry.payload.question.id === question.id); entry.payload = cloneJson(submitted); (persisted.historyRounds ??= []).push(active);
     } else {
       const visible = await this.unsubmittedHistoryStates(collection, persisted, active, question.id);
-      for (const entry of active.questions) {
+      for (let i = 0; i < active.questions.length; i++) {
+        const entry = active.questions[i];
         const old = entry.payload, id = old.question.id;
-        if (id === question.id) { entry.payload = cloneJson(submitted); entry.payload.question.title = old.question.title; }
-        else if (old.state.status !== 'submitted') { old.state = visible[id]; old.draft = cloneJson(questionState(persisted, collection, collection.question(id)).draft); }
+        if (id === question.id) { const next = shallowCopyJson(entry); next.payload = cloneJson(submitted); next.payload.question.title = old.question.title; active.questions[i] = next; }
+        else if (old.state.status !== 'submitted') { const next = shallowCopyJson(entry); next.payload = shallowCopyJson(old); next.payload.state = visible[id]; next.payload.draft = questionState(persisted, collection, collection.question(id)).draft; active.questions[i] = next; }
       }
       active.updatedAt = new Date().toISOString();
     }
-    active.explicitCompletion = true; summarize(active);
+    active.explicitCompletion = true; summarize(active, { borrowState: true });
   }
   recordReview(collection, question, persisted, reviewed) {
-    const active = activeRound(persisted), entry = active.questions.find(entry => entry.payload.question.id === question.id), title = entry.payload.question.title;
-    entry.payload = cloneJson(reviewed); entry.payload.question.title = title; active.updatedAt = new Date().toISOString(); summarize(active);
+    const active = this.#ownRound(persisted, activeRound(persisted)), index = active.questions.findIndex(entry => entry.payload.question.id === question.id), entry = shallowCopyJson(active.questions[index]), title = entry.payload.question.title;
+    active.questions[index] = entry; entry.payload = cloneJson(reviewed); entry.payload.question.title = title; active.updatedAt = new Date().toISOString(); summarize(active, { borrowState: true });
   }
   summaryRound(persisted, collection) {
     const active = activeRound(persisted); if (active) return roundCompatible(active, collection) ? active : null;
@@ -257,6 +281,13 @@ export class StateStore {
     const noHistory = !round && !persisted.historyRounds?.length && !persisted.history?.length;
     return collection.questions.map((question, index) => { const current = questionState(persisted, collection, question), frozen = round?.questions[index].payload.state; return frozen?.status === 'submitted' ? cloneJson(frozen) : noHistory ? cloneJson(current) : unsubmittedState(current); });
   }
+  #summaryViews(persisted, collection, round) {
+    const noHistory = !round && !persisted.historyRounds?.length && !persisted.history?.length;
+    return collection.questions.map((question, index) => {
+      const current = questionState(persisted, collection, question), frozen = round?.questions[index].payload.state;
+      return frozen?.status === 'submitted' ? frozen : noHistory ? current : this.#unsubmittedView(current);
+    });
+  }
   summaryVersion(collection, persisted, summary) {
     const versions = collection.extensionFingerprint + collection.questions.map(question => `:${question.id}:${question.title}:${question.fingerprint}:${questionState(persisted, collection, question).revision}`).join('');
     return this.opaqueVersion('summary', collection.stateKey(), versions, stringifyJson(summary));
@@ -265,7 +296,7 @@ export class StateStore {
     if (typeof round?.finishedAt === 'string' && object(round.summary)) {
       const saved = cloneJson(round.summary); saved.gradedCount ??= saved.submittedCount; saved.pendingCount ??= 0; for (const row of saved.questions) row.gradingStatus ??= row.submitted ? 'graded' : 'unsubmitted'; return saved;
     }
-    const states = this.summaryStates(persisted, collection, round), scores = await runRuleBatches(this.rules, collection.questions, 'scoreBatch', 'scores', collection.questions.map((question, index) => ({ data: question.data, state: publicState(states[index]) })));
+    const states = this.#summaryViews(persisted, collection, round), scores = await runRuleBatches(this.rules, collection.questions, 'scoreBatch', 'scores', collection.questions.map((question, index) => ({ data: question.data, state: publicState(states[index]) })));
     const summary = { questionCount: collection.questions.length, submittedCount: 0, answeredUnsubmittedCount: 0, finished: false, status: 'in-progress', roundId: round?.id ?? null, questions: [] }, earned = [], maxima = []; let submitted = 0, graded = 0, pending = 0;
     for (let i = 0; i < states.length; i++) {
       const state = states[i], value = scores[i], question = collection.questions[i], answered = state.status === 'submitted', status = answered ? gradingStatus(state.result) : 'unsubmitted';
@@ -298,7 +329,7 @@ export class StateStore {
     if (!intent || intent.request.requestId !== key) {
       this.checkSummaryRequest(request, summary, '练习内容已改变，请刷新分值卡后再完成练习。');
       if (summary.finished) return summary;
-      const next = cloneJson(persisted);
+      const next = shallowCopyJson(persisted);
       next.completionIntent = { request: cloneJson(request), questions: collection.questions.filter(q => this.hasSavedAnswer(questionState(persisted, collection, q))).map(q => q.id) };
       this.commit(collection, next);
     } else if (!jsonEqual(intent.request, request)) throw new ApiError(409, 'REQUEST_ID_REUSED', 'Completion request changed');
@@ -308,15 +339,16 @@ export class StateStore {
       try { await this.act(collection, question, { requestId: 'complete-' + hash(Buffer.from(key + ':' + qid)), action: 'submit', revision: current.revision, data: { answer: cloneJson(current.answer) } }); }
       catch (error) { throw new ApiError(error.status ?? 422, error.code ?? 'SUBMISSION_FAILED', `「${question.title}」提交失败：${error.message}。已保存答案保留，请返回题目处理后重试。`, { cause: error }); }
     }
-    const next = cloneJson(this.load(collection)), result = await this.summary(collection), submittedQuestions = [...next.completionIntent.questions];
+    const next = shallowCopyJson(this.load(collection)), result = await this.summary(collection), submittedQuestions = [...next.completionIntent.questions];
+    if (next.completionReceipts) next.completionReceipts = shallowCopyJson(next.completionReceipts);
     (next.completionReceipts ??= []).push({ id: key, request: cloneJson(request), response: { submittedQuestions } }); retainReceipts(next.completionReceipts);
     delete next.completionIntent; this.commit(collection, next); return result;
   }
   completionResult(collection, request) { return receiptResult(this.load(collection).completionReceipts, request); }
   saveCompletionResult(collection, request, response) {
-    const next = cloneJson(this.load(collection));
-    const receipt = next.completionReceipts?.find(row => row.id === request.requestId);
-    if (receipt) { receipt.response = cloneJson(response); this.commit(collection, next); }
+    const next = shallowCopyJson(this.load(collection));
+    const index = next.completionReceipts?.findIndex(row => row.id === request.requestId) ?? -1;
+    if (index >= 0) { next.completionReceipts = shallowCopyJson(next.completionReceipts); const receipt = shallowCopyJson(next.completionReceipts[index]); next.completionReceipts[index] = receipt; receipt.response = cloneJson(response); this.commit(collection, next); }
     return response;
   }
   async finish(collection, request) {
@@ -327,16 +359,19 @@ export class StateStore {
       try { await this.history(collection.kind, collection.id, current.roundId); return { ...current, historyId: current.roundId }; } catch (error) { if (error.code === 'HISTORY_NOT_FOUND') return { ...current, historyId: null }; throw error; }
     }
     if (current.pendingCount > 0) throw new ApiError(409, 'PENDING_REVIEW', '还有已提交的题目等待评分，请确认评分后再完成练习。');
-    const replacement = cloneJson(persisted); let round = this.summaryRound(replacement, collection);
-    if (!round) { interruptRound(replacement, 'collection-changed'); round = await this.freezeRound(collection, replacement, this.summaryStates(replacement, collection, null)); (replacement.historyRounds ??= []).push(round); }
+    const replacement = shallowCopyJson(persisted);
+    if (replacement.historyRounds) replacement.historyRounds = shallowCopyJson(replacement.historyRounds);
+    let round = this.summaryRound(replacement, collection);
+    if (round) round = this.#ownRound(replacement, round);
+    if (!round) { if (activeRound(replacement)) this.#ownRound(replacement, activeRound(replacement)); interruptRound(replacement, 'collection-changed'); round = await this.#freezeRoundValue(collection, replacement, this.#summaryViews(replacement, collection, null), true); (replacement.historyRounds ??= []).push(round); }
     else if (round.status === 'in-progress') {
       const visible = await this.unsubmittedHistoryStates(collection, replacement, round);
-      for (let i = 0; i < collection.questions.length; i++) { const payload = round.questions[i].payload, question = collection.questions[i]; if (payload.state.status !== 'submitted') payload.state = visible[question.id]; payload.draft = cloneJson(questionState(replacement, collection, question).draft); }
+      for (let i = 0; i < collection.questions.length; i++) { const entry = shallowCopyJson(round.questions[i]), payload = shallowCopyJson(entry.payload), question = collection.questions[i]; entry.payload = payload; round.questions[i] = entry; if (payload.state.status !== 'submitted') payload.state = visible[question.id]; payload.draft = questionState(replacement, collection, question).draft; }
     }
     const now = new Date().toISOString(); Object.assign(round, { explicitCompletion: true, status: 'completed', finishedAt: now, updatedAt: now, completionVersions: Object.fromEntries(collection.questions.map(question => [question.id, questionState(replacement, collection, question).revision])) });
-    const saved = cloneJson(current); delete saved.summaryVersion; Object.assign(saved, { roundId: round.id, finished: true, status: 'completed' }); round.summary = saved; summarize(round);
+    const saved = cloneJson(current); delete saved.summaryVersion; Object.assign(saved, { roundId: round.id, finished: true, status: 'completed' }); round.summary = saved; summarize(round, { borrowState: true });
     const result = { ...cloneJson(saved), historyId: this.memoryOnly ? null : round.id, summaryVersion: this.summaryVersion(collection, replacement, saved) };
-    const receipts = replacement.finishReceipts ??= []; receipts.push({ id: key, request: cloneJson(request), response: cloneJson(result) }); retainReceipts(receipts); this.commit(collection, replacement); return result;
+    const receipts = replacement.finishReceipts = replacement.finishReceipts ? shallowCopyJson(replacement.finishReceipts) : []; receipts.push({ id: key, request: cloneJson(request), response: cloneJson(result) }); retainReceipts(receipts); this.commit(collection, replacement); return result;
   }
   checkSummaryRequest(request, summary, message) {
     if (!Object.hasOwn(request, 'roundId') || !(request.roundId === null || typeof request.roundId === 'string')) throw bad('Invalid roundId');
@@ -345,13 +380,13 @@ export class StateStore {
   async restart(collection, request) {
     const key = requestId(request), persisted = this.load(collection), receipt = receiptResult(persisted.restartReceipts, request); if (receipt) return receipt;
     const current = await this.summary(collection); this.checkSummaryRequest(request, current, '练习数据已改变，请刷新分值卡后再开始新一轮。'); if (!current.finished) throw new ApiError(409, 'PRACTICE_NOT_FINISHED', '请先完成当前练习，再开始新一轮。');
-    const replacement = cloneJson(persisted);
+    const replacement = shallowCopyJson(persisted); replacement.questions = shallowCopyJson(persisted.questions);
     for (const question of collection.questions) {
-      const next = cloneJson(questionState(replacement, collection, question));
+      const next = shallowCopyJson(questionState(replacement, collection, question));
       for (const field of ['revision', 'submissionGeneration', 'gradingGeneration']) next[field] = increment(next[field] ?? 0);
       Object.assign(next, { status: 'unanswered', answer: null, result: null, draft: null, aiTaskId: null, receipts: [] }); for (const field of ['aiTaskIds', 'aiTargetGenerations', 'outlineStates', 'answerState']) delete next[field]; ownSet(replacement.questions, question.id, next);
     }
-    delete replacement.upgradedCompletion; const result = { restarted: true }, receipts = replacement.restartReceipts ??= []; receipts.push({ id: key, request: cloneJson(request), response: result }); retainReceipts(receipts); this.commit(collection, replacement); return result;
+    delete replacement.upgradedCompletion; const result = { restarted: true }, receipts = replacement.restartReceipts = replacement.restartReceipts ? shallowCopyJson(replacement.restartReceipts) : []; receipts.push({ id: key, request: cloneJson(request), response: cloneJson(result) }); retainReceipts(receipts); this.commit(collection, replacement); return result;
   }
   async act(collection, question, action, trustedAi = null) {
     const key = requestId(action); if (!integralField(action, 'revision') || action.revision < 0) throw bad('Invalid revision'); const name = text(action, 'action', 30), data = requireObject(action.data, 'Action data must be an object');
@@ -395,11 +430,9 @@ export class StateStore {
     } else delete replacement.upgradedCompletion;
     replacement.extensionFingerprint = collection.extensionFingerprint; ownSet(replacement.questions, question.id, next);
     result.capabilities = name === 'submit' ? { canReview: manualResult(next), canAiGrade: manualResult(next) && await this.supportsAi(collection.extensionFor(question)) } : await this.reviewCapabilities(collection, question, next, replacement);
-    // History writers keep their existing mutable implementation in B2-1.
-    // Own the active round before passing it to them; closed rounds are read-only.
+    // History writers own only the containers they actually update.
     if (['submit', 'review'].includes(name) && replacement.historyRounds) {
       replacement.historyRounds = shallowCopyJson(replacement.historyRounds);
-      if (activeRound(persisted)) replacement.historyRounds[replacement.historyRounds.length - 1] = cloneJson(activeRound(persisted));
     }
     if (name === 'submit') await this.recordSubmission(collection, question, replacement, result); if (name === 'review') this.recordReview(collection, question, replacement, result);
     result.capabilities = await this.reviewCapabilities(collection, question, next, replacement);
