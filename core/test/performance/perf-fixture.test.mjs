@@ -8,6 +8,7 @@ import { jsonBytes } from '../../server/host/platform/json.js';
 import { measurePerf, summarizeSamples, parseServerTiming } from '../../scripts/dev/measure-perf.mjs';
 import { QuizForgeServer } from '../../server/host/http/server.js';
 import { fileURLToPath } from 'node:url';
+import { within } from '../../server/host/platform/files.js';
 const codeRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 test('v2 fixture distributes ink and receipts, uses real choice rules and preserves frozen history', async t => {
@@ -68,7 +69,21 @@ test('v2 fixture distributes ink and receipts, uses real choice rules and preser
     assert.deepEqual(fs.readFileSync(path.join(root, fixture.stateFile)), before);
     const draft = await fetch(base + '/questions/q001/actions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'draft', requestId: 'real-choice-draft', revision: overview.states.q001.revision, data: { answer: perfAnswer(0) } }) });
-    assert.equal(draft.status, 200); assert.deepEqual((await draft.json()).state.answer, { selectedOptionId: 'A' });
+    assert.equal(draft.status, 200); const drafted = await draft.json(); assert.deepEqual(drafted.state.answer, { selectedOptionId: 'A' });
+    await t.test('a warm HTTP draft performs zero full dependency walks and seven sentinel stats',async()=>{
+      let full=0,sentinelStats=0,directoryReads=0;
+      const validate=service.engine.validationEnvironment.bind(service.engine),stat=fs.lstatSync,read=fs.readdirSync;
+      const dependencies=['ajv','fast-uri','fast-deep-equal','json-schema-traverse','require-from-string'];
+      const sentinels=new Set([process.execPath,path.join(codeRoot,'server/rules-runner.cjs'),...dependencies.map(name=>path.join(codeRoot,'node_modules',name,'package.json'))].map(file=>path.resolve(file)));
+      service.engine.validationEnvironment=(...args)=>{full++;return validate(...args);};
+      fs.lstatSync=function(file,...args){if(sentinels.has(path.resolve(String(file))))sentinelStats++;return stat.call(this,file,...args);};
+      fs.readdirSync=function(file,...args){if(within(path.join(codeRoot,'node_modules'),String(file)))directoryReads++;return read.call(this,file,...args);};
+      try{
+        const response=await fetch(base+'/questions/q001/actions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'draft',requestId:'sentinel-warm-draft',revision:drafted.state.revision,data:{answer:perfAnswer(0)}})});
+        assert.equal(response.status,200);assert.deepEqual((await response.json()).state.answer,{selectedOptionId:'A'});
+        assert.equal(full,0);assert.equal(directoryReads,0,'no dependency walkEntries can run without accessing a dependency directory');assert.equal(sentinelStats,7);
+      }finally{fs.lstatSync=stat;fs.readdirSync=read;service.engine.validationEnvironment=validate;}
+    });
   } finally { await service.close(); }
   // Restore only our synthetic seed after the deliberate write validation.
   fs.writeFileSync(path.join(root, fixture.stateFile), before);

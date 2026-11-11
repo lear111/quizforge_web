@@ -124,12 +124,34 @@ test('warm writes check their binding without scanning unrelated banks; changed 
 
 test('warm writes ignore display settings and preserve runtime invalidation and closed-library checks',async t=>{
   const {root,library,engine}=await fixture(t),source=path.join(root,'extensions','Test','choice');
+  let time=0;library.now=()=>time;
   const opened=await library.collection('extension','quizforge.single-choice');
-  engine.validationEnvironment=async()=>'changed-runtime';assert.notEqual(await library.writeCollection('extension','quizforge.single-choice'),opened);
+  await library.writeCollection('extension','quizforge.single-choice');
+  engine.validationEnvironment=async()=>'changed-runtime';
+  assert.equal(await library.writeCollection('extension','quizforge.single-choice'),opened,'unchanged sentinels reuse the last full environment');
+  time=600001;assert.notEqual(await library.writeCollection('extension','quizforge.single-choice'),opened,'the first write beyond ten minutes recomputes the environment');
   writeFixture(path.join(source,'development.json'),jsonBytes({name:'development'}));library.settings.update({enabled:true});
   await assert.rejects(library.collection('development','choice'),{code:'COLLECTION_KIND_UPGRADE_REQUIRED'});library.settings.update({enabled:false});
   assert.equal((await library.writeCollection('extension','quizforge.single-choice')).kind,'extension');
   library.close();await assert.rejects(library.writeCollection('extension','quizforge.single-choice'),{code:'LIBRARY_UNAVAILABLE'});
+});
+
+test('warm write binding uses at most seven sentinel stats and never traverses rule dependencies',async t=>{
+  const {library,engine}=await fixture(t);let full=0;
+  engine.validationEnvironment=()=>{full++;return RuleEngine.prototype.validationEnvironment.call(engine);};
+  const opened=await library.collection('extension','quizforge.single-choice');
+  const cold=full;await library.writeCollection('extension','quizforge.single-choice');assert.ok(full>cold,'the first write after a cold load computes fully');
+  const before=full;
+  const dependencies=['ajv','fast-uri','fast-deep-equal','json-schema-traverse','require-from-string'];
+  const sentinels=new Set([process.execPath,path.join(codeRoot,'server/rules-runner.cjs'),...dependencies.map(name=>path.join(codeRoot,'node_modules',name,'package.json'))].map(file=>path.resolve(file)));
+  const stat=fs.lstatSync,read=fs.readdirSync;let sentinelStats=0,dependencyDirectories=0;
+  fs.lstatSync=function(file,...args){if(sentinels.has(path.resolve(String(file))))sentinelStats++;return stat.call(this,file,...args);};
+  fs.readdirSync=function(file,...args){if(within(path.join(codeRoot,'node_modules'),String(file)))dependencyDirectories++;return read.call(this,file,...args);};
+  try {
+    assert.equal(await library.writeCollection('extension','quizforge.single-choice'),opened);
+    assert.equal(full,before,'a warm write must not recompute the complete environment');
+    assert.equal(dependencyDirectories,0);assert.ok(sentinelStats>0&&sentinelStats<=7,'sentinel stats: '+sentinelStats);
+  }finally{fs.lstatSync=stat;fs.readdirSync=read;}
 });
 
 test('catalog returns changed package bytes to pending rather than reusing a ready status', async t => {

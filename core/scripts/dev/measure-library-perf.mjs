@@ -14,16 +14,16 @@ const functions=['Library.readCollection','Library.checkedRead','binding.readLoo
 const checksum=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 let stats;
 const interval=node=>[node.start,node.end];
-function metrics(sample){
+export function metrics(sample,additionalFunctions=[]){
   const nodes=flatten(sample.roots);assert.ok(nodes.every(node=>node.end!==null),'unfinished diagnostic interval');
   const library=union(sample.roots.map(interval)),selected=names=>nodes.filter(node=>names.includes(node.name));
-  const content=union(selected(['Library.contentIdentity']).map(interval)),environment=union(selected(['Library.environment']).map(interval));
-  const runtime=union(selected(['Library.runtimeEnvironment','Library.environment']).map(interval))-environment;
+  const content=union(selected(['Library.contentIdentity']).map(interval)),environment=union(selected(['Library.environment','Library.writeEnvironment']).map(interval));
+  const runtime=union(selected(['Library.runtimeEnvironment','Library.environment','Library.writeEnvironment']).map(interval))-environment;
   const index=union(selected(['Library.indexSnapshot']).map(interval)),lookup=union(selected(['binding.readLookup','binding.writeLookup']).map(interval));
-  const allocated=union(selected(['Library.contentIdentity','Library.environment','Library.runtimeEnvironment','Library.indexSnapshot','binding.readLookup','binding.writeLookup']).map(interval));
+  const allocated=union(selected(['Library.contentIdentity','Library.environment','Library.writeEnvironment','Library.runtimeEnvironment','Library.indexSnapshot','binding.readLookup','binding.writeLookup']).map(interval));
   const parts={content,environment,runtime,index,lookup,otherBinding:library-allocated};
   assert.ok(Math.abs(Object.values(parts).reduce((a,b)=>a+b,0)-library)<.001,'overlapping diagnostic allocations');
-  const byFunction=Object.fromEntries(functions.map(name=>[name,nodeMetrics(nodes.filter(node=>node.name===name))]));
+  const byFunction=Object.fromEntries([...functions,...additionalFunctions].map(name=>[name,nodeMetrics(nodes.filter(node=>node.name===name))]));
   const dependencyNodes=nodes.filter(node=>node.name==='files.walkEntries'&&node.events.some(event=>event.file.includes(path.sep+'node_modules'+path.sep)));
   const dependency=nodeMetrics(dependencyNodes);
   const rehashed=new Set(nodes.flatMap(node=>node.events.filter(event=>event.kind==='rehash').map(event=>event.file)));
@@ -90,7 +90,7 @@ async function child(seed,mode,count,round){
     childProcess.stdout.on('data',chunk=>chunks.push(chunk));childProcess.once('error',reject);childProcess.once('exit',code=>{if(code!==0)return reject(Error('Diagnostic worker failed: '+mode+'/'+round+' exit '+code));try{resolve(JSON.parse(Buffer.concat(chunks)));}catch(error){reject(error);}});
   });
 }
-if(process.argv[2]==='--worker'){
+if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href&&process.argv[2]==='--worker'){
   const [,seed,mode,count,round]=process.argv.slice(2);console.log(JSON.stringify(await worker(path.resolve(seed),mode,Number(count),Number(round))));
 }else if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href){
   const [seed,output,count='20',runs='3']=process.argv.slice(2);

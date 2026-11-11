@@ -1,4 +1,8 @@
-# B2a：写路径 library 耗时诊断（仅测量，等待审查）
+# B2a：写路径 library 耗时诊断与哨兵实现
+
+> 测量阶段 #46 已审查通过并合并（91c73ce）。本文件后半部分续写独立的哨兵实现 PR；前面的原测量数据与数字证据不改，原“仅测量”边界属于当时提交。当前状态见文末“哨兵实现”。
+
+> 当前实现：暖写改为七文件哨兵复查，完整环境指纹、内容检查及读路径不变；三个主写动作 library 中位数为 33.082/31.166/27.3135 ms，四份标准答案不改且通过。新增环境保证说明和可选 B2c；CI 待验收，不自行合并。
 
 任务卡：B2a 的测量阶段。
 
@@ -205,3 +209,136 @@ PR **#46** 实施提交 `7d383aa6e14a15d71650cef8cf55d33d0eb324d9`，运行 **42
 失败用例完整名单：**Windows 空；Ubuntu 空；Performance 空**。34 个平台跳过与 B2-2 相同，没有新增跳过、重试或放宽断言；四份标准答案均包含在原完整测试中，未修改。
 
 此后只补充这份记录和架构计划的 PR 链接，不再改诊断脚本、数字证据或生产文件。PR 描述与本文件保持一致，工作分支 `perf/architecture-b2a-diagnostics`。**仅测量已完成，等待审查；不合并 #46、不实施候选方案、不开始 B2b 或其他任务卡。**
+
+## 哨兵实现（测量审查后的独立 PR）
+
+任务卡：B2a 实现；基线 `91c73ce0dc0f14dcecc3f8aac29fdce31347052e`，已按授权合并 #46。工作分支 `perf/architecture-b2a-sentinels`。本节续写，不替换前述测量与 B2a-data.json。
+
+改了什么：新增 WriteEnvironment，暖写通过七文件受检身份检查后复用成功完整指纹；完整计算前后核对哨兵、时限及失效代际。Library.environment 仍调用原全量算法并登记成功快照；writeCollection 只更换环境检查入口，首次冷加载后的写入强制完整计算。增加测试与独立测量脚本。
+
+明确没改什么：contentIdentity/contentIdentities、runtimeEnvironment（读 30 秒）的方法文本均不改；RuleEngine.validationEnvironment 的实现和完整指纹取值/校验缓存键不改；不改响应 JSON、状态码、规则输入、版本号、回执、持久化格式、标准答案和 UI。不做候选改法 2、B2b 或其他任务；B2c 仅登记为可选未排期。
+
+兼容性：将核对四份标准答案的 Buffer.equals 和 SHA-256，保持旧题库/旧状态/冻结历史的既有用例；冷加载、导入继续调用全量校验。完整指纹仍为原算法的返回值，哨兵不参与指纹/缓存键组合。
+
+新保证的正式说明见 [ENVIRONMENT_FRESHNESS.md](../../reference/ENVIRONMENT_FRESHNESS.md)：七哨兵身份变化下一次写立即计算新值，非哨兵依赖变化最多延后到 10 分钟到期后的下一次写；前置读 30 秒到期等完整检查也会更早发现变化。没有改变路径/规则执行权限及信任边界。
+
+### 实现细节与触发
+
+- 哨兵为 process.execPath、server/rules-runner.cjs、五个依赖各自 package.json；以原 fileIdentity/checkedStat/statIdentity 获取 dev/ino/size/mtimeNs/ctimeNs/birthtimeNs，保留符号链接与 canonical-path 拒绝，每次暖写七个 lstat，不扫描依赖目录。
+- 完整计算时先清除写缓存，再在原 validationEnvironment 前后各采集一次哨兵；只有成功值、哨兵一致、invalidate 代际一致才登记成功。unavailable 或哨兵读取失败不授权复用；哨兵变化中断快照也不将旧值登记给下次写。完整结果的处理语义与原来相同。
+- 以完整计算开始时刻为基准，age≤600000 ms 且哨兵相同才复用；age>600000 或时钟回退立即完整计算。Library.now 可注入，测试不等待。命中写缓存不会刷新读 recentEnvironment.at。
+- 为严格覆盖“冷加载之后第一次写也完整计算”，每次新的 collection 实际加载成功都会标记下一次写必须完整计算；不是只借用冷读刚算出的值。完成这次必要检查后，后续暖写才检查七个哨兵。必要完整检查和窗口到期样本与真正暖写分开报告，不藏掉首写尖峰。
+- 原 environmentPending 保留并发合并；写缓存的 generation 防止 invalidate 期间进行中的完整计算重新发布旧成功值。没有增加规则/业务请求重试。
+
+### 旧断言与新保证对照
+
+| 原断言 | 新断言 | 对应保证 |
+|---|---|---|
+| 将 validationEnvironment 桩换成新字符串后，下一次写立即得到不同 collection | 不改七个哨兵、未过期时复用原 collection；注入 600001 ms 后第一次写重新计算并得到不同 collection；原 display settings/closed-library 断言保留 | 非哨兵变化允许在 10 分钟窗口内延后感知；不再把任意换桩当作哨兵变化 |
+| 上条间接代表所有运行环境变化 | 三个独立真实文件测试分别修改测试 Node 文件、runner、依赖 package.json：下一次 Library.writeCollection 返回重载结果，缓存环境与真实全量值一致且不同于旧值 | 七哨兵身份变化立即完整计算，本次写使用新环境 |
+| 无十分钟边界用例 | 非哨兵 index.js 原地修改，在 599999、600000、600001 ms 三个独立用例分别验证复用/复用/重算 | 时限精确定义和两侧边界，不使用真实等待 |
+| content/extension 外部修改后下一次写重载/拒绝 | 原用例及其断言文本保持原样 | 题库与拓展即时变更检查不受哨兵窗口影响 |
+
+### 新增用例与首次失败证据
+
+在任何实现改动前，先新增真实 RuleEngine 的暖写绑定计数用例；未优化基线运行失败：1 项、0 通过、1 失败，`a warm write must not recompute the complete environment`，全量调用 3≠2（2805.1981 ms）。最终用例区分必须完整计算的冷加载后首写与之后的暖写，暖写断言无依赖目录访问、哨兵 stat 为 1..7，完整计算次数不增加。基线测量同时已记录每写五次依赖 walkEntries。
+
+新增 write-environment.test.mjs 以测试自有小型运行环境走原 RuleEngine.validationEnvironment 的真实遍历/内容哈希（不修改安装 Node、runner 或真实 node_modules）；Library 集成使用真实规则引擎执行题型，仅将环境计算绑定到这份隔离安装并注入时间/Node 测试路径。覆盖：
+
+- 默认哨兵精确七项和 process.execPath；Node/runner/package.json 三种身份变化后真实 Library 写立即换环境。
+- 非哨兵原地更改与 599999/600000/600001 三个边界；暖写不延长读 30 秒 TTL。
+- 显式 invalidate、真实冷加载、真实题库包导入后的第一次写完整计算。
+- unavailable 不复用及恢复原指纹；缺失哨兵不建立成功缓存；重定向父目录受检拒绝。
+- 完整计算中哨兵改变、进行中 invalidate、时钟回退、强制首写不会错误发布或延长缓存。
+
+现阶段专项：`node --test core/server/host/extensions/write-environment.test.mjs core/server/host/library/library.test.mjs`，**42 项、42 通过、0 失败、0 跳过**，21474.3147 ms。含未修改的外部内容/拓展变化用例，读 30 秒行为通过。其余验证和正式性能结果将在下节补充。
+
+### 三轮 v2 性能与到期写入
+
+机器同测量阶段：Windows 11 Pro 10.0.26200，i5-13500H，Node v24.13.0；同一份 5,002,406 字节 v2 种子（200 题/3 题型/2 轮历史），种子 SHA-256 前后不变。三轮均为本机回环、完全串行；没有与本任务的测试或构建并行运行。独立脚本只处理生成副本，关闭进程/端口并核对父目录后删除自己的 mkdtemp。
+
+新增 measure-sentinel-perf.mjs 原样沿用主序列：open → switch 20 → draft 20 → whiteboard 20 → submit 10，随后每轮另做 10 次过期 draft。plain 完全无钩子；diagnostic 使用隔离加载钩子，加入 Library.writeEnvironment/WriteEnvironment 的函数与文件计数。P→D / D→P / P→D，共每操作 60/60/30 个主写样本以及每模式 30 个到期样本。首写必须完整计算的三个尖峰全部纳入主表，没有删除离群值。
+
+为单独观察写窗口，诊断实验的 Library.now 在主序列固定为 0，过期样本每次增加 600001 ms；只注入这个测试实例，不改变生产时间和读路径代码。这避免将零散的 30 秒读 TTL 刷新混入主暖写表；实际应用中读 TTL 仍会触发完整检查，不能将主表 P95 当成所有实际写入的上界。同期旧实现对照用原 measure-perf.mjs、原始真实时钟，读取只读旧检出（生产树与合并基线 91c73ce 相同），覆盖另外 60/60/30 次操作；其每次写都完整计算，持续刷新读环境时间。原 B2a 的诊断表只测了 draft，白板/提交没有编造旧诊断数据。
+
+```powershell
+node core/scripts/dev/measure-sentinel-perf.mjs C:\dev\quizforge-web-refactor-a1\.temp\a1\seed-v2 .temp/b2a-sentinels/results.json 20 3
+node core/scripts/dev/measure-perf.mjs C:\dev\quizforge-web-refactor-a1\.temp\a1\seed-v2 3 on C:\dev\quizforge-web-refactor-b2a\core\server\host\http\server.js > .temp/b2a-sentinels/baseline.json
+```
+
+library 耗时，单位 ms，均为中位数 / P95：
+
+| 动作 | n/模式 | 原 B2a 诊断基线 | 同期旧实现（无钩子） | 新实现（无钩子） | 新实现（诊断） | 新 environment 互斥部分（诊断） |
+| --- | --- | --- | --- | --- | --- | --- |
+| draft | 60 | 173.289 / 466.046 | 143.798 / 256.812 | 33.082 / 64.005 | 37.839 / 144.494 | 1.295 / 6.312 |
+| whiteboard | 60 | 原报告未测 | 137.409 / 248.782 | 31.166 / 52.657 | 36.335 / 62.020 | 1.248 / 2.513 |
+| submit | 30 | 原报告未测 | 125.041 / 293.728 | 27.313 / 84.431 | 33.077 / 147.261 | 1.194 / 5.147 |
+
+三个主写动作的新实现无钩子 library 中位数均 <50 ms。各轮也均达标：
+
+| 轮次 | draft library | whiteboard library | submit library |
+| --- | --- | --- | --- |
+| 1 | 32.537 / 64.005 | 33.114 / 52.657 | 26.433 / 84.431 |
+| 2 | 32.951 / 52.733 | 28.599 / 35.470 | 22.099 / 28.615 |
+| 3 | 35.716 / 54.393 | 31.418 / 42.042 | 36.277 / 115.874 |
+
+environment 是包含子调用的区间并集：包括完整 Library.environment 或新 Library.writeEnvironment；不重复相加其嵌套区间。写检查与哨兵读取细分如下（全主序列，保留首写尖峰，n 同主表）：
+
+| 动作 | writeEnvironment ms | sentinels ms | 哨兵 stat 中位/P95 | 依赖 walkEntries 中位/P95 |
+| --- | --- | --- | --- | --- |
+| draft | 1.295 / 6.312 | 1.258 / 4.275 | 7 / 7 | 0 / 0 |
+| whiteboard | 1.248 / 2.513 | 1.228 / 2.396 | 7 / 7 | 0 / 0 |
+| submit | 1.194 / 5.147 | 1.172 / 5.092 | 7 / 7 | 0 / 0 |
+
+逐样本计数断言：全部 **147 个真正暖写**（57 draft + 60 whiteboard + 30 submit）均为依赖 walkEntries=0、哨兵 stat=7、sentinels 调用=1。三个冷加载后首写为必要全量，不称为暖写；其无钩子 library 分别为 143.939 / 187.283 / 135.217 ms（n=3）。没有通过取消这些检查来达标。
+
+#### 窗口到期后的第一次 HTTP 写
+
+每轮追加的十个过期样本，逐次跨过十分钟窗口；无真实等待，不改题库内容，每个请求只做一次正常 draft。所有 30 个诊断样本都断言完整 environment=1、依赖 walkEntries=5：
+
+| 模式 | n | 客户端中位数/P95 ms | library 中位数/P95 ms | 完整环境及哨兵的 environment 部分 ms |
+| --- | --- | --- | --- | --- |
+| plain | 30 | 534.302 / 762.029 | 129.267 / 299.755 | 未插桩，不估算 |
+| diagnostic | 30 | 593.122 / 774.759 | 155.037 / 258.982 | 115.595 / 194.151 |
+
+到期后 HTTP 请求的前置 readCollection 也已经超过原有 30 秒读 TTL，因此这一次全量计算实际从读检查进入；写检查随后复用这个刚完成的成功结果。这是保留原读路径后的真实 HTTP 调用链，不把它伪装为 WriteEnvironment.get 内部独立计时。其 writeEnvironment 自身中位数/P95为 1.307 / 2.258 ms；完整 Library.environment 为 114.454 / 192.545 ms。直接写入口超过十分钟触发 full 的语义另由三个真实文件/注入时钟集成用例验证。
+
+这说明定期完整检查仍会让单次写回到全量扫描量级，不能声称每次写都低于 50 ms。完整计算前后各检查 7 个哨兵；到期 HTTP 样本连同随后暖写的 7 次，共 21 次哨兵 stat，属于必要全量样本，不混作“暖路径 ≤7”。
+
+诊断相对无钩子主序列的 library 中位数观测增量为 draft 4.757 ms、whiteboard 5.169 ms、submit 5.764 ms。和原测量相同，这是有调度/文件系统波动的独立执行差，不当作可精确扣除的纯插桩成本。总客户端耗时仍包含现有规则/状态持久化，未将 library 的达标误称为总响应 <50 ms。
+
+完整数字、逐请求时长和计数见 [B2a-sentinel-data.json](B2a-sentinel-data.json)（617999 字节，SHA-256 ee3ecf3fa58151f988e3e473b76a3eb447b789297d4d112de7fa1c4de913bf65）；原 B2a-data.json 不改。新证据包含旧对照和新实现的 summary/samples、原始输出哈希与生产文件哈希，不含题目正文或答案。
+
+### 四份标准答案与最终本机检查
+
+四份 fixture 未更改，磁盘和内存模式均通过 Buffer.equals；原场景与第二 AI 历史场景也未改动：
+
+| fixture | SHA-256 |
+| --- | --- |
+| state-golden-d3505cf.json | 07849dbea421df2de8d9034522151018295a2615bafd21b2702be94b3889ef50 |
+| state-golden-memory-d3505cf.json | 698b1e5fb38c6a28e09b588da4b761b86f777175c548902913fed8b2baac97ac |
+| history-ai-disk-d3505cf.json | ec4bce06913a99f1fc7629c1ed437d7ecd49e0b203aec0cfc0da6d07ecc1c292 |
+| history-ai-memory-d3505cf.json | 35ca3dfabf1ca5643b0148c19f9fc9bd1e0d16390a04f971110acf1a551803f7 |
+
+- 专项：node --test core/server/host/extensions/write-environment.test.mjs core/server/host/library/library.test.mjs core/server/host/library/import-validation.test.mjs core/server/host/platform/file-cache.test.mjs core/test/practice/state-golden.test.mjs core/test/practice/history-ai-golden.test.mjs，**62 项、62 通过、0 失败、0 跳过**（42712.2614 ms）。补充的同字节哨兵替换用例确认身份变动会重算但指纹不变；冷加载校验缓存用例确认键和文件字节相同、validateBank/outlineBatch 为 0。
+- npm --prefix core run test:perf：**3 项、3 通过、0 失败、0 跳过**（50973.3911 ms）。增加真实 HTTP 暖 draft 子用例，除成功保存合法答案外，直接断言完整环境调用 0、依赖目录访问 0、七哨兵 lstat=7；原性能夹具与断言保留。
+- npm --prefix core run typecheck:ui：退出 0；npm --prefix core run build:ui -- --check：退出 0，源码、构建产物和许可证一致。
+- runtimeEnvironment、contentIdentity/contentIdentities 文本与合并基线相同；RuleEngine.validationEnvironment、ValidationCache 和缓存键表达式未改。没有更新任一标准答案。
+- 不重跑已知本机凭据 ACL 的整套失败作为伪“全绿”；完整默认套件以随后干净 CI 的两个系统结果为准，没有跳过/删除/放宽测试。
+
+### 本实现 PR 的 CI 与交付
+
+| 文件 | 本次改动 |
+|---|---|
+| core/server/host/extensions/write-environment.js | 独立写缓存、七哨兵、完整计算快照、十分钟边界与失效代际 |
+| core/server/host/library/library.js | 完整计算登记；写检查新入口；冷加载首写、invalidate/close 清理；内容检查与读方法不改 |
+| core/server/host/extensions/write-environment.test.mjs | 19 项真实隔离文件/Library 集成测试，含指纹与校验缓存键不变 |
+| core/server/host/library/library.test.mjs | 允许改写的一条旧运行环境断言；新增暖写绑定计数，现有内容/拓展变更用例不动 |
+| core/test/performance/perf-fixture.test.mjs | 保留原断言并加真实暖 HTTP draft 子用例，计数完整扫描与七哨兵 |
+| core/scripts/dev/measure-library-perf.mjs | 仅导出共用 metrics、允许其包含写哨兵区间，以及避免作为模块导入时执行 CLI；原主测量序列不改 |
+| core/scripts/dev/measure-sentinel-perf.mjs | 独立三轮对照和注入过期 HTTP 写，逐样本校验计数 |
+| core/docs/reference/ENVIRONMENT_FRESHNESS.md | 新旧感知保证、边界、受检路径、指纹及读策略说明 |
+| core/docs/design/reviews/B2a.md / B2a-sentinel-data.json | 本次全部审查记录和可由 git 重算的数字证据；旧 B2a-data.json 不改 |
+| core/docs/design/ARCHITECTURE_REFACTOR_PLAN.md | B2a 新验收与保证引用，测量 #46 已合并；B2c 只登记可选未排期 |
+
+CI 结果待补充。B2c 仅为可选未排期登记；不实现 POST 顺序调整、不开始 B2b。本实现独立 PR，完成 CI 后等待审查，不自行合并。
