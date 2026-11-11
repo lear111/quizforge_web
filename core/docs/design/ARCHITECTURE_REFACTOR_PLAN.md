@@ -224,7 +224,9 @@ npm --prefix core test
 
 ### B7 导入导出
 
-涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。可拆成 B7a（1–3）、B7b（4–5）、B7c（6–7）三个 PR。
+涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。按本次决定拆成 B7a（1、3）、B7b（4–5）、B7c（6–7）；第 2 项依赖 B4、另行审查，不混入 B7a。
+
+**本次审查决定**：B7a 仅实施下面第 **1、3** 项（原生 CRC、已压缩资源仅存储），独立于 S1；第 2 项事务锁范围及第 4–7 项复制/校验/缓存流程不动。完整数据和边界见 [reviews/B7a.md](reviews/B7a.md)。原“期间不影响另一题保存”的验收依赖 B4/锁范围改造，不作为本次已达成的效果。
 
 **问题与改法**
 
@@ -329,3 +331,4 @@ npm --prefix core test
 | B2b | 记录 [#48](https://github.com/lear111/quizforge_web/pull/48) | 暂停，待真实数据 | 候选 B 未批准，严格写量/两文件目标撤回；[盘点和风险](reviews/B2b.md) 第 1、8 节有效；#48 仅合 B2a 收尾和设计记录，不实施历史拆分 |
 | S1 | [#49](https://github.com/lear111/quizforge_web/pull/49) | 已完成，待审查 | [审查记录](reviews/S1.md)；仅输出匿名只读状态体积统计，供负责人自行运行；B2b 继续暂停；A1 分布精确匹配，前后哈希不变，CI 三 job 全绿 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
+| B7a | [#50](https://github.com/lear111/quizforge_web/pull/50) | 已完成，待审查 | [审查记录](reviews/B7a.md)；仅原生 CRC 与已压缩白名单仅存储；三轮导入 11996.502→11059.323 ms、导出 4783.028→3834.217 ms，包体 +0.2514%；旧新双向验证、CI 三 job 全绿；锁/复制/校验次数不变 |
