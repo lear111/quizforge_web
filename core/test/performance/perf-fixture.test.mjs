@@ -9,6 +9,8 @@ import { measurePerf, summarizeSamples, parseServerTiming } from '../../scripts/
 import { QuizForgeServer } from '../../server/host/http/server.js';
 import { fileURLToPath } from 'node:url';
 import { within } from '../../server/host/platform/files.js';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 const codeRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 test('v2 fixture distributes ink and receipts, uses real choice rules and preserves frozen history', async t => {
@@ -20,6 +22,19 @@ test('v2 fixture distributes ink and receipts, uses real choice rules and preser
   assert.ok(fixture.stateBytes > 4_900_000 && fixture.stateBytes < 5_100_000);
   await assert.rejects(createPerfFixture(root), /exist/i);
   const before = fs.readFileSync(path.join(root, fixture.stateFile));
+  await t.test('readonly S1 inspection matches the v2 breakdown and leaves every state hash unchanged', () => {
+    const script = path.join(codeRoot, 'scripts/dev/inspect-state-sizes.mjs');
+    const run = spawnSync(process.execPath, [script, root], { encoding: 'utf8', windowsHide: true });
+    assert.equal(run.status, 0, run.stderr); assert.equal(run.stderr, '');
+    const [row, summary] = run.stdout.trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(row.bytes, fixture.stateBytes); assert.deepEqual(row.breakdown, fixture.breakdown);
+    assert.equal(row.questions, 200); assert.equal(row.questionsWithRecords, 200); assert.equal(row.historyRounds.count, 2);
+    assert.equal(row.historyRounds.bytes, fixture.breakdown.history); assert.equal(row.unchanged, true);
+    const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+    assert.equal(row.sha256Before, sha(before)); assert.equal(row.sha256After, sha(before));
+    assert.equal(summary.files, 1); assert.equal(summary.hashesUnchanged, true); assert.equal(summary.fileSetUnchanged, true);
+    assert.deepEqual(fs.readFileSync(path.join(root, fixture.stateFile)), before);
+  });
   const saved = JSON.parse(before), states = Object.values(saved.questions);
   assert.equal(states.length, 200);
   // Zero tolerance: other includes all keys, commas and enclosing structure.
