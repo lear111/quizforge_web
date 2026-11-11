@@ -336,4 +336,5 @@ npm --prefix core test
 | S1 | [#49](https://github.com/lear111/quizforge_web/pull/49) | 已合并 | 合并提交 `0fd4e09`；[审查记录](reviews/S1.md)；仅输出匿名只读状态体积统计，供负责人自行运行；B2b 继续暂停；A1 分布精确匹配，前后哈希不变，CI 三 job 全绿 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
 | B7a | [#50](https://github.com/lear111/quizforge_web/pull/50) | 已合并；导出到此为止 | 合并提交 `61edb11`；[审查记录](reviews/B7a.md)；仅原生 CRC 与已压缩白名单仅存储；三轮导入 11996.502→11059.323 ms、导出 4783.028→3834.217 ms，包体 +0.2514%；旧新双向验证、CI 三 job 全绿；导出已满足要求不再继续，导入部分待定 |
-| C5a | 设计 [#51](https://github.com/lear111/quizforge_web/pull/51) | 仅设计，待审查 | [设计记录](reviews/C5a.md)；现有宿主的 opt-in iframe 复用、加载确认与题目代际；不依赖 Pinia/Vue 入口迁移，不写实现；1.6 最小后端协议登记须另行批准 |
+| C5a | 设计 [#51](https://github.com/lear111/quizforge_web/pull/51) | 记录已合并，未批准实施 | 合并提交 `ce7b2de`；[设计记录](reviews/C5a.md) 的盘点与竞态分析保留；先测量实际切题耗时，并评估预建相邻题 iframe；不得直接实施 API 1.6 或复用 |
+| C5a-M | 待建立 | 测量完成，待审查 | [真实 Chromium 测量](reviews/C5a-M.md)；72组各30次，分别记录保存、题目、资源、iframe、渲染与收尾；仅测量和预建评估，不实施、不改后端；B2b继续暂停 |
