@@ -253,9 +253,19 @@ revalidate 表示拿到预取/已有 payload 后仍发送 X-QuizForge-Question-S
 
 ## 9. 检查与 CI
 
-本地 `npm --prefix core run typecheck:ui`、`npm --prefix core run build:ui -- --check`：均通过（退出码0）。完整回归以本PR的Windows/Ubuntu CI为准，不复用其他分支结果。
+本地 `npm --prefix core run typecheck:ui`、`npm --prefix core run build:ui -- --check` 均通过（退出码0）；构建检查报告67个模块、UI与源码及许可证一致。无新增/删除/修改测试用例，不在本机并行跑完整回归扰动采样；完整回归使用本PR的CI结果。
 
-CI 尚未运行；提交后补充三个 job 的结果、通过/失败数、失败名单和耗时。
+已完成的 [CI运行42996214013](https://github.com/lear111/quizforge_web/actions/runs/42996214013)，检验提交 `f3c43094db48503a2df6999846c30bcbf531c8e3`，三个job均通过：
+
+| job | 结果 | 总耗时（含准备/清理） | tests | pass | fail | cancelled | skipped | 失败用例名单 |
+|---|---|---|---|---|---|---|---|---|
+| Checks (ubuntu-latest) | 通过 | 87s | 1243 | 1209 | 0 | 0 | 34 | 无 |
+| Performance (ubuntu-latest) | 通过 | 34s | 4 | 4 | 0 | 0 | 0 | 无 |
+| Checks (windows-latest) | 通过 | 205s | 1243 | 1243 | 0 | 0 | 0 | 无 |
+
+Ubuntu的34项跳过来自既有平台限定用例，未为本PR添加跳过、放宽、延时或重试。Windows无跳过，四份状态标准答案包含在全套中。独立性能测试4项全部通过。
+
+本节记录已完成运行，不把排队/运行中的检查写成通过。补记CI与PR编号的后续提交只更新两份文档；仍需等待该最终HEAD的三个job完成，不自行合并。
 
 ## 10. 证据索引与完整性
 
