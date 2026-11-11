@@ -314,6 +314,6 @@ npm --prefix core test
 | T1 | [#42](https://github.com/lear111/quizforge_web/pull/42) | 已合并 | 合并提交 `b60b41c`；[审查记录](reviews/T1.md)；Ubuntu 全绿、Windows 仅原有 19 项、perf 通过 |
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
 | B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 已合并 | 合并提交 `6403696`；[完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，CI 三个 job 全绿 |
-| B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 二次审查修复完成，等待审查 | [完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，合并汇总实现；三轮 submit clone 6.938 ms；四份磁盘／内存标准答案逐字节通过；修复及字节守卫提交的 CI 三个 job 均全绿；未合并，不开始 B2a |
-| B2a | 待建立 | 未开始 | 先细分写动作 library 耗时，再减少重复环境解析；draft library 中位数目标 < 20 ms |
+| B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 已合并 | 合并提交 `fdadc76`；[完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，汇总去重；submit clone 6.938 ms，四份标准答案逐字节通过，CI 三个 job 全绿 |
+| B2a | [#46](https://github.com/lear111/quizforge_web/pull/46) | 仅测量完成，等待审查 | [测量报告](reviews/B2a.md)；draft/switch 各 60 样本，主因是完整环境的元数据与路径检查；附跳过/复用风险及两个候选方案，尚未改实现 |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
