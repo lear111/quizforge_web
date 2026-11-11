@@ -107,7 +107,21 @@ seed/results 都要求是不存在的目录；不向应用目录生成。benchma
 | node core/scripts/dev/verify-archive-safety.mjs C:/dev/quizforge-web-b7a-baseline/core | 5 类同输入，旧新各一次，10 次均为预期拒绝且清理 |
 | 双向真实导入/打开 | 新→旧、旧→新均 3 本/1 拓展成功 |
 
-默认全套与 perf 三个干净 CI job 的实际结果/用时及完整失败名单在推送后补齐本文件，PR 描述同步；不把本机专项称为全套件通过。本机既有 ACL 相关失败不修、不用跳过掩盖。
+默认全套与 perf 均在干净 CI 运行，本机专项不冒充全套；本机既有 ACL 相关失败不修、不用跳过掩盖。
+
+### PR #50 的 CI 与交付
+
+非草稿 [PR #50](https://github.com/lear111/quizforge_web/pull/50)，分支 perf/architecture-b7a-archive，源码/测试提交 `a6f39022f4c3d4dd96f8e0ea6921ec4ab5492291`，CI 运行 **42959415203**。job 原始日志及 API 起止时间：
+
+| job / ID | 结果 | 总用例 | 通过 | 失败 | 跳过 | job 秒 | 测试秒 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Checks (windows-latest) / 130322122414 | success | 1240 | 1240 | 0 | 0 | 175 | 140.2850219 |
+| Checks (ubuntu-latest) / 130322122701 | success | 1240 | 1206 | 0 | 34 | 69 | 58.541630258 |
+| Performance (ubuntu-latest) / 130322122620 | success | 3 | 3 | 0 | 0 | 22 | 13.922475524 |
+
+失败完整名单：**Windows 空；Ubuntu 空；Performance 空**。默认较 main 多六项新增用例，perf 仍三项；Ubuntu 原有 34 项平台跳过不变。原有 library-archive、library-package、library-export-images、import-validation、library-transfer 以及四份标准答案全部保留执行；不改 CI，不加跳过/重试，不延长超时，不删除或放宽断言。
+
+后续仅补本文与进度、明确 B7a 的第 1/3 项范围，不改生产代码、测试或数字证据。文档提交后的最新头部也须 CI 三 job 全绿；PR 描述与本文件完整同步。S1 #49 独立，B2b 暂停；本 PR 保持开放等待审查，不自行合并。
 
 ## 未解决或存疑
 
