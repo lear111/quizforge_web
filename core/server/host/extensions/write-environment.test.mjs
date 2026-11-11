@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WriteEnvironment,WRITE_ENVIRONMENT_REUSE_MS} from './write-environment.js';
-import {RuleEngine} from './rule-engine.js';
+import {RuleEngine,RULE_DEPENDENCIES} from './rule-engine.js';
 import {Library} from '../library/library.js';
 import {copyFixture} from '../../../test/fixtures/installed-library.mjs';
 import {jsonBytes} from '../platform/json.js';
@@ -41,6 +41,17 @@ test('sentinels use the seven required checked file identities and the host Node
   assert.equal(values.length,7);assert.ok(values[0].startsWith(path.resolve(process.execPath)+'\0'));
   assert.ok(values[1].startsWith(path.join(f.core,'server','rules-runner.cjs')+'\0'));
   for(let i=0;i<dependencies.length;i++)assert.ok(values[i+2].startsWith(path.join(f.core,'node_modules',dependencies[i],'package.json')+'\0'));
+});
+
+test('sentinel dependencies equal the actual validation traversal and preserve the baseline fingerprint',async t=>{
+  const f=fixture(t),traversed=new Set(),read=fs.readdirSync,base=path.join(f.core,'node_modules');
+  fs.readdirSync=function(directory,...args){const absolute=path.resolve(String(directory));if(path.dirname(absolute)===base)traversed.add(path.basename(absolute));return read.call(this,directory,...args);};
+  let value;try{value=await f.engine.validationEnvironment();}finally{fs.readdirSync=read;}
+  const sentinels=new Set(f.cache.sentinels().slice(2).map(entry=>path.basename(path.dirname(entry.split('\0')[0]))));
+  assert.deepEqual(sentinels,traversed);assert.deepEqual(traversed,new Set(RULE_DEPENDENCIES));
+  assert.ok(Object.isFrozen(RULE_DEPENDENCIES));assert.deepEqual([...RULE_DEPENDENCIES],dependencies,'original traversal order is part of the fingerprint');
+  // Captured from unmodified c5a9166, using this same synthetic install. No host paths enter the hashed list.
+  assert.equal(value,'80458ae0167cdd00b42fe5f26620bdbae703c1e9493caa42c938c893634b07da');
 });
 
 for(const kind of ['node','runner','package'])test('the next library write immediately observes changed '+kind+' sentinel identity',async t=>{

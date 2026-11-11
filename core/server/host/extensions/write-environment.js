@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { fileIdentity } from '../platform/file-cache.js';
+import { RULE_DEPENDENCIES } from './rule-engine.js';
 
 export const WRITE_ENVIRONMENT_REUSE_MS = 10 * 60 * 1000;
-const dependencies = ['ajv', 'fast-uri', 'fast-deep-equal', 'json-schema-traverse', 'require-from-string'];
 const same = (left, right) => left?.length === right?.length && left.every((value, index) => value === right[index]);
 
 // This cache only gates writes. It never changes the fingerprint or read TTL.
@@ -12,7 +12,7 @@ export class WriteEnvironment {
     this.generation = 0; this.cached = null; this.fullWriteRequired = true;
   }
   sentinels() {
-    const files = [this.nodePath(), path.join(this.codeRoot, 'server', 'rules-runner.cjs'), ...dependencies.map(name => path.join(this.codeRoot, 'node_modules', name, 'package.json'))];
+    const files = [this.nodePath(), path.join(this.codeRoot, 'server', 'rules-runner.cjs'), ...RULE_DEPENDENCIES.map(name => path.join(this.codeRoot, 'node_modules', name, 'package.json'))];
     // fileIdentity uses checkedStat: one lstat per file, with the existing
     // regular-file, symlink and canonical-path checks. No unchecked stat cache.
     return files.map(file => path.resolve(file) + '\0' + fileIdentity(file));

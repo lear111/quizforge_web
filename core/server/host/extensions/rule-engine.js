@@ -15,6 +15,7 @@ import { fileIdentity, statIdentity } from '../platform/file-cache.js';
 // recycled after idling or serving many requests.
 const backgroundWork = new AsyncLocalStorage();
 const WORKER_IDLE_MS = 60 * 1000, WORKER_REQUESTS = 500, WORKERS_PER_KEY = 2, WORKER_LIMIT = 12;
+export const RULE_DEPENDENCIES = Object.freeze(['ajv', 'fast-uri', 'fast-deep-equal', 'json-schema-traverse', 'require-from-string']);
 const ENVIRONMENT = new Set(['SYSTEMROOT', 'WINDIR', 'PATH', 'TEMP', 'TMP', 'COMSPEC', 'PATHEXT']);
 const messages = {
   DEVELOPMENT_NOT_IMPLEMENTED: '开发版拓展尚未实现当前操作，请补齐对应规则、数据结构或评分接口；当前输入已保留。',
@@ -60,7 +61,7 @@ export class RuleEngine {
       const configured = path.resolve(this.node);
       if (configured !== path.resolve(this.nodeExecutable) && fs.existsSync(configured)) files.push(await hashFile(configured));
       files.push(hash(readBytes(safeFile(path.join(this.codeRoot, 'server'), 'rules-runner.cjs'))));
-      for (const dependency of ['ajv', 'fast-uri', 'fast-deep-equal', 'json-schema-traverse', 'require-from-string']) {
+      for (const dependency of RULE_DEPENDENCIES) {
         const directory = path.join(this.codeRoot, 'node_modules', dependency);
         for (const { file, stat } of walkEntries(directory, 10000).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0)) {
           if (!stat.isFile()) continue;
