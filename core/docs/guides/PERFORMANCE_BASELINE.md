@@ -64,8 +64,10 @@ Rows identify only `scope` (`local` / `development`) and the hash filename. They
 
 Every discovered state receives a before SHA-256, and all receive an after SHA-256 in a second pass; the file set is checked again. `hashesUnchanged` and `fileSetUnchanged` confirm what was observed, not filesystem transaction isolation. Concurrent changes or unavailable verification return exit code **2**; an invalid/unreadable root returns **1** with a generic error. A malformed state still reports `无法解析`, byte size and available hashes, then processing continues. Malformed bytes have their own `unparsed` aggregate category. Summary size statistics include these files; median is the arithmetic middle, P90 is nearest-rank, and empty-input statistics are null. No assumptions about real-state size distribution are made before the owner runs this command.
 
-The S1 v2 regression reuses the existing generated fixture in `test:perf`; it does not add a second expensive generator run. Fast corruption/privacy/literal/read-only tests run in the default suite. S1 does not change StateStore, B2b's paused status or any persistent layout.
+The S1 v2 regression reuses the existing generated fixture in `test:perf`; it does not add a second expensive generator run. Fast corruption/privacy/literal/read-only tests run in the default suite. S1 does not change StateStore or any persistent layout; B2b is deferred under the [real-data review decision](../design/ARCHITECTURE_REFACTOR_PLAN.md#真实数据结论).
+
+建议在每次发版前或用户反馈保存变慢时运行一次 S1，对照 B2b / B1 的触发条件：任一真实状态文件超过 5 MB，或 `draft` 的 `persist` 分段中位数在真实数据上超过 150 ms；S1 只统计文件体积，不测量动作耗时，后一条件须另行实测。逐文件输出留在被忽略的位置，不提交仓库。
 
 ## Known limitations
 
-The current measurement script is completely serial. Its `queue` phase does not represent concurrent queueing; concurrency scenarios will be added in task card B4. Mock rules for type1/type2 and the absence of a browser also limit what this baseline can establish. Type0 exercises real single-choice schemas and rules, but this dataset does not represent every real extension or real AI/network performance.
+The current measurement script is completely serial. Its `queue` phase does not represent concurrent queueing; concurrency scenarios remain assigned to task card B4, which is not currently scheduled. Mock rules for type1/type2 and the absence of a browser also limit what this baseline can establish. Type0 exercises real single-choice schemas and rules, but this dataset does not represent every real extension or real AI/network performance.
