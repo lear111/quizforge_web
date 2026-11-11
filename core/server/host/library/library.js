@@ -17,6 +17,7 @@ import { extensionGroup } from './directories.js';
 import { runRuleBatches } from '../practice/outline.js';
 import { catalogRevision, developmentFolders, finishCollection, optional, prepareCollection } from './collections.js';
 import { ValidationCache } from '../extensions/validation-cache.js';
+import { WriteEnvironment } from '../extensions/write-environment.js';
 import { LoadCoordinator, SerialTransactions } from '../platform/transactions.js';
 import { LibraryArchive } from './library-archive.js';
 import { FileCache } from '../platform/file-cache.js';
@@ -34,6 +35,7 @@ export class Library {
     this.coordinator = new LoadCoordinator(); this.managementTransactions = new SerialTransactions();
     this.loaded = new Map(); this.extensionCache = new Map(); this.statuses = new Map(); this.closed = false; this.generation = 0; this.environmentPending = null; this.backgroundRunning = false;
     this.recentEnvironment = null; this.now = Date.now;
+    this.writeRuntime = new WriteEnvironment(this.codeRoot, { now: () => this.now() });
     this.files = new FileCache();
     this.bankLocations = new BankLocations(root);
     timeMethods(this, 'library', ['readCollection', 'writeCollection', 'collection']);
@@ -76,9 +78,11 @@ export class Library {
   }
   async environment() {
     if (this.environmentPending) return this.environmentPending;
+    const ticket = this.writeRuntime.begin();
     const pending = this.engine.validationEnvironment(); this.environmentPending = pending;
-    try { const value = await pending; this.recentEnvironment = value === 'unavailable' ? null : { value, at: this.now() }; return value; } finally { if (this.environmentPending === pending) this.environmentPending = null; }
+    try { const value = await pending; this.recentEnvironment = value === 'unavailable' ? null : { value, at: this.now() }; this.writeRuntime.complete(ticket, value); return value; } finally { if (this.environmentPending === pending) this.environmentPending = null; }
   }
+  writeEnvironment() { return this.writeRuntime.get(() => this.environment()); }
   // The Node binary and rule dependencies only change with an app update.
   // Reads reuse a recent fingerprint; loads and import checks call environment().
   async runtimeEnvironment() {
@@ -181,7 +185,7 @@ export class Library {
       // still resolve through the full loader and its existing conflict checks.
       let unchanged = false;
       try { unchanged = cached.identity === this.contentIdentity(cached.scope); } catch { /* Resolve changed or missing paths below. */ }
-      if (unchanged && await this.environment() === cached.environment) return cached.collection;
+      if (unchanged && await this.writeEnvironment() === cached.environment) return cached.collection;
     }
     return this.collection(kind, collectionId);
   }
@@ -215,6 +219,7 @@ export class Library {
           }
           loaded.indexRevision = after.revision; loaded.identity = currentIdentity; loaded.environment = environment;
           this.loaded.delete(target); this.loaded.set(target, loaded);
+          this.writeRuntime.requireFullWrite();
           while (this.loaded.size > 64) this.loaded.delete(this.loaded.keys().next().value);
           this.statuses.set(currentScope.candidate.kind + ':' + currentScope.candidate.id, { revision: after.revision, identity: currentIdentity, row: loaded.row });
           if (loaded.cacheKey && loaded.successfulCheck) this.validationCache.write(loaded.cacheKey, loaded.successfulCheck);
@@ -351,7 +356,7 @@ export class Library {
     if (['extension', 'development'].includes(current.kind) || path.basename(source) === 'bank.json' && path.dirname(source) !== path.join(this.root, 'question-banks')) (current.kind.startsWith('development') ? this.developmentResources : this.resources).exportReferences(path.dirname(source), raw);
     return { path: source, before, after: jsonBytes(raw), collection: replacement, question: replacement.question(questionId) };
   }
-  invalidate() { this.generation++; this.recentEnvironment = null; this.loaded.clear(); this.extensionCache.clear(); this.statuses.clear(); this.coordinator.invalidate(() => true); }
+  invalidate() { this.generation++; this.recentEnvironment = null; this.writeRuntime.clear(); this.loaded.clear(); this.extensionCache.clear(); this.statuses.clear(); this.coordinator.invalidate(() => true); }
   async developmentPublishPlan() { throw new ApiError(410, 'PUBLICATION_REMOVED', '拓展直接修改和使用，无需发布。'); }
   async publishDevelopment() { throw new ApiError(410, 'PUBLICATION_REMOVED', '拓展直接修改和使用，无需发布。'); }
   async manage(request) {
@@ -427,5 +432,5 @@ export class Library {
       this.invalidate(); return { ...result, catalog: this.index() };
     });
   }
-  close() { this.closed = true; this.coordinator.close(); this.loaded.clear(); this.extensionCache.clear(); this.files.clear(); this.indexer.files.clear(); this.indexer.cached = null; }
+  close() { this.closed = true; this.writeRuntime.clear(); this.coordinator.close(); this.loaded.clear(); this.extensionCache.clear(); this.files.clear(); this.indexer.files.clear(); this.indexer.cached = null; }
 }

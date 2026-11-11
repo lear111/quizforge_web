@@ -152,9 +152,17 @@ npm --prefix core test
 
 **先测量，后改动**：用可撤销计时进一步确认写动作 `library` 分段约 150 ms 具体花在 `contentIdentity`、`environment` 还是别处，报告实际分段，不凭函数名称推断瓶颈。确认后再实施本卡。
 
-**改法**：将原 B5 的写路径环境解析调整移至本卡：写路径改用已有的 `runtimeEnvironment()`（带短期复用）代替 `environment()`；完整环境指纹只在启动、导入、冷加载时计算。保留内容变更检测与缓存失效语义，不把性能优化变成接受过期题库环境。
+**审查后的改法**：采用独立写路径哨兵机制，不直接使用读路径的 30 秒复用。每次暖写受检读取 Node、runner 与 5 个依赖 package.json 的七份文件身份；一致时复用成功指纹，哨兵变化、超过 10 分钟、冷加载、导入、显式失效等触发完整计算。完整指纹及缓存键算法不改；contentIdentity/contentIdentities 和读路径保持现状。精确保证见 [ENVIRONMENT_FRESHNESS.md](../reference/ENVIRONMENT_FRESHNESS.md)，实现与基线证据续写 [reviews/B2a.md](reviews/B2a.md)。
 
-**验收**：A1 数据上 `draft` 动作的 `library` 分段中位数降到 **20 ms 以内**；内容变更检测的既有用例全部通过。PR 同时报告改动前的耗时细分与改动后的对照。
+**本次验收**：v2 三轮 draft/whiteboard/submit 的 `library` 分段中位数均低于 **50 ms**，报告 environment 中位数/P95及到期首次写的开销。暖写依赖遍历为 0、哨兵 stat ≤7，四份标准答案逐字节不变；新增身份变化/窗口边界/完整计算触发/失败复用用例，内容变更用例保留。原 <20 ms 目标留待进一步分析，POST 重复解析仅登记为可选 B2c。
+
+### B2c 可选：POST 只解析一次写绑定
+
+**状态**：可选，未排期；不加入当前执行顺序，不随 B2a 实现。
+
+**依据与预期收益**：B2a 诊断显示普通 POST 先 readCollection 再 writeCollection，额外前置读绑定中位数约 **20 ms**。候选为读取并校验请求体后，以最终 writeCollection 结果作一次绑定解析，保留写入前即时内容检查；这是可避免的已测工作量，不是已实现的新时延。
+
+**顺序风险**：history 开关、持久/临时练习 store 选择、租约、权限/Origin 校验、请求体读取与解析的先后都需要审查。不得简单借用先前 readCollection 的旧对象；外部文件在请求体接收期间变动仍须感知，不能顺带改变考试、AI 和历史路由。开工前另行明确设计和验收。
 
 ### B2b 历史轮次拆出主状态文件
 
@@ -315,5 +323,6 @@ npm --prefix core test
 | T2 | [#43](https://github.com/lear111/quizforge_web/pull/43) | 已合并 | 合并提交 `d3505cf`；[审查记录](reviews/T2.md)；原 CI 三个 job 通过、原 19 项全通过；两个编码收尾项随 B2 处理 |
 | B2-1 | [#44](https://github.com/lear111/quizforge_web/pull/44) | 已合并 | 合并提交 `6403696`；[完整记录](reviews/B2.md)；draft/whiteboard clone 1.423/4.6725 ms，增量冻结 0.0488 ms；标准答案通过，CI 三个 job 全绿 |
 | B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 已合并 | 合并提交 `fdadc76`；[完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，汇总去重；submit clone 6.938 ms，四份标准答案逐字节通过，CI 三个 job 全绿 |
-| B2a | [#46](https://github.com/lear111/quizforge_web/pull/46) | 仅测量完成，等待审查 | [测量报告](reviews/B2a.md)；draft/switch 各 60 样本，主因是完整环境的元数据与路径检查；附跳过/复用风险及两个候选方案，尚未改实现 |
+| B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46) 已合并；实现 [#47](https://github.com/lear111/quizforge_web/pull/47) | 哨兵实现及验收完成，等待审查 | 测量合并 `91c73ce`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过，CI 三个 job 全绿；未合并 |
 | B2b | 待建立 | 等待设计审查 | 历史轮次独立存储；先提交一页设计说明，兼容旧格式与可恢复迁移 |
+| B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
