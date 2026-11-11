@@ -133,11 +133,13 @@
 
 每个复用 frame 有不复用的 session；每个题目租期有单调安全整数 generation（A→B→A 是三个不同值）；每次 context 有独立 loadId。questionId、stamp 是宿主绑定值，页面消息不得指定另一个 qid 来改变写目标。代际不是用户/网络权限边界，仍保留 source/session/CSP 和后端权限/版本校验。
 
-**关键陷阱**：若 send() 发送时才读全局 currentGeneration，A 的 setTimeout 在 B 加载后调用 QF.save，就会被贴上 B 的 generation。单纯 envelope 字段不能解决。因此建议在 opt-in 的 API 1.6 增加 `onLoad(context, scope)` 的第二个参数：scope 含只读 generation、AbortSignal、绑定这一代际的 api facade（save/requestAction/ai/resources/page.reportAnswerState/ui.resize/content/answerAreas）。请求、timer、上传、render callbacks 必须捕获这个 scope/api，不能捕获会变成 B 的变量。scope 撤销后调用直接返回 QUESTION_CHANGED，不发新请求；已发送 reply 用原代际结算。
+**关键陷阱**：若 send() 发送时才读全局 currentGeneration，A 的 setTimeout 在 B 加载后调用 QF.save，就会被贴上 B 的 generation。单纯 envelope 字段不能解决。因此建议在 opt-in 的 API 1.6 增加 `onLoad(context, scope)` 的第二个参数：scope 含只读 generation、AbortSignal、激活通知 whenActive，以及绑定这一代际的 api facade（save/requestAction/ai/resources/page.reportAnswerState/ui.resize/content/answerAreas）。请求、timer、上传、render callbacks 必须捕获这个 scope/api，不能捕获会变成 B 的变量。scope 撤销后调用直接返回 QUESTION_CHANGED，不发新请求；已发送 reply 用原代际结算。
 
 仅对**主动声明复用且进入题级协议**的页面，未绑定题目作用域的全局 QF 写操作/资源与题级布局操作报 QUESTION_SCOPE_REQUIRED，禁止静默回落到“当前题”。全局保留 api 元数据、page.register、纯文档校验与外观订阅等 frame 级入口。新内置 practice 页需按此迁移，但其 editor/history/non-reuse 分支保留原全局兼容入口；不要让 history 因新 manifest 而被要求有活跃可写 scope。现有旧拓展所有全局方法语义不变。此项是**拟议新增 1.6 opt-in 约束，需审查**，不伪装成现有 API 已具备的能力。
 
 1.6 的第二参数可在普通、已提交查看及 history 的首次 onLoad 都提供，不因“当前这次不可跨题复用”而缺少接口；history scope 的权限仍只读。只有正常 opt-in 练习页启用无作用域写拒绝，旧API/编辑器/未声明页面保留原入口。由新页面按实际有无 scope 选择接口，不以宿主 QF.api 支持列表替代 manifest opt-in。同题 context refresh 复用原 scope，不 abort 正在交互的编辑器。
+
+whenActive 在 context-activated 后结算，撤销则以 QUESTION_CHANGED 结算并由调用方处理；onLoad 内不得 await 它。已提交题冷建时，简答题当前 onLoad 会直接 refreshTasks，答题区型会 scheduleTasks；新题型需改为登记 `scope.whenActive.then(...)` 后立即结束 onLoad，在激活后启动 scoped 轮询，不让首次加载期的 PAGE_LOADING 误显示为评分错误。同题 scope 已激活时沿用当前刷新逻辑；history 不启用评分。这里不增加自动评分业务，只调整页面发起现有查询的生命周期。
 
 **题级清理所有权**：每个新题型在 onLoad 建立本题局部对象和操作队列，并在该 scope.signal 的 abort 监听（或 Bridge 私有 cleanup registry）登记幂等清理：取消 timer、使 epoch 失效、destroy view/editor/component、丢弃已排空的 saver。Bridge 撤销 A 时同步触发这些清理，完成后才设置 B context/创建 B service，不能先 refresh A 的组件为 B 的权限。`hooks.onDispose` 仍仅在 iframe 最终销毁调用一次：当前内置 onDispose 会永久设置 disposed=true 并拆全局事件，每次切题调用它会让 B 无法工作。同题刷新不触发清理；所有长期事件绑定只做一次。
 
@@ -148,6 +150,7 @@
 | flush/flushed、document/draft、capture-region/captured-region、outline-navigate/navigated | 每个 pending 条目含 g/loadId；发起/响应均检查，清 timer 并结算旧请求；旧 queued outline hook 不再调用，已运行 hook 的结果不发布 |
 | host→page answer-area-ink/tooling/command/mode、visibility/appearance | 墨迹/command/布局为题级，必须带 g；工具偏好可缓存但仅对新活跃 g 生效。appearance/visibility 为实例级，但暂停/恢复 observer 仍按当前事务阶段 |
 | 异步 handler await 之后 | 再检查 transaction/g/plugin/closed；不能仅在进入 listener 时检查一次。已接受旧题写入排空后才换代；不能取消服务端已接受保存来假装回滚 |
+| `extension-requests.js` 延迟 schedule 的 previous/next/goToQuestion/summary | 接受 action 时捕获绑定，定时回调及 transition 真正执行前再次确认原绑定仍有效；已换题则不导航。不能让一个已接收但迟到的 A 导航指令在 C 上重新运行 |
 
 作用域 facade 不可能替第三方取消它自己创建的所有 DOM/全局 timer：声明该能力就是遵守清理/作用域约定，host 不 monkey-patch 全局 setTimeout/Promise。恶意同 frame 脚本可主动仿造本 frame 的协议，和现有 sandbox 模型相同；本卡保证正常拓展的迟到操作被隔离，不把 generation 宣称为新的安全边界。
 
@@ -246,5 +249,35 @@
 
 - 基线：`61edb11`，S1合并提交`0fd4e09`，B7a合并提交`61edb11`；两项合并前最终head的三个CI job均已通过。
 - 代码/测试修改：0；设计阶段新增用例：0；真实性能测量：未执行。
-- 当前设计PR的CI：待推送后补全三个job的结果、耗时及失败用例名单；未完成前不标为全绿。
+- 本机 Windows 10.0.26200 / Node v24.13.0：`typecheck:ui` 退出0；`build:ui -- --check` 退出0，构建产物与源码/许可证一致。完整默认测试退出1：1243项，1234通过、9失败、0跳过/取消，耗时556.023秒。下表记录失败，不修复已被要求留待后续的本地环境问题；本PR只改文档。
+- 设计复核：只读核对指出的“可选组件缺失被误当未知”“onDispose不可逐题调用”“首布局晚于onLoad”三项已在第2.1/3.2/3.3/5.1节明确修订。
+- 当前设计PR的CI：首次提交`8cd6ebc`的运行`42964816720`三个job均成功；各job的完整结果见下表。文档补全后的最终head还须重新核对三个job。
 - S1真实数据统计尚未执行；本文不包含任何真实状态逐文件输出或数据结论。
+
+### 9.1 本地完整测试失败名单
+
+前8项首条错误相同：`AI_SETTINGS_SAVE_FAILED`，提示“无法完成 AI 设置文件的访问保护，设置未确认保存，请重启服务后重试。”第9项的首条断言错误为`the free quota needs no model address`，实际503、期望200。分类为此前保留的本地设置文件访问保护/环境相关失败；本设计PR没有修改测试、权限处理或业务代码，也未为排除此问题读取真实用户设置。相同提交的Windows/Ubuntu CI均通过，不能据此宣称本机测试通过。
+
+| 测试文件（相对core） | 用例名 | 首条错误 |
+|---|---|---|
+| server/host/ai/hub-connection.test.mjs:68 | completing login saves only the device token, reads quota, and logout revokes it | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/hub-connection.test.mjs:88 | a token the Hub rejects logs this computer out | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/hub-connection.test.mjs:96 | the free quota grades through the Hub gateway with the device token and keeps custom settings | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/hub-connection.test.mjs:114 | gateway errors become clear, non-retried messages and a rejected token logs out | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/hub-connection.test.mjs:133 | with both sources on, the free quota grades first and the custom model takes over when it cannot | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/hub-connection.test.mjs:160 | settings saved with one source before this version keep working | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/settings-provider.test.mjs:32 | AI settings preserve masked-key editing and owner-protected saved credentials | AI_SETTINGS_SAVE_FAILED |
+| server/host/ai/settings-provider.test.mjs:54 | disabled AI remains disabled across persisted settings reload without losing automatic preference | AI_SETTINGS_SAVE_FAILED |
+| server/host/http/server.test.mjs:290 | Hub login starts on the host only and the loopback callback finishes it without exposing the token | ERR_ASSERTION: 503 !== 200 |
+
+### 9.2 CI结果
+
+耗时按GitHub API的job开始/结束时间相减，为整个job耗时，包含检出与依赖安装，不是单独测试耗时。失败用例名单为空。
+
+| job | 结果 | 总耗时 | 测试输出摘要 | 失败用例名单 |
+|---|---|---:|---|---|
+| Checks (windows-latest)，130339455277 | success | 182秒 | 1243通过，0失败，0跳过 | 无 |
+| Checks (ubuntu-latest)，130339455538 | success | 85秒 | 1209通过，0失败，34跳过 | 无 |
+| Performance (ubuntu-latest)，130339455551 | success | 28秒 | 4通过，0失败，0跳过 | 无 |
+
+Ubuntu的34项跳过为现有套件的平台条件结果；本PR没有新增跳过、重试或放宽断言。
