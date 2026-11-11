@@ -224,7 +224,9 @@ npm --prefix core test
 
 ### B7 导入导出
 
-涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。按本次决定拆成 B7a（1、3）、B7b（4–5）、B7c（6–7）；第 2 项依赖 B4、另行审查，不混入 B7a。
+**最新审查决定：导出部分已满足要求，不再继续；导入部分待定。** 优化到已合并的 B7a（#50）为止，原 B7 导入导出诊断指令作废。不开始 B7b/B7c，也不继续导出复制、事务锁、校验次数或缓存改造。以下历史候选与验收保留作记录，不构成执行授权。
+
+涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。此前拟拆成 B7a（1、3）、B7b（4–5）、B7c（6–7）；第 2 项依赖 B4。除已合并 B7a 外均未批准继续。
 
 **本次审查决定**：B7a 仅实施下面第 **1、3** 项（原生 CRC、已压缩资源仅存储），独立于 S1；第 2 项事务锁范围及第 4–7 项复制/校验/缓存流程不动。完整数据和边界见 [reviews/B7a.md](reviews/B7a.md)。原“期间不影响另一题保存”的验收依赖 B4/锁范围改造，不作为本次已达成的效果。
 
@@ -285,6 +287,8 @@ npm --prefix core test
 
 ### C5 `ExtensionFrame.vue` 与 iframe 复用
 
+**最新顺序调整**：先独立进行 **C5a：现有宿主 iframe 复用设计**，在 `web/app.js` 与 `web/bridge/` 中规划，不依赖 C1–C4、Pinia 或 Vue 入口迁移。设计见 [reviews/C5a.md](reviews/C5a.md)，推送后等待审查，不写实现。API 1.6 能力登记涉及后端的最小前置改动，与当前“不改后端”的约束有冲突，须按设计第 2.3 节另行决定；不擅自扩大范围。原“frame.js 内部不改、只包装”不适用于尚待审查的 C5a 代际/加载确认方案，不能直接照旧包装就声称完成安全复用。以下组件包装留到后续阶段 C。
+
 - 把 `mountExtension` 包成组件：`onMounted` 创建，`onBeforeUnmount` 销毁，`props` 变化时调用 `plugin.update(context)`。`frame.js` 内部逻辑不改。
 - **复用规则**：拓展 manifest 的 `requiresApi.capabilities` 新增可选能力 `question-reuse`，拓展 API 升到 1.6（`minMinor: 6`）；宿主的能力列表同步加入该项。已声明且"题型 id、版本、指纹、富文本依赖"完全相同的相邻题目，切换时不重建 iframe，发送新的 context。未声明的拓展保持每题重建，行为与现在完全一致。
 - 内置五个题型逐个适配并声明该能力：收到新题目的 context 时必须重置界面、未保存输入、计时器和上传中的资源。
@@ -329,6 +333,7 @@ npm --prefix core test
 | B2-2 | [#45](https://github.com/lear111/quizforge_web/pull/45) | 已合并 | 合并提交 `fdadc76`；[完整记录](reviews/B2-2.md)；先复现 AI 任务字段缺失再修复，汇总去重；submit clone 6.938 ms，四份标准答案逐字节通过，CI 三个 job 全绿 |
 | B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46)；实现 [#47](https://github.com/lear111/quizforge_web/pull/47) | 已合并 | 测量合并 `91c73ce`，实现合并 `c5a9166`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过，CI 三个 job 全绿；依赖名单收尾随 B2b 设计提交 |
 | B2b | 记录 [#48](https://github.com/lear111/quizforge_web/pull/48) | 暂停，待真实数据 | 候选 B 未批准，严格写量/两文件目标撤回；[盘点和风险](reviews/B2b.md) 第 1、8 节有效；#48 仅合 B2a 收尾和设计记录，不实施历史拆分 |
-| S1 | [#49](https://github.com/lear111/quizforge_web/pull/49) | 已完成，待审查 | [审查记录](reviews/S1.md)；仅输出匿名只读状态体积统计，供负责人自行运行；B2b 继续暂停；A1 分布精确匹配，前后哈希不变，CI 三 job 全绿 |
+| S1 | [#49](https://github.com/lear111/quizforge_web/pull/49) | 已合并 | 合并提交 `0fd4e09`；[审查记录](reviews/S1.md)；仅输出匿名只读状态体积统计，供负责人自行运行；B2b 继续暂停；A1 分布精确匹配，前后哈希不变，CI 三 job 全绿 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
-| B7a | [#50](https://github.com/lear111/quizforge_web/pull/50) | 已完成，待审查 | [审查记录](reviews/B7a.md)；仅原生 CRC 与已压缩白名单仅存储；三轮导入 11996.502→11059.323 ms、导出 4783.028→3834.217 ms，包体 +0.2514%；旧新双向验证、CI 三 job 全绿；锁/复制/校验次数不变 |
+| B7a | [#50](https://github.com/lear111/quizforge_web/pull/50) | 已合并；导出到此为止 | 合并提交 `61edb11`；[审查记录](reviews/B7a.md)；仅原生 CRC 与已压缩白名单仅存储；三轮导入 11996.502→11059.323 ms、导出 4783.028→3834.217 ms，包体 +0.2514%；旧新双向验证、CI 三 job 全绿；导出已满足要求不再继续，导入部分待定 |
+| C5a | 设计 [#51](https://github.com/lear111/quizforge_web/pull/51) | 仅设计，待审查 | [设计记录](reviews/C5a.md)；现有宿主的 opt-in iframe 复用、加载确认与题目代际；不依赖 Pinia/Vue 入口迁移，不写实现；1.6 最小后端协议登记须另行批准 |
