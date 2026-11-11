@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Transform, Readable } from 'node:stream';
+import { crc32 } from 'node:zlib';
 import yauzl from 'yauzl';
 import yazl from 'yazl';
 import { ApiError, text } from '../platform/errors.js';
@@ -19,13 +20,15 @@ export const MANIFEST = 'quizforge-package.json', FORMAT = 'quizforge-bank-group
 const invalid = message => new ApiError(422, 'INVALID_LIBRARY_ARCHIVE', message), limit = message => new ApiError(413, 'LIBRARY_ARCHIVE_LIMIT', message);
 const relative = (base, file) => path.relative(base, file).replaceAll('\\', '/');
 const imageTypes = new Map([['image/png', 'png'], ['image/jpeg', 'jpg'], ['image/webp', 'webp'], ['image/gif', 'gif']]);
+// Existing image/listening formats that are already compressed; PCM WAV is not.
+const storedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.m4a', '.ogg']);
 function privatePath(name) { return name.split('/').some(part => part.startsWith('.') || ['node_modules', 'target'].includes(part)); }
 function declaredPaths(extension) {
   const result = new Set(), permit = name => { let file = safeFile(extension, name); while (file !== extension) { result.add(relative(extension, file)); file = path.dirname(file); } }, manifest = declaration(extension);
   for (const field of ['entry', 'script', 'style', 'rules', 'questionSchema', 'answerSchema', 'examples']) permit(text(manifest, field, 240)); for (const asset of staticAssets(extension, manifest)) { if (typeof asset !== 'string') throw invalid('题库包的拓展文件声明无效'); permit(asset); }
   if (exists(path.join(extension, 'editor.json'))) { const editor = readJson(safeFile(extension, 'editor.json'), 256 * 1024); for (const field of ['entry', 'script', 'style']) permit(text(editor, field, 240)); } return result;
 }
-function crcUpdate(crc, bytes) { for (const byte of bytes) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0); } return crc >>> 0; }
+function crcUpdate(crc, bytes) { return crc32(bytes, crc); }
 export class LibraryArchive {
   constructor(root, resources) { this.root = path.resolve(root); this.resources = resources; this.copiedBytes = 0; this.copiedEntries = 0; }
   workspace() { const base = path.join(this.root, '.temp'); safeDirectory(base, true); return fs.mkdtempSync(path.join(base, 'library-transfer-')); }
@@ -85,7 +88,7 @@ export class LibraryArchive {
   async zip(content, destination) {
     const archive = new yazl.ZipFile(); let total = 0, count = 0; const output = fs.createWriteStream(destination, { flags: 'wx' }); archive.on('error', error => archive.outputStream.destroy(error)); const writing = pipeline(archive.outputStream, output); writing.catch(() => {});
     try {
-      for (const file of walkFiles(content, MAX_ENTRIES + 1).sort()) { if (file === content) continue; if (++count > MAX_ENTRIES) throw limit('导出文件数量超过上限'); const stat = fs.statSync(file), name = relative(content, file); if (stat.size > MAX_FILE && stat.isFile() || stat.isFile() && (total += stat.size) > MAX_EXPANDED) throw limit('导出内容超过大小上限'); if (stat.isDirectory()) archive.addEmptyDirectory(name); else archive.addFile(file, name); }
+      for (const file of walkFiles(content, MAX_ENTRIES + 1).sort()) { if (file === content) continue; if (++count > MAX_ENTRIES) throw limit('导出文件数量超过上限'); const stat = fs.statSync(file), name = relative(content, file); if (stat.size > MAX_FILE && stat.isFile() || stat.isFile() && (total += stat.size) > MAX_EXPANDED) throw limit('导出内容超过大小上限'); if (stat.isDirectory()) archive.addEmptyDirectory(name); else archive.addFile(file, name, { compress: !storedExtensions.has(path.extname(name).toLowerCase()) }); }
       archive.end(); await writing;
     } catch (error) { archive.outputStream.destroy(error); output.destroy(); await writing.catch(() => {}); throw error; }
   }
@@ -111,9 +114,9 @@ export class LibraryArchive {
         if (parts.some(part => !part.trim() || ['.', '..'].includes(part) || /[\\:*?"<>|\x00-\x1f\x7f-\x9f]/.test(part) || /[ .]$/.test(part) || /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(part)) || (entry.generalPurposeBitFlag & 1) || ![0, 0x8000, 0x4000].includes(mode) || mode === 0x4000 && !directory || mode === 0x8000 && directory) throw invalid('压缩包包含无效或越界路径');
         if (seen.has(name.toLowerCase())) throw invalid('压缩包包含重复路径'); seen.add(name.toLowerCase()); const target = path.resolve(staging, name); if (!within(staging, target)) throw invalid('压缩包路径越界');
         if (directory) { safeDirectory(target, true); continue; }
-        if (entry.uncompressedSize > MAX_FILE) throw limit('压缩包单个文件超过 8 MiB'); safeDirectory(path.dirname(target), true); let bytes = 0, crc = 0xffffffff;
+        if (entry.uncompressedSize > MAX_FILE) throw limit('压缩包单个文件超过 8 MiB'); safeDirectory(path.dirname(target), true); let bytes = 0, crc = 0;
         const stream = await archive.openReadStreamPromise(entry), bound = new Transform({ transform(chunk, encoding, callback) { bytes += chunk.length; if (bytes > MAX_FILE || total + bytes > MAX_EXPANDED) return callback(limit('压缩包超过解压大小上限')); crc = crcUpdate(crc, chunk); callback(null, chunk); } });
-        await pipeline(stream, bound, fs.createWriteStream(target, { flags: 'wx' })); if (((crc ^ 0xffffffff) >>> 0) !== (entry.crc32 >>> 0)) throw invalid('压缩包文件校验失败'); total += bytes;
+        await pipeline(stream, bound, fs.createWriteStream(target, { flags: 'wx' })); if (crc !== (entry.crc32 >>> 0)) throw invalid('压缩包文件校验失败'); total += bytes;
       }
     } catch (error) { if (error instanceof ApiError) throw error; throw invalid('压缩包损坏或不是有效的 ZIP 文件'); } finally { archive?.close(); }
   }

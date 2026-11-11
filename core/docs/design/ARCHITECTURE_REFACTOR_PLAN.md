@@ -226,6 +226,8 @@ npm --prefix core test
 
 涉及 `server/host/library/library-archive.js`、`library-package.js`、`import-validation.js`、`library.js`、`http/server.js`、`web/library/library-transfer.js`。可拆成 B7a（1–3）、B7b（4–5）、B7c（6–7）三个 PR。
 
+**本次审查决定**：B7a 仅实施下面第 **1、3** 项（原生 CRC、已压缩资源仅存储），独立于 S1；第 2 项事务锁范围及第 4–7 项复制/校验/缓存流程不动。完整数据和边界见 [reviews/B7a.md](reviews/B7a.md)。原“期间不影响另一题保存”的验收依赖 B4/锁范围改造，不作为本次已达成的效果。
+
 **问题与改法**
 
 1. **解压时的 CRC 校验是逐位 JS 实现**（`crcUpdate`）。实测 32 MB 需约 1.6 秒，`zlib.crc32` 只需约 15 毫秒。改用 `node:zlib` 的 `crc32`（项目要求 Node 24，已内置），保留现有"校验失败即拒绝"的行为。
@@ -328,3 +330,4 @@ npm --prefix core test
 | B2a | 测量 [#46](https://github.com/lear111/quizforge_web/pull/46)；实现 [#47](https://github.com/lear111/quizforge_web/pull/47) | 已合并 | 测量合并 `91c73ce`，实现合并 `c5a9166`；[完整记录](reviews/B2a.md)；三轮 draft/whiteboard/submit library 33.082/31.166/27.3135 ms，七哨兵与 10 分钟窗口；内容检查与读 30 秒不改，四份标准答案通过，CI 三个 job 全绿；依赖名单收尾随 B2b 设计提交 |
 | B2b | 记录 [#48](https://github.com/lear111/quizforge_web/pull/48) | 暂停，待真实数据 | 候选 B 未批准，严格写量/两文件目标撤回；[盘点和风险](reviews/B2b.md) 第 1、8 节有效；#48 仅合 B2a 收尾和设计记录，不实施历史拆分 |
 | B2c | 未建立 | 可选，未排期 | POST 只解析一次写绑定，预期可避免约 20 ms 前置读检查；须审查请求体、权限、租约、history/store 选择的先后顺序；本次不做 |
+| B7a | 独立 PR，待登记 | 实施与验证中 | [审查记录](reviews/B7a.md)；仅原生 CRC 与已压缩白名单仅存储；三轮导入/导出及旧新双向包验证完成，锁/复制/校验次数不变 |

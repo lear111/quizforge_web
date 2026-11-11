@@ -1,0 +1,180 @@
+{
+  "baselineCommit": "a31b08412bc64db533b9cc7259fa782269c41f9d",
+  "baselineArchiveSha256": "d42f54813201ca13838975f8a9671d489ac58796dc8a0dcdf89d59828094426b",
+  "implementationArchiveSha256": "3179c6860e7fcec828d1392ee8d1cede28d2947de2f89c2194786c11e22df070",
+  "measurements": {
+    "fixture": {
+      "fixture": "quizforge-archive-b7a-v1",
+      "group": "ArchivePerf",
+      "banks": 3,
+      "images": 500,
+      "audio": 3,
+      "imageBytes": 32876000,
+      "audioBytes": 8389693,
+      "sourceBytes": 41813498,
+      "files": 517,
+      "audioSecondsEach": 150,
+      "audioFormats": [
+        "mp3",
+        "ogg",
+        "m4a"
+      ]
+    },
+    "environment": {
+      "system": "Windows 11 Pro",
+      "release": "10.0.26200",
+      "arch": "x64",
+      "node": "v24.13.0",
+      "cpu": "13th Gen Intel(R) Core(TM) i5-13500H"
+    },
+    "inputBytes": 41366079,
+    "inputSha256": "0d57e39b084277b442aae88045541fad01685bf9ac63f4939d3515fafb3e4414",
+    "newSha256": "23e9e77f4d51a988a8765eb5b130e90850870e7a97ce52bfd74894a1306f1e36",
+    "seedSha256Before": "12f7bf252cafb01472fd85284370409fbd36b8a5c4db492fd61e0ac3cb41058b",
+    "seedSha256After": "12f7bf252cafb01472fd85284370409fbd36b8a5c4db492fd61e0ac3cb41058b",
+    "samples": [
+      {
+        "run": 1,
+        "label": "before",
+        "exportMs": 5216.518400000001,
+        "exportBytes": 41366079,
+        "importMs": 11967.658899999999
+      },
+      {
+        "run": 1,
+        "label": "after",
+        "exportMs": 4152.2762,
+        "exportBytes": 41470079,
+        "importMs": 11059.322599999996
+      },
+      {
+        "run": 2,
+        "label": "after",
+        "exportMs": 3159.2981999999975,
+        "exportBytes": 41470079,
+        "importMs": 11526.9703
+      },
+      {
+        "run": 2,
+        "label": "before",
+        "exportMs": 4783.0278000000035,
+        "exportBytes": 41366079,
+        "importMs": 15481.029799999997
+      },
+      {
+        "run": 3,
+        "label": "before",
+        "exportMs": 4327.682700000005,
+        "exportBytes": 41366079,
+        "importMs": 11996.501599999989
+      },
+      {
+        "run": 3,
+        "label": "after",
+        "exportMs": 3834.21669999999,
+        "exportBytes": 41470079,
+        "importMs": 10944.402400000006
+      }
+    ],
+    "summary": {
+      "before": {
+        "n": 3,
+        "importMedianMs": 11996.501599999989,
+        "exportMedianMs": 4783.0278000000035,
+        "exportMedianBytes": 41366079
+      },
+      "after": {
+        "n": 3,
+        "importMedianMs": 11059.322599999996,
+        "exportMedianMs": 3834.21669999999,
+        "exportMedianBytes": 41470079
+      }
+    },
+    "compatibility": [
+      {
+        "direction": "new-to-old",
+        "banks": 3,
+        "extensions": 1,
+        "status": "passed"
+      },
+      {
+        "direction": "old-to-new",
+        "banks": 3,
+        "extensions": 1,
+        "status": "passed"
+      }
+    ]
+  },
+  "safety": [
+    {
+      "case": "traversal",
+      "inputSha256": "249631d236c4f4b8568f31eb455e1900731f502dc107e78b9953be985447167f",
+      "before": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      },
+      "after": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      }
+    },
+    {
+      "case": "case-duplicate",
+      "inputSha256": "388ba01dc71e45e74d1ae9c3045cd6d433d90dc03b9a8f2d1ebd3da031371c69",
+      "before": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      },
+      "after": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      }
+    },
+    {
+      "case": "oversized",
+      "inputSha256": "cd0d22ba55886e571131f0950d82ce15fb2300cae6c4fa78eacd8445ab50edf8",
+      "before": {
+        "code": "LIBRARY_ARCHIVE_LIMIT",
+        "status": 413,
+        "stagingCleaned": true
+      },
+      "after": {
+        "code": "LIBRARY_ARCHIVE_LIMIT",
+        "status": 413,
+        "stagingCleaned": true
+      }
+    },
+    {
+      "case": "crc-stored",
+      "inputSha256": "7f08d6b6e6c39997673aeee71a27a64cbbdf4eff87e8b588cfa9020be486919b",
+      "before": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      },
+      "after": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      }
+    },
+    {
+      "case": "crc-deflated",
+      "inputSha256": "9332a2239c27365bd5696f05fa33f9e5a59cbd90c0c531f352f5a4c9aebc51a3",
+      "before": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      },
+      "after": {
+        "code": "INVALID_LIBRARY_ARCHIVE",
+        "status": 422,
+        "stagingCleaned": true
+      }
+    }
+  ]
+}
