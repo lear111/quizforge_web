@@ -130,6 +130,9 @@ test('outline validation rejects invalid groups, IDs, scores and listening while
     assert.ok(['BANK_FORMAT_UNSUPPORTED', 'BANK_STRUCTURE_INVALID', 'ASSET_PATH_INVALID'].includes(body.error.code));
     assert.ok(!JSON.stringify(body).includes(fixture.root));
   }
+  writeFixtureFile(fixture.bankFile, { ...fixture.bank, outline: [{ title: '数字题号', items: [{ id: '10', label: '甲', maxScore: 1 }, { id: '2', label: '乙', maxScore: 1 }] }] });
+  const ordered = (await open()).body;
+  assert.deepEqual(ordered.states.map(item => item.questionId), ['10', '2']); assert.equal(ordered.initial.question.questionId, '10');
   writeFixtureFile(fixture.bankFile, { ...fixture.bank, outline: [], questions: {} });
   const empty = await open(); assert.equal(empty.response.status, 200); assert.equal(empty.body.initial.question, null); assert.deepEqual(empty.body.states, []);
 });
