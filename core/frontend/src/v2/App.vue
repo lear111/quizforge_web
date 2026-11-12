@@ -10,7 +10,7 @@ const props = defineProps<{ nonce: string }>();
 interface State { questionId: string; revision: number; resultRevision: number; status: string; locked: boolean; score: number | null; maxScore: number }
 interface Item { id: string; label?: string; maxScore?: number; parts?: { id: string; label: string; maxScore: number }[] }
 interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
-interface Overview { bank: { title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
+interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
@@ -51,7 +51,7 @@ async function openBank(_kind: string, id?: string) { if (!id) return; await run
     const saved = await score(pending.question); overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
   }
 }); }
-async function navigate(id: string) { const q = current.value; if (!q || id === q.questionId) return; await run('正在打开题目', async () => { await show(await json(`/api/v2/banks/${q.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${q.snapshotId}`)); drawer.value = null; }); }
+async function navigate(id: string) { const bank = overview.value; if (!bank || id === current.value?.questionId) return; await run('正在打开题目', async () => { await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
 async function score(q: Question): Promise<Question> {
   const [output] = await grader.grade(q.extension.artifactId, [{ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item }]);
   return json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: output.result }) });
@@ -69,7 +69,7 @@ onMounted(catalog); onBeforeUnmount(() => { generation++; page?.destroy(); grade
     <header class="v2-mobile"><strong>QuizForge</strong><button @click="drawer = drawer === 'library' ? null : 'library'">题库</button><button @click="drawer = drawer === 'outline' ? null : 'outline'">大纲</button></header>
     <aside class="v2-library" :class="{ open: drawer === 'library' }"><div class="v2-brand"><span>Q</span><div><strong>QuizForge</strong><small>你的练习空间 · V2</small></div></div><h2>我的题库</h2>
       <form v-if="authRequired" @submit.prevent="catalog"><label>连接令牌<input v-model="token" type="password" autocomplete="off"></label><button>连接</button></form>
-      <LibraryList :groups="groups" mode="bank" :active-key="current ? `bank:${current.bankId}` : null" :can-manage="false" empty-message="暂无 V2 题库" :on-open="openBank" :on-toggle-group="id => { const group = groups.find(g => g.kind === 'group' && g.path === id); if (group?.kind === 'group') group.expanded = !group.expanded; }" :on-notice="text => message = text" :on-manage="() => {}" />
+      <LibraryList :groups="groups" mode="bank" :active-key="overview ? `bank:${overview.bank.bankId}` : null" :can-manage="false" empty-message="暂无 V2 题库" :on-open="openBank" :on-toggle-group="id => { const group = groups.find(g => g.kind === 'group' && g.path === id); if (group?.kind === 'group') group.expanded = !group.expanded; }" :on-notice="text => message = text" :on-manage="() => {}" />
     </aside>
     <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span></header>
       <p v-if="message" class="v2-error" role="alert">{{ message }}</p>

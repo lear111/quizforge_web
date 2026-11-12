@@ -99,6 +99,16 @@ try {
     rows.push({ viewport: name, samples: timings.length, openMs, submitMedianMs: percentile(timings, .5), submitP95Ms: percentile(timings, .95) });
     await context.close();
   }
+  // A broken starting question must not trap navigation to healthy neighbours.
+  const badBank = structuredClone(bank); badBank.id = 'synthetic-bad-start'; badBank.title = '坏题展示'; badBank.questions['1'].question = [];
+  const badDirectory = path.join(root, 'question-banks', '坏题校验', '坏题展示'); fs.mkdirSync(badDirectory, { recursive: true }); fs.writeFileSync(path.join(badDirectory, 'bank.json'), JSON.stringify(badBank));
+  const errorContext = await browser.newContext({ viewport: { width: 1440, height: 900 } }), errorPage = await errorContext.newPage();
+  errorPage.on('pageerror', error => errors.push({ name: 'bad-start', message: error.message }));
+  await errorPage.goto(url); await errorPage.locator('.extension-group-toggle').filter({ hasText: '坏题校验' }).click();
+  await errorPage.locator('[data-item-id]').filter({ hasText: '坏题展示' }).click(); await errorPage.getByRole('alert').waitFor();
+  await errorPage.locator('[data-question-id="2"]').click();
+  await errorPage.frameLocator('iframe[title="单选题作答"]').getByRole('radio', { name: 'B', exact: true }).check();
+  assert.equal(await errorPage.getByRole('alert').count(), 0); await errorContext.close();
   assert.deepEqual(errors, []);
   const report = { browser: browser.version(), node: process.version, platform: `${os.type()} ${os.release()} ${os.arch()}`, rows, pageErrors: errors, scope: 'Synthetic data, desktop/mobile viewports, not a real mobile device or release acceptance.' };
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));
