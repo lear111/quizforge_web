@@ -4,16 +4,16 @@ V2 开发以 [总体设计](core/docs/design/V2_ARCHITECTURE.md)、[工作流程
 
 ## 开始开发
 
-开发分支从 `v2` 创建，PR 目标也是 `v2`。`main` / `v1-final` 保留 V1，除严重缺陷不再更新。目前只有 V2 后端读取部分，能启动说明页，尚不能做题；第一个可试用功能的范围见进度页。
+开发分支从 `v2` 创建，PR 目标也是 `v2`。`main` / `v1-final` 保留 V1，除严重缺陷不再更新。第一个单选题流程已在开发分支实现，仍需风险审查和试用；当前状态见进度页。
 
 安装 [Node.js 24.x](https://nodejs.org/en/download)（Windows 选 x64 MSI，保留 npm 和 PATH），在独立克隆和合成数据上开发：
 
 ```powershell
 npm --prefix core ci --ignore-scripts
-node core/server/v2-main.mjs --root . --port 8794
+node core/server/v2-main.mjs --root examples/v2 --port 8794
 ```
 
-访问 `http://127.0.0.1:8794/`，Ctrl+C 停止。Windows 也可用 `Start-QuizForge-V2.cmd`，或 `npm --prefix core start`。旧 `QuizForge.exe`、旧启动与安装脚本尚未接入 V2，不能用来验收；打包在功能第 7 段处理。V2 不读取 V1 的 `.state`、设置和密钥，不自动迁移真实数据。
+访问 `http://127.0.0.1:8794/`，Ctrl+C 停止。Windows 可双击“启动 V2 单选题演示.cmd”。示例题库和题型均在 `examples/v2/`，演示作答保存在其被忽略的 `.qf-v2/`，不覆盖原基础题型。`Start-QuizForge-V2.cmd` 和 `npm --prefix core start` 仍以仓库根目录作为数据根，只有该根已安装 V2 题库时才会显示可用题目。旧 `QuizForge.exe`、旧启动与安装脚本尚未接入 V2，不能用来验收；打包在功能第 7 段处理。V2 不读取 V1 的 `.state`、设置和密钥，不自动迁移真实数据。
 
 前端 Vue / TypeScript 源码在 `core/frontend/`，产物在 `core/web/ui/`；修改后运行 `npm --prefix core run build:ui`。底层通用工具在 `core/server/host/platform/`，新后端在 `core/server/host/v2/`。`core/docs/reference/` 中未迁移的旧接口说明只描述 V1，不能覆盖 V2 总体设计。
 

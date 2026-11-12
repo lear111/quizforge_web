@@ -8,10 +8,11 @@ import { directories, newCache, readJson, relativeFile, relativePath, treeDigest
 import { TypeRegistry } from './type-registry.js';
 
 export class LibrarySnapshots {
-  constructor(root, codeRoot, { development = false } = {}) {
+  constructor(root, codeRoot, { development = false, stateStore = null } = {}) {
     this.root = checkPath(root, { directory: true }); this.codeRoot = checkPath(codeRoot, { directory: true });
     this.cache = newCache(); this.types = new TypeRegistry(root, this.cache); this.development = development;
     this.opened = new Map();
+    this.stateStore = stateStore;
   }
   locations() {
     const base = path.join(this.root, 'question-banks'), result = [];
@@ -62,6 +63,7 @@ export class LibrarySnapshots {
     const snapshot = { ...bank, ...location, snapshotId, resolutions, sdk, questionFingerprints: new Map() };
     for (const [id, item] of bank.items) snapshot.questionFingerprints.set(id, fingerprint({ question: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) ? bank.raw.questions[id] : { missing: true }, item }, 'quizforge-bank-v2-question'));
     if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
+    this.stateStore?.reconcile(snapshot);
     this.opened.set(bankId, snapshot);
     const questionId = requestedQuestionId ?? bank.items.keys().next().value;
     let initial = { question: null, error: null };
@@ -80,6 +82,7 @@ export class LibrarySnapshots {
     return value;
   }
   state(snapshot, id) {
+    if (this.stateStore) return this.stateStore.summary(snapshot, id);
     return { questionId: id, status: 'unanswered', revision: 0, answerVersion: 0, hasSavedAnswer: false, locked: false, resultRevision: 0, score: null, maxScore: snapshot.maxScores.get(id), gradingStatus: null, hasDraft: false, hasInk: false };
   }
   resolution(snapshot, record) {
@@ -102,20 +105,29 @@ export class LibrarySnapshots {
       } else if (Array.isArray(value)) for (const child of value) visit(child);
       else if (object(value)) for (const child of Object.values(value)) visit(child);
     };
-    visit(record.question); // Never expose or enumerate solution-only resources.
+    visit(record.question);
+    if (this.stateStore?.get(snapshot, id).submission) visit(record.solution);
     return assets;
   }
   question(bankId, id, snapshotId) {
     const snapshot = this.snapshot(bankId, snapshotId);
     try {
       const record = questionRecord(snapshot, id), artifact = this.resolution(snapshot, record), assets = this.visibleAssets(snapshot, id, record);
+      const saved = this.stateStore?.get(snapshot, id);
       return { bankId, snapshotId, questionId: id, type: record.type, extension: cloneJson(artifact.descriptor), item: cloneJson(snapshot.items.get(id)), question: cloneJson(record.question),
-        solution: null, answer: null, draft: null, ink: null, state: this.state(snapshot, id), submission: null, result: null,
+        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), draft: cloneJson(saved?.draft ?? null), ink: cloneJson(saved?.ink ?? null), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
         resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })) };
     } catch (error) {
       if (error.context) error.context = { ...error.context, bankId, questionId: id };
       throw error;
     }
+  }
+  write(bankId, id, op, input) {
+    const snapshot = this.snapshot(bankId, input?.snapshotId);
+    // Validate the question and installed type before touching persistence.
+    this.question(bankId, id, snapshot.snapshotId);
+    this.stateStore.apply(snapshot, id, op, input);
+    return this.question(bankId, id, snapshot.snapshotId);
   }
   asset(bankId, id, snapshotId, assetId) {
     const snapshot = this.snapshot(bankId, snapshotId), record = questionRecord(snapshot, id);
