@@ -121,6 +121,7 @@ test('outline validation rejects invalid groups, IDs, scores and listening while
     bank => { bank.outline[0].items[1].label = 'bad'; }, bank => { delete bank.outline[0].items[0].label; },
     bank => { bank.outline[0].items[0].maxScore = 0; }, bank => { bank.outline[0].items[0].maxScore = -1; },
     bank => { bank.outline[0].items[0].maxScore = '2'; }, bank => { bank.outline[0].items[0].listening = 'missing'; },
+    bank => { bank.outline[0].items[1].parts.forEach(part => { part.maxScore = 1e308; }); },
     bank => { bank.listening.https.src = 'ftp://example.test/a'; }, bank => { bank.listening.local.src = '../escape.wav'; },
     bank => { bank.features.exam = 'yes'; }
   ];

@@ -34,7 +34,9 @@ export function readBank(directory, cache, bankId) {
           if (!label(part.label)) fail(pp + '.label', '必须填写显示编号', item.id);
           if (!positive(part.maxScore)) fail(pp + '.maxScore', '必须为大于 0 的有限数', item.id);
         }
-        const total = decimalSum(item.parts.map(part => part.maxScore));
+        let total;
+        try { total = decimalSum(item.parts.map(part => part.maxScore)); }
+        catch { fail(ip + '.parts', '小题满分之和必须为有限数', item.id); }
         if (!positive(total)) fail(ip + '.parts', '小题满分之和必须为有限数', item.id);
         maxScores.set(item.id, total);
       } else {
