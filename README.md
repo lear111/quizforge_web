@@ -1,5 +1,7 @@
 # QuizForge
 
+> 当前 `v2` 分支正在重做本地 Web。P1-1 只有只读接口，界面尚在开发；启动使用 `Start-QuizForge-V2.cmd`（端口 8794），详见 [贡献指南](CONTRIBUTING.md)。下文的截图、功能和预览版下载描述仍为 `main` / `v1-final` 的 V1，不是已完成的 V2 功能。
+
 免费的本地刷题工具：适配各种题型，手机、平板、电脑都能刷，题库和作答都保存在你自己的电脑上。
 
 **[下载预览版](https://github.com/lear111/quizforge_web/releases)** · **[使用教程](https://fork-pyjama-ddc.notion.site/QuizForge-3faeacdb658180ca9c16f6c47091ba73?source=copy_link)** · [使用手册](core/docs/guides/USER_GUIDE.md) · [功能清单](FEATURES.md)

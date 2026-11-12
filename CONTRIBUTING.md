@@ -4,18 +4,26 @@
 
 ## 开始开发
 
+本分支为本地 Web V2 重做。P1-1 仅有只读接口与“界面尚在开发”说明页；不能用它进行日常作答。开发 PR 以 `v2` 为目标；`main` / `v1-final` 保留 V1。
+
 1. Fork 仓库，克隆自己的 Fork，从项目默认主分支创建功能或修复分支。
 2. 阅读 [README](README.md)，从 [Node.js 官方下载页](https://nodejs.org/en/download) 安装 **Node.js 24.x**（Windows 选择 x64 `.msi`，保留 npm 和 PATH），安装后重新打开终端。仓库不自动下载或安装 Node；不要选择其他主版本。无需 Java、JDK 或 Maven。
 3. 在仓库根目录安装依赖并启动：
 
 ```powershell
 npm --prefix core ci
-node core/server/main.mjs --root . --port 8787
+node core/server/v2-main.mjs --root . --port 8794
 ```
 
-浏览器访问 `http://127.0.0.1:8787/`，按 Ctrl+C 停止服务。Windows 也可以运行根目录的 `Start-QuizForge-Web.cmd`。
+浏览器访问 `http://127.0.0.1:8794/`，按 Ctrl+C 停止服务。Windows V2 使用根目录的 `Start-QuizForge-V2.cmd`；`npm --prefix core start` 也启动 V2。P1 期间旧 Web 脚本、`QuizForge.exe` 和旧后端只为既有测试/留档保留，尚未接到 V2，不能用它们验收本次更新。
 
-拉取或合并改动了 `core/package-lock.json` 的提交后，请重新运行 `npm --prefix core ci`。源码启动会对照锁文件和 `core/node_modules/.package-lock.json` 检查依赖：`Start-QuizForge-Web.cmd` 自动运行 `npm ci`；`node core/server/main.mjs` 和源码目录的 `QuizForge.exe` 会在终端或托盘“运行情况”中列出缺少的包和修复命令，不会自动安装。
+拉取或合并改动了 `core/package-lock.json` 的提交后，请重新运行 `npm --prefix core ci`。V2 读取独立配置，不继承 V1 的 AI 密钥或局域网密码；P1-1 不创建作答或配置文件。V1 启动器的依赖修复行为仍仅适用于留档的 V1，P1-4 再统一清理旧入口与打包路径。
+
+P1-1 的可重复接口测量（自动生成临时合成题库，独立回环随机端口，退出时关闭进程并删除合成数据）：
+
+```powershell
+node core/scripts/dev/measure-v2-readonly.mjs 30
+```
 
 请使用独立克隆和测试数据。手动测试删除、导入、迁移等操作时使用数据副本；同一数据目录只运行一个写入服务。
 

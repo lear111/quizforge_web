@@ -9,7 +9,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "start": "node server/main.mjs --root ..",
+    "start": "node server/v2-main.mjs --root ..",
+    "start:v1": "node server/main.mjs --root ..",
     "build:richtext": "node scripts/build/build-richtext.mjs",
     "build:richtext-advanced": "node scripts/build/build-richtext-advanced.mjs",
     "build:short-answer-advanced": "node scripts/build/build-short-answer-advanced.mjs",

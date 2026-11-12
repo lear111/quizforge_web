@@ -1,6 +1,7 @@
 target/
 node_modules/
 .state/
+.qf-v2/
 .temp/
 /.development/
 /.trash/
