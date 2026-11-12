@@ -38,7 +38,7 @@
 
 ## 分步与高级构建
 
-前端 Vue 组件源码位于 `core/frontend/`；日常修改后运行 `npm --prefix core run typecheck:ui` 和 `npm --prefix core run build:ui`。暂存打包入口会先重新构建 UI，再复制 `core/web/ui/` 静态产物和许可证。普通用户运行安装版不需要 Vite，源码直接启动使用仓库附带的已构建文件。详见[前端迁移计划](../docs/design/FRONTEND_MIGRATION.md)。
+前端 Vue 组件源码位于 `core/frontend/`；日常修改后运行 `npm --prefix core run typecheck:ui` 和 `npm --prefix core run build:ui`。暂存打包入口会先重新构建 UI，再复制 `core/web/ui/` 静态产物和许可证。普通用户运行安装版不需要 Vite，源码直接启动使用仓库附带的已构建文件。详见[前端迁移计划](../docs/design/archive/FRONTEND_MIGRATION.md)。
 
 也可以在产品根目录分步构建（只要安装包时，不必先生成 ZIP）：
 

@@ -31,8 +31,8 @@
 - 机器：Windows 11 Pro，系统内核 10.0.26200，Intel Core i5-13500H，Node v24.13.0；本机回环通信、完全串行，无真实题库、无外部服务、无 SSH。
 - A1 v2 原种子：quizforge-perf-a1-v2，200 题、3 种题型、5,002,406 字节状态、320 条旧回执、2 轮历史。每个子进程只复制 extensions、question-banks、.state 到其独立 mkdtemp，结束关闭规则进程和端口并删除该副本；原种子状态 SHA-256 前后核对。
 - 三轮，每轮 plain（完全不装钩子）与 diagnostic 各一遍，顺序为 P→D / D→P / P→D。每遍独立进程、独立副本，先等待真实启动环境预热、真实打开题库，再 switch 20 次、draft 20 次；不包含白板、提交、考试或冷启动的统计。因此每个模式、每个操作 **n=60**，没有删离群值或重跑择优。
-- [测量脚本](../../../scripts/dev/measure-library-perf.mjs) 复用原 measure-perf 的 Server-Timing 解析/中位数/nearest-rank P95 以及 create-perf-fixture 的合法答案构造，不修改它们。客户端读完整响应后取耗时，library 总值使用原 Server-Timing，而不是自定义总时钟。
-- [隔离钩子](../../../scripts/dev/library-diagnostic-hooks.mjs) 用 Node 的同步 registerHooks，仅在本诊断子进程内改写 5 个模块的加载源码，给原函数加无值变化的包裹；不写回生产文件。库、索引、引擎和 FileCache 原型也仅在该进程包裹。无生产开关、无环境变量开关，应用从不导入这些脚本。
+- [测量脚本](../../../../scripts/dev/measure-library-perf.mjs) 复用原 measure-perf 的 Server-Timing 解析/中位数/nearest-rank P95 以及 create-perf-fixture 的合法答案构造，不修改它们。客户端读完整响应后取耗时，library 总值使用原 Server-Timing，而不是自定义总时钟。
+- [隔离钩子](../../../../scripts/dev/library-diagnostic-hooks.mjs) 用 Node 的同步 registerHooks，仅在本诊断子进程内改写 5 个模块的加载源码，给原函数加无值变化的包裹；不写回生产文件。库、索引、引擎和 FileCache 原型也仅在该进程包裹。无生产开关、无环境变量开关，应用从不导入这些脚本。
 - 高精度时钟 performance.now；AsyncLocalStorage 分离嵌套上下文。函数表为**包含子调用的区间**；主分摊表按区间并集作互斥分配，不把 contentIdentity/contentIdentities 或 environment/validationEnvironment 重复相加。read/write 两个根区间均纳入一次请求。
 - fs 计数在相同上下文截获 lstatSync/statSync/fstatSync、readdirSync、native realpath、readFileSync、createReadStream。目录数为 readdir 的唯一路径数，目录访问数含重复遍历。stat 区分普通文件、目录及失败的检查；**这些是可观测的 JS API 调用次数，不是内核 syscall 次数**，不能推算 realpath 内部做了几次 stat。
 - 实际重新哈希在 FileCache 的内容 SHA-256 调用点、运行环境的摘要流缓存未命中和 runner 内容 SHA-256 调用点计数。fingerprint 对已有摘要/配置 JSON 的组合计算不冒充“重新读取文件哈希”。
@@ -220,7 +220,7 @@ PR **#46** 实施提交 `7d383aa6e14a15d71650cef8cf55d33d0eb324d9`，运行 **42
 
 兼容性：将核对四份标准答案的 Buffer.equals 和 SHA-256，保持旧题库/旧状态/冻结历史的既有用例；冷加载、导入继续调用全量校验。完整指纹仍为原算法的返回值，哨兵不参与指纹/缓存键组合。
 
-新保证的正式说明见 [ENVIRONMENT_FRESHNESS.md](../../reference/ENVIRONMENT_FRESHNESS.md)：七哨兵身份变化下一次写立即计算新值，非哨兵依赖变化最多延后到 10 分钟到期后的下一次写；前置读 30 秒到期等完整检查也会更早发现变化。没有改变路径/规则执行权限及信任边界。
+新保证的正式说明见 [ENVIRONMENT_FRESHNESS.md](../../../reference/ENVIRONMENT_FRESHNESS.md)：七哨兵身份变化下一次写立即计算新值，非哨兵依赖变化最多延后到 10 分钟到期后的下一次写；前置读 30 秒到期等完整检查也会更早发现变化。没有改变路径/规则执行权限及信任边界。
 
 ### 实现细节与触发
 

@@ -1,10 +1,10 @@
 # 开发者文档
 
-运行环境为 Node.js 24，Extension API 为 1.5，题库格式为 1。路径示例相对于产品根目录。
+V2 使用 Node.js 24。当前入口先读 [总体设计](design/V2_ARCHITECTURE.md)、[工作流程](design/V2_WORKFLOW.md) 和 [进度](design/V2_PROGRESS.md)；[接口与状态速查](design/V2_API_AND_STATE.md) 保留已批准约定。下表其余未迁移的参考文档描述 V1，不能作为 V2 已实现功能或开发排期。
 
 | 文档 | 内容 |
 | --- | --- |
-| [前端分阶段迁移](design/FRONTEND_MIGRATION.md) | Vue / TypeScript / Vite 的阶段、模块边界、构建与验收 |
+| [前端分阶段迁移](design/archive/FRONTEND_MIGRATION.md) | Vue / TypeScript / Vite 的阶段、模块边界、构建与验收 |
 | [本地 AI 对话](reference/AI_CHAT.md) | 单会话聊天、调用来源、临时记录与侧栏调宽 |
 | [使用手册](guides/USER_GUIDE.md) | 启动、目录管理、练习、白板、编辑、导入导出、网络、AI 与更新的完整说明 |
 | [产品功能清单](../../FEATURES.md) | 用户可见功能、操作入口及功能测试预期 |
