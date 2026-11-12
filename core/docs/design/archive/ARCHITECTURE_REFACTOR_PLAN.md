@@ -174,7 +174,7 @@ B2b 与 B1 推迟，触发条件为：**任一真实状态文件超过 5 MB，�
 
 **先测量，后改动**：用可撤销计时进一步确认写动作 `library` 分段约 150 ms 具体花在 `contentIdentity`、`environment` 还是别处，报告实际分段，不凭函数名称推断瓶颈。确认后再实施本卡。
 
-**审查后的改法**：采用独立写路径哨兵机制，不直接使用读路径的 30 秒复用。每次暖写受检读取 Node、runner 与 5 个依赖 package.json 的七份文件身份；一致时复用成功指纹，哨兵变化、超过 10 分钟、冷加载、导入、显式失效等触发完整计算。完整指纹及缓存键算法不改；contentIdentity/contentIdentities 和读路径保持现状。精确保证见 [ENVIRONMENT_FRESHNESS.md](../reference/ENVIRONMENT_FRESHNESS.md)，实现与基线证据续写 [reviews/B2a.md](reviews/B2a.md)。
+**审查后的改法**：采用独立写路径哨兵机制，不直接使用读路径的 30 秒复用。每次暖写受检读取 Node、runner 与 5 个依赖 package.json 的七份文件身份；一致时复用成功指纹，哨兵变化、超过 10 分钟、冷加载、导入、显式失效等触发完整计算。完整指纹及缓存键算法不改；contentIdentity/contentIdentities 和读路径保持现状。精确保证见 [ENVIRONMENT_FRESHNESS.md](../../reference/ENVIRONMENT_FRESHNESS.md)，实现与基线证据续写 [reviews/B2a.md](reviews/B2a.md)。
 
 **本次验收**：v2 三轮 draft/whiteboard/submit 的 `library` 分段中位数均低于 **50 ms**，报告 environment 中位数/P95及到期首次写的开销。暖写依赖遍历为 0、哨兵 stat ≤7，四份标准答案逐字节不变；新增身份变化/窗口边界/完整计算触发/失败复用用例，内容变更用例保留。原 <20 ms 目标留待进一步分析，POST 重复解析仅登记为可选 B2c。
 

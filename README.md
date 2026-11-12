@@ -47,7 +47,7 @@ Hub“下载到本地”的 Windows 客户端对接也已实现：安装版可�
 
 首次启动，以及拉取到依赖有变化的更新后，脚本会对照 `core/package-lock.json` 自动运行 `npm ci`。从源码目录双击 `QuizForge.exe` 不会自动安装；依赖不全时托盘会列出缺少的包，在根目录运行 `npm --prefix core ci` 后重新启动即可。其他系统可执行 `node core/server/main.mjs --root . --port 8787`。启动参数、单实例规则等细节见 [使用手册](core/docs/guides/USER_GUIDE.md#启动与停止)。
 
-前端正按区域迁移为 Vue 3 + TypeScript，当前先迁移 AI 聊天。源码在 `core/frontend/`；修改后运行 `npm --prefix core run typecheck:ui` 与 `npm --prefix core run build:ui`，静态产物随源码维护，日常启动无需另开前端服务。阶段与验收见[前端迁移计划](core/docs/design/FRONTEND_MIGRATION.md)。
+前端正按区域迁移为 Vue 3 + TypeScript，当前先迁移 AI 聊天。源码在 `core/frontend/`；修改后运行 `npm --prefix core run typecheck:ui` 与 `npm --prefix core run build:ui`，静态产物随源码维护，日常启动无需另开前端服务。阶段与验收见[前端迁移计划](core/docs/design/archive/FRONTEND_MIGRATION.md)。
 
 ## 获取题库
 

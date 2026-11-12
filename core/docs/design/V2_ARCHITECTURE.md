@@ -375,7 +375,7 @@ QF.grader.register({
 
 ## 9. 实施阶段
 
-功能清单与顺序见 [V2_WORKFLOW.md](V2_WORKFLOW.md) 第 6 节；当前进度见 [V2_PROGRESS.md](V2_PROGRESS.md)。
+功能分段与顺序见 V2_WORKFLOW.md 第 6 节
 
 ## 10. 待确认的问题
 
