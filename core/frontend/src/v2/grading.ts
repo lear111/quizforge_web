@@ -26,6 +26,17 @@ export interface GradingOptions {
 const unavailable = (items: GradingInput[], reason: string): GradingOutput[] => items.map(({ questionId }) => ({
   questionId, result: { status: 'ungradable', score: null, reason },
 }));
+// Worker code can forge postMessage instead of returning from grade(). Treat
+// its payload as unknown and project strictly onto the host-owned input list.
+function normalize(items: GradingInput[], results: unknown): GradingOutput[] {
+  return items.map(({ questionId }) => {
+    const entries = Array.isArray(results) ? results.filter(entry => entry && typeof entry === 'object' && entry.questionId === questionId) : [];
+    const result = entries.length === 1 ? entries[0].result : null;
+    return result && typeof result === 'object' && !Array.isArray(result)
+      ? { questionId, result }
+      : { questionId, result: { status: 'ungradable', score: null, reason: '题型返回的评分结果无效。' } };
+  });
+}
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
 // getRandomValues also works on the HTTP LAN pages used by phones.
 const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
@@ -151,7 +162,7 @@ export function createGradingService(options: GradingOptions) {
               current.environment = createEnvironment(doc, source, options.scriptNonce);
             }
             const result = await current.environment.run(items);
-            finish(result);
+            finish(normalize(items, result));
           } catch { finish(unavailable(items, '评分环境执行失败，请重试。'), true); }
         })();
       }));

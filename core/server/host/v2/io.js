@@ -11,7 +11,7 @@ export const newCache = () => new FileCache();
 export function directories(directory) {
   try { checkPath(directory, { directory: true }); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-  const names = fs.readdirSync(directory).sort();
+  const names = fs.readdirSync(directory).filter(name => name.toLowerCase() !== '.qf-v2').sort();
   if (names.length > READ_LIMITS.treeItems) throw tooMany({ field: 'directory' });
   return names.filter(name => !name.startsWith('.') && checkedStat(path.join(directory, name)).stat.isDirectory());
 }
@@ -29,7 +29,7 @@ export function treeDigest(directory, cache, context = {}) {
     // The lstat observation is used synchronously, not carried across an await.
     if (stat.isFile()) entry.hash = cache.hash(file, relative === 'bank.json' ? READ_LIMITS.bankBytes : READ_LIMITS.assetBytes, stat);
     entries.push(entry);
-    if (stat.isDirectory()) for (const name of fs.readdirSync(file).sort()) visit(path.join(file, name));
+    if (stat.isDirectory()) for (const name of fs.readdirSync(file).sort()) if (name.toLowerCase() !== '.qf-v2') visit(path.join(file, name));
   }
   try { visit(directory); }
   catch (error) {
@@ -41,7 +41,7 @@ export function treeDigest(directory, cache, context = {}) {
 export function relativePath(directory, relative) {
   if (typeof relative !== 'string' || !relative || relative.length > 1000 || /[\\:\x00-\x1f\x7f?#]/.test(relative) || path.isAbsolute(relative)) throw problem('ASSET_PATH_INVALID', '资源必须使用题库目录内的安全相对路径。');
   const parts = relative.split('/');
-  if (parts.some(part => !part || part === '.' || part === '..' || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) throw problem('ASSET_PATH_INVALID', '资源路径包含越界或系统保留名称。');
+  if (parts.some(part => !part || part === '.' || part === '..' || part.toLowerCase() === '.qf-v2' || /[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) throw problem('ASSET_PATH_INVALID', '资源路径包含越界或系统保留名称。');
   const base = path.resolve(directory), file = path.resolve(base, relative);
   if (!within(base, file)) throw problem('ASSET_PATH_INVALID', '资源路径不能越出所属目录。');
   return file;

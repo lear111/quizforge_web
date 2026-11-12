@@ -49,7 +49,9 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   writeFixtureFile(path.join(fixture.root, '.state', 'network-settings.json'), 'not even valid JSON');
   writeFixtureFile(path.join(fixture.root, '.state', 'ai.json'), SOLUTION_MARKER);
   const before = hashes(fixture.root);
-  const root = await get('/'); assert.match(root.text, /界面尚在 P2 开发/);
+  const root = await get('/'); assert.match(root.text, /QuizForgeUI.mountV2App/); assert.match(root.text, /nonce=/); assert.match(root.response.headers.get('content-security-policy'), /script-src 'nonce-/);
+  const scriptPolicy = root.response.headers.get('content-security-policy').split(';').find(rule => rule.trim().startsWith('script-src '));
+  assert.match(scriptPolicy, /blob:/); assert.doesNotMatch(scriptPolicy, /unsafe-inline|unsafe-eval/);
   assert.equal((await get('/api/v2/health')).body.apiVersion, 2);
   const { body: overview, response } = await open(); assert.equal(response.status, 200);
   assert.equal(overview.states.length, 20); assert.equal(overview.initial.question.questionId, '1');
@@ -90,7 +92,10 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   assert.equal((await get('/api/v2/banks/unknown/questions/1' + token)).response.status, 409);
   for (const route of ['/api/library', '/api/settings', '/api/ai/tasks']) assert.equal((await get(route)).response.status, 410);
   for (const route of ['/api/v2/settings/ai', base + '/position', base + '/history']) assert.equal((await get(route)).response.status, 501);
-  for (const route of [base + '/questions/1/draft', base + '/questions/1/submit', base + '/refresh']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
+  for (const route of [base + '/questions/1/draft', base + '/refresh']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
+  // Submit is now implemented; malformed requests still cannot disclose answers.
+  const rejected = await get(base + '/questions/1/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(rejected.response.status, 409); assert.doesNotMatch(rejected.text, new RegExp(SOLUTION_MARKER));
   for (const route of ['/bank.json', '/.state/ai.json', '/core/web/app.js']) assert.equal((await get(route)).response.status, 404);
   assert.equal(response.headers.get('cache-control'), 'no-store'); assert.ok(bankId.startsWith('b_'));
   assert.deepEqual(hashes(fixture.root), before);
