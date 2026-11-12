@@ -20,6 +20,9 @@ test('page sandbox has no host origin/network and safely embeds hostile question
   assert.match(page.frame.srcdoc, /\\u003c\/script>/);
   const parsed = new dom.window.DOMParser().parseFromString(page.frame.srcdoc, 'text/html');
   assert.equal(parsed.scripts.length, 1); assert.equal(parsed.scripts[0].nonce, 'trusted-nonce');
+  assert.doesNotMatch(parsed.scripts[0].textContent, /trusted-nonce|script\.nonce/);
+  assert.match(parsed.scripts[0].textContent, /document\.currentScript\.remove\(\)/);
+  assert.match(parsed.scripts[0].textContent, /URL\.revokeObjectURL/);
   send(page, { kind: 'ready' }); await page.ready; page.destroy();
 });
 test('answer replies require current frame, channel and request; destroying rejects pending work and late replies cannot affect another question', async t => {

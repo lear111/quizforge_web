@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { build } from 'esbuild';
 import { performance } from 'node:perf_hooks';
 import { V2Server } from '../../server/host/v2/server.js';
 const core = fileURLToPath(new URL('../../', import.meta.url)), repo = path.dirname(core);
@@ -16,7 +18,76 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-practice-'));
 let browser, server;
 const rows = [], errors = [];
 const percentile = (values, p) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * p) - 1];
+// A genuinely different loopback origin receives real browser requests; no
+// Playwright route abort can hide an outbound request from this assertion.
+async function probeNetwork(browser, baseline = false) {
+  const received = [];
+  const collector = http.createServer((req, res) => { received.push(req.url); res.setHeader('Content-Type', 'text/javascript'); res.end('/* synthetic collector */'); });
+  const compiled = await build({ entryPoints: [path.join(core, 'frontend/src/v2/page.ts')], bundle: true, write: false, format: 'iife', globalName: 'ProbePages' });
+  const nonce = 'synthetic-network-probe-nonce';
+  let host;
+  try {
+    await new Promise(resolve => collector.listen(0, '127.0.0.1', resolve));
+    const origin = `http://127.0.0.1:${collector.address().port}`;
+    const actions = {
+      'nonce-script': `const script=document.createElement('script');script.nonce=document.scripts[0]?.nonce||'';script.src=target;document.head.append(script);`,
+      // A removed nonce is still potentially recoverable from a CSP event.
+      'policy-nonce-script': `addEventListener('securitypolicyviolation',event=>{const match=/nonce-([^']+)/.exec(event.originalPolicy);if(match){const script=document.createElement('script');script.nonce=match[1];script.src=target;document.head.append(script);}},{once:true});fetch(target).catch(()=>{});`,
+      fetch: 'fetch(target).catch(()=>{});',
+      xhr: 'const xhr=new XMLHttpRequest();xhr.open("GET",target);xhr.send();',
+      beacon: 'navigator.sendBeacon(target,"synthetic");',
+      image: 'const image=new Image();image.src=target;document.body.append(image);',
+      css: 'const style=document.createElement("style");style.textContent=`@import url("${target}"); body{background:url("${target}")}`;document.head.append(style);',
+      stylesheet: 'const link=document.createElement("link");link.rel="stylesheet";link.href=target;document.head.append(link);',
+      media: 'const audio=document.createElement("audio");audio.src=target;document.body.append(audio);audio.load();',
+      iframe: 'const frame=document.createElement("iframe");frame.src=target;document.body.append(frame);',
+      object: 'const object=document.createElement("object");object.data=target;document.body.append(object);',
+      form: 'const form=document.createElement("form");form.action=target;document.body.append(form);form.submit();finish("sandbox-or-CSP");',
+      popup: 'window.open(target);finish("sandbox");',
+      navigation: 'location.href=target;',
+      import: 'import(target).catch(()=>{});',
+      worker: 'try{new Worker(target)}catch{finish("worker-origin-check");}',
+      websocket: 'try{new WebSocket(target.replace("http:","ws:"))}catch{finish("CSP");}',
+      eventsource: 'const source=new EventSource(target);source.onerror=()=>{source.close();finish("error");};',
+    };
+    const cases = [];
+    host = http.createServer((req, res) => {
+      const route = new URL(req.url, 'http://probe.test'), kind = route.searchParams.get('kind') ?? 'nonce-script';
+      const locked = route.searchParams.get('locked') === 'true';
+      const target = origin + '/' + kind;
+      const author = `QF.page.register({async load(context){
+        const target=${JSON.stringify(target)}+'?data='+encodeURIComponent(JSON.stringify(context));
+        await new Promise((resolve,reject)=>{
+          const timer=setTimeout(()=>reject(new Error('No network/blocked completion event')),5000);
+          const finish=()=>{clearTimeout(timer);resolve();};
+          addEventListener('securitypolicyviolation',finish,{once:true});
+          addEventListener('error',finish,{once:true});
+          try{${actions[kind]}}catch{finish();}
+          ${kind === 'nonce-script' ? 'const s=document.scripts[document.scripts.length-1];s.onload=s.onerror=finish;' : ''}
+        });
+      },getAnswer(){return {selected:'B'}}});`;
+      const boot = `addEventListener('securitypolicyviolation',event=>{if(event.effectiveDirective==='frame-src'&&event.blockedURI.startsWith(${JSON.stringify(origin)}))document.body.dataset.complete='true';});const instance=ProbePages.mountQuestionPage(document.getElementById('app'),${JSON.stringify({ html: '<p>synthetic</p>', js: author, css: '', sdks: [] })},${JSON.stringify({ question: { stem: 'network test' }, answer: { selected: 'B' }, solution: locked ? { answer: 'private synthetic marker' } : null, result: null, item: { maxScore: 2 }, mode: 'practice', locked })},${JSON.stringify(nonce)});instance.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.dataset.complete='true')));`;
+      res.setHeader('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}'${baseline ? '' : ' blob:'}; style-src 'self' 'unsafe-inline'; img-src data: blob:; connect-src 'self'; frame-src 'self'; worker-src blob:; base-uri 'none'; frame-ancestors 'none'`);
+      res.end(`<div id="app"></div><script nonce="${nonce}">${compiled.outputFiles[0].text}</script><script nonce="${nonce}">${boot.replaceAll('</', '<\\/')}</script>`);
+    });
+    await new Promise(resolve => host.listen(0, '127.0.0.1', resolve));
+    for (const locked of baseline ? [true] : [false, true]) for (const kind of baseline ? ['nonce-script'] : Object.keys(actions)) {
+      const page = await browser.newPage(), before = received.length;
+      const diagnostics = []; page.on('pageerror', error => diagnostics.push(error.message));
+      try { await page.goto(`http://127.0.0.1:${host.address().port}/?kind=${kind}&locked=${locked}`); await page.waitForFunction(() => document.body.dataset.complete === 'true'); }
+      catch (error) { throw new Error(`Network probe ${kind} locked=${locked}: ${error.message}; page errors=${JSON.stringify(diagnostics)}; received=${JSON.stringify(received)}`); }
+      finally { await page.close(); }
+      cases.push({ kind, locked, requests: received.length - before });
+    }
+    if (!baseline) assert.deepEqual(received, [], 'author scripts must not reach the external collector');
+    return { requests: received.length, baseline, cases };
+  } finally { await Promise.all([host, collector].filter(Boolean).map(server => new Promise(resolve => server.close(resolve)))); }
+}
 try {
+  if (process.argv.includes('--network-only')) {
+    browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
+    console.log(JSON.stringify(await probeNetwork(browser, process.argv.includes('--network-baseline'))));
+  } else {
   fs.cpSync(path.join(repo, 'examples', 'v2'), root, { recursive: true });
   const bankDirectory = path.join(root, 'question-banks', '基础题型', '单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(bankDirectory, 'bank.json'), 'utf8'));
@@ -28,6 +99,7 @@ try {
   server = await new V2Server({ root, codeRoot: core }).start();
   const url = `http://127.0.0.1:${server.port()}/`;
   browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
+  const network = await probeNetwork(browser);
   for (const [name, viewport, offset] of [['desktop', { width: 1440, height: 900 }, 0], ['mobile', { width: 390, height: 844 }, 10]]) {
     const context = await browser.newContext({ viewport }); const page = await context.newPage();
     page.on('pageerror', error => errors.push({ name, message: error.message }));
@@ -99,6 +171,30 @@ try {
     rows.push({ viewport: name, samples: timings.length, openMs, submitMedianMs: percentile(timings, .5), submitP95Ms: percentile(timings, .95) });
     await context.close();
   }
+  // Four locked pending questions exercise the real App, Worker and HTTP path:
+  // first/current save fails, then invalid score, forged non-array, healthy.
+  const reviewBank = structuredClone(bank); reviewBank.id = 'synthetic-review'; reviewBank.title = '评分隔离';
+  reviewBank.outline[0].items = reviewBank.outline[0].items.slice(0, 4);
+  reviewBank.questions = Object.fromEntries(Object.entries(reviewBank.questions).slice(0, 4));
+  for (const [id, question] of Object.entries(reviewBank.questions)) question.question.probe = id;
+  const reviewDirectory = path.join(root, 'question-banks', '评分隔离', '评分隔离'); fs.mkdirSync(reviewDirectory, { recursive: true }); fs.writeFileSync(path.join(reviewDirectory, 'bank.json'), JSON.stringify(reviewBank));
+  fs.writeFileSync(path.join(root, 'extensions/基础题型/单选题/grade.js'), `
+    addEventListener('message',({data})=>{if(data.items[0].question.probe==='3')self.postMessage({job:data.job,results:{not:'an array'}});});
+    QF.grader.register({grade(question){return {status:'graded',score:question.probe==='2'?9999:2};}});
+  `);
+  const reviewId = server.library.locations().find(row => row.directory === reviewDirectory).bankId;
+  const reviewOverview = server.library.open(reviewId);
+  for (const item of reviewBank.outline[0].items) server.library.write(reviewId, item.id, 'submit', { snapshotId: reviewOverview.snapshotId, expectedRevision: 0, answer: { selected: 'B' }, requestId: 'review-' + item.id });
+  const recoveryContext = await browser.newContext(), recovery = await recoveryContext.newPage();
+  recovery.on('pageerror', error => errors.push({ name: 'grading-isolation', message: error.message }));
+  await recovery.route('**/questions/1/result', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: 'synthetic interrupted first result' } }) }));
+  await recovery.goto(url); await recovery.locator('.extension-group-toggle').filter({ hasText: '评分隔离' }).click();
+  await recovery.locator('[data-item-id]').filter({ hasText: '评分隔离' }).click();
+  await recovery.waitForFunction(() => document.querySelector('[data-question-id="4"]')?.classList.contains('correct'));
+  const reviewStates = server.library.open(reviewId).states;
+  assert.deepEqual(reviewStates.map(state => state.status), ['submitted-pending', 'ungradable', 'ungradable', 'graded']);
+  assert.equal(reviewStates[3].score, 2); assert.ok(reviewStates.every(state => state.locked));
+  await recoveryContext.close();
   // A broken starting question must not trap navigation to healthy neighbours.
   const badBank = structuredClone(bank); badBank.id = 'synthetic-bad-start'; badBank.title = '坏题展示'; badBank.questions['1'].question = [];
   const badDirectory = path.join(root, 'question-banks', '坏题校验', '坏题展示'); fs.mkdirSync(badDirectory, { recursive: true }); fs.writeFileSync(path.join(badDirectory, 'bank.json'), JSON.stringify(badBank));
@@ -110,6 +206,7 @@ try {
   await errorPage.frameLocator('iframe[title="单选题作答"]').getByRole('radio', { name: 'B', exact: true }).check();
   assert.equal(await errorPage.getByRole('alert').count(), 0); await errorContext.close();
   assert.deepEqual(errors, []);
-  const report = { browser: browser.version(), node: process.version, platform: `${os.type()} ${os.release()} ${os.arch()}`, rows, pageErrors: errors, scope: 'Synthetic data, desktop/mobile viewports, not a real mobile device or release acceptance.' };
+  const report = { browser: browser.version(), node: process.version, platform: `${os.type()} ${os.release()} ${os.arch()}`, rows, network, gradingIsolation: reviewStates.map(({ questionId, status, score }) => ({ questionId, status, score })), pageErrors: errors, scope: 'Synthetic data, desktop/mobile viewports, not a real mobile device or release acceptance.' };
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));
+  }
 } finally { await browser?.close(); await server?.close(); fs.rmSync(root, { recursive: true, force: true }); }

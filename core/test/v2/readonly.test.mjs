@@ -50,6 +50,8 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   writeFixtureFile(path.join(fixture.root, '.state', 'ai.json'), SOLUTION_MARKER);
   const before = hashes(fixture.root);
   const root = await get('/'); assert.match(root.text, /QuizForgeUI.mountV2App/); assert.match(root.text, /nonce=/); assert.match(root.response.headers.get('content-security-policy'), /script-src 'nonce-/);
+  const scriptPolicy = root.response.headers.get('content-security-policy').split(';').find(rule => rule.trim().startsWith('script-src '));
+  assert.match(scriptPolicy, /blob:/); assert.doesNotMatch(scriptPolicy, /unsafe-inline|unsafe-eval/);
   assert.equal((await get('/api/v2/health')).body.apiVersion, 2);
   const { body: overview, response } = await open(); assert.equal(response.status, 200);
   assert.equal(overview.states.length, 20); assert.equal(overview.initial.question.questionId, '1');

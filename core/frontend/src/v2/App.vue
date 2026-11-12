@@ -6,6 +6,7 @@ import type { LibraryTree } from '../library/types';
 import type { OutlineModel } from '../outline/model';
 import { mountQuestionPage } from './page';
 import { createGradingService } from './grading';
+import { saveGrade, recoverGrades } from './scoring';
 const props = defineProps<{ nonce: string }>();
 interface State { questionId: string; revision: number; resultRevision: number; status: string; locked: boolean; score: number | null; maxScore: number }
 interface Item { id: string; label?: string; maxScore?: number; parts?: { id: string; label: string; maxScore: number }[] }
@@ -16,7 +17,7 @@ const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'lib
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
 async function response(route: string, options: RequestInit = {}) {
   const response = await fetch(route, { ...options, credentials: 'omit', referrerPolicy: 'no-referrer', headers: { ...options.headers, ...(token.value ? { 'x-quizforge-token': token.value } : {}) } });
-  if (!response.ok) { const body = await response.json(); if (response.status === 401) authRequired.value = true; throw new Error(body.error?.message || '操作未完成。'); }
+  if (!response.ok) { const body = await response.json(); if (response.status === 401) authRequired.value = true; throw Object.assign(new Error(body.error?.message || '操作未完成。'), { code: body.error?.code }); }
   return response;
 }
 const json = async (route: string, options?: RequestInit) => (await response(route, options)).json();
@@ -46,15 +47,19 @@ async function catalog() { await run('正在读取题库', async () => {
 }); }
 async function openBank(_kind: string, id?: string) { if (!id) return; await run('正在打开题库', async () => {
   const value: Overview = await json(`/api/v2/banks/${id}/overview`); overview.value = value; drawer.value = null;
-  if (value.initial.question) await show(value.initial.question); else { page?.destroy(); page = null; current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
-  for (const pending of value.pendingGrading) if (pending.question && pending.question.questionId !== current.value?.questionId) {
-    const saved = await score(pending.question); overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
-  }
+  if (value.initial.question) {
+    try { await show(value.initial.question, false); } catch (error) { message.value = error instanceof Error ? error.message : '题型页面未能加载。'; }
+  } else { page?.destroy(); page = null; current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
+  await recoverGrades(value.pendingGrading.flatMap(pending => pending.question ? [pending.question] : []), score, async saved => {
+    overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
+    if (saved.questionId === current.value?.questionId) await show(saved, false);
+  }, error => { message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。'; });
 }); }
 async function navigate(id: string) { const bank = overview.value; if (!bank || id === current.value?.questionId) return; await run('正在打开题目', async () => { await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
 async function score(q: Question): Promise<Question> {
-  const [output] = await grader.grade(q.extension.artifactId, [{ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item }]);
-  return json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: output.result }) });
+  return saveGrade({ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item },
+    items => grader.grade(q.extension.artifactId, items),
+    result => json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result }) }));
 }
 async function grade(q: Question) { await show(await score(q)); }
 async function submit() { const q = current.value; if (!q || !page || q.state.locked) return; await run('正在提交并评分', async () => {

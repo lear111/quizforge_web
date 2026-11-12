@@ -115,3 +115,26 @@ test('source fetch and worker startup failure do not poison subsequent work', as
   const good = f.observe(f.frames()[0]); good.send({ ready: true }); await turn();
   good.send({ job: good.messages[0].job, results: result('q3') }); assert.deepEqual(await third, result('q3'));
 });
+
+test('untrusted worker results are projected to the input IDs, order and length with invalid entries ungradable', async t => {
+  const f = fixture(t);
+  let serial = 0;
+  const run = async (ids, payload) => {
+    const pending = f.service.grade('shape-' + serial++, ids.flatMap(input)); await turn();
+    const probe = f.observe(f.frames().at(-1)); probe.send({ ready: true }); await turn();
+    probe.send({ job: probe.messages[0].job, results: payload });
+    return pending;
+  };
+  for (const payload of [null, {}, 'not an array', 42]) {
+    const rows = await run(['q1', 'q2'], payload);
+    assert.deepEqual(rows.map(row => row.questionId), ['q1', 'q2']);
+    assert.ok(rows.every(row => row.result.status === 'ungradable'));
+  }
+  const rows = await run(['q2', 'q1', 'missing', 'duplicate', 'array'], [
+    ...result('foreign'), ...result('q1'), { questionId: 'q2', result: null },
+    ...result('duplicate'), ...result('duplicate'), { questionId: 'array', result: [] },
+  ]);
+  assert.deepEqual(rows.map(row => row.questionId), ['q2', 'q1', 'missing', 'duplicate', 'array']);
+  assert.equal(rows[1].result.score, 2);
+  assert.ok(rows.filter(row => row.questionId !== 'q1').every(row => row.result.status === 'ungradable'));
+});

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { readBytes, replaceFile } from '../platform/files.js';
+import { readBytes, replaceFile, checkPath, checkedStat } from '../platform/files.js';
 import { cloneJson, shallowCopyJson, freezeJson, fingerprint, parseJson, jsonBytes, jsonEqual, decimalSum } from '../platform/json.js';
 import { object, problem } from './errors.js';
 
@@ -10,38 +10,44 @@ const integer = value => Number.isSafeInteger(value) && value >= 0;
 const own = (value, key) => Object.hasOwn(value, key);
 const invalid = () => problem('STATE_INVALID', '作答记录无法读取，原文件已保留。', {}, 503);
 export class PracticeState {
-  constructor(root, { write = replaceFile, uuid = randomUUID } = {}) { this.root = root; this.write = write; this.uuid = uuid; this.loaded = new Map(); }
-  file(id) { return path.join(this.root, '.qf-v2', 'state', id + '.json'); }
-  load(id) {
-    if (this.loaded.has(id)) return this.loaded.get(id);
+  constructor({ write = replaceFile, uuid = randomUUID } = {}) { this.write = write; this.uuid = uuid; this.loaded = new Map(); }
+  file(directory) {
+    const local = path.join(checkPath(directory, { directory: true }), '.qf-v2');
+    checkedStat(local, { directory: true, optional: true });
+    return path.join(local, 'state.json');
+  }
+  load(directory) {
+    const file = this.file(directory);
+    if (this.loaded.has(file)) return this.loaded.get(file);
     let value;
     try {
-      const bytes = readBytes(this.file(id), STATE_BYTES, true);
+      const bytes = readBytes(file, STATE_BYTES, true);
       // The persisted questions/id envelope is deeper than the HTTP envelope.
-      value = bytes ? parseJson(bytes, { maxDepth: 68 }) : { formatVersion: 2, bankId: id, questions: {}, historyIndex: [] };
-      if (!object(value) || value.formatVersion !== 2 || value.bankId !== id || !object(value.questions) || !Array.isArray(value.historyIndex)) throw invalid();
+      value = bytes ? parseJson(bytes, { maxDepth: 68 }) : { formatVersion: 2, questions: {}, historyIndex: [] };
+      if (!object(value) || value.formatVersion !== 2 || !object(value.questions) || !Array.isArray(value.historyIndex)) throw invalid();
       for (const state of Object.values(value.questions)) {
         if (!object(state) || typeof state.fingerprint !== 'string' || !integer(state.revision) || !integer(state.answerVersion) || !integer(state.resultRevision) || !object(state.receipts)) throw invalid();
         if (state.submission !== null && (!object(state.submission) || typeof state.submission.submissionId !== 'string' || state.submission.answerVersion !== state.answerVersion || state.submission.questionFingerprint !== state.fingerprint)) throw invalid();
         if (!['unanswered', 'drafting', 'submitted-pending', 'graded', 'pending-review', 'ungradable'].includes(state.status) || Boolean(state.submission) !== !['unanswered', 'drafting'].includes(state.status)) throw invalid();
       }
     } catch { throw invalid(); }
-    freezeJson(value); this.loaded.set(id, value); return value;
+    freezeJson(value); this.loaded.set(file, value); return value;
   }
-  commit(id, value) {
+  commit(directory, value) {
     const bytes = jsonBytes(value);
     if (bytes.length > STATE_BYTES) throw problem('STATE_SIZE_LIMIT', '作答记录超过 32 MiB，本次未保存，原记录保留。', { details: { limit: STATE_BYTES } }, 413);
-    try { this.write(this.file(id), bytes); } catch { throw problem('STATE_WRITE_FAILED', '作答未能保存，请重试；原记录保持不变。', {}, 503); }
-    freezeJson(value); this.loaded.set(id, value);
+    const file = this.file(directory);
+    try { this.write(file, bytes); } catch { throw problem('STATE_WRITE_FAILED', '作答未能保存，请重试；原记录保持不变。', {}, 503); }
+    freezeJson(value); this.loaded.set(file, value);
   }
   reconcile(snapshot) {
-    const old = this.load(snapshot.bankId), questions = shallowCopyJson(old.questions);
+    const old = this.load(snapshot.directory), questions = shallowCopyJson(old.questions);
     let changed = false;
     for (const [id, state] of Object.entries(questions)) if (snapshot.questionFingerprints.get(id) !== state.fingerprint) { delete questions[id]; changed = true; }
-    if (changed) this.commit(snapshot.bankId, { ...old, questions });
+    if (changed) this.commit(snapshot.directory, { ...old, questions });
   }
   get(snapshot, id) {
-    const root = this.load(snapshot.bankId);
+    const root = this.load(snapshot.directory);
     return own(root.questions, id) ? root.questions[id] : freezeJson({ fingerprint: snapshot.questionFingerprints.get(id), status: 'unanswered', revision: 0, answerVersion: 0, answer: null, draft: null, ink: null, submission: null, resultRevision: 0, result: null, receipts: {} });
   }
   summary(snapshot, id) {
@@ -50,7 +56,7 @@ export class PracticeState {
   }
   apply(snapshot, id, op, input) {
     if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
-    const root = this.load(snapshot.bankId), old = this.get(snapshot, id), key = input.requestId;
+    const root = this.load(snapshot.directory), old = this.get(snapshot, id), key = input.requestId;
     const signature = fingerprint({ op, input }, 'quizforge-v2-receipt');
     // Check the current lock/generation before replay; never resurrect an old lock.
     if (op === 'result' && (!old.submission || !jsonEqual(old.submission, input.submission))) throw problem('SUBMISSION_STALE', '评分不属于当前锁定的答案。', {}, 409);
@@ -76,7 +82,7 @@ export class PracticeState {
     Object.defineProperty(receipts, key, { value: signature, enumerable: true, configurable: true, writable: true }); next.receipts = receipts;
     const questions = shallowCopyJson(root.questions);
     Object.defineProperty(questions, id, { value: next, enumerable: true, configurable: true, writable: true });
-    this.commit(snapshot.bankId, { ...root, questions }); return next;
+    this.commit(snapshot.directory, { ...root, questions }); return next;
   }
 }
 export function validateResult(item, result) {

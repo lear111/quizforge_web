@@ -16,7 +16,7 @@ export class V2Server {
     if (!loopback(host) && host !== 'localhost' && !token) throw problem('AUTH_REQUIRED', '开放非回环地址必须显式设置访问令牌；V2 不继承旧局域网设置。', {}, 403);
     this.host = host; this.requestedPort = port; this.token = token;
     this.codeRoot = codeRoot;
-    this.library = new LibrarySnapshots(root, codeRoot, { development, stateStore: new PracticeState(root) });
+    this.library = new LibrarySnapshots(root, codeRoot, { development, stateStore: new PracticeState() });
     this.hosts = new Set(['localhost', '127.0.0.1', '::1', ...Object.values(os.networkInterfaces()).flat().filter(Boolean).map(row => row.address)]);
     if (!['0.0.0.0', '::'].includes(host)) this.hosts.add(host);
     this.server = http.createServer((request, response) => this.handle(request, response));
@@ -94,7 +94,7 @@ export class V2Server {
       });
       if (url.pathname === '/' && ['GET', 'HEAD'].includes(request.method)) {
         const nonce = randomBytes(18).toString('base64');
-        response.setHeader('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src data: blob:; connect-src 'self'; frame-src 'self'; worker-src blob:; base-uri 'none'; frame-ancestors 'none'`);
+        response.setHeader('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}' blob:; style-src 'self' 'unsafe-inline'; img-src data: blob:; connect-src 'self'; frame-src 'self'; worker-src blob:; base-uri 'none'; frame-ancestors 'none'`);
         const bytes = Buffer.from(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QuizForge V2</title><link rel="stylesheet" href="/ui/quizforge-web-local.css"><div id="app"></div><script nonce="${nonce}" src="/ui/quizforge-ui.js"></script><script nonce="${nonce}">QuizForgeUI.mountV2App(document.getElementById('app'),${JSON.stringify(nonce)});</script></html>`);
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': bytes.length }); response.end(request.method === 'HEAD' ? undefined : bytes); return;
       }

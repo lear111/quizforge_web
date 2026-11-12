@@ -9,11 +9,22 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
   let disposed = false, sequence = 0, resolveReady!: () => void, rejectReady!: (error: Error) => void;
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
-  const runtime = `
+  const runtime = `(()=>{
+    // The nonce is a host capability, never an author capability. Remove both
+    // readable DOM copies before running any SDK or author-provided script.
+    document.currentScript.remove();
+    document.querySelector('meta[http-equiv="Content-Security-Policy"]').remove();
+    // CSP violation events can reveal the original policy (including a nonce).
+    // Add a second, intersecting policy: even a recovered nonce cannot approve
+    // an external/inline script once author code begins. Existing code keeps
+    // running; all subsequently loaded SDK/author scripts must be blob URLs.
+    const authorPolicy=document.createElement('meta');
+    authorPolicy.httpEquiv='Content-Security-Policy';authorPolicy.content="script-src blob:";
+    document.head.append(authorPolicy);
     const channel=${literal(channel)}, context=${literal(context)};
     const send=value=>parent.postMessage({...value,channel},'*');
     let page;
-    const QF=Object.freeze({page:Object.freeze({register(value){page=value;}})});
+    globalThis.QF=Object.freeze({page:Object.freeze({register(value){page=value;}})});
     addEventListener('message',async event=>{
       if(event.source!==parent||event.data?.channel!==channel||event.data.kind!=='answer')return;
       try{send({kind:'answer',request:event.data.request,value:await page.getAnswer()});}
@@ -25,11 +36,14 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
       markup.querySelectorAll('script,iframe,object,embed,base,meta,link').forEach(node=>node.remove());
       document.getElementById('question').append(...markup.body.childNodes);
       for(const source of ${literal([...sources.sdks, sources.js])}){
-        const script=document.createElement('script');script.nonce=${literal(nonce)};script.textContent=source;document.head.append(script);
+        const script=document.createElement('script');
+        const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+        try{await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=reject;script.src=url;document.head.append(script);});}
+        finally{script.remove();URL.revokeObjectURL(url);}
       }
       if(!page||typeof page.load!=='function'||typeof page.getAnswer!=='function')throw new Error();
       await page.load(context);send({kind:'ready'});
-    }catch{send({kind:'error'});}})();`;
+    }catch{send({kind:'error'});}})();})();`;
   const handler = (event: MessageEvent) => {
     if (disposed || event.source !== frame.contentWindow || event.data?.channel !== channel) return;
     if (event.data.kind === 'ready') resolveReady();
@@ -44,7 +58,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
   // Parent's nonce also applies to srcdoc's inherited CSP. No host origin,
   // network, forms, popups or top-level navigation is granted to author code.
   const attr = nonce.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
-  frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${attr}'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>${sources.css.replaceAll('</', '<\\/')}</style><div id="question"></div><script nonce="${attr}">${runtime.replaceAll('</', '<\\/')}</script></html>`;
+  frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${attr}' blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>${sources.css.replaceAll('</', '<\\/')}</style><div id="question"></div><script nonce="${attr}">${runtime.replaceAll('</', '<\\/')}</script></html>`;
   container.replaceChildren(frame);
   return { ready, frame,
     async answer() { await ready; if (disposed) throw new Error('题目已关闭。'); return new Promise<unknown>((resolve, reject) => { const request = ++sequence; pending.set(request, { resolve, reject }); frame.contentWindow!.postMessage({ channel, kind: 'answer', request }, '*'); }); },
