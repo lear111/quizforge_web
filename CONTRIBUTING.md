@@ -2,6 +2,8 @@
 
 欢迎通过 Issue 和 Pull Request（PR）改进 QuizForge Web。一个 PR 尽量围绕一个问题，便于审查、验证和回退。较大的新功能、接口调整或目录重构，请先通过 Issue 说明方案和影响范围。
 
+> **在 `v2` 分支上工作时**，协作流程以 [V2 开发流程](core/docs/design/V2_WORKFLOW.md) 为准，设计以 [V2 总体设计](core/docs/design/V2_ARCHITECTURE.md) 为准，进度见 [V2 进度](core/docs/design/V2_PROGRESS.md)。本文件与之冲突的约定不适用于 `v2`。
+
 ## 开始开发
 
 本分支为本地 Web V2 重做。P1-1 仅有只读接口与“界面尚在开发”说明页；不能用它进行日常作答。开发 PR 以 `v2` 为目标；`main` / `v1-final` 保留 V1。
