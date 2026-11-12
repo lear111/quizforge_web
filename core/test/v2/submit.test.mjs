@@ -88,8 +88,9 @@ test('32 MiB cap refuses the entire candidate without committing; unreadable rec
 });
 test('maximum request nesting can be reloaded through the deeper persistence envelope', async t => {
   const { server, bankId, submit } = await setup(t), store = server.library.stateStore;
-  let answer = { selected: '乙' }; for (let i = 0; i < 59; i++) answer = { nested: answer };
+  let answer = { selected: '乙' }; for (let i = 0; i < 62; i++) answer = { nested: answer };
   assert.equal((await submit('1', { answer })).status, 200);
+  assert.throws(() => parseJson(fs.readFileSync(store.file(bankId))), /Nesting depth limit/);
   const reloaded = new PracticeState(store.root);
   assert.deepEqual(reloaded.load(bankId), store.load(bankId));
 });
