@@ -71,3 +71,13 @@ The S1 v2 regression reuses the existing generated fixture in `test:perf`; it do
 ## Known limitations
 
 The current measurement script is completely serial. Its `queue` phase does not represent concurrent queueing; concurrency scenarios remain assigned to task card B4, which is not currently scheduled. Mock rules for type1/type2 and the absence of a browser also limit what this baseline can establish. Type0 exercises real single-choice schemas and rules, but this dataset does not represent every real extension or real AI/network performance.
+
+## Anonymous bank file counts (K2)
+
+Stop the ordinary 8787/8788 service before running this read-only inspection; do not stop another user's active work automatically. Use the explicitly authorized data root (the same root used for S1):
+
+```powershell
+node core/scripts/dev/inspect-bank-file-counts.mjs "<authorized data root>" --read-bindings
+```
+
+Without `--read-bindings`, only `readdir` / `lstat` are used and bindings are marked unknown. The opt-in reads each `bank.json` solely to select extension reference paths; it does not read extension bodies, answers or other files. All output values are numeric counts/statuses; anonymous indices replace bank names. `bindingUnknown: 1` means the zero extension count is unknown, not an empty binding, and excludes that row from combined-file-count quantiles. Links/special items are not followed and have a numeric skipped count. Directory counts exclude each bank root. Resources include assets/media/resources; extension directories are deduplicated within each bank. No service starts, writes, migration or real-state reading occur. Keep real output outside git/reviews/PRs; only its aggregate summary may be recorded in the plan after authorization. This total is diagnostic: the existing 1000-item limit includes directories and applies to each traversal, not the sum of a bank's independent extension traversals.

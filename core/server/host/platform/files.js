@@ -10,10 +10,12 @@ export function within(base, candidate) {
   const relative = path.relative(path.resolve(base), path.resolve(candidate));
   return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep));
 }
-export function checkedStat(file, { directory = false, optional = false, bigint = false } = {}) {
+export function checkedStat(file, { directory = false, optional = false, bigint = false, observed = null } = {}) {
   const absolute = path.resolve(file);
   let stat;
-  try { stat = fs.lstatSync(absolute, { bigint }); }
+  // Only a synchronous caller's just-observed walkEntries stat may be reused.
+  // Keep the per-file canonical/redirect check even when lstat is shared.
+  try { stat = observed ?? fs.lstatSync(absolute, { bigint }); }
   catch (error) { if (optional && error.code === 'ENOENT') return { absolute, stat: null }; throw error; }
   if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) throw new Error('Links and special files are not allowed');
   if (directory && !stat.isDirectory()) throw new Error('Expected a normal directory');
