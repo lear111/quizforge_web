@@ -13,8 +13,10 @@
 | 检查 | 结果 / 失败名单 |
 |---|---|
 | 本地 V2 | 33 通过 / 0 失败 / 0 跳过；类型和构建检查通过 |
-| 本地完整测试 | 正在运行，推送后补充 |
-| 本轮 Windows / Ubuntu / 性能 CI | 待推送；旧版 a73779d / 43176481941 分别 1289 / 1255（34 既有平台跳过）/ 4 通过，均 0 失败 |
+| 本地完整测试 | 1278 通过、16 失败、0 跳过，1118.6 秒；本次 V2 全通过，失败定位见下方，未据此宣称本机全绿 |
+| 本轮 CI：b20aadc / 43212012902 | Windows 1294 通过、0 失败/跳过，3分51秒；Ubuntu 1260 通过、0 失败、34 既有平台跳过，1分15秒；性能 4 通过、0 失败/跳过，26秒。失败用例：无 |
+
+本地失败定位（均在未改动的 V1 路径，未另跑基线，不断言全部是既有缺陷）：`server/host/ai/hub-connection.test.mjs:68,88,96,114,133,160` 与 `settings-provider.test.mjs:32,54` 为访问保护失败；`server/host/http/server.test.mjs:290` 返回 503；`server/host/extensions/rule-engine.test.mjs:99` 前台排队断言；`server/host/library/library-archive.test.mjs:30` rename EPERM；`test/desktop/hub-import.test.mjs:192,217`、`test/desktop/windows-tray.test.mjs:117,191` 为导入失败/启动 EPERM；`test/extensions/bank-builder-validator.test.mjs:139` 为 RULE_TIMEOUT。同一提交的两系统 CI 均通过；本次不修改这些用例、权限或时限。
 
 真实 Chrome 157.0.8103.39 / Windows 11 10.0.26200 / Node 24.13.0，独立合成数据/回环端口：桌面、390×844 手机尺寸（非真机）各 10 次正确/错误提交、失败保留输入、刷新重开恢复、首题损坏可导航与补评隔离；pageerror 0。
 
