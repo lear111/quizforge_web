@@ -149,6 +149,19 @@ export function projectJson(value, fields) {
   });
 }
 export function shallowCopyJson(value) { return projectJson(value, Object.keys(value)); }
+/** Shallow field replacement retaining the numeric metadata of both owners.
+ * Like projectJson, child containers are borrowed; clone untrusted patches first. */
+export function patchJson(value, fields) {
+  const result = shallowCopyJson(value), patch = shallowCopyJson(fields);
+  const metadata = numericSources.get(result) ?? new Map(), source = numericSources.get(patch);
+  for (const key of Object.keys(patch)) {
+    Object.defineProperty(result, key, { value: patch[key], enumerable: true, configurable: true, writable: true });
+    metadata.delete(key);
+    if (source?.has(key)) metadata.set(key, source.get(key));
+  }
+  if (metadata.size) numericSources.set(result, metadata);
+  return result;
+}
 /** Committed state is deeply immutable. Incremental walks may stop at nodes
  * previously frozen by this boundary; full loads also inspect frozen roots. */
 export function freezeJson(value, { incremental = true } = {}) {

@@ -101,7 +101,7 @@ test('deterministic V2 persistence follows an independently specified state vect
   const saved = await api(`${base}/questions/1/submit`, request); assert.equal(saved.status, 200);
   const snapshot = server.library.opened.get(bankId), fp = snapshot.questionFingerprints.get('1');
   const { fingerprint } = await import('../../server/host/platform/json.js');
-  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"fingerprint":"${fp}","status":"submitted-pending","revision":1,"answerVersion":1,"answer":{"number":1.0},"draft":null,"ink":null,"submission":{"submissionId":"00000000-0000-4000-8000-000000000001","answerVersion":1,"questionFingerprint":"${fp}"},"resultRevision":0,"result":null,"receipts":{"golden-submit":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"}}},"historyIndex":[]}`);
+  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"fingerprint":"${fp}","status":"submitted-pending","revision":1,"answerVersion":1,"answer":{"number":1.0},"draft":null,"ink":null,"submission":{"submissionId":"00000000-0000-4000-8000-000000000001","answerVersion":1,"questionFingerprint":"${fp}"},"resultRevision":0,"result":null,"receipts":{"golden-submit":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"},"receiptOrder":["golden-submit"]}},"historyIndex":[]}`);
   assert.ok(fs.readFileSync(store.file(directory)).equals(jsonBytes(expected))); assert.match(fs.readFileSync(store.file(directory), 'utf8'), /"number":1\.0/);
   // External callers receive clones, not borrowed frozen state.
   saved.value.answer.number = 99; assert.equal(store.get(snapshot, '1').answer.number, 1);
