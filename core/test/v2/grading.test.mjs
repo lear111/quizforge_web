@@ -26,12 +26,14 @@ function fixture(t, options = {}) {
 }
 
 test('grading accepts only the owning frame, channel and current job; disposes the frame', async t => {
-  const f = fixture(t), pending = f.service.grade('type-a', input('q1'));
+  const f = fixture(t, { scriptNonce: 'host-boot-nonce' }), pending = f.service.grade('type-a', input('q1'));
   await turn();
   const frame = f.frames()[0], probe = f.observe(frame);
   assert.equal(frame.getAttribute('sandbox'), 'allow-scripts');
   assert.ok(!frame.getAttribute('sandbox').includes('allow-same-origin'));
   assert.match(frame.srcdoc, /connect-src 'none'/);
+  assert.match(frame.srcdoc, /script-src 'nonce-host-boot-nonce'/);
+  assert.match(frame.srcdoc, /<script nonce="host-boot-nonce">/);
   probe.send({ ready: true }); await turn();
   const request = probe.messages[0]; assert.equal(request.items[0].questionId, 'q1');
   let finished = false; void pending.then(() => { finished = true; });

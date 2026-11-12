@@ -19,6 +19,8 @@ export interface GradingOptions {
   document?: Document;
   timeoutMs?: number;
   idleMs?: number;
+  /** Trusted host boot-script nonce, so srcdoc also satisfies the parent CSP. */
+  scriptNonce?: string;
 }
 
 const unavailable = (items: GradingInput[], reason: string): GradingOutput[] => items.map(({ questionId }) => ({
@@ -28,9 +30,10 @@ const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u00
 // getRandomValues also works on the HTTP LAN pages used by phones.
 const randomId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
 
-function createEnvironment(doc: Document, source: string): Environment {
+function createEnvironment(doc: Document, source: string, scriptNonce?: string): Environment {
   const view = doc.defaultView!;
-  const channel = randomId(), nonce = randomId();
+  const channel = randomId(), nonce = scriptNonce ?? randomId();
+  const nonceAttribute = nonce.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
   const frame = doc.createElement('iframe');
   frame.hidden = true;
   frame.title = '题型评分环境';
@@ -54,8 +57,8 @@ function createEnvironment(doc: Document, source: string): Environment {
     };
     self.postMessage({ready:true});`;
   frame.srcdoc = `<!doctype html><meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; worker-src blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
-    <script nonce="${nonce}">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonceAttribute}'; worker-src blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <script nonce="${nonceAttribute}">
       const channel = ${literal(channel)};
       const send = value => parent.postMessage({...value, channel}, '*');
       let worker;
@@ -145,7 +148,7 @@ export function createGradingService(options: GradingOptions) {
             if (!current.environment) {
               const source = await options.loadSource(artifactId, controller.signal);
               if (done) return;
-              current.environment = createEnvironment(doc, source);
+              current.environment = createEnvironment(doc, source, options.scriptNonce);
             }
             const result = await current.environment.run(items);
             finish(result);

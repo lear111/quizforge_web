@@ -6,8 +6,8 @@
 - 没改什么：不改后端、solution 发送、作答保存/锁定/评分存储、真实题库、旧接口、旧标准答案或依赖；未接 Vue 入口，不把这项完成当作整个第 1 段可试用。`main` 和日常服务不动。
 - 新用例：`test/v2/grading.test.mjs` 六项，覆盖消息来源/通道/任务隔离、同型排队和跨型并行、默认超时边界与重建、加载时关闭、空闲回收、启动错误后恢复。JSDOM 只验证宿主调度，不冒充 Worker 验收。
 - 真实浏览器：`scripts/dev/probe-v2-grading.mjs` 直接编译上述生产组件，Windows 11 10.0.26200 / i5-13500H / Node 24.13.0 / Chrome 157.0.8103.39（headless），1440×900、390×844 回环及手机尺寸非安全 HTTP 上下文（域名强制映射到回环）各一组。正确/错误/异常/不可复制结果、复用、独立并行、死循环不阻塞宿主、超时重建、语法错误后恢复、srcdoc 逃逸字符串、清理全部通过；CSP 阻止 fetch/importScripts，服务收到禁止路径请求 0 次，Worker origin 为 null，不能访问 DOM/存储，opaque 页面不能读 localStorage。
-- 计时：三组首次批次 561.3 / 110.6 / 95.2 ms，仅各一次合成探针，不能作为用户提交耗时或统计基准。整条做题流程尚未实测。
-- 复现：先在忽略目录单独安装 Playwright，再执行 `node core/scripts/dev/probe-v2-grading.mjs <其绝对 index.mjs 路径> chrome`；浏览器/回环服务在 finally 关闭，无项目依赖变化、无真实数据。探针不带宿主页最终 CSP；Vue 接入时必须验证实际宿主页与 iframe CSP 的组合，不能据此声称完整宿主安全验收。
+- 计时：三组首次批次 121.4 / 85.2 / 68.9 ms，仅各一次合成探针，不能作为用户提交耗时或统计基准。整条做题流程尚未实测。
+- 复现：先在忽略目录单独安装 Playwright，再执行 `node core/scripts/dev/probe-v2-grading.mjs <其绝对 index.mjs 路径> chrome`；浏览器/回环服务在 finally 关闭，无项目依赖变化、无真实数据。探针同时启用严格宿主页 CSP 与 iframe CSP，通过可信宿主脚本 nonce 引导，不用 unsafe-inline。Vue 接入时仍复验真实宿主页政策，当前不是整个应用验收。
 
 | 检查 | 结果 | 失败用例 |
 |---|---|---|

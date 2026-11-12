@@ -16,7 +16,11 @@ const server = http.createServer((req, res) => {
   seen.push(req.url);
   res.setHeader('Cache-Control', 'no-store');
   if (req.url === '/grading.js') { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(compiled.outputFiles[0].contents); }
-  else if (req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V2 评分环境合成验收</title><body><h1>评分环境合成验收</h1><script src="/grading.js"></script></body></html>'); }
+  else if (req.url === '/') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'nonce-qfGradingProbe'; frame-src 'self'; worker-src blob:; connect-src 'self'; base-uri 'none'; object-src 'none'");
+    res.end('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>V2 评分环境合成验收</title><body><h1>评分环境合成验收</h1><script nonce="qfGradingProbe" src="/grading.js"></script></body></html>');
+  }
   else { res.writeHead(404); res.end(); }
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -47,7 +51,7 @@ try {
       }});`;
       const infinite = `QF.grader.register({grade(){while(true){}}});`;
       const loads = {};
-      const service = QFGrading.createGradingService({ loadSource: async id => {
+      const service = QFGrading.createGradingService({ scriptNonce: 'qfGradingProbe', loadSource: async id => {
         loads[id] = (loads[id] || 0) + 1;
         return id === 'inspection' ? inspected : id === 'escape' ? escape : id === 'syntax' && loads[id] === 1 ? 'not valid javascript !' : basic;
       } });
@@ -65,7 +69,7 @@ try {
         const frame = document.createElement('iframe'); frame.sandbox = 'allow-scripts';
         const listener = event => { if (event.source === frame.contentWindow) { removeEventListener('message', listener); frame.remove(); resolve(event.data.blocked); } };
         addEventListener('message', listener);
-        frame.srcdoc = '<script>try{localStorage.getItem("probe");parent.postMessage({blocked:false},"*")}catch{parent.postMessage({blocked:true},"*")}<\/script>';
+        frame.srcdoc = '<script nonce="qfGradingProbe">try{localStorage.getItem("probe");parent.postMessage({blocked:false},"*")}catch{parent.postMessage({blocked:true},"*")}<\/script>';
         document.body.append(frame);
       });
       check(frameStorageBlocked, 'opaque iframe storage isolation');
@@ -75,7 +79,7 @@ try {
       let hangLoads = 0;
       // Use the specified production deadline. A reduced probe deadline can
       // expire during a legitimate cold Worker startup on a busy machine.
-      const slow = QFGrading.createGradingService({ loadSource: async () => ++hangLoads === 1 ? infinite : basic });
+      const slow = QFGrading.createGradingService({ scriptNonce: 'qfGradingProbe', loadSource: async () => ++hangLoads === 1 ? infinite : basic });
       const stuck = slow.grade('recoverable', [item('hang')]);
       const heartbeat = new Promise(resolve => requestAnimationFrame(() => resolve(true)));
       check(await heartbeat, 'busy Worker leaves main thread responsive');
