@@ -10,8 +10,8 @@
 
 计时：不适用，未改业务实现。
 
-测试：git diff --check；CI沿用现有Windows、Ubuntu与Performance三job，结果在合并前核对。没有新增业务用例。CI失败用例名单在本次运行完成后补充。
+测试：git diff --check 通过；未新增业务用例。CI 43143389543（被测 8da6472）：Windows Checks 成功，3分51秒；Ubuntu Checks 成功，1分50秒（1261项，1227通过、0失败，其余平台条件跳过）；Performance 成功，40秒（4通过、0失败）。三个 job 失败用例名单均为空。此记录提交仅更新文档，合并前仍核对最终 HEAD 的三个检查。
 
-未解决或存疑：文档原文在附件获得后将逐字节复制到长期v2分支。旧计划引用的V2_ARCHITECTURE.md仅在v2分支加入，main保留v1归档。此PR合并后给main打v1-final标签，再从该标签建立v2；不提前移动标签、不直接推main。
+未解决或存疑：已收到负责人确认的原文附件；将在长期v2分支逐字节复制。旧计划引用的V2_ARCHITECTURE.md仅在v2分支加入，main保留v1归档。此PR合并后给main打v1-final标签，再从该标签建立v2；不提前移动标签、不直接推main。
 
 文件清单：core/docs/design/ARCHITECTURE_REFACTOR_PLAN.md、core/docs/design/reviews/V1-FINAL.md。
