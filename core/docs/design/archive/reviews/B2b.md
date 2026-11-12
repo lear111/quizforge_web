@@ -16,12 +16,12 @@
 
 以下源码简称仅为本文件阅读方便：
 
-- **S**：[practice/state-store.js](../../../server/host/practice/state-store.js)。当前主文件是 `.state/<sha256(stateKey)>.json`，schemaVersion=1；所有内嵌历史也会被 load 读取、验证、冻结、重新编码计大小。
-- **H**：[history/history-rounds.js](../../../server/host/history/history-rounds.js)，含 legacyRounds/deleteLegacy/publicRecord/summarize。
-- **J**：[editor/edit-journal.js](../../../server/host/editor/edit-journal.js)。当前 journal v1 是 bank+state，v2 是 source-only；不是新状态格式的版本号。
-- **U**：[practice/short-answer-upgrade.js](../../../server/host/practice/short-answer-upgrade.js)。
-- **E**：[exam/exam-sessions.js](../../../server/host/exam/exam-sessions.js)，**P**：[practice/practice-sessions.js](../../../server/host/practice/practice-sessions.js)。
-- HTTP 入口在 [collection-routes.js](../../../server/host/practice/collection-routes.js) 与 [http/server.js](../../../server/host/http/server.js)；前端历史回放在 [history-view.js](../../../web/history/history-view.js)。
+- **S**：[practice/state-store.js](../../../../server/host/practice/state-store.js)。当前主文件是 `.state/<sha256(stateKey)>.json`，schemaVersion=1；所有内嵌历史也会被 load 读取、验证、冻结、重新编码计大小。
+- **H**：[history/history-rounds.js](../../../../server/host/history/history-rounds.js)，含 legacyRounds/deleteLegacy/publicRecord/summarize。
+- **J**：[editor/edit-journal.js](../../../../server/host/editor/edit-journal.js)。当前 journal v1 是 bank+state，v2 是 source-only；不是新状态格式的版本号。
+- **U**：[practice/short-answer-upgrade.js](../../../../server/host/practice/short-answer-upgrade.js)。
+- **E**：[exam/exam-sessions.js](../../../../server/host/exam/exam-sessions.js)，**P**：[practice/practice-sessions.js](../../../../server/host/practice/practice-sessions.js)。
+- HTTP 入口在 [collection-routes.js](../../../../server/host/practice/collection-routes.js) 与 [http/server.js](../../../../server/host/http/server.js)；前端历史回放在 [history-view.js](../../../../web/history/history-view.js)。
 
 ### 1.1 主状态中的历史字段及读写位置
 
