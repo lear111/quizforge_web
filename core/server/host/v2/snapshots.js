@@ -73,7 +73,11 @@ export class LibrarySnapshots {
     }
     return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
       questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
-      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId: null, initial, pendingGrading: [] };
+      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId: null, initial,
+      pendingGrading: [...bank.items.keys()].filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
+        try { return { question: this.question(bankId, id, snapshotId), error: null }; }
+        catch (error) { return { question: null, error: publicError(error) }; }
+      }) };
   }
   snapshot(bankId, snapshotId) {
     const value = this.opened.get(bankId);

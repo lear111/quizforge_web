@@ -20,10 +20,10 @@ try {
   fs.cpSync(path.join(repo, 'examples', 'v2'), root, { recursive: true });
   const bankDirectory = path.join(root, 'question-banks', '基础题型', '单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(bankDirectory, 'bank.json'), 'utf8'));
-  // 20 questions let every measured submission use an unlocked, fresh question.
+  // 20 measured questions plus one independent interrupted-grading case.
   bank.outline[0].items = [];
   const original = structuredClone(bank.questions['1']); bank.questions = {};
-  for (let i = 1; i <= 20; i++) { bank.outline[0].items.push({ id: String(i), label: String(i), maxScore: 2 }); bank.questions[i] = structuredClone(original); }
+  for (let i = 1; i <= 21; i++) { bank.outline[0].items.push({ id: String(i), label: String(i), maxScore: 2 }); bank.questions[i] = structuredClone(original); }
   fs.writeFileSync(path.join(bankDirectory, 'bank.json'), JSON.stringify(bank));
   server = await new V2Server({ root, codeRoot: core }).start();
   const url = `http://127.0.0.1:${server.port()}/`;
@@ -70,12 +70,31 @@ try {
       assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
       timings.push(performance.now() - start);
     }
+    if (name === 'desktop') {
+      await page.locator('[data-question-id="21"]').click();
+      await frame().getByRole('radio', { name: 'B', exact: true }).check();
+      await page.route('**/questions/21/result', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { message: '测试：评分保存中断' } }) }));
+      await page.getByRole('button', { name: '提交答案', exact: true }).click();
+      await page.getByRole('alert').filter({ hasText: '评分保存中断' }).waitFor();
+      assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
+      await page.unroute('**/questions/21/result');
+    }
     await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.reload(); await page.locator('.extension-group-toggle').waitFor({ state: 'attached' }); await open();
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
     await page.locator('.v2-answer-footer strong').filter({ hasText: '2 / 2 分' }).waitFor();
+    if (name === 'desktop') {
+      // Opening the bank auto-recovers the OTHER pending question without a click.
+      await page.waitForFunction(() => document.querySelector('[data-question-id="21"]')?.classList.contains('correct'));
+      const recovered = await page.evaluate(async () => {
+        const catalog = await fetch('/api/v2/catalog').then(r => r.json()), id = catalog.groups[0].items[0].bankId;
+        const overview = await fetch(`/api/v2/banks/${id}/overview`).then(r => r.json());
+        return { pending: overview.pendingGrading.length, state: overview.states.find(s => s.questionId === '21') };
+      });
+      assert.equal(recovered.pending, 0); assert.equal(recovered.state.status, 'graded'); assert.equal(recovered.state.score, 2);
+    }
     assert.deepEqual(leaked, []);
     rows.push({ viewport: name, samples: timings.length, openMs, submitMedianMs: percentile(timings, .5), submitP95Ms: percentile(timings, .95) });
     await context.close();

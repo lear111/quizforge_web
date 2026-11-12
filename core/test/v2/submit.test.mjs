@@ -26,11 +26,13 @@ test('submit persists before releasing solution, locks the opaque answer, replay
   const before = await api(`${base}/questions/1?snapshotId=${snapshotId}`); assert.doesNotMatch(before.text, new RegExp(SOLUTION_MARKER));
   const locked = await submit(); assert.equal(locked.status, 200); assert.equal(locked.value.state.locked, true); assert.equal(locked.value.state.answerVersion, 1); assert.equal(locked.value.state.status, 'submitted-pending'); assert.match(locked.text, new RegExp(SOLUTION_MARKER + '_1'));
   const file = server.library.stateStore.file(bankId), bytes = fs.readFileSync(file);
+  const pending = await api(base + '/overview'); assert.equal(pending.value.pendingGrading.length, 1); assert.deepEqual(pending.value.pendingGrading[0].question.submission, locked.value.submission);
   assert.deepEqual((await submit()).value, locked.value); assert.ok(fs.readFileSync(file).equals(bytes));
   for (const extra of [{ requestId: 'new', expectedRevision: 1 }, { answer: 'changed' }]) {
     const refused = await submit('1', extra); assert.equal(refused.status, 409); assert.doesNotMatch(refused.text, new RegExp(SOLUTION_MARKER));
   }
   const graded = await result(locked.value); assert.equal(graded.status, 200); assert.equal(graded.value.state.score, 2); assert.equal(graded.value.state.revision, 2);
+  assert.deepEqual((await api(base + '/overview')).value.pendingGrading, []);
   const replay = await result(locked.value); assert.deepEqual(replay.value, graded.value);
   const wrongLock = await result(locked.value, { requestId: 'different', submission: { ...locked.value.submission, answerVersion: 99 } }); assert.equal(wrongLock.status, 409);
   const another = await api(`${base}/questions/2?snapshotId=${snapshotId}`); assert.doesNotMatch(another.text, new RegExp(SOLUTION_MARKER));

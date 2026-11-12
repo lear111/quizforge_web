@@ -10,7 +10,7 @@ const props = defineProps<{ nonce: string }>();
 interface State { questionId: string; revision: number; resultRevision: number; status: string; locked: boolean; score: number | null; maxScore: number }
 interface Item { id: string; label?: string; maxScore?: number; parts?: { id: string; label: string; maxScore: number }[] }
 interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
-interface Overview { bank: { title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null } }
+interface Overview { bank: { title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
@@ -29,7 +29,7 @@ const outlineModel = computed<OutlineModel>(() => ({ summaryAvailable: false, su
   return (item.parts ?? [{ id: null, label: item.label ?? item.id }]).map(part => ({ key: `${item.id}:${part.id}`, questionId: item.id, itemId: part.id, label: part.label, status, active: current.value?.questionId === item.id, title: `第 ${part.label} 题`, ariaLabel: `第 ${part.label} 题` }));
 }) })) }));
 function update(q: Question) { current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s); }
-async function show(q: Question) {
+async function show(q: Question, resume = true) {
   const mine = ++generation; page?.destroy(); page = null; update(q); await nextTick();
   const root = `/api/v2/extensions/${q.extension.artifactId}`;
   const manifest = await json(root + '/manifest');
@@ -37,6 +37,7 @@ async function show(q: Question) {
   if (mine !== generation || !container.value) return;
   page = mountQuestionPage(container.value, { html, js, css, sdks }, { mode: 'practice', question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked }, props.nonce);
   await page.ready;
+  if (resume && q.state.status === 'submitted-pending') await grade(q);
 }
 async function run(label: string, action: () => Promise<void>) { if (busy.value) return; busy.value = true; loading.value = label; message.value = ''; try { await action(); } catch (error) { message.value = error instanceof Error ? error.message : '操作未完成。'; } finally { busy.value = false; loading.value = ''; } }
 async function catalog() { await run('正在读取题库', async () => {
@@ -46,17 +47,20 @@ async function catalog() { await run('正在读取题库', async () => {
 async function openBank(_kind: string, id?: string) { if (!id) return; await run('正在打开题库', async () => {
   const value: Overview = await json(`/api/v2/banks/${id}/overview`); overview.value = value; drawer.value = null;
   if (value.initial.question) await show(value.initial.question); else { page?.destroy(); page = null; current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
+  for (const pending of value.pendingGrading) if (pending.question && pending.question.questionId !== current.value?.questionId) {
+    const saved = await score(pending.question); overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
+  }
 }); }
 async function navigate(id: string) { const q = current.value; if (!q || id === q.questionId) return; await run('正在打开题目', async () => { await show(await json(`/api/v2/banks/${q.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${q.snapshotId}`)); drawer.value = null; }); }
-async function grade(q: Question) {
+async function score(q: Question): Promise<Question> {
   const [output] = await grader.grade(q.extension.artifactId, [{ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item }]);
-  const saved: Question = await json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: output.result }) });
-  await show(saved);
+  return json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: output.result }) });
 }
+async function grade(q: Question) { await show(await score(q)); }
 async function submit() { const q = current.value; if (!q || !page || q.state.locked) return; await run('正在提交并评分', async () => {
   const answer = await page!.answer();
   const saved: Question = await json(base(q) + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, expectedRevision: q.state.revision, answer }) });
-  update(saved); await grade(saved);
+  await show(saved, false); await grade(saved);
 }); }
 onMounted(catalog); onBeforeUnmount(() => { generation++; page?.destroy(); grader.dispose(); });
 </script>
