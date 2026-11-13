@@ -40,14 +40,14 @@ try {
       const basic = `QF.grader.register({grade(question,solution,answer,item){
         if(question.crash)throw Error('synthetic error');
         if(question.uncloneable)return {callback(){}};
-        return {status:'graded',score:answer.selectedOptionId===solution.correctOptionId?item.maxScore:0,feedback:solution.explanation};
+        return {score:answer.selectedOptionId===solution.correctOptionId?item.maxScore:0};
       }});`;
       const escape = `const text = '</script><script>parent.__unexpected = true;</script>';\n` + basic;
       const inspected = `QF.grader.register({async grade(){
         let fetchBlocked=false,importBlocked=false;
         try{await fetch(${JSON.stringify(origin + '/forbidden-fetch')},{credentials:'omit',referrerPolicy:'no-referrer'});}catch{fetchBlocked=true;}
         try{importScripts(${JSON.stringify(origin + '/forbidden-script')});}catch{importBlocked=true;}
-        return {status:'graded',score:0,feedback:JSON.stringify({fetchBlocked,importBlocked,document:typeof document,storage:typeof localStorage,origin:location.origin})};
+        throw new Error(JSON.stringify({fetchBlocked,importBlocked,document:typeof document,storage:typeof localStorage,origin:location.origin}));
       }});`;
       const infinite = `QF.grader.register({grade(){while(true){}}});`;
       const loads = {};
@@ -60,10 +60,10 @@ try {
       const first = await service.grade('basic', [item('correct'), item('wrong', { answer: { selectedOptionId: 'A' } }), item('bad', { question: { crash: true } }), item('clone', { question: { uncloneable: true } })]);
       const firstMs = performance.now() - start;
       check(first[0].result.score === 2 && first[1].result.score === 0, 'real grade function results');
-      check(first[2].result.status === 'ungradable' && first[3].result.status === 'ungradable', 'per-question errors remain isolated');
+      check(first[2].result.message === 'synthetic error' && first[3].result.score === null && !!first[3].result.message, 'per-question errors remain isolated');
       await service.grade('basic', [item('again')]);
       check(loads.basic === 1, 'type environment reuse');
-      const inspection = JSON.parse((await service.grade('inspection', [item('inspection')]))[0].result.feedback);
+      const inspection = JSON.parse((await service.grade('inspection', [item('inspection')]))[0].result.message);
       check(inspection.fetchBlocked && inspection.importBlocked && inspection.origin === 'null' && inspection.document === 'undefined' && inspection.storage === 'undefined', 'worker network and DOM isolation');
       const frameStorageBlocked = await new Promise(resolve => {
         const frame = document.createElement('iframe'); frame.sandbox = 'allow-scripts';
@@ -74,7 +74,7 @@ try {
       });
       check(frameStorageBlocked, 'opaque iframe storage isolation');
       check((await service.grade('escape', [item('escape')]))[0].result.score === 2 && window.__unexpected === undefined, 'author source cannot escape srcdoc');
-      check((await service.grade('syntax', [item('bad-source')]))[0].result.status === 'ungradable', 'syntax failure is surfaced');
+      check((await service.grade('syntax', [item('bad-source')]))[0].result.score === null, 'syntax failure is surfaced');
       check((await service.grade('syntax', [item('new-source')]))[0].result.score === 2 && loads.syntax === 2, 'startup failure rebuild');
       let hangLoads = 0;
       // Use the specified production deadline. A reduced probe deadline can
@@ -85,7 +85,7 @@ try {
       check(await heartbeat, 'busy Worker leaves main thread responsive');
       const winner = await Promise.race([stuck.then(() => 'slow'), service.grade('basic', [item('parallel')]).then(() => 'fast')]);
       check(winner === 'fast', 'other type is independent of stuck Worker');
-      check((await stuck)[0].result.status === 'ungradable', 'deadline returns ungradable');
+      check((await stuck)[0].result.score === null, 'deadline returns ungradable');
       check((await slow.grade('recoverable', [item('recovered')]))[0].result.score === 2, 'timeout rebuild');
       slow.dispose(); service.dispose();
       check(document.querySelectorAll('iframe').length === 0, 'all frames released');

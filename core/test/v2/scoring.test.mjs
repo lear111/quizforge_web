@@ -8,10 +8,10 @@ const { saveGrade, recoverGrades } = await import('data:text/javascript;base64,'
 
 test('out-of-range grading is stored as ungradable; connection and version failures remain pending without masking errors', async () => {
   const input = { questionId: 'q1' }, writes = [];
-  const output = await saveGrade(input, async () => [{ questionId: 'q1', result: { status: 'graded', score: 3 } }], async result => {
+  const output = await saveGrade(input, async () => [{ questionId: 'q1', result: { score: 3, parts: null, message: null } }], async result => {
     writes.push(result); validateResult({ maxScore: 2 }, result); return result;
   });
-  assert.equal(writes.length, 2); assert.equal(output.status, 'ungradable'); assert.equal(output.score, null);
+  assert.equal(writes.length, 2); assert.match(output.message, /无效/); assert.equal(output.score, null);
   for (const code of ['RESULT_CONFLICT', 'SUBMISSION_STALE', 'STATE_WRITE_FAILED', undefined]) {
     let calls = 0;
     const error = Object.assign(new Error('synthetic failure'), { code });

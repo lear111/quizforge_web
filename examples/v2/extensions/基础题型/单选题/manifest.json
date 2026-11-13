@@ -2,5 +2,5 @@
   "id": "quizforge.single-choice", "version": "2.0.0", "name": "单选题",
   "apiVersion": 2,
   "entries": { "practice": { "html": "practice.html", "js": "practice.js", "css": "practice.css" }, "grade": "grade.js" },
-  "sdkVersions": { "richtext": "1.0.0" }
+  "sdkVersions": { "richtext": "1.1.3" }
 }

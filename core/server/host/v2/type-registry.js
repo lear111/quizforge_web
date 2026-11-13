@@ -32,9 +32,9 @@ export class TypeRegistry {
     const sdkVersions = m.sdkVersions ?? {};
     if (!object(sdkVersions) || Object.entries(sdkVersions).some(([id, value]) => !['richtext', 'answer-area', 'ink'].includes(id) || typeof value !== 'string' || !sdkVersionPattern.test(value))) throw problem('EXTENSION_INVALID', 'sdkVersions 须使用已支持组件名和三段数字版本。', { field: 'manifest.sdkVersions' });
     if (m.development !== undefined && typeof m.development !== 'boolean') throw problem('EXTENSION_INVALID', 'development 必须是布尔值。', { field: 'manifest.development' });
-    const { digest, contentDigest } = treeIdentity(directory, this.cache, { field: 'extension' });
+    const { digest, contentDigest, hashes } = treeIdentity(directory, this.cache, { field: 'extension' });
     const artifactId = 'e_' + hash(Buffer.from(path.relative(this.root, directory) + '\0' + digest));
-    return { directory, manifest: m, files, sdkVersions, contentDigest, development: m.development === true,
+    return { directory, manifest: m, files, hashes, sdkVersions, contentDigest, development: m.development === true,
       descriptor: { artifactId, id: m.id, version: m.version, apiVersion: 2, digest } };
   }
   resolutions(types) {

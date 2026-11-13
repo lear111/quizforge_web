@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Review #73: synthetic loopback diagnostics only. No real bank or running host.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -18,7 +19,7 @@ fs.writeSync = function (fd, ...args) { const start = performance.now(), bytes =
 fs.fsyncSync = function (fd) { const start = performance.now(); try { return native.fsyncSync.call(this, fd); } finally { if (collecting && handles.has(fd)) { sample.fsyncs++; sample.fsync += performance.now() - start; } } };
 fs.renameSync = function (from, to) { const start = performance.now(); try { return native.renameSync.call(this, from, to); } finally { if (collecting && String(from).startsWith(root + path.sep)) sample.rename += performance.now() - start; } };
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const directory = path.join(root, 'question-banks/基础题型/单选题展示'), bank = JSON.parse(fs.readFileSync(path.join(directory, 'bank.json'), 'utf8'));
   bank.outline = [{ title: 'synthetic', items: Array.from({ length: 50 }, (_, i) => ({ id: String(i + 1), label: String(i + 1), maxScore: 2 })) }];
   bank.questions = Object.fromEntries(bank.outline[0].items.map(item => [item.id, structuredClone(bank.questions['1'])]));
@@ -36,7 +37,7 @@ try {
     for (let i = 0; i < 32; i++) {
       sample = { files: 0, bytes: 0, fileWrite: 0, fsyncs: 0, fsync: 0, rename: 0 }; collecting = true;
       const started = performance.now();
-      const response = await fetch(origin + base + '/questions/1/draft', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId: opened.snapshotId, requestId: `${populated ? 'i' : 's'}${String(i).padStart(31, '0')}`, expectedRevision: store.get(snapshot, '1').revision, answer: { selected: i % 2 ? 'A' : 'B' } }) });
+      const response = await fetch(origin + base + '/questions/1/answer', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId: opened.snapshotId, requestId: `${populated ? 'i' : 's'}${String(i).padStart(31, '0')}`, expectedRevision: store.get(snapshot, '1').revision, answer: { selected: i % 2 ? 'A' : 'B' } }) });
       const value = await response.json(); collecting = false;
       assert.equal(response.status, 200, JSON.stringify(value));
       const stages = Object.fromEntries(response.headers.get('Server-Timing').split(', ').map(row => { const [key, duration] = row.split(';dur='); return [key, Number(duration)]; }));

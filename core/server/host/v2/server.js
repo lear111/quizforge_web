@@ -67,7 +67,11 @@ export class V2Server {
     }
     try { return measureSave('parse', () => parseJson(Buffer.concat(chunks))); } catch { throw problem('INVALID_REQUEST', '请求 JSON 无效或包含重复字段。', {}, 400); }
   }
-  binary(request, response, file, { executable = false } = {}) {
+  immutable(response) {
+    response.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    response.setHeader('Vary', 'X-QuizForge-Token');
+  }
+  binary(request, response, file, { executable = false, expectedHash } = {}) {
     const entry = this.library.cache.entry(file, READ_LIMITS.assetBytes), bytes = entry.content;
     let start = 0, end = bytes.length - 1, status = 200;
     const headers = { 'Content-Type': mime(file), 'Accept-Ranges': 'bytes' };
@@ -83,6 +87,9 @@ export class V2Server {
       end = Math.min(end, bytes.length - 1); status = 206; headers['Content-Range'] = `bytes ${start}-${end}/${bytes.length}`;
     }
     headers['Content-Length'] = Math.max(0, end - start + 1);
+    // An external edit can change the bytes before the next bank refresh.
+    // Do not assign those bytes to the immutable URL of the older snapshot.
+    if (expectedHash === entry.hash) this.immutable(response);
     response.writeHead(status, headers); response.end(request.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
   }
   async handle(request, response) {
@@ -108,7 +115,7 @@ export class V2Server {
       this.authenticate(request);
       if (parts[1] !== 'v2') throw problem('V1_API_REMOVED', 'V2 不提供旧作答接口，请使用 V2 页面或 v1-final。', {}, 410);
       if (!['GET', 'HEAD'].includes(request.method)) {
-        if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'draft', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
+        if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'answer', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
           const input = await this.body(request);
           return this.json(response, 200, measureSave('validate', () => this.library.write(parts[3], parts[5], parts[6], input)));
         }
@@ -122,23 +129,24 @@ export class V2Server {
         const bankId = parts[3];
         if (parts.length === 5 && parts[4] === 'overview') return this.json(response, 200, this.library.open(bankId, url.searchParams.get('questionId') ?? undefined));
         if (parts[4] === 'questions' && parts.length === 6) return this.json(response, 200, this.library.question(bankId, parts[5], snapshotId));
-        if (parts[4] === 'questions' && parts.length === 8 && parts[6] === 'assets') return this.binary(request, response, this.library.asset(bankId, parts[5], snapshotId, parts[7]));
+        if (parts[4] === 'questions' && parts.length === 8 && parts[6] === 'assets') { const { file, expectedHash } = this.library.asset(bankId, parts[5], snapshotId, parts[7]); return this.binary(request, response, file, { expectedHash }); }
         if (parts[4] === 'listening' && parts.length === 6) { const material = this.library.listening(bankId, parts[5], snapshotId); return material.file ? this.binary(request, response, material.file) : this.json(response, 200, material); }
       }
       if (parts[2] === 'extensions' && parts.length >= 5) {
         const artifact = this.library.artifact(parts[3]);
-        if (parts.length === 5 && parts[4] === 'manifest') return this.json(response, 200, { ...artifact.descriptor, name: artifact.manifest.name, entries: { practice: { html: 'practice-html', js: 'practice-js', css: 'practice-css' }, grade: 'grade-js' }, sdkVersions: artifact.sdkVersions });
-        if (parts.length === 6 && parts[4] === 'files') { const file = artifact.files.get(parts[5]); if (!file) throw problem('RESOURCE_NOT_FOUND', '拓展入口不存在。', {}, 404); return this.binary(request, response, file, { executable: true }); }
+        if (parts.length === 5 && parts[4] === 'manifest') { if (!artifact.development) this.immutable(response); return this.json(response, 200, { ...artifact.descriptor, name: artifact.manifest.name, entries: { practice: { html: 'practice-html', js: 'practice-js', css: 'practice-css' }, grade: 'grade-js' }, sdkVersions: artifact.sdkVersions }); }
+        if (parts.length === 6 && parts[4] === 'files') { const file = artifact.files.get(parts[5]); if (!file) throw problem('RESOURCE_NOT_FOUND', '拓展入口不存在。', {}, 404); const expectedHash = artifact.development ? undefined : artifact.hashes.get(path.relative(artifact.directory, file).replaceAll('\\', '/')); return this.binary(request, response, file, { executable: true, expectedHash }); }
       }
       if (parts[2] === 'sdk' && parts.length >= 6) {
         const key = `${parts[3]}@${parts[4]}`;
-        const sdk = [...this.library.opened.values()].map(snapshot => snapshot.sdk.get(key)).find(Boolean);
+        const sdk = [...this.library.opened.values()].filter(snapshot => snapshotId === null || snapshot.snapshotId === snapshotId).map(snapshot => snapshot.sdk.get(key)).find(Boolean);
         if (!sdk) throw problem('SDK_UNAVAILABLE', '该公共组件未在已打开题库中声明。', {}, 404);
-        return this.binary(request, response, relativeFile(sdk.directory, parts.slice(5).join('/')), { executable: true });
+        const relative = parts.slice(5).join('/');
+        return this.binary(request, response, relativeFile(sdk.directory, relative), { executable: true, expectedHash: snapshotId === null ? undefined : sdk.hashes.get(relative) });
       }
       throw problem('FEATURE_NOT_IMPLEMENTED', '此接口尚未实现。', {}, 501);
     } catch (error) {
-      if (!response.headersSent && !response.destroyed) this.json(response, error.status ?? 503, { error: publicError(error) });
+      if (!response.headersSent && !response.destroyed) { response.setHeader('Cache-Control', 'no-store'); this.json(response, error.status ?? 503, { error: publicError(error) }); }
       else response.destroy();
     }
   }

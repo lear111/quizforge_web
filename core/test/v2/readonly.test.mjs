@@ -63,7 +63,7 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   const token = '?snapshotId=' + overview.snapshotId;
   for (let i = 1; i <= 20; i++) {
     const q = await get(base + '/questions/' + i + token); assert.equal(q.response.status, 200);
-    assert.equal(q.body.solution, null); assert.equal(q.body.state.status, 'unanswered');
+    assert.equal(q.body.solution, null); assert.deepEqual(q.body.state.status, q.body.item.parts ? {} : 'unanswered');
     assert.equal(q.body.resources.length, 1); assert.equal(q.body.resources[0].reference, 'qf-asset:assets/figure.png');
   }
   const q = overview.initial.question;
@@ -93,7 +93,7 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   for (const route of ['/api/library', '/api/settings', '/api/ai/tasks']) assert.equal((await get(route)).response.status, 410);
   assert.equal((await get(base + '/position')).response.status, 501);
   for (const route of ['/api/v2/settings/ai', base + '/history']) assert.equal((await get(route)).response.status, 501);
-  for (const route of [base + '/questions/1/draft', base + '/finish']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
+  for (const route of [base + '/questions/1/answer', base + '/finish']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
   // Submit is now implemented; malformed requests still cannot disclose answers.
   const rejected = await get(base + '/questions/1/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(rejected.response.status, 409); assert.doesNotMatch(rejected.text, new RegExp(SOLUTION_MARKER));

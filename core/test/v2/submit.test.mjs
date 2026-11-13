@@ -18,15 +18,15 @@ async function setup(t) {
   const catalog = await api('/api/v2/catalog'), bankId = catalog.value.groups[0].items[0].bankId, base = `/api/v2/banks/${bankId}`;
   const opened = await api(base + '/overview'), snapshotId = opened.value.snapshotId;
   const submit = (id = '1', extra = {}) => api(`${base}/questions/${id}/submit`, { requestId: 's' + id, snapshotId, expectedRevision: 0, answer: { selected: '乙' }, ...extra });
-  const result = (saved, extra = {}) => api(`${base}/questions/${saved.questionId}/result`, { requestId: 'r' + saved.questionId, snapshotId, submission: saved.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 2, feedback: '正确' }, ...extra }, 'PUT');
+  const result = (saved, extra = {}) => api(`${base}/questions/${saved.questionId}/result`, { requestId: 'r' + saved.questionId, snapshotId, submissionId: saved.submissionId, expectedRevision: saved.state.revision, source: 'grader', result: { score: 2, parts: null, message: null }, ...extra }, 'PUT');
   return { fixture, directory: fixture.directory, server, api, bankId, base, snapshotId, submit, result };
 }
 test('submit persists before releasing solution, locks the opaque answer, replays idempotently and stores validated results', async t => {
   const { directory, server, api, base, snapshotId, submit, result, fixture, bankId } = await setup(t);
   const before = await api(`${base}/questions/1?snapshotId=${snapshotId}`); assert.doesNotMatch(before.text, new RegExp(SOLUTION_MARKER));
-  const locked = await submit(); assert.equal(locked.status, 200); assert.equal(locked.value.state.locked, true); assert.equal(locked.value.state.answerVersion, 1); assert.equal(locked.value.state.status, 'submitted-pending'); assert.match(locked.text, new RegExp(SOLUTION_MARKER + '_1'));
+  const locked = await submit(); assert.equal(locked.status, 200); assert.equal(locked.value.state.locked, true); assert.equal(locked.value.state.revision, 1); assert.equal(locked.value.state.status, 'unanswered'); assert.equal(locked.value.result, null); assert.match(locked.text, new RegExp(SOLUTION_MARKER + '_1'));
   const file = server.library.stateStore.file(directory), bytes = fs.readFileSync(file);
-  const pending = await api(base + '/overview'); assert.equal(pending.value.pendingGrading.length, 1); assert.deepEqual(pending.value.pendingGrading[0].question.submission, locked.value.submission);
+  const pending = await api(base + '/overview'); assert.equal(pending.value.pendingGrading.length, 1); assert.deepEqual(pending.value.pendingGrading[0].question.submissionId, locked.value.submissionId);
   assert.deepEqual((await submit()).value, locked.value); assert.ok(fs.readFileSync(file).equals(bytes));
   for (const extra of [{ requestId: 'new', expectedRevision: 1 }, { answer: 'changed' }]) {
     const refused = await submit('1', extra); assert.equal(refused.status, 409); assert.doesNotMatch(refused.text, new RegExp(SOLUTION_MARKER));
@@ -34,7 +34,7 @@ test('submit persists before releasing solution, locks the opaque answer, replay
   const graded = await result(locked.value); assert.equal(graded.status, 200); assert.equal(graded.value.state.score, 2); assert.equal(graded.value.state.revision, 2);
   assert.deepEqual((await api(base + '/overview')).value.pendingGrading, []);
   const replay = await result(locked.value); assert.deepEqual(replay.value, graded.value);
-  const wrongLock = await result(locked.value, { requestId: 'different', submission: { ...locked.value.submission, answerVersion: 99 } }); assert.equal(wrongLock.status, 409);
+  const wrongLock = await result(locked.value, { requestId: 'different', submissionId: 'wrong-lock' }); assert.equal(wrongLock.status, 409);
   const another = await api(`${base}/questions/2?snapshotId=${snapshotId}`); assert.doesNotMatch(another.text, new RegExp(SOLUTION_MARKER));
   const sourceAsset = graded.value.resources.find(r => r.reference.endsWith('solution.txt')).assetId;
   assert.match((await fetch(`http://127.0.0.1:${server.port()}${base}/questions/1/assets/${sourceAsset}?snapshotId=${snapshotId}`)).headers.get('content-type'), /text|octet-stream/);
@@ -63,10 +63,11 @@ test('concurrent submissions are serialized, origin and stale snapshots cannot s
 });
 test('result validation covers exact decimal parts, missing/duplicate/foreign parts, range, nonnumeric and pending results', () => {
   const item = { id: '2', parts: [{ id: 'a', maxScore: 0.1 }, { id: 'b', maxScore: 0.2 }] };
-  const good = { status: 'graded', score: 0.3, outlineScores: [{ id: 'a', score: 0.1 }, { id: 'b', score: 0.2 }] };
+  const good = { score: 0.3, parts: { a: 0.1, b: 0.2 }, message: null };
   assert.doesNotThrow(() => validateResult(item, good));
-  for (const value of [{ ...good, score: '0.3' }, { ...good, score: Infinity }, { ...good, score: -1 }, { ...good, score: 0.31 }, { ...good, score: 0.2 }, { ...good, outlineScores: good.outlineScores.slice(1) }, { ...good, outlineScores: [good.outlineScores[0], good.outlineScores[0]] }, { ...good, outlineScores: [{ id: 'x', score: 0.1 }, good.outlineScores[1]] }, { ...good, outlineScores: [{ id: 'a', score: 0.2 }, { id: 'b', score: 0.1 }] }]) assert.throws(() => validateResult(item, value), e => e.code === 'INVALID_RESULT');
-  for (const status of ['pending', 'ungradable']) { assert.doesNotThrow(() => validateResult(item, { status, score: null })); assert.throws(() => validateResult(item, { status, score: 0 })); }
+  for (const value of [{ ...good, score: '0.3' }, { ...good, score: Infinity }, { ...good, score: -1 }, { ...good, score: 0.31 }, { ...good, score: 0.2 }, { ...good, parts: { a: 0.1 } }, { ...good, parts: { x: 0.1, b: 0.2 } }, { ...good, parts: { a: 0.2, b: 0.1 } }, { ...good, message: 'unexpected' }, { ...good, status: 'graded' }]) assert.throws(() => validateResult(item, value), e => e.code === 'INVALID_RESULT');
+  assert.throws(() => parseJson('{"score":0.3,"parts":{"a":0.1,"a":0.1},"message":null}'));
+  for (const message of [null, '评分出错']) { assert.doesNotThrow(() => validateResult(item, { score: null, parts: null, message })); assert.throws(() => validateResult(item, { score: 0, parts: null, message })); }
 });
 test('D27 bank bytes and used extension edits clear all active state; assets alone preserve it', async t => {
   const { directory, fixture, server, api, base, bankId, submit } = await setup(t); await submit();
@@ -75,7 +76,7 @@ test('D27 bank bytes and used extension edits clear all active state; assets alo
 
   assert.equal((await api(base + '/overview')).value.initial.question.state.locked, true); assert.equal(server.library.stateStore.load(directory), original);
   fixture.bank.questions['1'].solution.explanation = 'changed'; writeFixtureFile(fixture.bankFile, fixture.bank);
-  const changed = await api(base + '/overview'); assert.equal(changed.value.initial.question.state.locked, false); assert.equal(changed.value.initial.question.solution, null); assert.deepEqual(server.library.stateStore.load(directory).historyIndex, []);
+  const changed = await api(base + '/overview'); assert.equal(changed.value.initial.question.state.locked, false); assert.equal(changed.value.initial.question.solution, null); assert.equal(Object.hasOwn(server.library.stateStore.load(directory), 'historyIndex'), false);
   const newSnapshot = changed.value.snapshotId; await submit('1', { requestId: 'again', snapshotId: newSnapshot });
   fixture.bank.outline[0].items[0].maxScore = 3; writeFixtureFile(fixture.bankFile, fixture.bank); assert.equal((await api(base + '/overview')).value.states[0].locked, false);
 });
@@ -101,7 +102,7 @@ test('deterministic V2 persistence follows an independently specified state vect
   const saved = await api(`${base}/questions/1/submit`, request); assert.equal(saved.status, 200);
   const snapshot = server.library.opened.get(bankId), fp = snapshot.contentFingerprint;
   const { fingerprint } = await import('../../server/host/platform/json.js');
-  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"status":"submitted-pending","revision":1,"answerVersion":1,"answer":{"number":1.0},"draft":null,"submission":{"submissionId":"00000000-0000-4000-8000-000000000001","answerVersion":1,"contentFingerprint":"${fp}"},"resultRevision":0,"result":null,"receipts":{"golden-submit":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"},"receiptOrder":["golden-submit"]}},"historyIndex":[],"contentFingerprint":"${fp}","lastQuestionId":"1"}`);
+  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"status":"unanswered","answer":{"number":1.0},"result":null,"submissionId":"00000000-0000-4000-8000-000000000001","revision":1,"receipts":[{"requestId":"golden-submit","signature":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"}]}},"contentFingerprint":"${fp}","lastQuestionId":"1"}`);
   assert.ok(fs.readFileSync(store.file(directory)).equals(jsonBytes(expected))); assert.match(fs.readFileSync(store.file(directory), 'utf8'), /"number":1\.0/);
   // External callers receive clones, not borrowed frozen state.
   saved.value.answer.number = 99; assert.equal(store.get(snapshot, '1').answer.number, 1);

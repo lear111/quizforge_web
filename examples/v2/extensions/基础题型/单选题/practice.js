@@ -21,8 +21,8 @@ QF.page.register({
     }
     const result = document.getElementById('result'); result.hidden = !context.result && !context.locked;
     const maxScore = context.item.parts?.reduce((total, part) => total + part.maxScore, 0) ?? context.item.maxScore;
-    result.textContent = context.result?.status === 'graded' ? `${context.result.score} / ${maxScore} 分` : (context.result?.reason ?? (context.locked ? '答案已锁定，等待评分' : ''));
-    const feedback = document.getElementById('feedback'); feedback.textContent = context.result?.feedback ?? '';
+    result.textContent = typeof context.result?.score === 'number' ? `${context.result.score} / ${maxScore} 分` : (context.result?.message ?? (context.result ? '待人工或 AI 评分' : context.locked ? '答案已锁定，等待评分' : ''));
+    const feedback = document.getElementById('feedback'); feedback.textContent = typeof context.result?.score === 'number' ? (context.result.score === maxScore ? '回答正确' : '回答错误') : '';
     feedback.hidden = !feedback.textContent;
     await Promise.all(views.map(view => view.ready));
   },

@@ -9,7 +9,8 @@ test('one snapshot shares source Promises and SDKs across types; a failed load c
   const cache = createPageSourceCache({ json: async route => { calls.push(route); return { name: route.includes('/b/') ? '判断题' : '单选题', sdkVersions: { richtext: '1.0.0' } }; }, text: async route => { calls.push(route); if (fail) throw Error('offline'); return route; } });
   cache.scope('bank', 's1', ''); const a = cache.load('a'); assert.equal(cache.load('a'), a);
   assert.equal((await a).name, '单选题'); await cache.load('b');
-  assert.equal(calls.filter(x => x.includes('/sdk/')).length, 1); assert.equal(calls.filter(x => x.includes('/a/manifest')).length, 1);
+  assert.deepEqual(calls.filter(x => x.includes('/sdk/')), ['/api/v2/sdk/richtext/1.0.0/richtext.js?snapshotId=s1', '/api/v2/sdk/richtext/1.0.0/richtext.css?snapshotId=s1']);
+  assert.match((await a).css, /richtext\.css\?snapshotId=s1/); assert.equal(calls.filter(x => x.includes('/a/manifest')).length, 1);
   fail = true; await assert.rejects(cache.load('broken'), /offline/); fail = false; await cache.load('broken');
   assert.equal(calls.filter(x => x.includes('/broken/manifest')).length, 2); cache.dispose();
 });

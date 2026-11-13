@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional actual-Chromium acceptance; ignored Playwright, copied examples,
 // synthetic banks, ephemeral ports. No daily service or user data touched.
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-whiteboard-'));
 const output = path.join(repo, '.temp/v2-whiteboard'); fs.mkdirSync(output, { recursive: true });
 let browser, server;
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const bankDirectory = path.join(root, 'question-banks/基础题型/单选题展示');
   const original = JSON.parse(fs.readFileSync(path.join(bankDirectory, 'bank.json'), 'utf8'));
   const bank = structuredClone(original); bank.outline[0].items = []; bank.questions = {};
@@ -63,10 +64,10 @@ try {
     const sameFrame = await page.locator('.v2-question-frame iframe').elementHandle();
     await frame().getByRole('button', { name: '提交答案', exact: true }).click(); await frame().locator('#result').filter({ hasText: '2 / 2 分' }).waitFor();
     assert.equal(await sameFrame.evaluate(node => node.isConnected), true);
-    q = await question(); const submission = q.submission, result = q.result, answerVersion = q.state.answerVersion;
+    q = await question(); const submissionId = q.submissionId, result = q.result, revision = q.state.revision;
     await page.getByRole('button', { name: '草稿', exact: true }).click(); await stroke(); await saved();
     await page.screenshot({ path: path.join(output, name + '-draft.png'), fullPage: true });
-    q = await question(); assert.deepEqual(q.submission, submission); assert.deepEqual(q.result, result); assert.equal(q.state.answerVersion, answerVersion); assert.deepEqual(q.answer, { selected: 'B' }); assert.equal(q.ink.strokes.length, lockedInk.strokes.length + 1);
+    q = await question(); assert.deepEqual(q.submissionId, submissionId); assert.deepEqual(q.result, result); assert.equal(q.state.revision, revision); assert.deepEqual(q.answer, { selected: 'B' }); assert.equal(q.ink.strokes.length, lockedInk.strokes.length + 1);
     // Per-window browsing position and durable last-answer restoration; no automatic first bank for
     // a new user, but reopening this context recovers bank + question.
     await go(other); await page.getByRole('button', { name: '返回作答', exact: true }).click();
@@ -75,12 +76,13 @@ try {
     // Another window changes the durable cursor; this window still remembers
     // where it left this bank, independently of that other window's last answer.
     const otherWindow = await question();
-    await api(base + `/questions/${qid}/draft`, { snapshotId: otherWindow.snapshotId, requestId: 'other-window-' + name, expectedRevision: otherWindow.state.revision, draft: 'other window notes' }, 'PUT');
+    const otherRetry = await api(base + `/questions/${qid}/retry`, { snapshotId: otherWindow.snapshotId, requestId: 'other-window-' + name, expectedRevision: otherWindow.state.revision }, 'POST');
+    await api(base + `/questions/${qid}/answer`, { snapshotId: otherWindow.snapshotId, requestId: 'other-answer-' + name, expectedRevision: otherRetry.state.revision, answer: otherWindow.answer }, 'PUT');
     await selectBank(bank.title);
     assert.equal(await page.locator(`[data-question-id="${other}"]`).getAttribute('class').then(s => s.includes('active')), true);
     await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), qid);
     await go(qid); await frame().getByRole('button', { name: '重做', exact: true }).click(); await idle();
-    q = await question(); assert.equal(q.answer, null); assert.equal(q.ink, null); assert.equal(q.submission, null); assert.equal(q.result, null);
+    q = await question(); assert.equal(q.answer, null); assert.equal(q.ink, null); assert.equal(q.submissionId, null); assert.equal(q.result, null);
     // Explicit refresh keeps a surviving current question; a removed one falls
     // back while preserving unrelated answers.
     await page.getByRole('button', { name: '刷新题库', exact: true }).click(); await idle();

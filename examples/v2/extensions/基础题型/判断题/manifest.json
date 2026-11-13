@@ -1,0 +1,6 @@
+{
+  "id": "quizforge.true-false", "version": "2.0.0", "name": "判断题",
+  "apiVersion": 2,
+  "entries": { "practice": { "html": "practice.html", "js": "practice.js", "css": "practice.css" }, "grade": "grade.js" },
+  "sdkVersions": { "richtext": "1.1.3" }
+}

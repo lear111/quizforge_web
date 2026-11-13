@@ -17,3 +17,15 @@ export function mergeAnswered(value, item, previous) {
   const result = Object.fromEntries([...Object.entries(previous && typeof previous === 'object' ? previous : {}), ...Object.entries(value)].filter(([id]) => known.has(id)));
   validateAnswered(result); return result;
 }
+
+export const OUTLINE_LABELS = Object.freeze({ unanswered: '未作答', answered: '已作答', correct: '正确', wrong: '错误', ungradable: '无法评分' });
+export const isOutlineStatus = value => typeof value === 'string' && Object.hasOwn(OUTLINE_LABELS, value);
+export const emptyOutlineStatus = item => item.parts ? {} : 'unanswered';
+export function answeredFromStatus(status) {
+  return typeof status === 'string' ? status === 'answered' : Object.fromEntries(Object.entries(status).map(([id, value]) => [id, value === 'answered']));
+}
+export function reportOutlineStatus(report, item, status) {
+  const value = mergeAnswered(report, item, answeredFromStatus(status));
+  const flag = value => value ? 'answered' : 'unanswered';
+  return typeof value === 'boolean' ? flag(value) : Object.fromEntries(Object.entries(value).map(([id, answered]) => [id, flag(answered)]));
+}

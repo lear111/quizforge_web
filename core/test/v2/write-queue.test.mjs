@@ -16,6 +16,6 @@ test('answer and ink share queue with independent revisions and retain exact fai
   const waiting = ink(); assert.equal(captures, 0); release(); await first;
   await assert.rejects(waiting, /transport/); assert.equal(JSON.parse(sent[0][1]).expectedInkRevision, 4); assert.equal(revision, 1);
   inkRevision = 9; await ink(); assert.deepEqual(sent[1], sent[0]); assert.equal(captures, 1); assert.equal(revision, 1);
-  const answer = queue.prepare(() => ({ route: '/draft', body: JSON.stringify({ expectedRevision: revision }) }), async (_route, body) => { assert.equal(JSON.parse(body).expectedRevision, 1); return 3; }, n => { revision = n; });
+  const answer = queue.prepare(() => ({ route: '/answer', body: JSON.stringify({ expectedRevision: revision }) }), async (_route, body) => { assert.equal(JSON.parse(body).expectedRevision, 1); return 3; }, n => { revision = n; });
   await answer(); await queue.drain(); assert.equal(revision, 3);
 });

@@ -7,7 +7,8 @@ export interface GradingInput {
   answer: unknown;
   item: unknown;
 }
-export interface GradingOutput { questionId: string; result: unknown }
+export interface GradeResult { score: number | null; parts: Record<string, number> | null; message: string | null }
+export interface GradingOutput { questionId: string; result: GradeResult }
 interface Environment {
   frame: HTMLIFrameElement;
   ready: Promise<void>;
@@ -23,18 +24,25 @@ export interface GradingOptions {
   scriptNonce?: string;
 }
 
+export const ungradable = (message: string): GradeResult => ({ score: null, parts: null, message });
 const unavailable = (items: GradingInput[], reason: string): GradingOutput[] => items.map(({ questionId }) => ({
-  questionId, result: { status: 'ungradable', score: null, reason },
+  questionId, result: ungradable(reason),
 }));
-// Worker code can forge postMessage instead of returning from grade(). Treat
-// its payload as unknown and project strictly onto the host-owned input list.
+// Worker messages are untrusted. A grade function can return only a score and
+// optional parts; the host assigns the error message and the server checks scores.
 function normalize(items: GradingInput[], results: unknown): GradingOutput[] {
   return items.map(({ questionId }) => {
     const entries = Array.isArray(results) ? results.filter(entry => entry && typeof entry === 'object' && entry.questionId === questionId) : [];
-    const result = entries.length === 1 ? entries[0].result : null;
-    return result && typeof result === 'object' && !Array.isArray(result)
-      ? { questionId, result }
-      : { questionId, result: { status: 'ungradable', score: null, reason: '题型返回的评分结果无效。' } };
+    const entry = entries.length === 1 ? entries[0] : null;
+    const result = entry?.result;
+    if (typeof entry?.error === 'string' && entry.error.trim()) return { questionId, result: ungradable(entry.error) };
+    const invalid = () => ({ questionId, result: ungradable('题型返回的评分结果无效。') });
+    if (!result || typeof result !== 'object' || Array.isArray(result) || !Object.hasOwn(result, 'score') || Object.keys(result).some(key => key !== 'score' && key !== 'parts')) return invalid();
+    if (result.score === null) return Object.hasOwn(result, 'parts') ? invalid() : { questionId, result: { score: null, parts: null, message: null } };
+    if (typeof result.score !== 'number' || !Number.isFinite(result.score)) return invalid();
+    const parts = Object.hasOwn(result, 'parts') ? result.parts : null;
+    if (Object.hasOwn(result, 'parts') && (!parts || typeof parts !== 'object' || Array.isArray(parts) || !Object.values(parts).every(Number.isFinite))) return invalid();
+    return { questionId, result: { score: result.score, parts, message: null } };
   });
 }
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
@@ -60,8 +68,8 @@ function createEnvironment(doc: Document, source: string, scriptNonce?: string):
         try {
           const result = structuredClone(await grader.grade(entry.question, entry.solution, entry.answer, entry.item));
           results.push({questionId: entry.questionId, result});
-        } catch {
-          results.push({questionId: entry.questionId, result: {status:'ungradable', score:null, reason:'该题评分失败。'}});
+        } catch (error) {
+          results.push({questionId: entry.questionId, error: typeof error?.message === 'string' && error.message.trim() ? error.message : '该题评分失败。'});
         }
       }
       self.postMessage({job: data.job, results});

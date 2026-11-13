@@ -1,22 +1,21 @@
-# V2 单选题演示
+# V2 基础题型演示
 
-此处是可公开的独立演示数据，不是原题库的迁移副本。题库文件为 `formatVersion:2`，题型声明为 `apiVersion:2`。请勿与根目录旧题型混装，同 id/主版本存在多个匹配时会报歧义错误。
+示例来自仓库公开的原基础题型展示库：原编号 1、2、3（单选），7、8（多选），9、10（判断），共 7 题。保留题干、选项、解析、满分、表格、公式和图片；简答与答题区待后续迁移。原 V1 题库、作答与设置不读取、不覆盖。
 
-在仓库根目录双击“启动 V2 单选题演示.cmd”，或执行：
+在仓库根目录双击“启动 V2 基础题型演示.cmd”（旧的“启动 V2 单选题演示.cmd”也可），或运行：
 
 ```powershell
 node core/server/v2-main.mjs --root examples/v2 --port 8794
 ```
 
-打开 `http://127.0.0.1:8794/`，展开“基础题型”，选择展示库。提交后显示分数和解析；再次打开会恢复已提交状态。用 Ctrl+C 停止。作答保存在题库自身的 `question-banks/基础题型/单选题展示/.qf-v2/state.json`（git 忽略）；随题库改名、移动、复制，复制后各自保存。本段没有自动保存、白板、重做、历史或考试；原 V1 题库、记录与设置均不读取或迁移。
+打开 http://127.0.0.1:8794/ ，展开“基础题型”，选择“基础题型展示库”。点选即保存；题内提交后显示分数与解析，仍能在草稿模式写笔记；重做清空本题答案与笔迹。切库/刷新可恢复作答位置。Ctrl+C 停止。记录在该题库内部的 `.qf-v2/`（git 忽略）。历史、考试、听力、AI、编辑器、安装包尚未接入。
 
-## 本段题型约定
+## 题型与数据
 
-- manifest 的 `entries.practice` 分别指定 html/js/css，`entries.grade` 指定评分脚本；`type` 按 id + 主版本匹配。
-- 页面入口调用 `QF.page.register({load(context), getAnswer()})`。load 可返回 Promise，完成后宿主才允许读取答案；getAnswer 返回可 JSON 保存的作答值。
-- context 字段：`mode:'practice'`、`question`、`item`、`answer`、`locked`、`solution`、`result`。锁前 solution/result 为 null。页面只渲染和收集答案；宿主按钮负责提交和评分。切题创建新页面，不复用题目状态。
-- 本例复用富文本 SDK 1.0.0 的 `QFRichText.render`，内容格式仍为文档对象；没有将题目内容作为 HTML 字符串插入。
-- 评分入口调用 `QF.grader.register({grade(question, solution, answer, item)})`，只能在浏览器隔离 Worker 中执行。本例返回 `{status:'graded', score, feedback}`，满分取自 item.maxScore。后端只检查结果的结构与分数，不运行该脚本。
-- 页面与评分环境都没有宿主同源权限、存储或网络访问。后端先写入并锁定答案，才返回 solution；宿主之后才能把它送入评分环境。评分中断后已提交答案保持锁定，重开题库会自动补评；页面也保留继续评分入口。
+- 题库 `formatVersion:2`，题型 `apiVersion:2`；`type` 为 id@主版本，勿与根目录旧题型混装。
+- 页面按 [题型拓展开发说明](../../core/docs/reference/V2_EXTENSIONS.md) 使用 `QF.page.register/load/getAnswer/changed/submit/retry`。提交、重做、得分在题型内部显示；锁前无 solution，锁定后才显示解析。评分后更新同一页面。
+- 单选 `answer:{selected:选项id或null}`、`solution:{selected:正确id,explanation:富文本}`；多选 selected 为 id 数组，顺序不影响评分，漏选/错选 0 分，完全一致得满分；判断 `answer:{value:true/false/null}`，solution.value 为布尔值。false 是已作答，null 是未作答。各题满分取自大纲。
+- 富文本使用已发布 SDK 1.1.3，保留数学/表格与对应样式，图片通过宿主读取并以 ArrayBuffer/对象 URL 交给页面。题型与评分 Worker 均不能联网。
+- `node core/scripts/dev/stage-v2-basic-demo.mjs` 仅从公开原展示库再生成上述 7 题和引用素材，不是通用转换器，不读取或迁移任何作答。原简化 3 题只保留为测试夹具。
 
-完整设计和当前边界见 [总体设计](../../core/docs/design/V2_ARCHITECTURE.md)、[接口速查](../../core/docs/design/V2_API_AND_STATE.md) 与 [本次审查记录](../../core/docs/design/reviews/V2-SEG1-PRACTICE.md)。
+进度见 [V2_PROGRESS](../../core/docs/design/V2_PROGRESS.md)，前后端接口见 [速查](../../core/docs/design/V2_API_AND_STATE.md)。
