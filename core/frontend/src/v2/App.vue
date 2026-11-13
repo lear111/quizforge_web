@@ -26,8 +26,10 @@ let answerVersion = 0, inkVersion = 0, savedAnswer = 0, savedInk = 0;
 const queue = createWriteQueue();
 const enqueue = queue.enqueue;
 const LAST_BANK = 'quizforge.v2.last-bank';
+const lastQuestions = new Map<string, string>();
 let positions: Promise<unknown> = Promise.resolve();
 function remember(q: Question) {
+  lastQuestions.set(q.bankId, q.questionId);
   try { localStorage.setItem(LAST_BANK, q.bankId); } catch { /* Storage disabled: server position still works. */ }
   positions = positions.catch(() => {}).then(() => json(`/api/v2/banks/${q.bankId}/position`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.questionId }) })).catch(error => { message.value = error instanceof Error ? error.message : '上次位置未能保存。'; });
 }
@@ -159,12 +161,15 @@ async function catalog() { await run('正在读取题库', async () => {
   groups.value = value.groups.map((g: { id: string; name: string; items: { bankId: string; title: string; error: { message: string } | null }[] }) => ({ kind: 'group', path: g.id, name: g.name, expanded: false, children: g.items.map(row => ({ kind: 'extension', row: { id: row.bankId, title: row.title, kind: 'bank', error: row.error ?? undefined } })) }));
 }); }
 async function openBank(_kind: string, id?: string) { if (!id) return; await run('正在打开题库', async () => {
-  await flush(); await positions;
+  await flush();
   const value: Overview = await json(`/api/v2/banks/${id}/overview`);
+  const remembered = lastQuestions.get(id);
+  const initial = remembered && value.states.some(state => state.questionId === remembered) && remembered !== value.initial.question?.questionId
+    ? await json(`/api/v2/banks/${id}/questions/${encodeURIComponent(remembered)}?snapshotId=${value.snapshotId}`) as Question : value.initial.question;
   const previous = overview.value;
   sources.dispose(); sources.scope(value.bank.bankId, value.snapshotId, token.value); overview.value = value; drawer.value = null;
-  if (value.initial.question) {
-    try { await show(value.initial.question, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) overview.value = previous; throw error; }
+  if (initial) {
+    try { await show(initial, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) overview.value = previous; throw error; }
   } else { disposePage(); current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
   await recoverGrades(value.pendingGrading.flatMap(pending => pending.question ? [pending.question] : []), score, async saved => {
     overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
@@ -236,7 +241,7 @@ async function retry() { if (!current.value) return; await run('正在重做', a
     <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span><div class="v2-actions"><button v-if="current" :disabled="busy || recovering" @click="toggleDraft">{{ drafting ? '返回作答' : '草稿' }}</button><button v-if="overview" :disabled="busy || recovering" @click="refreshBank">刷新题库</button></div></header>
       <p v-if="message" class="v2-error" role="alert">{{ message }}</p>
       <div v-if="!current" class="v2-empty">从一道题开始<p>选择左侧题库，开始练习。</p></div>
-      <div ref="viewport" class="v2-viewport" :inert="busy || recovering"><div ref="stage" class="v2-stage"><div ref="world" class="v2-world">
+      <div v-show="current" ref="viewport" class="v2-viewport" :inert="busy || recovering"><div ref="stage" class="v2-stage"><div ref="world" class="v2-world">
       <section v-show="current" class="v2-card" :aria-busy="busy || recovering"><div class="v2-question-heading"><span>{{ typeName }}</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame" :inert="busy || recovering"></div>
         <div class="v2-answer-footer"><button class="primary" :disabled="busy || current?.state.locked" @click="submit">{{ current?.state.locked ? '已提交' : '提交答案' }}</button>
           <button v-if="current && current.state.status !== 'unanswered'" :disabled="busy || recovering" @click="retry">重做</button><span v-if="saveStatus" class="v2-save-status" role="status">{{ saveStatus }}</span><button v-if="saveStatus === '保存失败'" :disabled="busy" @click="run('正在保存', flush)">重试保存</button>

@@ -69,10 +69,10 @@ export class LibrarySnapshots {
       if (!refresh) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
       requestedQuestionId = undefined;
     }
-    const clearedQuestionIds = this.stateStore?.reconcile(snapshot) ?? [];
-    this.opened.set(bankId, snapshot);
     const savedPosition = this.positions.read(location.directory);
     const lastQuestionId = bank.items.has(savedPosition) ? savedPosition : null;
+    const clearedQuestionIds = this.stateStore?.reconcile(snapshot) ?? [];
+    this.opened.set(bankId, snapshot);
     const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
     let initial = { question: null, error: null };
     if (questionId !== undefined) {

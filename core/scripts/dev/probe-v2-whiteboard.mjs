@@ -18,9 +18,11 @@ try {
   const bank = structuredClone(original); bank.outline[0].items = []; bank.questions = {};
   for (let i = 1; i <= 6; i++) { bank.questions[i] = structuredClone(original.questions['1']); bank.outline[0].items.push({ id: String(i), label: String(i), maxScore: 2 }); }
   fs.writeFileSync(path.join(bankDirectory, 'bank.json'), JSON.stringify(bank));
+  const secondDirectory = path.join(root, 'question-banks/基础题型/other'); fs.cpSync(bankDirectory, secondDirectory, { recursive: true });
+  fs.writeFileSync(path.join(secondDirectory, 'bank.json'), JSON.stringify({ ...bank, title: '合成另一本' }));
   server = await new V2Server({ root, codeRoot: core }).start(); const origin = `http://127.0.0.1:${server.port()}`;
   const api = async (route, body, method = 'POST') => { const r = await fetch(origin + '/api/v2' + route, body === undefined ? {} : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const value = await r.json(); assert.equal(r.ok, true, JSON.stringify(value)); return value; };
-  const id = (await api('/catalog')).groups[0].items[0].bankId, base = `/banks/${id}`;
+  const id = (await api('/catalog')).groups[0].items.find(row => row.title === bank.title).bankId, base = `/banks/${id}`;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const results = [], errors = [];
   for (const [name, size] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
@@ -36,7 +38,7 @@ try {
       await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 65, y + 22, { steps: 8 }); await page.mouse.up();
     }
     await page.goto(origin); if (name === 'mobile') await page.getByRole('button', { name: '题库', exact: true }).click();
-    await page.locator('.extension-group-toggle').click(); await page.locator('.library-item').click(); await idle();
+    await page.locator('.extension-group-toggle').click(); await page.locator('.library-item').filter({ hasText: bank.title }).click(); await idle();
     const qid = name === 'desktop' ? '1' : '4', other = name === 'desktop' ? '2' : '5'; await go(qid);
     await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
     await page.getByRole('button', { name: '草稿', exact: true }).click();
@@ -63,7 +65,15 @@ try {
     q = await question(); assert.deepEqual(q.submission, submission); assert.deepEqual(q.result, result); assert.equal(q.state.answerVersion, answerVersion); assert.deepEqual(q.answer, { selected: 'B' }); assert.equal(q.ink.strokes.length, lockedInk.strokes.length + 1);
     // Independent position and browser restoration; no automatic first bank for
     // a new user, but reopening this context recovers bank + question.
-    await go(other); await page.getByRole('button', { name: '返回作答', exact: true }).click();
+    const positionSaved = page.waitForResponse(r => r.url().endsWith(`${base}/position`) && JSON.parse(r.request().postData()).questionId === other && r.ok());
+    await go(other); await positionSaved; await page.getByRole('button', { name: '返回作答', exact: true }).click();
+    const selectBank = async title => { if (name === 'mobile') await page.getByRole('button', { name: '题库', exact: true }).click(); await page.locator('.library-item').filter({ hasText: title }).click(); await idle(); };
+    await selectBank('合成另一本');
+    // Another window changes the durable cursor; this window still remembers
+    // where it left this bank, independently of that other window's cursor.
+    await api(base + '/position', { questionId: qid }, 'PUT');
+    await selectBank(bank.title);
+    assert.equal(await page.locator(`[data-question-id="${other}"]`).getAttribute('class').then(s => s.includes('active')), true);
     await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), other);
     await go(qid); await page.getByRole('button', { name: '重做', exact: true }).click(); await idle();
     q = await question(); assert.equal(q.answer, null); assert.equal(q.ink, null); assert.equal(q.submission, null); assert.equal(q.result, null);

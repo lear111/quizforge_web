@@ -1,13 +1,13 @@
 # 第 2 段③：复用白板、位置、刷新与重做
 
-目标 `v2`，等待审查，不自行合并。#73 已于 2026-11-12 squash 合并为 ba9ad03；本 PR 先处理其 [复审三项](https://github.com/lear111/quizforge_web/pull/73#issuecomment-6844917564)，白板遵照 [直接复用要求](https://github.com/lear111/quizforge_web/pull/73#issuecomment-6844368596)。
+PR [#76](https://github.com/lear111/quizforge_web/pull/76)，目标 `v2`，等待审查，不自行合并。#73 已于 2026-11-12 squash 合并为 ba9ad03；本 PR 先处理其 [复审三项](https://github.com/lear111/quizforge_web/pull/73#issuecomment-6844917564)，白板遵照 [直接复用要求](https://github.com/lear111/quizforge_web/pull/73#issuecomment-6844368596)。
 
 ## 改了什么，没改什么
 
 - 提交的 REVISION_CONFLICT/ANSWER_LOCKED、评分的 RESULT_CONFLICT/SUBMISSION_STALE 均读取胜出状态并更新同一 iframe。除 401 外所有 4xx 放弃过期请求，413 明确显示“作答文件已达上限”；网络/401/5xx 保留原输入及原请求重试。INVALID_RESULT 上报无法评分的原逻辑保留。
 - `whiteboard.ts` **直接挂载 V1 whiteboard.js 与 CSS**，并复用全屏控制器；只新增宿主布局/生命周期适配和 TypeScript 声明，未修改画笔、橡皮、选区、相机、停靠及其内部文件。固定草稿坐标宽 760，练习视图保持原来的响应式布局；草稿模式返回作答后隐藏区外笔迹，再回草稿恢复。V1 的 answer-ink/channel 依赖仍在打包图内，但 V2 不注册答题区、不接通该通道，全部宿主笔迹只写 ink，不评分。
 - 答案/笔迹/评分共用串行队列，首次实际发出才固定 revision、requestId、正文；失败重试逐字节相同。评分成功在释放队列前发布新 revision，同题 context 更新前先保存已排队笔记；普通保存确认不重载题型、不覆盖较新输入。停笔 1.5 秒、连续最长 10 秒，切题/切库/提交/刷新先 flush；忙碌/恢复期间禁止新的界面输入。锁后草稿仍可写，重做清当前题活跃内容，历史不改。
-- `.qf-v2/position.json` 独立原子保存题号，不走 state.json 事务或修改作答 revision/回执；每次打开直接读取，位置失效回第一题，移动题库时随文件带走，文件损坏报错保留。复用现有受检路径与读取上限。前端仅用新的 V2 localStorage 键记上次题库，切库恢复题号、浏览器刷新恢复题库和位置；显式刷新保留现题，删除时回退。
+- `.qf-v2/position.json` 独立原子保存题号，不走 state.json 事务或修改作答 revision/回执；每次打开直接读取，位置失效回第一题，移动题库时随文件带走，文件损坏报错保留。复用现有受检路径与读取上限。前端仅用新的 V2 localStorage 键记上次题库，切库优先恢复本窗口记忆的题号（另一窗口改过持久位置也不串位）、浏览器刷新恢复题库和位置；显式刷新保留现题，删除时回退。
 - `server/host/v2/timing.js` 是独立、可关闭的互斥 Server-Timing 诊断，不改 V1 timing 分段、评分校验、响应正文、solution 发送条件、state.json 格式或标准答案。未做笔迹存储拆分、④基础库题型迁移、听力、历史、AI、安装包；不使用真实题库、不动日常服务、main 或服务器。
 
 ## 保存诊断（先测再接白板）
@@ -29,4 +29,4 @@ Windows 11 10.0.26200，i5-13500H，Node 24.13.0；独立合成根、随机回�
 - 类型检查、构建一致检查通过；V2 接口/单测 **65 通过、0 失败**。一次与完整套件同时运行时 D19 的 1005 文件构造后发生 ECONNRESET，独立重跑全部 65 通过，未加重试、超时或改测试断言。
 - 真实 Chrome 157.0.8103.39：`probe-v2-whiteboard.mjs` 桌面 1440×900、手机尺寸 390×844，笔迹自动/离题保存、撤销重做/工具/缩放、锁后草稿、重做、位置恢复、显式刷新及删题回退通过；`probe-v2-save-recovery.mjs` 提交/评分/过期锁冲突、400/413、401/503 原字节重试通过；`probe-v2-page-review.mjs` 双页冲突、题目移除、评分/笔记交错及 30 次选择保存通过（输入到下一帧中位 48.10 ms、P95 84.40 ms，包含探针开销）。浏览器均无 pageerror；仅尺寸模拟，未作手机/平板真机验收。原练习浏览器流程及 36 种真实跨源网络探测通过，题型网络边界未放宽。
 - 本地完整测试 1326 项：1309 通过、17 失败，1129.59 秒。9 项是本机凭据保护写入失败（hub-connection 68/88/96/114/133/160，settings-provider 32/54，http/server 290）；其余为 rule-engine:99 队列断言、library-package:121 与 library:288 Windows EPERM、windows-tray:117/232 未就绪、bank-builder-validator:126 RULE_TIMEOUT、short-answer-rules:22 子进程超时、v2/submit:131 ECONNRESET。未修/跳过无关用例；V2 该文件及全组隔离重跑通过。完整测试是在开发浏览器检查同时运行，结果不当作基线回归归因。
-- CI：提交后补各 job 的实际结果；本 PR 等待审查，不合并。
+- CI：首轮实现 53a5f0e 的三个 job 均通过（运行 43376976109，Ubuntu 1m45s、Windows 3m58s、Performance 34s）；随后补充本窗口位置记忆和空题页白板隐藏，65 项再次通过，最终提交的 CI 结果下方补齐。本 PR 等待审查，不合并。
