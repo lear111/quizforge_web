@@ -49,8 +49,12 @@ try {
     await page.locator('[data-action="undo"]').click(); await saved(); assert.equal((await question()).ink.strokes.length, 0);
     await page.locator('[data-action="redo"]').click(); await saved(); assert.equal((await question()).ink.strokes.length, 1);
     await page.locator('button[data-tool="select-ink"]').click(); await page.locator('button[data-tool="eraser"]').click(); await page.locator('button[data-tool="pen"]').click();
+    const initialZoom = await page.locator('.v2-viewport').evaluate(node => Number(getComputedStyle(node).getPropertyValue('--qf-whiteboard-zoom')));
     const viewport = await page.locator('.v2-viewport').boundingBox(); await page.mouse.move(viewport.x + viewport.width / 2, viewport.y + 230); await page.keyboard.down('Control'); await page.mouse.wheel(0, -90); await page.keyboard.up('Control');
-    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.v2-viewport')).getPropertyValue('--qf-whiteboard-zoom')) > 1);
+    await page.waitForFunction(before => Number(getComputedStyle(document.querySelector('.v2-viewport')).getPropertyValue('--qf-whiteboard-zoom')) > before, initialZoom);
+    await page.getByRole('button', { name: '进入全屏', exact: true }).click(); await page.waitForFunction(() => document.fullscreenElement !== null);
+    assert.equal(await page.locator('.v2-library').isVisible(), false);
+    await page.getByRole('button', { name: '退出全屏', exact: true }).click(); await page.waitForFunction(() => document.fullscreenElement === null);
     await stroke(); // Immediately leave: flush must save this newest stroke.
     await go(other); assert.equal((await question()).ink.strokes.length, 2); await go(qid);
     assert.deepEqual((await question()).ink.strokes[0], ink[0]);

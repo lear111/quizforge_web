@@ -6,7 +6,10 @@ import '../../../web/draft/whiteboard.css';
 // No answer-area registration/channel: all strokes here are scratch ink.
 export function mountScratch(viewport: HTMLElement, stage: HTMLElement, world: HTMLElement, options: { changed(): void; error(error: Error): void }) {
   let drafting = false, loading = false;
-  const fullscreen = createDraftFullscreen(document, { canEnter: () => drafting, onChange: state => board.setFullscreenState(state), onError: options.error });
+  const shell = viewport.closest('.v2-app');
+  const fullscreen = createDraftFullscreen(document, { canEnter: () => drafting, onChange: state => {
+    shell?.classList.toggle('v2-fullscreen', state.active); board.setFullscreenState(state);
+  }, onError: options.error });
   const resize = () => {
     // Only the draft view uses the fixed coordinate space; practice stays fluid.
     const zoom = drafting ? board.getViewCamera().zoom : 1;
@@ -27,12 +30,15 @@ export function mountScratch(viewport: HTMLElement, stage: HTMLElement, world: H
       try {
         board.load(ink ?? null);
         // Layout is a host preference for this question, not an empty ink save.
-        if (!ink) board.setViewport({ x: Math.max(0, (viewport.clientWidth - 760) / 2), y: 0, zoom: 1 }, { emit: false });
+        if (!ink) {
+          const zoom = Math.max(.25, Math.min(1, (viewport.clientWidth - 24) / 760));
+          board.setViewport({ x: (viewport.clientWidth / zoom - 760) / 2, y: 0, zoom }, { emit: false });
+        }
         resize();
       } finally { loading = false; }
     },
     setMode(value: boolean) { drafting = value; viewport.classList.toggle('v2-drafting', value); board.setMode(value ? 'draft' : 'practice'); fullscreen.sync(); resize(); },
     getDraft: () => ({ ...board.getDraft(), viewport: board.getViewCamera() }), flush: () => board.flush(),
-    destroy() { observer.disconnect(); fullscreen.destroy(); board.destroy(); }
+    destroy() { observer.disconnect(); fullscreen.destroy(); shell?.classList.remove('v2-fullscreen'); board.destroy(); }
   };
 }
