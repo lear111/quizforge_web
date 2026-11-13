@@ -6,6 +6,7 @@ QF.page.register({
       const label = document.createElement('label'), input = document.createElement('input'), content = document.createElement('div');
       input.type = 'radio'; input.name = 'choice'; input.value = option.id; input.checked = context.answer?.selected === option.id; input.disabled = context.locked;
       input.setAttribute('aria-label', option.id); label.append(input, content); options.append(label);
+      input.addEventListener('change', () => QF.page.changed({ kind: 'choice' }));
       views.push(QFRichText.render(content, option.content));
     }
     document.getElementById('explanation').hidden = !context.locked;

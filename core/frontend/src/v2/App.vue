@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw } from 'vue';
 import LibraryList from '../library/LibraryList.vue';
 import OutlinePanel from '../outline/OutlinePanel.vue';
 import type { LibraryTree } from '../library/types';
@@ -7,21 +7,30 @@ import type { OutlineModel } from '../outline/model';
 import { mountQuestionPage } from './page';
 import { createGradingService } from './grading';
 import { saveGrade, recoverGrades } from './scoring';
+import { createSaveController, attachSaveLifecycle, isSaveConflict } from './save-policy';
+import { createPageSourceCache } from './source-cache';
+import type { Picture } from './page';
 const props = defineProps<{ nonce: string }>();
 interface State { questionId: string; revision: number; resultRevision: number; status: string; locked: boolean; score: number | null; maxScore: number }
 interface Item { id: string; label?: string; maxScore?: number; parts?: { id: string; label: string; maxScore: number }[] }
-interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
+interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; draft: unknown; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
 interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
+const typeName = ref('题目'), saveStatus = ref('');
+const recovering = ref(false);
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
+let saver: ReturnType<typeof createSaveController<Record<string, unknown>>> | null = null;
+let writes: Promise<unknown> = Promise.resolve();
+const enqueue = <T,>(action: () => Promise<T>): Promise<T> => { const next = writes.then(action); writes = next.catch(() => {}); return next; };
 async function response(route: string, options: RequestInit = {}) {
   const response = await fetch(route, { ...options, credentials: 'omit', referrerPolicy: 'no-referrer', headers: { ...options.headers, ...(token.value ? { 'x-quizforge-token': token.value } : {}) } });
-  if (!response.ok) { const body = await response.json(); if (response.status === 401) authRequired.value = true; throw Object.assign(new Error(body.error?.message || '操作未完成。'), { code: body.error?.code }); }
+  if (!response.ok) { const body = await response.json(); if (response.status === 401) { authRequired.value = true; sources.dispose(); } throw Object.assign(new Error(body.error?.message || '操作未完成。'), { code: body.error?.code, status: response.status }); }
   return response;
 }
 const json = async (route: string, options?: RequestInit) => (await response(route, options)).json();
 const text = async (route: string, signal?: AbortSignal) => (await response(route, { signal })).text();
+const sources = createPageSourceCache({ json: (route, signal) => json(route, { signal }), text });
 const grader = createGradingService({ loadSource: (id, signal) => text(`/api/v2/extensions/${id}/files/grade-js`, signal), scriptNonce: props.nonce });
 const base = (q: Question) => `/api/v2/banks/${q.bankId}/questions/${encodeURIComponent(q.questionId)}`;
 const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
@@ -30,14 +39,95 @@ const outlineModel = computed<OutlineModel>(() => ({ summaryAvailable: false, su
   return (item.parts ?? [{ id: null, label: item.label ?? item.id }]).map(part => ({ key: `${item.id}:${part.id}`, questionId: item.id, itemId: part.id, label: part.label, status, active: current.value?.questionId === item.id, title: `第 ${part.label} 题`, ariaLabel: `第 ${part.label} 题` }));
 }) })) }));
 function update(q: Question) { current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s); }
+const context = (q: Question) => ({ mode: 'practice' as const, question: q.question, answer: q.answer, draft: q.draft, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked });
+async function pictures(q: Question, has: (id: string) => boolean = () => false): Promise<Picture[]> {
+  const references = new Set<string>();
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    if (!value || typeof value !== 'object') return;
+    const node = value as { type?: string; attrs?: { src?: unknown } };
+    if (node.type === 'image' && typeof node.attrs?.src === 'string') references.add(node.attrs.src);
+    Object.values(value).forEach(visit);
+  };
+  visit(q.question); if (q.state.locked) visit(q.solution);
+  return (await Promise.all(q.resources.filter(asset => references.has(asset.reference) && !has(asset.assetId)).map(async asset => {
+    let result: Response;
+    try { result = await response(base(q) + `/assets/${asset.assetId}?snapshotId=${encodeURIComponent(q.snapshotId)}`); }
+    catch (error) { if ((error as { status?: number }).status === 404) return null; throw error; }
+    const type = result.headers.get('Content-Type')?.split(';')[0] ?? '';
+    if (!type.startsWith('image/')) return null;
+    return { ...asset, type, bytes: await result.arrayBuffer() };
+  }))).filter((asset): asset is Picture => asset !== null);
+}
+async function flush() { await saver?.flush(); await writes; }
+function disposePage() { generation++; saver?.destroy(); saver = null; page?.destroy(); page = null; saveStatus.value = ''; }
+async function applyContext(q: Question) {
+  const instance = page, mine = generation;
+  update(q);
+  if (instance) { const assets = await pictures(q, id => instance.hasResource(id)); if (mine === generation) await instance.update(context(q), assets); }
+}
+async function reloadAfterConflict(previous: Question, mine: number) {
+  if (mine !== generation) return;
+  recovering.value = true;
+  try {
+    let latest: Question;
+    try { latest = await json(base(previous) + `?snapshotId=${encodeURIComponent(previous.snapshotId)}`); }
+    catch (error) {
+      if (!isSaveConflict(error)) throw error;
+      let value: Overview;
+      try { value = await json(`/api/v2/banks/${previous.bankId}/overview`); }
+      catch (error) {
+        if (!isSaveConflict(error)) throw error;
+        disposePage(); current.value = null; overview.value = null; sources.dispose();
+        message.value = '本题或题库已移除，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+      if (mine !== generation) return;
+      overview.value = value; sources.scope(previous.bankId, value.snapshotId, token.value);
+      if (!value.states.some(state => state.questionId === previous.questionId)) {
+        disposePage(); current.value = null;
+        message.value = '本题已移除，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+      try { latest = await json(base(previous) + `?snapshotId=${encodeURIComponent(value.snapshotId)}`); }
+      catch (error) {
+        if (!isSaveConflict(error)) throw error;
+        disposePage(); current.value = null;
+        message.value = '本题暂时不可用，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+    }
+    if (mine !== generation) return;
+    if (latest.snapshotId === previous.snapshotId && latest.extension.artifactId === previous.extension.artifactId) await applyContext(latest);
+    else await show(latest, false);
+    message.value = '本题已在别处修改，已载入最新内容';
+  } finally { recovering.value = false; }
+}
 async function show(q: Question, resume = true) {
-  const mine = ++generation; page?.destroy(); page = null; update(q); await nextTick();
-  const root = `/api/v2/extensions/${q.extension.artifactId}`;
-  const manifest = await json(root + '/manifest');
-  const [html, js, css, sdks] = await Promise.all([text(root + '/files/practice-html'), text(root + '/files/practice-js'), text(root + '/files/practice-css'), Promise.all(Object.entries(manifest.sdkVersions ?? {}).filter(([id]) => id === 'richtext').map(([id, version]) => text(`/api/v2/sdk/${id}/${version}/richtext.js`)))]);
+  // Keep the current page and its input intact if fetching the next page fails.
+  sources.scope(q.bankId, q.snapshotId, token.value);
+  const [loaded, assets] = await Promise.all([sources.load(q.extension.artifactId), pictures(q)]);
+  disposePage(); const mine = generation; update(q); typeName.value = loaded.name; await nextTick();
   if (mine !== generation || !container.value) return;
-  page = mountQuestionPage(container.value, { html, js, css, sdks }, { mode: 'practice', question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked }, props.nonce);
-  await page.ready;
+  const instance = mountQuestionPage(container.value, loaded, context(q), props.nonce, { title: loaded.name, resources: assets, onChanged: kind => { if (mine === generation) saver?.changed(kind); } });
+  page = instance;
+  saver = createSaveController<Record<string, unknown>>({
+    async read() {
+      const active = current.value!;
+      const [answer, draft] = await Promise.all([active.state.locked ? undefined : instance.answer(), instance.draft()]);
+      return { ...(!active.state.locked ? { answer } : {}), ...(draft !== undefined ? { draft } : {}) };
+    },
+    prepare(value) {
+      const active = current.value!, body = JSON.stringify({ requestId: requestId(), snapshotId: active.snapshotId, expectedRevision: active.state.revision, ...value });
+      return () => enqueue(async () => {
+        if (!Object.keys(value).length) return;
+        const saved: Question = await json(base(active) + '/draft', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body });
+        // Ordinary save acknowledgements must never reload the page over newer input.
+        if (mine === generation) update(saved);
+      });
+    },
+    recovery: { accepts: isSaveConflict, reload: () => reloadAfterConflict(q, mine) },
+    status(value) { if (mine === generation) { saveStatus.value = ({ unsaved: '未保存', saving: '正在保存', saved: '已保存', failed: '保存失败', recovered: '已载入最新内容' })[value]; if (value === 'saved') message.value = ''; } },
+    error(error) { if (mine === generation) message.value = error instanceof Error ? error.message : '保存失败，请重试。'; }
+  });
+  await instance.ready;
   if (resume && q.state.status === 'submitted-pending') await grade(q);
 }
 async function run(label: string, action: () => Promise<void>) { if (busy.value) return; busy.value = true; loading.value = label; message.value = ''; try { await action(); } catch (error) { message.value = error instanceof Error ? error.message : '操作未完成。'; } finally { busy.value = false; loading.value = ''; } }
@@ -46,28 +136,39 @@ async function catalog() { await run('正在读取题库', async () => {
   groups.value = value.groups.map((g: { id: string; name: string; items: { bankId: string; title: string; error: { message: string } | null }[] }) => ({ kind: 'group', path: g.id, name: g.name, expanded: false, children: g.items.map(row => ({ kind: 'extension', row: { id: row.bankId, title: row.title, kind: 'bank', error: row.error ?? undefined } })) }));
 }); }
 async function openBank(_kind: string, id?: string) { if (!id) return; await run('正在打开题库', async () => {
-  const value: Overview = await json(`/api/v2/banks/${id}/overview`); overview.value = value; drawer.value = null;
+  await flush();
+  const value: Overview = await json(`/api/v2/banks/${id}/overview`);
+  const previous = overview.value;
+  sources.dispose(); sources.scope(value.bank.bankId, value.snapshotId, token.value); overview.value = value; drawer.value = null;
   if (value.initial.question) {
-    try { await show(value.initial.question, false); } catch (error) { message.value = error instanceof Error ? error.message : '题型页面未能加载。'; }
-  } else { page?.destroy(); page = null; current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
+    try { await show(value.initial.question, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) overview.value = previous; throw error; }
+  } else { disposePage(); current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
   await recoverGrades(value.pendingGrading.flatMap(pending => pending.question ? [pending.question] : []), score, async saved => {
     overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
-    if (saved.questionId === current.value?.questionId) await show(saved, false);
+    if (saved.questionId === current.value?.questionId) await applyContext(saved);
   }, error => { message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。'; });
 }); }
-async function navigate(id: string) { const bank = overview.value; if (!bank || id === current.value?.questionId) return; await run('正在打开题目', async () => { await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
+async function navigate(id: string) { if (!overview.value || id === current.value?.questionId && !page?.faulted) return; await run('正在打开题目', async () => { await flush(); const bank = overview.value; if (!bank) return; await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
 async function score(q: Question): Promise<Question> {
+  // Browser postMessage cannot clone Vue proxies from the current-question ref.
+  q = toRaw(q);
   return saveGrade({ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item },
     items => grader.grade(q.extension.artifactId, items),
-    result => json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result }) }));
+    result => enqueue(() => json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result }) })));
 }
-async function grade(q: Question) { await show(await score(q)); }
-async function submit() { const q = current.value; if (!q || !page || q.state.locked) return; await run('正在提交并评分', async () => {
+async function grade(q: Question) {
+  await flush();
+  const active = current.value;
+  if (active?.bankId === q.bankId && active.questionId === q.questionId) await applyContext(await score(active));
+}
+async function submit() { if (!current.value || !page || current.value.state.locked) return; await run('正在提交并评分', async () => {
+  await flush(); const q = current.value; if (!q || q.state.locked) return;
   const answer = await page!.answer();
-  const saved: Question = await json(base(q) + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, expectedRevision: q.state.revision, answer }) });
-  await show(saved, false); await grade(saved);
+  const saved: Question = await enqueue(() => json(base(q) + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, expectedRevision: q.state.revision, answer }) }));
+  await applyContext(saved); await grade(saved);
 }); }
-onMounted(catalog); onBeforeUnmount(() => { generation++; page?.destroy(); grader.dispose(); });
+const detach = attachSaveLifecycle(window, { get dirty() { return saver?.dirty ?? false; }, flush });
+onMounted(catalog); onBeforeUnmount(() => { detach(); disposePage(); sources.dispose(); grader.dispose(); });
 </script>
 <template>
   <div class="v2-app">
@@ -79,8 +180,9 @@ onMounted(catalog); onBeforeUnmount(() => { generation++; page?.destroy(); grade
     <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span></header>
       <p v-if="message" class="v2-error" role="alert">{{ message }}</p>
       <div v-if="!current" class="v2-empty">从一道题开始<p>选择左侧题库，开始练习。</p></div>
-      <section v-show="current" class="v2-card" :aria-busy="busy"><div class="v2-question-heading"><span>单选题</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame"></div>
+      <section v-show="current" class="v2-card" :aria-busy="busy || recovering"><div class="v2-question-heading"><span>{{ typeName }}</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame" :inert="busy || recovering"></div>
         <div class="v2-answer-footer"><button class="primary" :disabled="busy || current?.state.locked" @click="submit">{{ current?.state.locked ? '已提交' : '提交答案' }}</button>
+          <span v-if="saveStatus" class="v2-save-status" role="status">{{ saveStatus }}</span><button v-if="saveStatus === '保存失败'" :disabled="busy" @click="run('正在保存', flush)">重试保存</button>
           <strong v-if="current?.result" role="status">{{ current.result.score === null ? (current.result.reason ?? '待评分') : `${current.result.score} / ${current.state.maxScore} 分` }}</strong>
           <span v-else-if="current?.state.locked">答案已锁定，等待评分</span>
           <button v-if="current?.state.status === 'submitted-pending' && !busy" @click="run('正在评分', () => grade(current!))">继续评分</button>
