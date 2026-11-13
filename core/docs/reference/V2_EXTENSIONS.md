@@ -76,7 +76,7 @@ QF.page.register({
 | `answer` | 上次保存的作答，没有则为 `null` |
 | `locked` | 答案是否已锁定。锁定后不得再让用户修改答案 |
 | `solution` | 题库中这道题的 `solution`。**锁定前为 `null`** |
-| `result` | 评分结果（见 4.2），没有则为 `null` |
+| `result` | 评分结果 `{ score, parts, message }`（见 4.2），没有则为 `null` |
 | `can.submit` | 当前是否允许提交 |
 | `can.retry` | 当前是否允许重做 |
 | `appearance` | 外观信息，如深浅色 |
@@ -132,11 +132,7 @@ QF.page.register({
 QF.grader.register({
   grade(question, solution, answer, item) {
     const correct = answer?.selected === solution.selected;
-    return {
-      status: 'graded',
-      score: correct ? item.maxScore : 0,
-      feedback: correct ? '回答正确。' : '回答不正确，请查看解析。'
-    };
+    return { score: correct ? item.maxScore : 0 };
   }
 });
 ```
@@ -145,17 +141,18 @@ QF.grader.register({
 
 ### 4.2 返回值
 
-| 字段 | 说明 |
+| 情况 | 返回 |
 |---|---|
-| `status` | `"graded"` 已评分；`"pending"` 需要人工或 AI 评分；`"ungradable"` 无法评分 |
-| `score` | 得分，0 到 `item.maxScore` 之间。`pending`、`ungradable` 时为 `null` |
-| `outlineScores` | 有小题时必需：`[{ id, score }]`，每个小题的得分，合计等于 `score` |
-| `feedback` | 可选，给用户看的文字 |
-| `reason` | `ungradable` 时说明原因 |
+| 能评分，没有小题 | `{ score: 数字 }` |
+| 能评分，有小题 | `{ score: 数字, parts: { 小题id: 数字 } }`，各小题得分合计等于 `score` |
+| 需要人工或 AI 评分 | `{ score: null }` |
+| 评不了（数据有误等） | 直接抛出错误，错误信息会作为说明保存下来 |
 
-分数超出范围、小题得分合计与总分不符的结果会被宿主拒绝，该题记为"无法评分"。评分超过 10 秒会被终止。
+`score` 必须在 0 到满分之间。分数超出范围、小题得分合计与总分不符、评分超过 10 秒，都会被记为"无法评分"。
 
-这个返回值会原样出现在做题页面的 `context.result` 里，由你的 `load` 显示。
+得满分的小题在大纲上显示为"对"，否则为"错"，由宿主判断，你不用处理。
+
+做题页面的 `context.result` 是 `{ score, parts, message }`：`score` 为数字表示已评分；为 `null` 表示还没有分数，这时 `message` 里可能有原因说明。没有评过分时 `context.result` 为 `null`。
 
 ## 5. 完整示例：单选题
 
@@ -194,9 +191,9 @@ QF.page.register({
     const result = document.getElementById('result');
     result.hidden = !context.result;
     if (context.result) {
-      result.textContent = context.result.status === 'graded'
-        ? `${context.result.score} / ${context.item.maxScore} 分　${context.result.feedback ?? ''}`
-        : (context.result.reason ?? '待评分');
+      result.textContent = typeof context.result.score === 'number'
+        ? `${context.result.score} / ${context.item.maxScore} 分`
+        : (context.result.message ?? '待评分');
     }
 
     const explanation = document.getElementById('explanation');
