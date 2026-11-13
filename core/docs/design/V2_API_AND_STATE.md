@@ -45,14 +45,54 @@
 
 **当前两处既有例外，供审查：** `B/refresh` 是重新读取磁盘并发布快照的动作，现有前端只传当前题号；后端可选 `expectedSnapshotId`，没有请求回执或题目版本。`GET B/overview` 仍按 D27 在打开或重载时发现内容变化并清空过期作答；需重新打开已逐出的题库时也会执行同一检查；首次读取到可识别的旧开发笔迹也可清理该文件。两者沿用已审查行为，本段不改变清理时机、刷新请求或存储。
 
+## 第 3 段接口：完成练习、归档、历史（已定稿，未实现）
+
+`B = /api/v2/banks/{bankId}`，`R = B/rounds/{roundId}`。设计依据：D20、D22、D40、D42、D44，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.1、4 节。
+
+**完成练习**
+
+| 接口 | 请求 | 成功返回 | 主要错误 |
+|---|---|---|---|
+| POST `B/finish` | `requestId`、`snapshotId` | `completedAt`；各题状态；需要评分的题（已作答、尚无 `result`），每项含完整题目内容和 `solution` | 快照过期；已完成（幂等：同一请求编号返回原结果） |
+| PUT `B/results` | `requestId`、`snapshotId`、`results: [{ questionId, submissionId, expectedRevision, result }]` | 各题新状态；总分 `{ score, maxScore }` | 快照过期；任一条提交编号或版本不符则整批拒绝并指出是哪一题；分数不合格 |
+
+`finish` 的效果：所有尚无提交编号的题填上编号；从未作答的题直接写入 0 分的结果并把各小题状态记为 `wrong`；顶层写 `completedAt`。全部在一次原子写入里完成。`completedAt` 有值后，`PUT Q/answer`、`POST Q/submit`、`POST Q/retry` 一律拒绝，`PUT Q/result` 与 `PUT Q/ink` 照常。
+
+概览 `GET B/overview` 增加 `completedAt` 和 `total: { score, maxScore }`。总分由后端把各题得分相加（没有分数的按 0），不落盘。
+
+`finish` 之后、`results` 之前如果页面关闭，再次打开时概览的待补评列表里会有这些题，按现有的自动补评处理。
+
+**归档**
+
+| 接口 | 请求 | 成功返回 | 主要错误 |
+|---|---|---|---|
+| POST `B/restart` | `requestId`、`snapshotId` | 新一轮的概览 | 快照过期；尚未完成（`completedAt` 为空） |
+
+效果按顺序：仍无分数的题记 0 分（D23）；新建 `rounds/<轮次>/`，复制 `bank.json`、`state.json`、所用拓展文件夹，移入笔迹；全部成功后清空当前 `state.json`。中途失败则删除未完成的目录并返回可重试的错误，当前作答保持已完成状态。
+
+**历史**
+
+| 接口 | 作用 |
+|---|---|
+| GET `B/rounds` | 历史列表：`[{ roundId, completedAt, score, maxScore }]`，按完成时间倒序。得分由该轮 `state.json` 相加得出，不另存索引 |
+| DELETE `R` | 删除一轮（整个目录） |
+| GET `R/overview` | 打开一轮。返回内容与 `B/overview` 同形，另带 `readOnly: true` |
+| GET `R/questions/{questionId}` | 读一道题，与 `Q` 同形。`solution` 总是返回（全部已锁定） |
+| PUT `R/questions/{questionId}/ink` | 保存笔记，与 `Q/ink` 相同 |
+| GET `R/questions/{questionId}/assets/{assetId}` | 素材。引用来自该轮的 `bank.json`，文件仍在题库文件夹里找；不存在时返回 404，前端显示"素材已不存在" |
+
+拓展文件沿用 `/api/v2/extensions/{artifactId}/…`，该轮概览给出的 `artifactId` 指向轮次目录里的拓展副本。
+
+`R` 下不提供 `answer`、`submit`、`retry`、`result`，请求这些路径返回 404。宿主给拓展的事实固定为 `locked: true`、`can.submit: false`、`can.retry: false`。
+
+拓展副本无法解析或载入时，该题按"题型不可用"处理，概览中的状态和分数照常返回。
+
 ## 后续接口（未实现，字段随各段审查）
 
 `E = /api/v2/exams/{examId}`。
 
 | 方法与路径 | 用途 |
 |---|---|
-| POST `B/finish`、`B/restart`；GET `B/summary`、`B/pending-grading`；PUT `B/results` | 完成/新一轮、汇总、恢复待评分、批量评分上报（第 3 段） |
-| GET `B/history`、`B/history/{roundId}`；DELETE 同详情路径；POST 同路径 `/continue` | 历史列表、详情、删除、继续（第 3 段细化） |
 | POST/GET `/api/v2/exams`；GET/DELETE `E`；GET `E/questions/{questionId}` | 创建、列出、读取、删除考试与读取考试题（第 4 段） |
 | PUT `E/questions/{questionId}/answer`、`/ink`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、交卷、待评分与结果（第 4 段） |
 | POST `/api/v2/practice-sessions`；DELETE `/api/v2/practice-sessions/{sessionId}` | 临时练习的独立内存作用域，后续实现 |
