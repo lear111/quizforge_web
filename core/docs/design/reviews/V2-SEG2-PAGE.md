@@ -1,6 +1,6 @@
 # 第 2 段②：页面保存、图片与加载（实现，等待审查）
 
-① #69 已审查、三项 CI 通过并合并（9fabbf1）。本 PR 目标 `v2`，保存/沙箱改动等待复审，不自行合并。
+① #69 已审查、三项 CI 通过并合并（9fabbf1）。本 PR #73 目标 `v2`，保存/沙箱改动等待复审，不自行合并。
 
 **改动与边界**：`save-policy.ts` 集中 0/1000/1500/10000 ms；`App.vue` 题型 changed→读取 answer/getDraft→同题库串行 PUT draft，重试复用原 ID/正文/revision。切题、切库、提交、继续评分先保存，失败留题/保留输入/可重试；hidden 立即保存，未存离开有浏览器原生确认。普通保存不 load 页面；锁定/评分用同一 iframe 的确认式 update，版本/请求/来源隔离旧消息。`source-cache.ts` 按题库/快照/工件/SDK/连接身份共享 Promise，失败移除，失效取消旧读取。manifest.name 用于标题。题目/锁后解析中的富文本图片仅从单题白名单取，以 transfer ArrayBuffer 交给框内 BlobURL；本实例适配既有 SDK，不改公共 SDK 文件/CSP。缺失图片保留 SDK 占位。
 
@@ -15,6 +15,14 @@
 | 选择→已保存（各 1 次） | 193 ms | 173 ms |
 | 提交→分数可见（各 1 次） | 289 ms | 276 ms |
 
-**完整检查**：本机默认全套 1319 项，1307 通过/12 失败/0 跳过取消，978.99 秒（exit 1）：旧版 hub-connection :68/88/96/114/133/160、settings-provider :32/54、http/server :290 为已记录访问保护 503；rule-engine :99 前后台队列顺序、windows-tray :143 导入未完成、short-answer-rules :22 子进程 ETIMEDOUT 三项单独原参数运行 3/0（33.11 秒），不改旧代码或超时。文件分别位于 `core/server/host/{ai,extensions,http}`、`core/test/{desktop,extensions}`。V2 用例无失败。最终 CI 结果待补。
+**完整检查**：本机默认全套 1319 项，1307 通过/12 失败/0 跳过取消，978.99 秒（exit 1）：旧版 hub-connection :68/88/96/114/133/160、settings-provider :32/54、http/server :290 为已记录访问保护 503；rule-engine :99 前后台队列顺序、windows-tray :143 导入未完成、short-answer-rules :22 子进程 ETIMEDOUT 三项单独原参数运行 3/0（33.11 秒），不改旧代码或超时。文件分别位于 `core/server/host/{ai,extensions,http}`、`core/test/{desktop,extensions}`。V2 用例无失败。CI 全绿不抹去本机失败。
+
+CI **43362368750**（实现 c458029）三项全绿，失败名单均为空，取消为 0；本次记录提交只补结果，不改实现：
+
+| job | 通过/失败/跳过 | job 总耗时 |
+|---|---|---|
+| Windows Checks | 1319 / 0 / 0 | 3 分 35 秒 |
+| Ubuntu Checks | 1285 / 0 / 34（原平台条件） | 1 分 29 秒 |
+| Ubuntu Performance | 4 / 0 / 0 | 34 秒 |
 
 **待办**：②不合并，等复审；后续③先做 #69 审定的笔迹保存实测，不提前拆文件，不做未排期功能。本次无新增产品待决事项。
