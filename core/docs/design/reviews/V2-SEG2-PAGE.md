@@ -25,6 +25,14 @@
 | 输入→下一帧（总计） | 39.9 | 48.2 |
 | 外层 Playwright check+等待（独立口径） | 110.3 | 131.4 |
 
-**完整测试与 CI**：本轮全套正在运行，推送后确认 CI，结果完成后同步本文件及 PR 描述。上一版本机默认全套 1319 项：1307/12（978.99 秒）；9 项旧版设置/访问保护 503，加规则队列、托盘导入、规则子进程超时 3 项（原超时、并发 1 隔离重跑 3/0），未修改这些旧代码。上一版 CI 43362368750：Windows 1319/0/0，Ubuntu 1285/0/34（原平台条件），Performance 4/0/0，三项成功，不代替本轮验收。
+**本机完整测试**：`npm --prefix core test` 共 1322 项，1310 通过/12 失败/0 跳过取消，944.46 秒，exit 1；V2 全部通过。失败名单：`core/server/host/ai/hub-connection.test.mjs:68/88/96/114/133/160`、`settings-provider.test.mjs:32/54`、`core/server/host/http/server.test.mjs:290` 共 9 项为已记录设置访问保护 503；另有 `core/server/host/extensions/rule-engine.test.mjs:99` 前后台顺序、`core/server/host/library/library-package.test.mjs:215` rename EPERM、`core/test/desktop/hub-import.test.mjs:217` 导入条件 false。后 3 项按原超时、并发 1 隔离重跑 2/1（43.96 秒）：package、hub-import 通过，规则队列仍失败并有结束后异步拒绝；不宣称全部稳定或已解决。上一轮托盘/简答超时本轮未重现，失败总数相同但名单不同。未修旧代码、增重试或放宽断言。
 
-**待办**：本轮结果更新后等待复审；②不合并、不开始③，无新增产品待决事项。
+**CI**：运行 **43368923873**，代码 **d9a4f5a**，三项全绿；失败用例名单均为空。本次收尾提交仅文档，记录与 PR 描述同步。
+
+| job | 通过/失败/跳过 | 总耗时 |
+|---|---|---|
+| Windows Checks | 1322 / 0 / 0 | 3 分 50 秒 |
+| Ubuntu Checks | 1288 / 0 / 34（原平台条件） | 1 分 26 秒 |
+| Ubuntu Performance | 4 / 0 / 0 | 28 秒 |
+
+**待办**：等待复审；②不合并、不开始③，无新增产品待决事项。
