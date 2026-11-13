@@ -24,3 +24,41 @@ test('V2 save Server-Timing separates parse, validation/assembly, serialization 
     } finally { server.server.closeAllConnections(); await server.close(); }
   }
 });
+
+test('V2 GET overview reports exclusive phases on the save timing switch without changing the JSON', async t => {
+  const fixture = createReadFixture(); t.after(() => fixture.cleanup());
+  const phases = ['locate-bank', 'bank-tree', 'bank-json', 'extension-scan', 'extension-resolve', 'sdk-digest', 'snapshot-id',
+    'content-fingerprint', 'state-check', 'ink-index', 'ink-body', 'assemble', 'serialize', 'other'];
+  let enabledBytes;
+  for (const timings of [true, false]) {
+    const server = await new V2Server({ ...fixture, timings }).start();
+    try {
+      const root = `http://127.0.0.1:${server.port()}/api/v2`;
+      const catalog = await fetch(root + '/catalog');
+      assert.equal(catalog.headers.get('Server-Timing'), null);
+      const id = (await catalog.json()).groups[0].items[0].bankId;
+      const url = `${root}/banks/${id}`;
+      await (await fetch(url + '/overview')).text();
+      const overview = await fetch(url + '/overview');
+      assert.equal(overview.status, 200);
+      const bytes = await overview.text(), header = overview.headers.get('Server-Timing');
+      const snapshotId = JSON.parse(bytes).snapshotId;
+      const question = await fetch(`${url}/questions/1?snapshotId=${snapshotId}`);
+      assert.equal(question.status, 200);
+      assert.equal(question.headers.get('Server-Timing'), null);
+      await question.text();
+      if (!timings) {
+        assert.equal(header, null);
+        assert.equal(bytes, enabledBytes);
+        continue;
+      }
+      enabledBytes = bytes;
+      const values = Object.fromEntries(header.split(', ').map(row => { const [key, duration] = row.split(';dur='); return [key, Number(duration)]; }));
+      assert.deepEqual(Object.keys(values), [...phases, 'total']);
+      assert.ok(Object.values(values).every(n => Number.isFinite(n) && n >= 0));
+      for (const key of ['bank-tree', 'bank-json', 'extension-scan', 'sdk-digest', 'state-check', 'ink-index', 'serialize']) assert.ok(values[key] > 0, key);
+      // Each phase and total are independently rounded to 0.001 ms.
+      assert.ok(Math.abs(phases.reduce((sum, key) => sum + values[key], 0) - values.total) < .008);
+    } finally { server.server.closeAllConnections(); await server.close(); }
+  }
+});

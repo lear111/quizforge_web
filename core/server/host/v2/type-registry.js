@@ -2,6 +2,7 @@ import path from 'node:path';
 import { hash } from '../platform/json.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, readJson, relativeFile, treeIdentity, READ_LIMITS } from './io.js';
+import { measureOverview } from './timing.js';
 
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const typePattern = /^([A-Za-z][A-Za-z0-9._-]{0,119})@(0|[1-9]\d*)$/;
@@ -38,9 +39,9 @@ export class TypeRegistry {
       descriptor: { artifactId, id: m.id, version: m.version, apiVersion: 2, digest } };
   }
   resolutions(types) {
-    const rows = this.scan(), result = new Map();
+    const rows = measureOverview('extension-scan', () => this.scan()), result = new Map();
     for (const type of types) {
-      try { result.set(type, { artifact: this.resolve(type, rows) }); }
+      try { result.set(type, { artifact: measureOverview('extension-resolve', () => this.resolve(type, rows)) }); }
       catch (error) { result.set(type, { error: publicError(error) }); }
     }
     return result;
