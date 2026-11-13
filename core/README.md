@@ -54,7 +54,7 @@ core/
 - `npm start`：启动服务。
 - `npm test`：递归发现并运行所有正式测试，不执行 fixtures 内的示例代码。
 - `npm run test:host`：后端测试。
-- `npm run test:rules`：规则进程测试。
+- `npm run test:perf`：使用合成题库检查 V2 后端的打开、读题与保存耗时。
 
 文档入口见 [docs/README.md](docs/README.md)。接口与持久化约束见 [API.md](docs/reference/API.md)，模块职责见 [CORE_SOURCE.md](docs/guides/CORE_SOURCE.md)。
 
