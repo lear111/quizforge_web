@@ -1,14 +1,17 @@
+import { ANSWERED_PART_LIMIT, mergeAnswered } from '../../../shared/v2/answered.js';
+import type { Answered } from '../../../shared/v2/answered.js';
 // Each question gets its own opaque page. No state or solution crosses frames.
-export interface PageContext { question: unknown; answer: unknown; draft?: unknown; solution: unknown; result: unknown; item: unknown; mode: 'practice'; locked: boolean }
+export interface PageContext { question: unknown; answer: unknown; draft?: unknown; solution: unknown; result: unknown; item: { parts?: { id: string }[] }; mode: 'practice' | 'exam' | 'archive'; locked: boolean; can: { submit: boolean; retry: boolean }; appearance: { theme: 'light' | 'dark' } }
 export interface PageSources { html: string; js: string; css: string; sdks: string[] }
 export interface Picture { assetId: string; reference: string; bytes: ArrayBuffer; type: string }
-interface PageOptions { title?: string; resources?: Picture[]; onChanged?(kind: 'choice' | 'text' | 'ink'): void }
+interface PageOptions { title?: string; resources?: Picture[]; onChanged?(kind: 'choice' | 'text' | 'ink', answered?: Answered): void; onSubmit?(): Promise<void>; onRetry?(): Promise<void> }
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
 const id = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
 export function mountQuestionPage(container: HTMLElement, sources: PageSources, context: PageContext, nonce: string, options: PageOptions = {}) {
   const frame = document.createElement('iframe'), channel = id();
   frame.title = `${options.title ?? '题目'}作答`; frame.setAttribute('sandbox', 'allow-scripts');
   let disposed = false, faulted = false, initialized = false, version = 0, sequence = 0, resolveReady!: () => void, rejectReady!: (error: Error) => void;
+  let activeContext = context, actionRunning = false;
   const sent = new Set<string>();
   const pending = new Map<number, { kind: string; resolve(value: unknown): void; reject(error: Error): void }>();
   const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
@@ -26,17 +29,35 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
     authorPolicy.httpEquiv='Content-Security-Policy';authorPolicy.content="script-src blob:";
     document.head.append(authorPolicy);
     const channel=${literal(channel)}, initialContext=${literal(context)};
-    let page, version=0, context=initialContext, chain=Promise.resolve(), applying=false;
+    let page, version=0, context=initialContext, chain=Promise.resolve(), applying=false, actionId=0, resizeFrame;
+    const actions=new Map();
     const assets=new Map(), urls=new Map();
     const send=(value,scope=version)=>parent.postMessage({...value,channel,version:scope},'*');
-    const revoke=()=>{for(const url of urls.values())URL.revokeObjectURL(url);urls.clear();assets.clear();};
+    const root=()=>document.getElementById('question');
+    let lastHeight=0;
+    const reportHeight=()=>{if(resizeFrame!==undefined)return;resizeFrame=requestAnimationFrame(()=>{resizeFrame=undefined;const node=root();if(!node)return;const height=Math.ceil(Math.max(node.scrollHeight,node.getBoundingClientRect().height));if(height>0&&height!==lastHeight){lastHeight=height;send({kind:'height',height});}});};
+    const observer=new ResizeObserver(reportHeight);
+    const revoke=()=>{observer.disconnect();if(resizeFrame!==undefined)cancelAnimationFrame(resizeFrame);for(const pending of actions.values())pending.reject(new Error('题目已关闭。'));actions.clear();for(const url of urls.values())URL.revokeObjectURL(url);urls.clear();assets.clear();};
     addEventListener('pagehide',revoke);addEventListener('unload',revoke);
     const resources=Object.freeze({async get(reference){const asset=assets.get(reference);if(!asset)throw new Error('图片不可用');return {...asset};}});
-    globalThis.QF=Object.freeze({resources,page:Object.freeze({register(value){page=value;},changed(value){if(!applying&&['choice','text','ink'].includes(value?.kind))send({kind:'changed',inputKind:value.kind});}})});
+    const action=name=>{
+      if(applying||context.mode!=='practice'||context.can?.[name]!==true)return Promise.reject(new Error('当前不允许此操作。'));
+      const request=++actionId, scope=version;
+      return new Promise((resolve,reject)=>{actions.set(request,{resolve,reject,scope});send({kind:'action',action:name,request},scope);});
+    };
+    globalThis.QF=Object.freeze({resources,page:Object.freeze({register(value){page=value;},changed(value){
+      if(applying||!['choice','text','ink'].includes(value?.kind))return;
+      const extra={};if(Object.hasOwn(value,'answered')){
+        const reported=value.answered;
+        if(typeof reported!=='boolean'&&(!reported||typeof reported!=='object'||Array.isArray(reported)||Object.keys(reported).length>${ANSWERED_PART_LIMIT}||Object.values(reported).some(flag=>typeof flag!=='boolean')))throw new TypeError('作答状态格式无效。');
+        extra.answered=reported;
+      }send({kind:'changed',inputKind:value.kind,...extra});
+    },submit:()=>action('submit'),retry:()=>action('retry')})});
     addEventListener('message',event=>{
       if(event.source!==parent||event.data?.channel!==channel)return;
       const data=event.data;
       if(data.kind==='dispose'){revoke();return;}
+      if(data.kind==='action-result'){const pending=actions.get(data.request);if(!pending||pending.scope!==data.version)return;actions.delete(data.request);if(data.error)pending.reject(new Error(data.error));else pending.resolve();return;}
       if(data.kind==='load'||data.kind==='context'){
         chain=chain.then(async()=>{if(data.version<version)return;version=data.version;context=data.context;applying=true;
           try{
@@ -45,7 +66,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
               const url=URL.createObjectURL(new Blob([asset.bytes],{type:asset.type}));urls.set(asset.assetId,url);
               const value={url,assetId:asset.assetId,type:asset.type};assets.set(asset.reference,value);assets.set(asset.assetId,value);
             }
-            await page.load(context);send({kind:data.kind==='load'?'ready':'updated',request:data.request});
+            await page.load(context);reportHeight();send({kind:data.kind==='load'?'ready':'updated',request:data.request});
           }catch{send({kind:data.kind==='load'?'error':'updated',request:data.request,error:true});}
           finally{applying=false;}
         });return;
@@ -67,6 +88,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
         finally{script.remove();URL.revokeObjectURL(url);}
       }
       if(!page||typeof page.load!=='function'||typeof page.getAnswer!=='function')throw new Error();
+      observer.observe(root());
       // Adapt qf-asset image nodes for the existing immutable rich-text SDK.
       // Only this frame instance is configured; no published SDK file changes.
       if(globalThis.QFRichText){
@@ -88,7 +110,20 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
     if (event.data.kind === 'initialized' && !initialized) { initialized = true; post('load', context, options.resources ?? []); }
     if (event.data.kind === 'ready') resolveReady();
     if (event.data.kind === 'error') { faulted = true; rejectReady(new Error('题型页面未能加载，请重新打开本题。')); }
-    if (event.data.kind === 'changed' && ['choice', 'text', 'ink'].includes(event.data.inputKind)) options.onChanged?.(event.data.inputKind);
+    if (event.data.kind === 'changed' && ['choice', 'text', 'ink'].includes(event.data.inputKind)) {
+      let answered: Answered | undefined;
+      try { if (Object.hasOwn(event.data, 'answered')) answered = mergeAnswered(event.data.answered, activeContext.item); } catch { return; }
+      options.onChanged?.(event.data.inputKind, answered);
+    }
+    if (event.data.kind === 'height' && typeof event.data.height === 'number' && Number.isFinite(event.data.height) && event.data.height > 0) frame.style.height = `${Math.ceil(event.data.height)}px`;
+    if (event.data.kind === 'action' && ['submit', 'retry'].includes(event.data.action) && Number.isSafeInteger(event.data.request)) {
+      const scope = version, action = event.data.action as 'submit' | 'retry', request = event.data.request;
+      const reply = (error?: string) => { if (!disposed) frame.contentWindow?.postMessage({ channel, version: scope, kind: 'action-result', request, ...(error ? { error } : {}) }, '*'); };
+      const callback = action === 'submit' ? options.onSubmit : options.onRetry;
+      if (faulted || actionRunning || activeContext.mode !== 'practice' || !activeContext.can?.[action] || !callback) { reply('当前不允许此操作。'); return; }
+      actionRunning = true;
+      void Promise.resolve().then(callback).then(() => reply(), () => reply('操作未完成，请查看宿主提示并重试。')).finally(() => { actionRunning = false; });
+    }
     if (['answer', 'draft', 'updated'].includes(event.data.kind)) {
       const request = pending.get(event.data.request); if (!request || request.kind !== event.data.kind) return;
       pending.delete(event.data.request);
@@ -108,16 +143,18 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
   // Parent's nonce also applies to srcdoc's inherited CSP. No host origin,
   // network, forms, popups or top-level navigation is granted to author code.
   const attr = nonce.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
-  frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${attr}' blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>${sources.css.replaceAll('</', '<\\/')}</style><div id="question"></div><script nonce="${attr}">${runtime.replaceAll('</', '<\\/')}</script></html>`;
+  frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${attr}' blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>html,body{margin:0}#question{display:flow-root}${sources.css.replaceAll('</', '<\\/')}</style><div id="question"></div><script nonce="${attr}">${runtime.replaceAll('</', '<\\/')}</script></html>`;
   container.replaceChildren(frame);
   return { ready, frame,
     answer: () => read('answer'), draft: () => read('draft'),
     hasResource: (assetId: string) => sent.has(assetId),
+    get can() { return { ...activeContext.can }; },
     get faulted() { return faulted; },
     update(context: PageContext, resources: Picture[] = []) {
       latest = latest.then(() => {
         if (disposed || faulted) throw new Error(disposed ? '题目已关闭。' : '题型页面更新失败，请重新打开本题。');
         version++;
+        activeContext = context;
         for (const entry of pending.values()) entry.reject(new Error('题目状态已更新。')); pending.clear();
         return new Promise<void>((resolve, reject) => { const request = ++sequence; pending.set(request, { kind: 'updated', resolve: () => resolve(), reject }); post('context', context, resources, request); });
       });

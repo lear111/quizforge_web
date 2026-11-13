@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cloneJson, fingerprint, hash, projectJson, patchJson } from '../platform/json.js';
+import { cloneJson, fingerprint, hash, projectJson } from '../platform/json.js';
 import { checkPath } from '../platform/files.js';
 import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
@@ -158,7 +158,7 @@ export class LibrarySnapshots {
     this.resolution(snapshot, record); this.visibleAssets(snapshot, id, record);
     if (op === 'ink') {
       const saved = this.stateStore.ink.apply(snapshot, id, input);
-      return patchJson(this.question(bankId, id, snapshot.snapshotId, { includeInk: false }), cloneJson(projectJson(saved, ['ink', 'inkRevision'])));
+      return { inkRevision: saved.inkRevision, state: this.state(snapshot, id) };
     }
     this.stateStore.apply(snapshot, id, op, input);
     return this.question(bankId, id, snapshot.snapshotId, { includeInk: op === 'retry' });

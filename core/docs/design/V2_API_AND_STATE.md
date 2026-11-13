@@ -37,12 +37,13 @@
 | pending-review 待人工或 AI 评分 | 是 | graded、ungradable、继续待评；练习重做 |
 | ungradable 无法评分 | 是 | 明确重新评分；练习重做 |
 
-- 主状态为 `.qf-v2/state.json`：根字段 formatVersion:2、questions、historyIndex、contentFingerprint、lastQuestionId；题状态含 status、revision、answerVersion、answer、draft、submission、resultRevision、result、receipts、receiptOrder，不含 ink 或逐题 fingerprint。未出现的题提供未作答默认值；没有作答文件时只读不创建，尚未写入的空根可不含指纹/位置。historyIndex 只存轮次索引，绝不内嵌历史内容；目录独立于 v1 `.state`。
+- 主状态为 `.qf-v2/state.json`：根字段 formatVersion:2、questions、historyIndex、contentFingerprint、lastQuestionId；题状态含 status、revision、answerVersion、answer、draft、submission、resultRevision、result、receipts、receiptOrder，以及可选的 answered，不含 ink 或逐题 fingerprint。未出现的题提供未作答默认值；没有作答文件时只读不创建，尚未写入的空根可不含指纹/位置。historyIndex 只存轮次索引，绝不内嵌历史内容；目录独立于 v1 `.state`。
 - 笔迹记录为独立文件，字段 ink、inkRevision、receipts、receiptOrder（路径与清理见 D33）；不存在时返回 ink:null、inkRevision:0。主状态上限 32 MiB，每题笔迹文件另限 32 MiB；不是把全部笔迹算进主状态。
 - 提交信封：requestId、snapshotId、expectedRevision、answer。先保存成功再返回 solution；当前锁凭证为 submissionId + answerVersion + contentFingerprint（题库整体内容指纹），评分请求通过题库/题号路径绑定该题的当前锁。
 - 结果上报：requestId、snapshotId、submission、expectedResultRevision、source:"grader"、result。必须对应当前锁定答案；score 为有限数且 0 ≤ score ≤ 大纲满分。小题 ID 不重复且属于本题、各自不越界，总分按精确十进制求和一致；拒绝数字字符串、越界截断及过期结果。
 - 同作用域同 requestId 同内容重放幂等，不同内容冲突；先核对权限与代际。每题 draft/submit/result/retry 共用最近 4 条成功回执；ink 的独立文件另保留最近 4 条成功回执，receiptOrder 显式 FIFO，不依赖数字键枚举；仅存 ID/签名/顺序。已淘汰请求仍校验 revision 或评分版本/锁凭证。重做清旧回执，保留本次重做回执供重放。较早 V2 记录没有顺序时读取不改写，下次成功写入按现存键序取最近 3 条再加入新条；无法倒推旧数字键的真实顺序。V1 状态及标准答案不迁移。
-- draft/retry 信封为 requestId、snapshotId、expectedRevision；ink 使用 requestId、snapshotId、expectedInkRevision；draft 至少有 answer/draft 一个字段，ink 必须有 ink。省略不改、显式 null 清空。answer 变化递增 answerVersion，保存非答案 draft 只递增 revision，ink 只递增独立 inkRevision；retry 同时递增 revision/answerVersion、清空活跃内容，hasSavedAnswer 为 false。旧锁及评分不可恢复。单题 GET 附 ink/inkRevision；ink 保存返回其内容和独立版本；其他写入确认省略 ink/inkRevision（retry 附清空后的当前笔迹），前端保留已知笔迹版本；写时复制、提交后冻结、串行与原子替换沿用，写失败不替换缓存。
+- draft/retry 信封为 requestId、snapshotId、expectedRevision；ink 使用 requestId、snapshotId、expectedInkRevision；draft 至少有 answer/draft 一个字段，ink 必须有 ink。省略不改、显式 null 清空。answer 变化递增 answerVersion，保存非答案 draft 只递增 revision，ink 只递增独立 inkRevision；retry 同时递增 revision/answerVersion、清空活跃内容，hasSavedAnswer 为 false。旧锁及评分不可恢复。单题 GET 附 ink/inkRevision；ink 保存仅返回 `{ inkRevision, state }`，不回传笔迹正文；其他写入确认省略 ink/inkRevision（retry 附清空后的当前笔迹），前端保留已知笔迹版本；写时复制、提交后冻结、串行与原子替换沿用，写失败不替换缓存。
+- D35 作答状态：draft 可选 answered，必须随 answer 提交；无小题时为布尔值，有小题时为至多 1000 键的布尔映射，只合并提供的小题，忽略大纲中不存在的 id。省略保留原值；仅 draft/ink 的非答案笔记不改变它，锁后不能随 answer 修改，retry 清空为 false/空映射。概览和单题 state 返回 answered（旧记录缺省 false/空映射），有小题的已评分状态另附 outlineScores；不解析 answer 推测是否已作答。旧记录读取不补写该字段，未传 answered 的原有持久化标准向量不变。
 - D15：answer 包括正式答题区笔迹；区外 ink 不评分。锁后 draft 请求只要含 answer 就拒绝，其余非答案 draft/ink 可保存，分别增加 revision/inkRevision，不改变答案版本、锁或分数；重做历史不变。第 2 段保留独立非答案 draft，白板全部为 ink；答题区契约留第 5 段。
 
 ## 审查决定与后续边界

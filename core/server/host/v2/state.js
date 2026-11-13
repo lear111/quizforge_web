@@ -6,6 +6,7 @@ import { statIdentity } from '../platform/file-cache.js';
 import { object, problem } from './errors.js';
 import { measureSave } from './timing.js';
 import { PracticeInk } from './ink.js';
+import { mergeAnswered, validateAnswered } from '../../../shared/v2/answered.js';
 
 // Owner-approved limit. V2 never reads the v1 settings or state directories.
 export const STATE_BYTES = 32 * 1024 * 1024;
@@ -51,6 +52,7 @@ export class PracticeState {
       for (const state of Object.values(value.questions)) {
         if (!object(state) || !integer(state.revision) || !integer(state.answerVersion) || !integer(state.resultRevision) || !object(state.receipts)) throw invalid();
         if (Object.values(state.receipts).some(value => typeof value !== 'string')) throw invalid();
+        if (own(state, 'answered')) validateAnswered(state.answered);
         if (own(state, 'receiptOrder') && (!Array.isArray(state.receiptOrder) || state.receiptOrder.length > RECEIPT_LIMIT || new Set(state.receiptOrder).size !== state.receiptOrder.length || state.receiptOrder.some(key => typeof key !== 'string' || !own(state.receipts, key)) || state.receiptOrder.length !== Object.keys(state.receipts).length)) throw invalid();
         if (state.submission !== null && (!object(state.submission) || typeof state.submission.submissionId !== 'string' || state.submission.answerVersion !== state.answerVersion || typeof value.contentFingerprint === 'string' && state.submission.contentFingerprint !== value.contentFingerprint)) throw invalid();
         if (!['unanswered', 'drafting', 'submitted-pending', 'graded', 'pending-review', 'ungradable'].includes(state.status) || Boolean(state.submission) !== !['unanswered', 'drafting'].includes(state.status)) throw invalid();
@@ -87,7 +89,10 @@ export class PracticeState {
   }
   summary(snapshot, id) {
     const s = this.get(snapshot, id);
-    return { questionId: id, status: s.status, revision: s.revision, answerVersion: s.answerVersion, hasSavedAnswer: s.status !== 'unanswered', locked: s.submission !== null, resultRevision: s.resultRevision, score: s.result?.score ?? null, maxScore: snapshot.maxScores.get(id), gradingStatus: s.result?.status ?? null, hasDraft: s.draft !== null, hasInk: this.ink.has(snapshot, id) };
+    const item = snapshot.items.get(id);
+    let answered;
+    try { answered = mergeAnswered(s.answered ?? (item.parts ? {} : false), item); } catch { throw invalid(); }
+    return { questionId: id, status: s.status, revision: s.revision, answerVersion: s.answerVersion, answered, hasSavedAnswer: s.status !== 'unanswered', locked: s.submission !== null, resultRevision: s.resultRevision, score: s.result?.score ?? null, maxScore: snapshot.maxScores.get(id), gradingStatus: s.result?.status ?? null, ...(s.result?.outlineScores ? { outlineScores: cloneJson(s.result.outlineScores) } : {}), hasDraft: s.draft !== null, hasInk: this.ink.has(snapshot, id) };
   }
   apply(snapshot, id, op, input) {
     if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
@@ -107,6 +112,11 @@ export class PracticeState {
       if (!own(input, 'answer') && !own(input, 'draft')) throw problem('INVALID_REQUEST', '缺少待保存的作答或笔记。', {}, 400);
       if (own(input, 'answer') && old.submission) throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
       const fields = cloneJson(projectJson(input, ['answer', 'draft']));
+      if (own(input, 'answered')) {
+        if (!own(input, 'answer')) throw problem('INVALID_REQUEST', '作答状态必须随答案保存。', {}, 400);
+        try { fields.answered = mergeAnswered(input.answered, snapshot.items.get(id), old.answered); }
+        catch (error) { throw problem('INVALID_REQUEST', error.message, {}, 400); }
+      }
       next = patchJson(old, fields); next.revision = increment(old.revision);
       if (own(input, 'answer')) {
         if (!jsonEqual(projectJson(old, ['answer']), projectJson(input, ['answer']))) next.answerVersion = increment(old.answerVersion);
@@ -114,7 +124,7 @@ export class PracticeState {
       }
     } else if (op === 'retry') {
       this.ink.remove(snapshot, id);
-      next = patchJson(old, { status: 'unanswered', revision: increment(old.revision), answerVersion: increment(old.answerVersion), answer: null, draft: null, submission: null, resultRevision: 0, result: null });
+      next = patchJson(old, { status: 'unanswered', revision: increment(old.revision), answerVersion: increment(old.answerVersion), answer: null, draft: null, submission: null, resultRevision: 0, result: null, ...(own(old, 'answered') ? { answered: snapshot.items.get(id).parts ? {} : false } : {}) });
     } else if (op === 'submit') {
       if (old.submission) throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
       if (!own(input, 'answer')) throw problem('INVALID_REQUEST', '缺少待提交的作答。', {}, 400);
