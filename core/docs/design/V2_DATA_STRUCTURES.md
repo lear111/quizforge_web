@@ -70,7 +70,6 @@
   "formatVersion": 2,
   "contentFingerprint": "a3f9…",
   "lastQuestionId": "q2",
-  "historyIndex": [],
   "questions": { "q1": { … }, "q2": { … } }
 }
 ```
@@ -80,7 +79,6 @@
 | `formatVersion` | 固定为 2 | 以后格式变化时能认出旧文件 |
 | `contentFingerprint` | 做题时 `bank.json` 和所用拓展文件的指纹 | 下次打开时重新算一遍，和它比。不一样说明题库或拓展被改过，这一轮的作答整体作废（D27）。旧指纹必须存在磁盘上，否则程序重启后无从比较 |
 | `lastQuestionId` | 最后一次作答的大题 | 下次打开时回到这里（D32）。只在保存答案、提交、重做时顺带写入，不为它单独写文件，所以只看不做不会产生任何文件 |
-| `historyIndex` | 各轮历史的摘要 | 历史列表页只读它，不用打开每一轮的文件（第 3 段启用） |
 | `questions` | 以大题 `id` 为键 | 保存时只替换其中一道题的条目 |
 
 为什么放在题库文件夹里而不是统一的目录：作答记录跟着文件夹走，改名、移动、复制、删除都不需要程序去"认"它属于哪个题库（D19）。
@@ -133,7 +131,7 @@
 |---|---|
 | 答案是否锁定 | `submissionId` 不为 `null` |
 | 是否已有评分 | `result` 不为 `null` |
-| 是否在等人工或 AI 评分 | `result.status` 为 `"pending"` |
+| 是否在等人工或 AI 评分 | `result.score` 为 `null` 且 `status` 不是 `ungradable` |
 | 是否需要自动补评 | 已锁定但 `result` 为 `null` |
 
 #### `answer`
@@ -143,18 +141,25 @@
 #### `result`
 
 ```json
-{ "status": "graded", "score": 2,
-  "outlineScores": [ { "id": "sub_q1", "score": 2 }, { "id": "sub_q2", "score": 0 } ],
-  "feedback": "…", "reason": "…" }
+{ "score": 2, "parts": { "sub_q1": 2, "sub_q2": 0 }, "message": null }
 ```
 
 | 字段 | 内容 |
 |---|---|
-| `status` | `graded` 已评分；`pending` 需要人工或 AI；`ungradable` 无法评分 |
-| `score` | 整题得分。后两种情况为 `null` |
-| `outlineScores` | 有小题时各小题的得分，合计等于 `score` |
-| `feedback` | 给用户看的文字，可选 |
-| `reason` | 无法评分的原因，可选 |
+| `score` | 整题得分。没有分数时为 `null` |
+| `parts` | 有小题时各小题的得分，以小题 id 为键，合计等于 `score`。写法与 `status` 一致 |
+| `message` | 没有分数时的说明，给制作者排查用，如"评分超时"。有分数时为 `null` |
+
+不设单独的状态字段，四种情况这样区分：
+
+| 情况 | 怎么看 |
+|---|---|
+| 还没评（会自动补评） | 没有 `result` |
+| 已评分 | `score` 是数字 |
+| 等人工或 AI 评 | `score` 为 `null`，且该题 `status` 不是 `ungradable` |
+| 无法评分 | 该题 `status` 为 `ungradable` |
+
+评分正常时不存反馈文字：拓展手里有得分和答案解析，自己就能显示"回答正确"之类的话。AI 评语在第 5 段另加。
 
 后端只检查：分数是有限的数、在 0 到满分之间、小题得分合计等于总分。理由：评分在前端进行（D3），后端不运行拓展代码，但要防止一个有缺陷的评分函数写入明显不合理的分数。
 
@@ -229,7 +234,7 @@
 | 归档时为每道题存一份静态页面 `view` | 回看历史不需要拓展，拓展以后改了、卸了都不影响（D20） |
 | 图片、音频只存引用 | 文件大，历史通常不多，不值得复制（D20） |
 | 笔记单独一个文件 | 归档后答案和分数不再变，但笔记还能写。分开后前者真正不可变 |
-| `state.json` 里另有 `historyIndex` | 列表页不用打开每一轮的文件 |
+| 历史列表怎么取得各轮摘要 | 第 3 段再定。此前 `state.json` 里预留的 `historyIndex` 已删除，因为它是历史文件的副本 |
 
 ## 5. 现状与本文的差异
 
@@ -240,7 +245,9 @@
 | `status` | 整道大题一个值，六种流程状态 | 精确到小题，五种显示状态 | 已定 |
 | `answered` | 独立字段 | 并入 `status`，字段删除 | 已定 |
 | `draft` | 存在 | 删除 | 已定（D36） |
-| `answerVersion`、`resultRevision` | 存在 | 删除，只用 `revision` | **待负责人确认** |
-| `submission` | 含凭证编号、答案版本、内容指纹三项 | 只留 `submissionId` | **待负责人确认** |
-| `receipts`、`receiptOrder` | 两个字段 | 合并为一个有序列表 | **待负责人确认** |
+| `answerVersion`、`resultRevision` | 存在 | 删除，只用 `revision` | 已定 |
+| `submission` | 含凭证编号、答案版本、内容指纹三项 | 只留 `submissionId` | 已定 |
+| `receipts`、`receiptOrder` | 两个字段 | 合并为一个有序列表，保留幂等 | 已定 |
+| `result` | 含 `status`、`outlineScores`、`feedback`、`reason` | 只有 `score`、`parts`、`message` | 已定 |
+| `historyIndex` | 存在，为空 | 删除，第 3 段再定 | 已定 |
 | 历史 | 未实现 | 第 4 节 | 第 3 段 |
