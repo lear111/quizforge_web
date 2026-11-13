@@ -15,7 +15,7 @@
 | 选择→已保存（各 1 次） | 193 ms | 173 ms |
 | 提交→分数可见（各 1 次） | 289 ms | 276 ms |
 
-**完整检查**：本机默认全套 1319 项，1307 通过/12 失败/0 跳过取消，978.99 秒（exit 1）：旧版 hub-connection :68/88/96/114/133/160、settings-provider :32/54、http/server :290 为已记录访问保护 503；rule-engine :99 前后台队列顺序、windows-tray :143 导入未完成、short-answer-rules :22 子进程 ETIMEDOUT 三项单独原参数运行 3/0（33.11 秒），不改旧代码或超时。文件分别位于 `core/server/host/{ai,extensions,http}`、`core/test/{desktop,extensions}`。V2 用例无失败。CI 全绿不抹去本机失败。
+**完整检查**：本机默认全套 1319 项，1307 通过/12 失败/0 跳过取消，978.99 秒（exit 1）：旧版 hub-connection :68/88/96/114/133/160、settings-provider :32/54、http/server :290 为已记录访问保护 503；rule-engine :99 前后台队列顺序、windows-tray :143 导入未完成、short-answer-rules :22 子进程 ETIMEDOUT 三项按原超时、并发 1 单独重跑 3/0（33.11 秒），不改旧代码或超时。文件分别位于 `core/server/host/{ai,extensions,http}`、`core/test/{desktop,extensions}`。V2 用例无失败。CI 全绿不抹去本机失败。
 
 CI **43362368750**（实现 c458029）三项全绿，失败名单均为空，取消为 0；本次记录提交只补结果，不改实现：
 
