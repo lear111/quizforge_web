@@ -19,4 +19,4 @@ Windows 10.0.26200、Node 24.13.0、Chrome 157.0.8103.39；视口 1440×900、39
 
 **验证与边界：** 桌面及手机视口均测试了 `script`、`onerror`、`javascript:` 链接、`iframe`、`object` 和外部图片；白名单移除活跃内容，点链接后无脚本标记、静态阶段无请求（拦截器也未收到外部请求）。新增 1 条自动用例覆盖当前表单值、画布 PNG、图片重绑和清理；画布在原 7 题中不存在，画布序列化仅由专项用例覆盖。可行性仅证实这三个内置题型和当前 Chromium；任意第三方 HTML/CSS、自定义字体、真机和正式归档均未验收，不能将探针白名单当成生产契约。
 
-复现：`node core/scripts/dev/probe-v2-static-snapshot.mjs <playwright/index.mjs>`（本机 Chrome）。截图及逐题记录在忽略目录 `.temp/v2-static-snapshot/`。专项测试通过；CI 结果见本 PR。
+复现：`node core/scripts/dev/probe-v2-static-snapshot.mjs <playwright/index.mjs>`（本机 Chrome）。截图及逐题记录在忽略目录 `.temp/v2-static-snapshot/`。专项测试通过；Windows Checks、Ubuntu Checks、Ubuntu Performance 均通过，无失败用例（[代码头 5ad47a1 的 CI](https://github.com/lear111/quizforge_web/actions/runs/43466222741)）。
