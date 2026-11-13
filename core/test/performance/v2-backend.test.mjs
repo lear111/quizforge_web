@@ -55,14 +55,16 @@ for (const count of [20, 200]) test(`V2 loopback performance: open, read and sav
       assert.equal(states.length, count);
       assert.equal(initial.question.questionId, '1');
       assert.equal(initial.question.state.revision, index);
+      assert.equal(initial.question.state.status, index ? 'answered' : 'unanswered');
       if (previousSnapshot !== undefined) assert.equal(snapshotId, previousSnapshot);
       previousSnapshot = snapshotId;
 
       const read = await request(origin, `${base}/questions/2?snapshotId=${snapshotId}`);
       assert.equal(read.value.questionId, '2');
       const answer = { selected: index % 2 ? '甲' : '乙' };
-      const saved = await request(origin, `${base}/questions/1/answer`, { snapshotId, requestId: `answer-${index}`, expectedRevision: index, answer });
+      const saved = await request(origin, `${base}/questions/1/answer`, { snapshotId, requestId: `answer-${index}`, expectedRevision: index, answer, answered: true });
       assert.equal(saved.value.state.revision, index + 1);
+      assert.equal(saved.value.state.status, 'answered');
       assert.deepEqual(saved.value.answer, answer);
       const ink = { strokes: [{ points: [[0, 0], [index, 1]] }] };
       const inkSaved = await request(origin, `${base}/questions/1/ink`, { snapshotId, requestId: `ink-${index}`, expectedInkRevision: index, ink });
