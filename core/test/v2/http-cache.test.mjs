@@ -43,7 +43,7 @@ test('solution-only resource is never cached even when locked, and becomes inacc
   const ink = await write('ink', { requestId: 'i', expectedInkRevision: 0, ink: { strokes: [] } }, 'PUT');
   const locked = await write('submit', { requestId: 's', expectedRevision: draft.body.state.revision, answer: {} });
   const visible = await api(route); assert.equal(visible.response.status, 200); assert.equal(visible.text, SOLUTION_MARKER); assert.equal(visible.response.headers.get('cache-control'), 'no-store');
-  const graded = await write('result', { requestId: 'g', submission: locked.body.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 0 } }, 'PUT');
+  const graded = await write('result', { requestId: 'g', submissionId: locked.body.submissionId, expectedRevision: locked.body.state.revision, source: 'grader', result: { score: 0, parts: null, message: null } }, 'PUT');
   const retry = await write('retry', { requestId: 'r', expectedRevision: graded.body.state.revision, expectedInkRevision: ink.body.inkRevision });
   for (const r of [draft, ink, locked, graded, retry]) { assert.equal(r.response.status, 200, r.text); assert.equal(r.response.headers.get('cache-control'), 'no-store'); }
   const denied = await api(route); assert.equal(denied.response.status, 404); assert.equal(denied.response.headers.get('cache-control'), 'no-store'); assert.ok(!denied.text.includes(SOLUTION_MARKER));

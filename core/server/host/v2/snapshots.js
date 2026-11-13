@@ -6,6 +6,7 @@ import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, newCache, readJson, relativeFile, relativePath, treeIdentity, READ_LIMITS } from './io.js';
 import { TypeRegistry } from './type-registry.js';
+import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 
 export const OPEN_BANK_LIMIT = 8;
 
@@ -90,7 +91,7 @@ export class LibrarySnapshots {
       questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
       states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial, activeCleared,
       notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
-      pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
+      pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.stateStore && this.needsGrading(snapshot, id)).map(id => {
         try { return { question: this.question(bankId, id, snapshotId), error: null }; }
         catch (error) { return { question: null, error: publicError(error) }; }
       }), ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
@@ -109,9 +110,13 @@ export class LibrarySnapshots {
     if (typeof snapshotId !== 'string' || snapshotId !== value.snapshotId) throw problem('SNAPSHOT_STALE', value.activeCleared ? '题库或题型已变化，本轮作答已清空' : '题库快照已变化，请重新打开或刷新。', { bankId }, 409);
     this.opened.delete(bankId); this.opened.set(bankId, value); return value;
   }
+  needsGrading(snapshot, id) {
+    const state = this.stateStore.get(snapshot, id);
+    return state.submissionId !== null && state.result === null;
+  }
   state(snapshot, id) {
     if (this.stateStore) return this.stateStore.summary(snapshot, id);
-    return { questionId: id, status: 'unanswered', revision: 0, answerVersion: 0, hasSavedAnswer: false, locked: false, resultRevision: 0, score: null, maxScore: snapshot.maxScores.get(id), gradingStatus: null, hasInk: false };
+    return { questionId: id, status: emptyOutlineStatus(snapshot.items.get(id)), revision: 0, hasSavedAnswer: false, locked: false, score: null, maxScore: snapshot.maxScores.get(id), hasInk: false };
   }
   resolution(snapshot, record) {
     let value = snapshot.resolutions.get(record.type);
@@ -123,7 +128,7 @@ export class LibrarySnapshots {
     if (value.error) throw problem(value.error.code, value.error.message, { field: value.error.field, details: value.error.details }, value.error.code === 'EXTENSION_NOT_FOUND' ? 404 : 422);
     return value.artifact;
   }
-  visibleAssets(snapshot, id, record, includeSolution = Boolean(this.stateStore?.get(snapshot, id).submission)) {
+  visibleAssets(snapshot, id, record, includeSolution = Boolean(this.stateStore?.get(snapshot, id).submissionId)) {
     const assets = new Map();
     const visit = value => {
       if (typeof value === 'string' && value.startsWith('qf-asset:')) {
@@ -144,7 +149,7 @@ export class LibrarySnapshots {
       const saved = this.stateStore?.get(snapshot, id);
       const ink = includeInk ? this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 } : null;
       return { bankId, snapshotId, questionId: id, type: record.type, extension: cloneJson(artifact.descriptor), item: cloneJson(snapshot.items.get(id)), question: cloneJson(record.question),
-        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
+        solution: saved?.submissionId ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submissionId: saved?.submissionId ?? null, result: cloneJson(saved?.result ?? null),
         resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })) };
     } catch (error) {
       if (error.context) error.context = { ...error.context, bankId, questionId: id };

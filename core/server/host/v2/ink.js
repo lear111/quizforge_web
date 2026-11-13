@@ -5,8 +5,10 @@ import { cloneJson, fingerprint, freezeJson, hash, jsonBytes, parseJson, project
 import { object, problem } from './errors.js';
 import { measureSave } from './timing.js';
 import { statIdentity } from '../platform/file-cache.js';
+import { appendReceipt, replayed, validOldReceipts, validReceipts } from './receipts.js';
 
 const LIMIT = 32 * 1024 * 1024;
+const empty = () => ({ ink: null, inkRevision: 0, receipts: [] });
 const integer = n => Number.isSafeInteger(n) && n >= 0;
 // No ink bodies are cached. The bank LRU owns only a directory-name index.
 export class PracticeInk {
@@ -56,11 +58,18 @@ export class PracticeInk {
       const identity = () => { const { stat } = checkedStat(file, { optional:true, bigint:true }); return stat ? statIdentity(stat) : null; };
       const before = identity(), bytes = readBytes(file, LIMIT, true);
       if (before !== identity()) throw Error('Ink changed while reading');
-      if (!bytes) return { inkRevision: 0, ink: null, receipts: {}, receiptOrder: [] };
+      if (!bytes) return empty();
       const value = parseJson(bytes, { maxDepth: 68 });
-      if (!object(value) || !integer(value.inkRevision) || !Object.hasOwn(value, 'ink') || !object(value.receipts) || !Array.isArray(value.receiptOrder) || value.receiptOrder.length > 4 || new Set(value.receiptOrder).size !== value.receiptOrder.length || value.receiptOrder.length !== Object.keys(value.receipts).length || value.receiptOrder.some(key => typeof key !== 'string' || typeof value.receipts[key] !== 'string')) throw Error();
+      if (!object(value) || !integer(value.inkRevision) || !Object.hasOwn(value, 'ink')) throw Error();
+      if (!validReceipts(value.receipts) || Object.keys(value).length !== 3) {
+        // Older ink-only records have no state.json to trigger a bank reset.
+        // Recognize them on first access without reading all ink bodies at open.
+        if (Object.keys(value).length !== 4 || !validOldReceipts(value, true)) throw Error();
+        if (identity() !== before) throw Error();
+        this.remove(snapshot, id); return empty();
+      }
       return freezeJson(value);
-    } catch { throw problem('STATE_INVALID', '草稿笔迹无法读取，原文件已保留。', {}, 503); }
+    } catch (error) { if (error.code === 'STATE_WRITE_FAILED') throw error; throw problem('STATE_INVALID', '草稿笔迹无法读取，原文件已保留。', {}, 503); }
   }
   remove(snapshot, id) {
     try {
@@ -72,14 +81,10 @@ export class PracticeInk {
   apply(snapshot, id, input) {
     if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim() || !Object.hasOwn(input, 'ink')) throw problem('INVALID_REQUEST', '请求标识无效或缺少草稿笔迹。', {}, 400);
     const old = this.read(snapshot, id), signature = fingerprint({ op: 'ink', input }, 'quizforge-v2-receipt'), key = input.requestId;
-    if (Object.hasOwn(old.receipts, key)) {
-      if (old.receipts[key] !== signature) throw problem('REQUEST_CONFLICT', '请求标识已用于不同内容。', {}, 409);
-      return old;
-    }
+    if (replayed(old.receipts, key, signature)) return old;
     if (!integer(input.expectedInkRevision) || input.expectedInkRevision !== old.inkRevision) throw problem('REVISION_CONFLICT', '草稿笔迹已变化，请重新打开本题。', {}, 409);
     if (!integer(old.inkRevision + 1)) throw problem('STATE_INVALID', '笔迹版本无法继续递增。', {}, 503);
-    const receiptOrder = [...old.receiptOrder, key].slice(-4), receipts = Object.fromEntries(receiptOrder.map(id => [id, id === key ? signature : old.receipts[id]]));
-    const value = Object.assign(cloneJson(projectJson(input, ['ink'])), { inkRevision: old.inkRevision + 1, receipts, receiptOrder });
+    const value = Object.assign(cloneJson(projectJson(input, ['ink'])), { inkRevision: old.inkRevision + 1, receipts: appendReceipt(old.receipts, key, signature) });
     const bytes = measureSave('serialize', () => jsonBytes(value));
     if (bytes.length > LIMIT) throw problem('STATE_SIZE_LIMIT', '本题草稿笔迹超过 32 MiB，本次未保存，原记录保留。', {}, 413);
     try { measureSave('write', () => this.write(this.file(snapshot, id), bytes)); }

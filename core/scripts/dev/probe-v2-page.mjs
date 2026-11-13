@@ -55,8 +55,8 @@ try {
   write(path.join(typing, 'practice.css'), 'textarea{width:80%;height:120px}');
   write(path.join(typing, 'practice.js'), `const answer=document.querySelector('textarea');
     answer.oninput=()=>QF.page.changed({kind:'text'});
-    QF.page.register({load(c){answer.value=c.answer?.text||'';answer.disabled=c.locked;submit.hidden=!c.can.submit;submit.onclick=()=>QF.page.submit().catch(()=>{});result.textContent=c.result?.status==='graded'?c.result.score+' / '+c.item.maxScore+' 分':'';},getAnswer(){return {text:answer.value};}});`);
-  write(path.join(typing, 'grade.js'), 'QF.grader.register({grade(){return {status:"graded",score:0}}});');
+    QF.page.register({load(c){answer.value=c.answer?.text||'';answer.disabled=c.locked;submit.hidden=!c.can.submit;submit.onclick=()=>QF.page.submit().catch(()=>{});result.textContent=typeof c.result?.score==='number'?c.result.score+' / '+c.item.maxScore+' 分':'';},getAnswer(){return {text:answer.value};}});`);
+  write(path.join(typing, 'grade.js'), 'QF.grader.register({grade(){return {score:0}}});');
   // Distinct synthetic banks avoid sharing progress between viewport runs.
   for (const name of ['desktop', 'mobile']) {
     const directory = path.join(root, 'question-banks/基础题型', name);

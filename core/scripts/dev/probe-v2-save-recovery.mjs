@@ -38,14 +38,14 @@ try {
   assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('1')).state.locked, false);
   await go('2'); await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
   await held('**/questions/2/result', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
-    const q = await read('2'); await write(q, 'result', { submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: { status: 'graded', score: 0 } });
+    const q = await read('2'); await write(q, 'result', { submissionId: q.submissionId, expectedRevision: q.state.revision, source: 'grader', result: { score: 0, parts: null, message: null } });
   });
   await frame().locator('#result').filter({ hasText: '0 / 2 分' }).waitFor();
   await go('3'); await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
   await held('**/questions/3/result', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
     await write(await read('3'), 'retry', {}); await write(await read('3'), 'submit', { answer: { selected: 'A' } });
   });
-  assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('3')).state.status, 'submitted-pending');
+  assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); const interrupted = await read('3'); assert.equal(interrupted.state.locked, true); assert.equal(interrupted.result, null);
   for (const [qid, status, code] of [['4', 400, 'INVALID_REQUEST'], ['5', 413, 'STATE_SIZE_LIMIT']]) {
     await go(qid); const pattern = `**/questions/${qid}/answer`; let attempts = 0;
     await page.route(pattern, route => { attempts++; return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: { code, message: 'synthetic rejection' } }) }); });

@@ -5,7 +5,7 @@ import OutlinePanel from '../outline/OutlinePanel.vue';
 import type { LibraryTree } from '../library/types';
 import { buildV2Outline } from './outline';
 import type { Item, State } from './outline';
-import { mergeAnswered } from '../../../shared/v2/answered.js';
+import { answeredFromStatus, reportOutlineStatus } from '../../../shared/v2/answered.js';
 import { mountQuestionPage } from './page';
 import { createGradingService } from './grading';
 import { saveGrade, recoverGrades } from './scoring';
@@ -15,7 +15,7 @@ import { createWriteQueue } from './write-queue';
 import { mountScratch } from './whiteboard';
 import type { Picture } from './page';
 const props = defineProps<{ nonce: string }>();
-interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; ink: unknown; inkRevision: number; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
+interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; ink: unknown; inkRevision: number; resources: { assetId: string; reference: string }[]; result: { score: number | null; parts: Record<string, number> | null; message: string | null } | null; submissionId: string | null; item: Item; extension: { artifactId: string }; state: State }
 interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; notice?: string | null; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
@@ -46,14 +46,14 @@ const grader = createGradingService({ loadSource: (id, signal) => text(`/api/v2/
 const base = (q: Question) => `/api/v2/banks/${q.bankId}/questions/${encodeURIComponent(q.questionId)}`;
 const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
 const outlineModel = computed(() => buildV2Outline(overview.value?.outline ?? [], overview.value?.states ?? [], current.value?.questionId));
-function update(q: Question, preserveAnswered = false) {
+function update(q: Question, preserveStatus = false) {
   if (current.value?.bankId === q.bankId && current.value.questionId === q.questionId) {
     if (!Object.hasOwn(q, 'ink')) q = { ...q, ink: current.value.ink, inkRevision: current.value.inkRevision };
-    if (preserveAnswered) q = { ...q, state: { ...q.state, answered: current.value.state.answered } };
+    if (preserveStatus) q = { ...q, state: { ...q.state, status: current.value.state.status } };
   }
   current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s);
 }
-const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked, retry: q.state.status !== 'unanswered' }, appearance: { theme: 'light' as const } }; };
+const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked, retry: q.state.hasSavedAnswer }, appearance: { theme: 'light' as const } }; };
 async function pictures(q: Question, has: (id: string) => boolean = () => false): Promise<Picture[]> {
   const references = new Set<string>();
   const visit = (value: unknown) => {
@@ -130,13 +130,13 @@ async function show(q: Question, resume = true) {
       if (mine !== generation) return;
       const active = current.value!;
       if (answered !== undefined && !active.state.locked) {
-        try { update({ ...toRaw(active), state: { ...toRaw(active.state), answered: mergeAnswered(answered, active.item, active.state.answered) } }); }
+        try { update({ ...toRaw(active), state: { ...toRaw(active.state), status: reportOutlineStatus(answered, active.item, active.state.status) } }); }
         catch (error) { message.value = error instanceof Error ? error.message : '作答状态无效。'; return; }
       }
       answerVersion++; saver?.changed(kind);
     },
     async onSubmit() { if (mine !== generation || busy.value || recovering.value || current.value?.state.locked) throw Error('当前不允许提交。'); await submit(); },
-    async onRetry() { if (mine !== generation || busy.value || recovering.value || current.value?.state.status === 'unanswered') throw Error('当前不允许重做。'); await retry(); }
+    async onRetry() { if (mine !== generation || busy.value || recovering.value || !current.value?.state.hasSavedAnswer) throw Error('当前不允许重做。'); await retry(); }
   });
   page = instance;
   scratch?.load(q.ink);
@@ -146,7 +146,7 @@ async function show(q: Question, resume = true) {
       const fields: Record<string, unknown> = {};
       if (av > savedAnswer) {
         const answer = active.state.locked ? undefined : await instance.answer();
-        if (!active.state.locked) { fields.answer = answer; if (active.state.answered !== undefined) fields.answered = toRaw(active.state.answered); }
+        if (!active.state.locked) { fields.answer = answer; fields.answered = answeredFromStatus(toRaw(active.state.status)); }
       }
       return { fields, ink: iv > savedInk ? scratch?.getDraft() : undefined, av, iv };
     },
@@ -178,7 +178,7 @@ async function show(q: Question, resume = true) {
   });
   await instance.ready;
   remember(q);
-  if (resume && q.state.status === 'submitted-pending') await grade(q);
+  if (resume && q.submissionId !== null && q.result === null) await grade(q);
 }
 async function run(label: string, action: () => Promise<void>) { if (busy.value) return; busy.value = true; loading.value = label; message.value = ''; try { await action(); } catch (error) { message.value = error instanceof Error ? error.message : '操作未完成。'; } finally { busy.value = false; loading.value = ''; } }
 async function catalog() { await run('正在读取题库', async () => {
@@ -209,7 +209,7 @@ async function score(q: Question): Promise<Question> {
   try { return await saveGrade({ questionId: q.questionId, question: q.question, solution: q.solution, answer: q.answer, item: q.item },
     items => grader.grade(q.extension.artifactId, items),
     result => enqueue(async () => {
-      const saved: Question = await json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result }) });
+      const saved: Question = await json(base(q) + '/result', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, submissionId: q.submissionId, expectedRevision: q.state.revision, source: 'grader', result }) });
       // Publish the new revision before releasing the shared write queue.
       if (current.value?.bankId === saved.bankId && current.value.questionId === saved.questionId) update(saved);
       return saved;
@@ -271,7 +271,7 @@ async function retry() { if (!current.value) return; await run('正在重做', a
       <div v-show="current" ref="viewport" class="v2-viewport" :inert="busy || recovering"><div ref="stage" class="v2-stage"><div ref="world" class="v2-world">
       <section v-show="current" class="v2-card" :aria-busy="busy || recovering"><div class="v2-question-heading"><span>{{ typeName }}</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame" :inert="busy || recovering"></div>
         <div class="v2-answer-footer"><span v-if="saveStatus" class="v2-save-status" role="status">{{ saveStatus }}</span><button v-if="saveStatus === '保存失败'" :disabled="busy" @click="run('正在保存', flush)">重试保存</button>
-          <button v-if="current?.state.status === 'submitted-pending' && !busy" @click="run('正在评分', () => grade(current!))">继续评分</button>
+          <button v-if="current && current.submissionId !== null && current.result === null && !busy" @click="run('正在评分', () => grade(current!))">继续评分</button>
         </div>
       </section>
       </div></div></div>
@@ -280,6 +280,6 @@ async function retry() { if (!current.value) return; await run('正在重做', a
   </div>
 </template>
 <style>
-.v2-app{--accent:#7358d5;display:grid;grid-template-columns:232px minmax(0,1fr) 228px;min-height:100dvh;background:#f8f9fc;color:#343542;font:14px/1.65 'Segoe UI','Microsoft YaHei',sans-serif}.v2-app *{box-sizing:border-box}.v2-app button,.v2-app input{font:inherit}.v2-app :is(header,.v2-answer-footer,.v2-library,.v2-outline) button{cursor:pointer;border:1px solid #e5def6;background:white;color:#655389;border-radius:8px;padding:8px 14px}.v2-app button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.v2-app button:disabled{opacity:.55;cursor:default}.v2-library,.v2-outline{padding:20px 16px;background:#fcfbff}.v2-library{border-right:1px solid #e6e3ee}.v2-outline{border-left:1px solid #e6e3ee}.v2-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px}.v2-brand>span{background:var(--accent);color:white;border-radius:10px;padding:4px 12px;font-size:22px}.v2-brand strong{font-size:17px}.v2-brand small{display:block;color:#8b869a;font-size:11px}.v2-app h2{font-size:13px;font-weight:500;color:#827b96;margin:16px 0}.v2-main{min-width:0;position:relative;display:flex;flex-direction:column;height:100dvh}.v2-viewport{position:relative;flex:1;min-height:0;overflow:auto;isolation:isolate}.v2-stage{position:relative;min-height:100%}.v2-world{position:relative;z-index:1;display:flow-root;width:100%;transform-origin:0 0}.v2-drafting .v2-world{position:absolute;top:0;left:0;width:760px;transform:translate(var(--qf-whiteboard-x,0px),var(--qf-whiteboard-y,0px)) scale(var(--qf-whiteboard-zoom,1))}.v2-drafting .v2-card{width:calc(100% - 48px);margin:32px auto;padding:24px}.v2-drafting .v2-question-frame iframe{height:420px}.v2-actions{display:flex;gap:8px}.v2-actions button{white-space:nowrap}.v2-empty{position:absolute;inset:64px 0 0;pointer-events:none}.v2-main>header{min-height:64px;padding:14px 24px;background:white;border-bottom:1px solid #e6e3ee;display:flex;gap:15px;align-items:center;justify-content:space-between}.v2-main h1{font-size:16px;margin:0}.v2-main header span{color:#756199}.v2-card{margin:32px auto;padding:24px;background:white;border:1px solid #e5def2;border-radius:16px;max-width:960px;width:calc(100% - 48px)}.v2-question-heading{display:flex;justify-content:space-between;color:#7c61bd;font-size:12px}.v2-question-frame iframe{width:100%;height:420px;border:0;display:block}.v2-answer-footer{display:flex;gap:16px;align-items:center;border-top:1px solid #ece7f6;padding-top:18px;flex-wrap:wrap}.v2-app .v2-answer-footer .primary{background:var(--accent);color:white;border:0}.v2-feedback{white-space:pre-wrap}.v2-error{margin:16px 24px;padding:12px;border:1px solid #eac6c1;border-radius:8px;color:#a13f31;background:#fff7f4}.v2-empty{display:grid;align-content:center;text-align:center;min-height:65vh;color:#827b96;font-size:22px}.v2-empty p{font-size:13px}.v2-mobile{display:none}.v2-app .extension-group-toggle{width:100%;text-align:left;border:0;background:none;display:flex;gap:10px;padding:10px 4px}.v2-app .library-row{display:flex}.v2-app .library-item{display:flex;gap:10px;width:100%;text-align:left;border:0;background:none;margin:4px 0}.v2-app .library-item.active{background:#eee8fc}.v2-app .item-body{display:block}.v2-app .item-meta{display:none}.v2-app .library-row-actions{display:none}.v2-app .outline-group-title{font-size:13px}.v2-app .outline-matrix{display:flex;flex-wrap:wrap;gap:8px}.v2-app .outline-item{min-width:40px;padding:6px}.v2-app .outline-item.active{box-shadow:0 0 0 2px #b7a6e8}.v2-app .outline-item.correct{background:#e5f5ec;color:#286b45}.v2-app .outline-item.incorrect{background:#fff0e5;color:#995b2f}.v2-app .outline-item.pending{background:#fff7d8}.v2-app .outline-item.draft{background:#eee8fc;color:#655389}.v2-library input{width:100%}body:has(.v2-app){margin:0}@media(max-width:800px){.v2-app{display:block;padding-top:56px}.v2-mobile{display:flex;position:fixed;inset:0 0 auto;height:56px;background:white;z-index:5;align-items:center;padding:8px 16px;gap:12px;border-bottom:1px solid #e6e3ee}.v2-mobile strong{margin-right:auto}.v2-library,.v2-outline{display:none;position:fixed;top:56px;bottom:0;overflow:auto;z-index:4;box-shadow:0 6px 25px #29203922;width:min(86vw,300px)}.v2-library.open,.v2-outline.open{display:block}.v2-outline{right:0}.v2-main{height:calc(100dvh - 56px)}.v2-main>header{padding:14px 16px}.v2-card{width:calc(100% - 24px);margin:16px auto;padding:16px}.v2-question-frame iframe{height:460px}}
+.v2-app{--accent:#7358d5;display:grid;grid-template-columns:232px minmax(0,1fr) 228px;min-height:100dvh;background:#f8f9fc;color:#343542;font:14px/1.65 'Segoe UI','Microsoft YaHei',sans-serif}.v2-app *{box-sizing:border-box}.v2-app button,.v2-app input{font:inherit}.v2-app :is(header,.v2-answer-footer,.v2-library,.v2-outline) button{cursor:pointer;border:1px solid #e5def6;background:white;color:#655389;border-radius:8px;padding:8px 14px}.v2-app button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.v2-app button:disabled{opacity:.55;cursor:default}.v2-library,.v2-outline{padding:20px 16px;background:#fcfbff}.v2-library{border-right:1px solid #e6e3ee}.v2-outline{border-left:1px solid #e6e3ee}.v2-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px}.v2-brand>span{background:var(--accent);color:white;border-radius:10px;padding:4px 12px;font-size:22px}.v2-brand strong{font-size:17px}.v2-brand small{display:block;color:#8b869a;font-size:11px}.v2-app h2{font-size:13px;font-weight:500;color:#827b96;margin:16px 0}.v2-main{min-width:0;position:relative;display:flex;flex-direction:column;height:100dvh}.v2-viewport{position:relative;flex:1;min-height:0;overflow:auto;isolation:isolate}.v2-stage{position:relative;min-height:100%}.v2-world{position:relative;z-index:1;display:flow-root;width:100%;transform-origin:0 0}.v2-drafting .v2-world{position:absolute;top:0;left:0;width:760px;transform:translate(var(--qf-whiteboard-x,0px),var(--qf-whiteboard-y,0px)) scale(var(--qf-whiteboard-zoom,1))}.v2-drafting .v2-card{width:calc(100% - 48px);margin:32px auto;padding:24px}.v2-drafting .v2-question-frame iframe{height:420px}.v2-actions{display:flex;gap:8px}.v2-actions button{white-space:nowrap}.v2-empty{position:absolute;inset:64px 0 0;pointer-events:none}.v2-main>header{min-height:64px;padding:14px 24px;background:white;border-bottom:1px solid #e6e3ee;display:flex;gap:15px;align-items:center;justify-content:space-between}.v2-main h1{font-size:16px;margin:0}.v2-main header span{color:#756199}.v2-card{margin:32px auto;padding:24px;background:white;border:1px solid #e5def2;border-radius:16px;max-width:960px;width:calc(100% - 48px)}.v2-question-heading{display:flex;justify-content:space-between;color:#7c61bd;font-size:12px}.v2-question-frame iframe{width:100%;height:420px;border:0;display:block}.v2-answer-footer{display:flex;gap:16px;align-items:center;border-top:1px solid #ece7f6;padding-top:18px;flex-wrap:wrap}.v2-app .v2-answer-footer .primary{background:var(--accent);color:white;border:0}.v2-feedback{white-space:pre-wrap}.v2-error{margin:16px 24px;padding:12px;border:1px solid #eac6c1;border-radius:8px;color:#a13f31;background:#fff7f4}.v2-empty{display:grid;align-content:center;text-align:center;min-height:65vh;color:#827b96;font-size:22px}.v2-empty p{font-size:13px}.v2-mobile{display:none}.v2-app .extension-group-toggle{width:100%;text-align:left;border:0;background:none;display:flex;gap:10px;padding:10px 4px}.v2-app .library-row{display:flex}.v2-app .library-item{display:flex;gap:10px;width:100%;text-align:left;border:0;background:none;margin:4px 0}.v2-app .library-item.active{background:#eee8fc}.v2-app .item-body{display:block}.v2-app .item-meta{display:none}.v2-app .library-row-actions{display:none}.v2-app .outline-group-title{font-size:13px}.v2-app .outline-matrix{display:flex;flex-wrap:wrap;gap:8px}.v2-app .outline-item{min-width:40px;padding:6px}.v2-app .outline-item.active{box-shadow:0 0 0 2px #b7a6e8}.v2-app .outline-item.correct{background:#e5f5ec;color:#286b45}.v2-app .outline-item.wrong{background:#fff0e5;color:#995b2f}.v2-app .outline-item.ungradable{background:#ffedb7;color:#784500;border-color:#d89922}.v2-app .outline-item.answered{background:#eee8fc;color:#655389}.v2-library input{width:100%}body:has(.v2-app){margin:0}@media(max-width:800px){.v2-app{display:block;padding-top:56px}.v2-mobile{display:flex;position:fixed;inset:0 0 auto;height:56px;background:white;z-index:5;align-items:center;padding:8px 16px;gap:12px;border-bottom:1px solid #e6e3ee}.v2-mobile strong{margin-right:auto}.v2-library,.v2-outline{display:none;position:fixed;top:56px;bottom:0;overflow:auto;z-index:4;box-shadow:0 6px 25px #29203922;width:min(86vw,300px)}.v2-library.open,.v2-outline.open{display:block}.v2-outline{right:0}.v2-main{height:calc(100dvh - 56px)}.v2-main>header{padding:14px 16px}.v2-card{width:calc(100% - 24px);margin:16px auto;padding:16px}.v2-question-frame iframe{height:460px}}
 .v2-app.v2-fullscreen{grid-template-columns:minmax(0,1fr);padding-top:0}.v2-app.v2-fullscreen>.v2-library,.v2-app.v2-fullscreen>.v2-outline,.v2-app.v2-fullscreen>.v2-mobile,.v2-fullscreen .v2-main>header{display:none}.v2-fullscreen .v2-main{height:100dvh}
 </style>

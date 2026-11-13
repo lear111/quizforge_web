@@ -45,7 +45,7 @@ test('D33 hashed question filenames, independent four-receipt vector, restart an
   const result = library.write(id, qid, 'ink', input); assert.equal(result.inkRevision, 1);
   const file = store.ink.file(snapshot, qid); assert.equal(path.basename(file), hash(Buffer.from(qid)) + '.json');
   const signature = fingerprint({ op: 'ink', input }, 'quizforge-v2-receipt');
-  const expected = parseJson(`{"ink":{"x":1.0},"inkRevision":1,"receipts":{"ink":"${signature}"},"receiptOrder":["ink"]}`);
+  const expected = parseJson(`{"ink":{"x":1.0},"inkRevision":1,"receipts":[{"requestId":"ink","signature":"${signature}"}]}`);
   const bytes = fs.readFileSync(file); assert.ok(bytes.equals(jsonBytes(expected)));
   assert.equal(fs.existsSync(store.file(fixture.directory)), false);
   library.write(id, qid, 'ink', input); assert.ok(fs.readFileSync(file).equals(bytes));
@@ -57,7 +57,7 @@ test('D33 hashed question filenames, independent four-receipt vector, restart an
   const restored = fresh.open(id, qid).initial.question; assert.deepEqual(restored.ink, [2]); assert.equal(restored.inkRevision, 2);
 });
 
-test('D27 exact bank bytes or any used extension file clear all active questions and ink, preserving only history indexes', t => {
+test('D27 exact bank bytes or any used extension file clear all active questions and ink without a history index', t => {
   const { fixture, library, store, id } = setup(t);
   for (const mutation of [() => fs.appendFileSync(fixture.bankFile, ' '), () => fs.appendFileSync(path.join(fixture.extension, 'practice.css'), ' ')]) {
     let overview = library.open(id), snapshot = library.opened.get(id);
@@ -65,10 +65,9 @@ test('D27 exact bank bytes or any used extension file clear all active questions
       library.write(id, qid, 'answer', { snapshotId: overview.snapshotId, requestId: 'draft-' + qid, expectedRevision: 0, answer: qid });
       library.write(id, qid, 'ink', { snapshotId: overview.snapshotId, requestId: 'ink-' + qid, expectedInkRevision: 0, ink: [qid] });
     }
-    store.commit(fixture.directory, { ...store.load(fixture.directory), historyIndex: [{ id: 'frozen' }] });
     mutation(); overview = library.open(id);
     assert.equal(overview.activeCleared, true); assert.equal(overview.notice, '题库或题型已变化，本轮作答已清空');
-    assert.deepEqual(store.load(fixture.directory).questions, {}); assert.deepEqual(store.load(fixture.directory).historyIndex, [{ id: 'frozen' }]);
+    assert.deepEqual(store.load(fixture.directory).questions, {}); assert.equal(Object.hasOwn(store.load(fixture.directory), 'historyIndex'), false);
     assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/ink')), false);
     assert.equal(overview.states.some(s => s.hasInk || s.hasSavedAnswer), false);
     assert.throws(() => library.write(id, '1', 'answer', { snapshotId: snapshot.snapshotId, requestId: 'stale', expectedRevision: 0, answer: 'old' }), { code: 'SNAPSHOT_STALE' });
@@ -157,4 +156,19 @@ test('D29 LRU retains eight banks and their state/index caches; evicted snapshot
   assert.throws(() => library.question(id, '1', opened.snapshotId), { code: 'SNAPSHOT_STALE' });
   assert.deepEqual(store.load(fixture.directory).questions, {});
   assert.equal(library.opened.size, 8); assert.ok(store.loaded.size <= 8); assert.ok(store.ink.indexes.size <= 8);
+});
+
+test('D39 legacy ink-only files reset on access, but malformed current ink remains untouched', t => {
+  const { store, snapshot, library, id } = setup(t);
+  const legacy = store.ink.file(snapshot, '1'), malformed = store.ink.file(snapshot, '3');
+  writeFixtureFile(legacy, { ink: [1], inkRevision: 1, receipts: { old: 'signature' }, receiptOrder: ['old'] });
+  writeFixtureFile(malformed, { ink: [2], inkRevision: 1, receipts: [{ requestId: 'bad' }] });
+  const bytes = fs.readFileSync(malformed);
+  const opened = library.open(id);
+  assert.equal(opened.initial.question.ink, null); assert.equal(opened.initial.question.inkRevision, 0);
+  assert.equal(opened.states.find(row => row.questionId === '1').hasInk, false);
+  assert.equal(fs.existsSync(legacy), false);
+  assert.throws(() => library.question(id, '3', opened.snapshotId), { code: 'STATE_INVALID' });
+  assert.ok(fs.readFileSync(malformed).equals(bytes));
+  assert.equal(fs.existsSync(store.file(snapshot.directory)), false);
 });

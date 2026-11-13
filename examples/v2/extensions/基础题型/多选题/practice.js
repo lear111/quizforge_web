@@ -20,8 +20,8 @@ QF.page.register({
     document.getElementById('explanation').hidden = !context.locked;
     if (context.locked) views.push(QFRichText.render(document.getElementById('solution'), context.solution.explanation));
     const result = document.getElementById('result'); result.hidden = !context.result && !context.locked;
-    result.textContent = context.result?.status === 'graded' ? `${context.result.score} / ${context.item.maxScore} 分` : (context.result?.reason ?? (context.locked ? '答案已锁定，等待评分' : ''));
-    const feedback = document.getElementById('feedback'); feedback.textContent = context.result?.feedback ?? ''; feedback.hidden = !feedback.textContent;
+    result.textContent = typeof context.result?.score === 'number' ? `${context.result.score} / ${context.item.maxScore} 分` : (context.result?.message ?? (context.result ? '待人工或 AI 评分' : context.locked ? '答案已锁定，等待评分' : ''));
+    const feedback = document.getElementById('feedback'); feedback.textContent = typeof context.result?.score === 'number' ? (context.result.score === context.item.maxScore ? '回答正确' : '回答错误') : ''; feedback.hidden = !feedback.textContent;
     await Promise.all(views.map(view => view.ready));
   },
   getAnswer() { return { selected: Array.from(document.querySelectorAll('input:checked'), input => input.value) }; }

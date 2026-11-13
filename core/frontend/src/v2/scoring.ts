@@ -1,4 +1,5 @@
 import type { GradingInput, GradingOutput } from './grading';
+import { ungradable } from './grading';
 
 export async function saveGrade<T>(input: GradingInput,
   grade: (items: GradingInput[]) => Promise<GradingOutput[]>,
@@ -9,7 +10,7 @@ export async function saveGrade<T>(input: GradingInput,
     // Only a server-rejected grading payload is converted. Connection/version
     // failures remain pending so the current locked answer can be retried.
     if (!(error instanceof Error) || !('code' in error) || error.code !== 'INVALID_RESULT') throw error;
-    return save({ status: 'ungradable', score: null, reason: '题型返回的评分格式或分数无效。' });
+    return save(ungradable('题型返回的评分格式或分数无效。'));
   }
 }
 

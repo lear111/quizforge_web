@@ -19,7 +19,7 @@ test('D32 browsing and ink never create state or move the last answered position
  await api(base+'/questions/5/answer',{snapshotId,requestId:'draft',expectedRevision:0,answer:'five'});
  const submitted=await api(base+'/questions/9/submit',{snapshotId,requestId:'submit',expectedRevision:0,answer:'nine'},'POST');
  await api(base+'/questions/5/retry',{snapshotId,requestId:'retry',expectedRevision:1},'POST');
- await api(base+'/questions/9/result',{snapshotId,requestId:'grade',expectedResultRevision:0,submission:submitted.submission,source:'grader',result:{status:'graded',score:2}});
+ await api(base+'/questions/9/result',{snapshotId,requestId:'grade',expectedRevision:submitted.state.revision,submissionId:submitted.submissionId,source:'grader',result:{score:2,parts:null,message:null}});
  await api(`${base}/questions/9?snapshotId=${snapshotId}`);
  const restarted=await new V2Server(fixture).start();t.after(()=>restarted.close());
  overview=await fetch(`http://127.0.0.1:${restarted.port()}${base}/overview`).then(r=>r.json());

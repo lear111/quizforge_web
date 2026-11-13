@@ -45,7 +45,7 @@ try {
     assert.deepEqual((await read('multiple-sample-numbers')).answer, { selected: [] });
     await frame().locator('input[value="number-2"]').check(); await saved();
     await go('true-false-sample-false'); await frame().locator('input[value="false"]').check(); await saved();
-    assert.equal((await read('true-false-sample-false')).state.answered, true);
+    assert.equal((await read('true-false-sample-false')).state.status, 'answered');
     await go('multiple-sample-numbers'); assert.equal(await frame().locator('input[value="number-2"]').isChecked(), true);
     assert.equal(await frame().locator('input:checked').count(), 1);
     await frame().locator('input[value="number-2"]').uncheck(); await saved();
@@ -92,10 +92,10 @@ try {
     const locked = await read('true-false-sample-false'); await page.getByRole('button', { name: '草稿', exact: true }).click(); await page.locator('button[data-tool="pen"]').click();
     const rect = await page.locator('.v2-viewport').boundingBox(), x = rect.x + rect.width * .4, y = rect.y + 240;
     await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 50, y + 20, { steps: 8 }); await page.mouse.up(); await saved();
-    const after = await read('true-false-sample-false'); assert.equal(after.ink.strokes.length, 1); assert.deepEqual(after.answer, locked.answer); assert.deepEqual(after.result, locked.result); assert.deepEqual(after.submission, locked.submission);
+    const after = await read('true-false-sample-false'); assert.equal(after.ink.strokes.length, 1); assert.deepEqual(after.answer, locked.answer); assert.deepEqual(after.result, locked.result); assert.deepEqual(after.submissionId, locked.submissionId);
     await page.getByRole('button', { name: '返回作答', exact: true }).click();
     await page.getByRole('button', { name: '刷新题库', exact: true }).click(); await idle(); assert.equal(await frame().locator('input[value="false"]').isChecked(), true);
-    await frame().getByRole('button', { name: '重做', exact: true }).click(); await idle(); const cleared = await read('true-false-sample-false'); assert.equal(cleared.answer, null); assert.equal(cleared.ink, null); assert.equal(cleared.state.answered, false);
+    await frame().getByRole('button', { name: '重做', exact: true }).click(); await idle(); const cleared = await read('true-false-sample-false'); assert.equal(cleared.answer, null); assert.equal(cleared.ink, null); assert.equal(cleared.state.status, 'unanswered');
     rows.push({ name, questions: 7, exactOriginalScores: true, imagesMathTables: true, noCrossQuestionInput: true, falseIsAnswered: true, clearMultiIsUnanswered: true, failedSaveRetained: true, sameFrameOnGrade: true, lockedScratch: true, retryAndRefresh: true });
     await context.close();
   }

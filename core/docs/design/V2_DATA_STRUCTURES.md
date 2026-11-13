@@ -238,16 +238,6 @@
 
 ## 5. 现状与本文的差异
 
-本文描述的是定下来的设计。代码目前有以下差异，待 Codex 调整：
+第 2 段④实现 D36–D39；旧开发版作答结构不迁移，识别后按内容变化清空，无法读取的文件保留。笔迹回执同样使用最多四条的有序列表。请求字段与旧记录处理见[接口速查](V2_API_AND_STATE.md)。
 
-| 项目 | 代码现状 | 本文 | 状态 |
-|---|---|---|---|
-| `status` | 整道大题一个值，六种流程状态 | 精确到小题，五种显示状态 | 已定 |
-| `answered` | 独立字段 | 并入 `status`，字段删除 | 已定 |
-| `draft` | 存在 | 删除 | 已定（D36） |
-| `answerVersion`、`resultRevision` | 存在 | 删除，只用 `revision` | 已定 |
-| `submission` | 含凭证编号、答案版本、内容指纹三项 | 只留 `submissionId` | 已定 |
-| `receipts`、`receiptOrder` | 两个字段 | 合并为一个有序列表，保留幂等 | 已定 |
-| `result` | 含 `status`、`outlineScores`、`feedback`、`reason` | 只有 `score`、`parts`、`message` | 已定 |
-| `historyIndex` | 存在，为空 | 删除，第 3 段再定 | 已定 |
-| 历史 | 未实现 | 第 4 节 | 第 3 段 |
+第 4 节的历史文件仍是设计稿，留到第 3 段实现。
