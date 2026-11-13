@@ -154,6 +154,10 @@ try {
     await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await page.reload(); await page.locator('.extension-group-toggle').waitFor({ state: 'attached' }); await open();
+    // Position restoration now returns to 21/20, not always question 1.
+    if (name === 'mobile') { await page.getByRole('button', { name: '大纲', exact: true }).click(); }
+    await page.locator(`[data-question-id="${offset + 1}"]`).click();
+    await frame().getByRole('radio', { name: 'B', exact: true }).waitFor();
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
     await page.locator('.v2-answer-footer strong').filter({ hasText: '2 / 2 分' }).waitFor();

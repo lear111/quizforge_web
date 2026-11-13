@@ -41,11 +41,13 @@ test('new input during an in-flight save remains dirty until its own save comple
   assert.deepEqual(seen, ['A', 'B']); assert.equal(saver.dirty, false); saver.destroy();
 });
 
-test('only conflict and missing-state failures discard frozen writes; network, 5xx and write failures retain them', () => {
+test('4xx except 401 discard frozen writes; network, authentication and 5xx retain them', () => {
   const classify = dom.window.Policy.isSaveConflict;
   assert.equal(typeof classify, 'function');
-  for (const error of [{ status: 409 }, { status: 404 }, { code: 'REVISION_CONFLICT' }, { code: 'ANSWER_LOCKED' }, { code: 'SNAPSHOT_STALE' }, { code: 'QUESTION_NOT_FOUND' }, { code: 'BANK_NOT_OPEN' }]) assert.equal(classify(error), true);
-  for (const error of [Error('offline'), { status: 503 }, { code: 'STATE_WRITE_FAILED' }, { status: 500, code: 'REVISION_CONFLICT' }, { status: 401 }, { status: 413 }]) assert.equal(classify(error), false);
+  for (const error of [{ status: 409 }, { status: 404 }, { status: 400 }, { status: 413, code: 'STATE_SIZE_LIMIT' }, { status: 422 }, { code: 'REVISION_CONFLICT' }, { code: 'RESULT_CONFLICT' }, { code: 'SUBMISSION_STALE' }, { code: 'ANSWER_LOCKED' }, { code: 'SNAPSHOT_STALE' }, { code: 'QUESTION_NOT_FOUND' }, { code: 'BANK_NOT_OPEN' }]) assert.equal(classify(error), true);
+  for (const error of [Error('offline'), { status: 503 }, { code: 'STATE_WRITE_FAILED' }, { status: 500, code: 'REVISION_CONFLICT' }, { status: 401 }, { status: 401, code: 'REVISION_CONFLICT' }]) assert.equal(classify(error), false);
+  assert.match(dom.window.Policy.saveRecoveryMessage({ status: 413 }), /作答文件已达上限/);
+  assert.equal(dom.window.Policy.saveRecoveryMessage({ status: 409 }), '本题已在别处修改，已载入最新内容');
 });
 
 test('conflict reload discards all local input and frozen requests, releases exit barriers and permits later saves', async () => {

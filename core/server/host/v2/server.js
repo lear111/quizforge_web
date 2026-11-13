@@ -7,14 +7,15 @@ import { LibrarySnapshots } from './snapshots.js';
 import { problem, publicError } from './errors.js';
 import { relativeFile, READ_LIMITS } from './io.js';
 import { PracticeState, STATE_BYTES } from './state.js';
+import { withSaveTiming, measureSave, saveTimingHeader } from './timing.js';
 
 const loopback = value => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(value);
 const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.woff2': 'font/woff2' }[path.extname(file).toLowerCase()] ?? 'application/octet-stream');
 export class V2Server {
-  constructor({ root, codeRoot, host = '127.0.0.1', port = 0, token = null, development = false }) {
+  constructor({ root, codeRoot, host = '127.0.0.1', port = 0, token = null, development = false, timings = true }) {
     if (typeof host !== 'string' || !Number.isInteger(port) || port < 0 || port > 65535 || token !== null && (typeof token !== 'string' || token.length < 8 || token.length > 256)) throw problem('INVALID_CONFIGURATION', '监听地址、端口或访问令牌无效。', {}, 400);
     if (!loopback(host) && host !== 'localhost' && !token) throw problem('AUTH_REQUIRED', '开放非回环地址必须显式设置访问令牌；V2 不继承旧局域网设置。', {}, 403);
-    this.host = host; this.requestedPort = port; this.token = token;
+    this.host = host; this.requestedPort = port; this.token = token; this.timings = timings;
     this.codeRoot = codeRoot;
     this.library = new LibrarySnapshots(root, codeRoot, { development, stateStore: new PracticeState() });
     this.hosts = new Set(['localhost', '127.0.0.1', '::1', ...Object.values(os.networkInterfaces()).flat().filter(Boolean).map(row => row.address)]);
@@ -51,7 +52,8 @@ export class V2Server {
     if (a.length !== b.length || !timingSafeEqual(a, b)) throw problem('AUTH_REQUIRED', '请输入有效的连接令牌。', {}, 401);
   }
   json(response, status, value) {
-    const bytes = jsonBytes(value);
+    const bytes = measureSave('serialize', () => jsonBytes(value));
+    const timing = saveTimingHeader(); if (timing) response.setHeader('Server-Timing', timing);
     response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.length });
     response.end(bytes);
   }
@@ -63,7 +65,7 @@ export class V2Server {
       if (size > STATE_BYTES) throw problem('STATE_SIZE_LIMIT', '请求超过 32 MiB，本次未保存。', { details: { limit: STATE_BYTES } }, 413);
       chunks.push(chunk);
     }
-    try { return parseJson(Buffer.concat(chunks)); } catch { throw problem('INVALID_REQUEST', '请求 JSON 无效或包含重复字段。', {}, 400); }
+    try { return measureSave('parse', () => parseJson(Buffer.concat(chunks))); } catch { throw problem('INVALID_REQUEST', '请求 JSON 无效或包含重复字段。', {}, 400); }
   }
   binary(request, response, file, { executable = false } = {}) {
     const entry = this.library.cache.entry(file, READ_LIMITS.assetBytes), bytes = entry.content;
@@ -84,6 +86,9 @@ export class V2Server {
     response.writeHead(status, headers); response.end(request.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
   }
   async handle(request, response) {
+    return withSaveTiming(this.timings && ['PUT', 'POST'].includes(request.method), () => this.handleRequest(request, response));
+  }
+  async handleRequest(request, response) {
     response.setHeader('Cache-Control', 'no-store'); response.setHeader('X-Content-Type-Options', 'nosniff'); response.setHeader('Referrer-Policy', 'no-referrer');
     try {
       const url = this.validate(request);
@@ -103,9 +108,10 @@ export class V2Server {
       this.authenticate(request);
       if (parts[1] !== 'v2') throw problem('V1_API_REMOVED', 'V2 不提供旧作答接口，请使用 V2 页面或 v1-final。', {}, 410);
       if (!['GET', 'HEAD'].includes(request.method)) {
+        if (parts[2] === 'banks' && parts.length === 5 && parts[4] === 'position' && request.method === 'PUT') return this.json(response, 200, this.library.position(parts[3], await this.body(request)));
         if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'draft', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
           const input = await this.body(request);
-          return this.json(response, 200, this.library.write(parts[3], parts[5], parts[6], input));
+          return this.json(response, 200, measureSave('validate', () => this.library.write(parts[3], parts[5], parts[6], input)));
         }
         if (parts[2] === 'banks' && parts[4] === 'refresh' && parts.length === 5 && request.method === 'POST') return this.json(response, 200, this.library.refresh(parts[3], await this.body(request)));
         request.resume(); throw problem('FEATURE_NOT_IMPLEMENTED', '此功能将在后续阶段开放。', {}, 501);
@@ -115,6 +121,7 @@ export class V2Server {
       if (parts.length === 3 && parts[2] === 'catalog') return this.json(response, 200, this.library.catalog());
       if (parts[2] === 'banks') {
         const bankId = parts[3];
+        if (parts.length === 5 && parts[4] === 'position') return this.json(response, 200, this.library.position(bankId));
         if (parts.length === 5 && parts[4] === 'overview') return this.json(response, 200, this.library.open(bankId, url.searchParams.get('questionId') ?? undefined));
         if (parts[4] === 'questions' && parts.length === 6) return this.json(response, 200, this.library.question(bankId, parts[5], snapshotId));
         if (parts[4] === 'questions' && parts.length === 8 && parts[6] === 'assets') return this.binary(request, response, this.library.asset(bankId, parts[5], snapshotId, parts[7]));

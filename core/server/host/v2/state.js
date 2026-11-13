@@ -4,6 +4,7 @@ import { readBytes, replaceFile, checkPath, checkedStat } from '../platform/file
 import { cloneJson, shallowCopyJson, projectJson, patchJson, freezeJson, fingerprint, parseJson, jsonBytes, jsonEqual, decimalSum } from '../platform/json.js';
 import { statIdentity } from '../platform/file-cache.js';
 import { object, problem } from './errors.js';
+import { measureSave } from './timing.js';
 
 // Owner-approved limit. V2 never reads the v1 settings or state directories.
 export const STATE_BYTES = 32 * 1024 * 1024;
@@ -47,10 +48,10 @@ export class PracticeState {
     freezeJson(value); this.loaded.set(file, value); this.identities.set(file, observed); return value;
   }
   commit(directory, value) {
-    const bytes = jsonBytes(value);
+    const bytes = measureSave('serialize', () => jsonBytes(value));
     if (bytes.length > STATE_BYTES) throw problem('STATE_SIZE_LIMIT', '作答记录超过 32 MiB，本次未保存，原记录保留。', { details: { limit: STATE_BYTES } }, 413);
     const file = this.file(directory);
-    try { this.write(file, bytes); } catch { throw problem('STATE_WRITE_FAILED', '作答未能保存，请重试；原记录保持不变。', {}, 503); }
+    try { measureSave('write', () => this.write(file, bytes)); } catch { throw problem('STATE_WRITE_FAILED', '作答未能保存，请重试；原记录保持不变。', {}, 503); }
     freezeJson(value); this.loaded.set(file, value);
     // A post-write stat could already describe an external replacement rather
     // than these bytes. Confirm identity AND bytes at the next explicit open;
