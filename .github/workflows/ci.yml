@@ -1,16 +1,16 @@
 name: CI
 
 on:
-  # Design notes are not read by code, tests or the build. A change touching
+  # Files under core/docs are copied into the package but never read by code or tests. A change touching
   # only these paths skips CI; any other changed file runs everything.
   pull_request:
     paths-ignore:
-      - 'core/docs/design/**'
+      - 'core/docs/**'
       - 'CONTRIBUTING.md'
   push:
     branches: [main, v2]
     paths-ignore:
-      - 'core/docs/design/**'
+      - 'core/docs/**'
       - 'CONTRIBUTING.md'
 
 permissions:
