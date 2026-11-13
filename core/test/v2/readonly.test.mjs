@@ -91,7 +91,8 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   assert.equal((await get('/api/v2/banks/unknown/overview')).response.status, 404);
   assert.equal((await get('/api/v2/banks/unknown/questions/1' + token)).response.status, 409);
   for (const route of ['/api/library', '/api/settings', '/api/ai/tasks']) assert.equal((await get(route)).response.status, 410);
-  for (const route of ['/api/v2/settings/ai', base + '/position', base + '/history']) assert.equal((await get(route)).response.status, 501);
+  assert.deepEqual((await get(base + '/position')).body, { questionId: null });
+  for (const route of ['/api/v2/settings/ai', base + '/history']) assert.equal((await get(route)).response.status, 501);
   for (const route of [base + '/questions/1/draft', base + '/finish']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
   // Submit is now implemented; malformed requests still cannot disclose answers.
   const rejected = await get(base + '/questions/1/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

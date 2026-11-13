@@ -14,7 +14,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-page-review-')), outpu
 fs.mkdirSync(output, { recursive: true });
 let server, browser;
 const frame = page => page.frameLocator('.v2-question-frame iframe');
-const idle = page => page.locator('.v2-card[aria-busy="false"]').waitFor();
+const idle = page => page.waitForFunction(() => document.querySelector('.v2-card')?.getAttribute('aria-busy') === 'false');
 const saved = page => page.locator('.v2-save-status').filter({ hasText: /^已保存$/ }).waitFor();
 const notice = page => page.getByRole('alert').filter({ hasText: '本题已在别处修改，已载入最新内容' }).waitFor();
 const go = async (page, id) => { await page.bringToFront(); await page.locator(`[data-question-id="${id}"]`).click(); await page.locator(`[data-question-id="${id}"][aria-current="true"]`).waitFor(); await idle(page); };
@@ -79,7 +79,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const errors = []; context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
   async function open(page, title) {
-    await page.goto(origin); await page.locator('.extension-group-toggle').click();
+    await page.goto(origin); await page.locator('.extension-group-toggle').click(); await idle(page);
     await page.locator('.library-item').filter({ hasText: title }).click();
   }
   const a = await context.newPage(), b = await context.newPage();
@@ -112,8 +112,8 @@ try {
   assert.equal(await b.locator('.v2-main h1').textContent(), 'latency');
   console.log('Stale snapshot with removed question releases question and bank navigation.');
 
-  // Regrade is held until the locked note's old-revision body has been frozen;
-  // result commits first. Author input is dispatched during opening deliberately
+  // Regrade owns the queue before the locked note is dispatched; its first
+  // send must use the new revision, preserving the note instead of conflicting. Author input is dispatched during opening deliberately
   // to exercise the interleaving even while normal UI input is inert.
   const opened = await api(`/api/v2/banks/${ids.race}/overview`);
   await api(`/api/v2/banks/${ids.race}/questions/1/submit`, { snapshotId: opened.snapshotId, requestId: 'seed-lock', expectedRevision: 0, answer: { selected: 'B' } });
@@ -124,16 +124,17 @@ try {
   await open(race, 'race'); await resultSeen;
   await race.evaluate(() => { window.noteRead = new Promise(resolve => addEventListener('message', event => { if(event.data?.kind === 'draft') setTimeout(resolve, 0); })); });
   await frame(race).getByRole('textbox', { name: '合成锁后笔记' }).evaluate(input => { input.value = 'losing concurrent note'; input.dispatchEvent(new Event('input', { bubbles: true })); });
-  // The note is captured/queued while result owns the one shared write queue.
+  // The note value is captured, but its revision/body are not frozen until send.
   await race.evaluate(() => window.noteRead);
-  const resultDone = race.waitForResponse(r => r.url().endsWith('/result') && r.status() === 200); await resultRoute.continue(); await resultDone; await idle(race);
+  const resultDone = race.waitForResponse(r => r.url().endsWith('/result') && r.status() === 200); await resultRoute.continue(); await resultDone;
   await draftSeen;
-  await draftRoute.continue(); await notice(race); await idle(race);
-  assert.equal(await frame(race).getByRole('textbox', { name: '合成锁后笔记' }).inputValue(), '');
+  await draftRoute.continue(); await saved(race); await idle(race);
+  assert.equal(await frame(race).getByRole('textbox', { name: '合成锁后笔记' }).inputValue(), 'losing concurrent note');
   await race.unroute('**/questions/1/draft'); await race.unroute('**/questions/1/result');
-  await frame(race).getByRole('textbox', { name: '合成锁后笔记' }).fill('new note after recovery'); await saved(race);
+  const noteSaved = race.waitForResponse(r => r.url().endsWith('/draft') && r.request().postData()?.includes('new note after recovery') && r.ok());
+  await frame(race).getByRole('textbox', { name: '合成锁后笔记' }).fill('new note after recovery'); await noteSaved; await saved(race);
   const checked = await api(`/api/v2/banks/${ids.race}/questions/1?snapshotId=${opened.snapshotId}`); assert.equal(checked.draft, 'new note after recovery');
-  await go(race, '2'); console.log('Regrade/note conflict explicitly discards losing note, then later notes save normally.');
+  await go(race, '2'); console.log('Regrade/note queue takes revision at first dispatch; both concurrent and later notes save normally.');
 
   const measured = await browser.newContext({ viewport: { width: 1440, height: 900 } }); await measured.addInitScript(instrument);
   const page = await measured.newPage(); await open(page, 'latency'); await idle(page);
@@ -152,7 +153,7 @@ try {
   }));
   const timings = Object.fromEntries(Object.keys(segments[0]).map(key => [key, stats(segments.map(row => row[key]))]));
   const result = { browser: browser.version(), node: process.version, platform: `${os.type()} ${os.release()}`, conflicts: conflicts.length,
-    twoPageSaveAndLock: true, removedQuestion: true, regradeAndNotes: true, timings, externalProbe: stats(external.slice(2)),
+    twoPageSaveAndLock: true, removedQuestion: true, regradeAndNotesFirstDispatch: true, timings, externalProbe: stats(external.slice(2)),
     method: '2 warmups + 30 alternating radio changes; input/change-to-next-frame marks in host/iframe; no production hook. Message/timer/fetch/MutationObserver probes add unquantified small overhead. PUT-to-headers includes server and loopback; not separately attributed.', pageErrors: errors };
   assert.deepEqual(errors, []); for (const row of segments) for (const value of Object.values(row)) assert.ok(Number.isFinite(value) && value >= 0);
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));

@@ -6,6 +6,7 @@ import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, newCache, readJson, relativeFile, relativePath, treeDigest, READ_LIMITS } from './io.js';
 import { TypeRegistry } from './type-registry.js';
+import { PracticePosition } from './position.js';
 
 export class LibrarySnapshots {
   constructor(root, codeRoot, { development = false, stateStore = null } = {}) {
@@ -13,6 +14,7 @@ export class LibrarySnapshots {
     this.cache = newCache(); this.types = new TypeRegistry(root, this.cache); this.development = development;
     this.opened = new Map();
     this.stateStore = stateStore;
+    this.positions = new PracticePosition();
   }
   locations() {
     const base = path.join(this.root, 'question-banks'), result = [];
@@ -69,7 +71,9 @@ export class LibrarySnapshots {
     }
     const clearedQuestionIds = this.stateStore?.reconcile(snapshot) ?? [];
     this.opened.set(bankId, snapshot);
-    const questionId = requestedQuestionId ?? bank.items.keys().next().value;
+    const savedPosition = this.positions.read(location.directory);
+    const lastQuestionId = bank.items.has(savedPosition) ? savedPosition : null;
+    const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
     let initial = { question: null, error: null };
     if (questionId !== undefined) {
       try { initial.question = this.question(bankId, questionId, snapshotId); }
@@ -77,7 +81,7 @@ export class LibrarySnapshots {
     }
     return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
       questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
-      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId: null, initial,
+      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial,
       pendingGrading: [...bank.items.keys()].filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
         try { return { question: this.question(bankId, id, snapshotId), error: null }; }
         catch (error) { return { question: null, error: publicError(error) }; }
@@ -87,6 +91,17 @@ export class LibrarySnapshots {
     if (!object(input) || Object.hasOwn(input, 'questionId') && !validId(input.questionId)) throw problem('INVALID_REQUEST', '刷新请求或当前题号无效。', {}, 400);
     if (Object.hasOwn(input, 'expectedSnapshotId')) this.snapshot(bankId, input.expectedSnapshotId);
     return this.open(bankId, input.questionId, { refresh: true });
+  }
+  position(bankId, input) {
+    const snapshot = this.opened.get(bankId);
+    if (!snapshot) throw problem('BANK_NOT_OPEN', '请先打开该题库的概览。', { bankId }, 409);
+    if (input === undefined) {
+      const id = this.positions.read(snapshot.directory);
+      return { questionId: snapshot.items.has(id) ? id : null };
+    }
+    if (!object(input) || Object.keys(input).some(key => key !== 'questionId') || !validId(input.questionId)) throw problem('INVALID_REQUEST', '上次位置的题号无效。', {}, 400);
+    if (!snapshot.items.has(input.questionId)) throw problem('QUESTION_NOT_FOUND', '该题不在题库大纲中。', { bankId, questionId: input.questionId }, 404);
+    return this.positions.save(snapshot.directory, input.questionId);
   }
   snapshot(bankId, snapshotId) {
     const value = this.opened.get(bankId);
