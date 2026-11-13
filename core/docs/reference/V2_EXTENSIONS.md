@@ -56,7 +56,6 @@ extensions/<分组>/<题型>/
 QF.page.register({
   async load(context) { /* 画题目 */ },
   getAnswer() { /* 返回当前作答 */ },
-  getDraft() { /* 可选：返回不属于答案的笔记 */ },
   snapshot() { /* 可选：归档时自行给出静态内容 */ }
 });
 ```
@@ -65,7 +64,6 @@ QF.page.register({
 |---|---|---|
 | `load(context)` | 是 | 按 `context` 把整道题画出来。**会在同一页面上被多次调用**：首次显示、提交后、评分后、重做后、内容在别处被修改后。每次都要按新的 `context` 完整重画，不要假设页面是空的。公式、图片等全部显示完毕后才结束 |
 | `getAnswer()` | 是 | 返回当前作答。格式由你定，宿主原样保存、原样交还，不解析 |
-| `getDraft()` | 否 | 返回笔记类内容。它不参与评分，提交后仍可修改 |
 | `snapshot()` | 否 | 见第 6 节 |
 
 ### 3.2 你会收到的 `context`
@@ -76,7 +74,6 @@ QF.page.register({
 | `question` | 题库中这道题的 `question`，原样 |
 | `item` | 大纲中这道题的条目：`label`、`maxScore`；有小题时为 `parts: [{ id, label, maxScore }]` |
 | `answer` | 上次保存的作答，没有则为 `null` |
-| `draft` | 上次保存的笔记，没有则为 `null` |
 | `locked` | 答案是否已锁定。锁定后不得再让用户修改答案 |
 | `solution` | 题库中这道题的 `solution`。**锁定前为 `null`** |
 | `result` | 评分结果（见 4.2），没有则为 `null` |
@@ -90,7 +87,7 @@ QF.page.register({
 |---|---|
 | `QF.page.changed({ kind, answered })` | 告诉宿主"用户改了内容"。见 3.4 |
 | `QF.page.submit()` | 请求提交本题。宿主会调用你的 `getAnswer()`，保存并锁定，评分，然后用新的 `context` 再次调用 `load` |
-| `QF.page.retry()` | 请求重做本题。宿主清空本题的作答、笔记、笔迹和分数，然后用初始 `context` 再次调用 `load` |
+| `QF.page.retry()` | 请求重做本题。宿主清空本题的作答、笔迹和分数，然后用初始 `context` 再次调用 `load` |
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
 | `QFRichText.render(节点, 文档)` | 显示富文本。返回对象的 `ready` 在显示完成时结束 |
 
@@ -98,7 +95,7 @@ QF.page.register({
 
 ### 3.4 `changed`：保存与作答状态
 
-用户每次修改内容后调用一次。你不需要自己保存，宿主会在合适的时候调用 `getAnswer()` 和 `getDraft()` 取走内容。
+用户每次修改内容后调用一次。你不需要自己保存，宿主会在合适的时候调用 `getAnswer()` 取走内容。
 
 `kind` 说明这次是哪种修改，宿主据此决定多久后保存：
 
@@ -112,9 +109,8 @@ QF.page.register({
 
 - 没有小题的题：`answered: true` 或 `answered: false`。
 - 有小题的题：`answered: { "小题id": true }`，只写发生变化的小题即可。
-- 只改了笔记、没有改答案：省略 `answered`。
 
-"已作答"指用户给出了答案。写笔记、打草稿不算。答案被清空时要报告 `false`。
+"已作答"指用户给出了答案。答案被清空时要报告 `false`。白板上的草稿由宿主处理，与题型无关。
 
 宿主收到后立即更新大纲，不等保存完成。大纲里找不到的小题 id 会被忽略。
 
