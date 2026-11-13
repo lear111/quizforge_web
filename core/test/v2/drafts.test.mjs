@@ -49,13 +49,15 @@ test('raw numeric literals survive answer, draft and ink field patches and later
 });
 
 test('locked ink and non-answer notes preserve answer version, credential and score; answer patches remain forbidden', async t => {
-  const { write } = await setup(t);
+  const { write, api, base, snapshotId } = await setup(t);
   const locked = await write('submit', { requestId: 's', expectedRevision: 0, answer: { selected: '乙' } });
   const graded = await write('result', { requestId: 'g', submission: locked.value.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 2 } });
   assert.equal(graded.status, 200);
   const ink = await write('ink', { requestId: 'i', expectedInkRevision: 0, ink: { strokes: [1, 2] } }); assert.equal(ink.status, 200);
+  assert.deepEqual(Object.keys(ink.value).sort(), ['inkRevision', 'state']);
+  const afterInk = await api(`${base}/questions/1?snapshotId=${snapshotId}`);
   const notes = await write('draft', { requestId: 'd', expectedRevision: 2, draft: 'post-submit notes' }); assert.equal(notes.status, 200);
-  for (const value of [ink.value, notes.value]) {
+  for (const value of [afterInk.value, notes.value]) {
     assert.deepEqual(value.answer, graded.value.answer); assert.deepEqual(value.submission, graded.value.submission); assert.deepEqual(value.result, graded.value.result);
     assert.equal(value.state.answerVersion, graded.value.state.answerVersion); assert.equal(value.state.resultRevision, graded.value.state.resultRevision); assert.equal(value.state.status, 'graded');
   }

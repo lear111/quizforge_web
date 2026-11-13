@@ -61,7 +61,7 @@ try {
     await page.getByRole('button', { name: '返回作答', exact: true }).click();
     const lockedInk = (await question()).ink;
     const sameFrame = await page.locator('.v2-question-frame iframe').elementHandle();
-    await page.getByRole('button', { name: '提交答案', exact: true }).click(); await page.locator('.v2-answer-footer strong').filter({ hasText: '2 / 2 分' }).waitFor();
+    await frame().getByRole('button', { name: '提交答案', exact: true }).click(); await frame().locator('#result').filter({ hasText: '2 / 2 分' }).waitFor();
     assert.equal(await sameFrame.evaluate(node => node.isConnected), true);
     q = await question(); const submission = q.submission, result = q.result, answerVersion = q.state.answerVersion;
     await page.getByRole('button', { name: '草稿', exact: true }).click(); await stroke(); await saved();
@@ -79,7 +79,7 @@ try {
     await selectBank(bank.title);
     assert.equal(await page.locator(`[data-question-id="${other}"]`).getAttribute('class').then(s => s.includes('active')), true);
     await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), qid);
-    await go(qid); await page.getByRole('button', { name: '重做', exact: true }).click(); await idle();
+    await go(qid); await frame().getByRole('button', { name: '重做', exact: true }).click(); await idle();
     q = await question(); assert.equal(q.answer, null); assert.equal(q.ink, null); assert.equal(q.submission, null); assert.equal(q.result, null);
     // Explicit refresh keeps a surviving current question; a removed one falls
     // back while preserving unrelated answers.

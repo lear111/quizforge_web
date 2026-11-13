@@ -33,15 +33,15 @@ try {
   }
   await page.goto(origin); await page.locator('.extension-group-toggle').click(); await page.locator('.library-item').click(); await idle();
   await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
-  await held('**/questions/1/submit', () => page.getByRole('button', { name: '提交答案', exact: true }).click(), async () => write(await read('1'), 'draft', { answer: { selected: 'A' } }));
+  await held('**/questions/1/submit', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => write(await read('1'), 'draft', { answer: { selected: 'A' } }));
   assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('1')).state.locked, false);
   await go('2'); await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
-  await held('**/questions/2/result', () => page.getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
+  await held('**/questions/2/result', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
     const q = await read('2'); await write(q, 'result', { submission: q.submission, expectedResultRevision: q.state.resultRevision, source: 'grader', result: { status: 'graded', score: 0 } });
   });
-  await page.locator('.v2-answer-footer strong').filter({ hasText: '0 / 2 分' }).waitFor();
+  await frame().locator('#result').filter({ hasText: '0 / 2 分' }).waitFor();
   await go('3'); await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
-  await held('**/questions/3/result', () => page.getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
+  await held('**/questions/3/result', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
     await write(await read('3'), 'retry', {}); await write(await read('3'), 'submit', { answer: { selected: 'A' } });
   });
   assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('3')).state.status, 'submitted-pending');

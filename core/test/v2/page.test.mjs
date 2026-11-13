@@ -7,7 +7,7 @@ const compiled = await build({ entryPoints: [fileURLToPath(new URL('../../fronte
 function setup(t) {
   const dom = new JSDOM('<div id="app"></div>', { runScripts: 'outside-only', url: 'http://127.0.0.1:8799' });
   dom.window.eval(compiled.outputFiles[0].text + '\nwindow.TestPages = TestPages;'); t.after(() => dom.window.close());
-  const mount = (extra = {}, options = {}) => dom.window.TestPages.mountQuestionPage(dom.window.document.getElementById('app'), { html: '<h2>题目</h2>', js: 'QF.page.register({load(){},getAnswer(){return {selected:"B"}}})', css: '', sdks: [] }, { question: { stem: '</script><!--<script>parent.intrusion=true</script>' }, solution: null, answer: null, result: null, item: { maxScore: 2 }, mode: 'practice', locked: false, ...extra }, 'trusted-nonce', options);
+  const mount = (extra = {}, options = {}) => dom.window.TestPages.mountQuestionPage(dom.window.document.getElementById('app'), { html: '<h2>题目</h2>', js: 'QF.page.register({load(){},getAnswer(){return {selected:"B"}}})', css: '', sdks: [] }, { question: { stem: '</script><!--<script>parent.intrusion=true</script>' }, solution: null, answer: null, result: null, item: { maxScore: 2 }, mode: 'practice', locked: false, can: { submit: true, retry: false }, appearance: { theme: 'light' }, ...extra }, 'trusted-nonce', options);
   const channel = page => JSON.parse(/const channel=("[^"]+")/.exec(page.frame.srcdoc)[1]);
   const send = (page, data, source = page.frame.contentWindow) => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { source, data: { channel: channel(page), version: 0, ...data } }));
   return { dom, mount, send, channel };
@@ -24,6 +24,41 @@ test('page sandbox has no host origin/network and safely embeds hostile question
   assert.match(parsed.scripts[0].textContent, /document\.currentScript\.remove\(\)/);
   assert.match(parsed.scripts[0].textContent, /URL\.revokeObjectURL/);
   send(page, { kind: 'ready' }); await page.ready; page.destroy();
+});
+
+test('page actions check frame/channel/generation and permissions, serialize actions, and reject late callers after disposal', async t => {
+  const { mount, send, dom } = setup(t), posts = []; let submitted = 0, release;
+  const page = mount({}, { onSubmit: async () => { submitted++; await new Promise(resolve => { release = resolve; }); }, onRetry: async () => assert.fail('retry must be refused') });
+  page.frame.contentWindow.postMessage = data => posts.push(data); send(page, { kind: 'ready' }); await page.ready;
+  send(page, { kind: 'action', action: 'submit', request: 1 }, dom.window);
+  send(page, { kind: 'action', action: 'submit', request: 1, channel: 'wrong' });
+  send(page, { kind: 'action', action: 'submit', request: 1, version: -1 });
+  await Promise.resolve(); assert.equal(submitted, 0);
+  send(page, { kind: 'action', action: 'retry', request: 2 }); assert.match(posts.at(-1).error, /不允许/);
+  send(page, { kind: 'action', action: 'submit', request: 3 }); await Promise.resolve(); assert.equal(submitted, 1);
+  send(page, { kind: 'action', action: 'submit', request: 4 }); assert.match(posts.at(-1).error, /不允许/);
+  release(); for (let i = 0; i < 8; i++) await Promise.resolve();
+  assert.equal(posts.find(p => p.kind === 'action-result' && p.request === 3).error, undefined);
+  page.destroy(); send(page, { kind: 'action', action: 'submit', request: 5 }); await Promise.resolve(); assert.equal(submitted, 1);
+  for (const mode of ['archive', 'exam']) {
+    const other = mount({ mode, can: { submit: true, retry: true } }, { onSubmit: async () => assert.fail(mode) });
+    const sent = []; other.frame.contentWindow.postMessage = data => sent.push(data); send(other, { kind: 'ready' }); await other.ready;
+    send(other, { kind: 'action', action: 'submit', request: 1 }); assert.match(sent.at(-1).error, /不允许/); other.destroy();
+  }
+});
+
+test('answered reports are bounded boolean metadata; foreign parts are ignored and resize messages retain source and generation checks', async t => {
+  const { mount, send, dom } = setup(t), changes = [];
+  const page = mount({ item: { parts: [{ id: 'a' }, { id: 'b' }] } }, { onChanged: (kind, answered) => changes.push([kind, answered]) });
+  send(page, { kind: 'ready' }); await page.ready;
+  for (const answered of [null, [], 'true', { a: 1 }, Object.fromEntries(Array.from({ length: 1001 }, (_, i) => ['x' + i, true])), true]) send(page, { kind: 'changed', inputKind: 'choice', answered });
+  assert.deepEqual(changes, []);
+  send(page, { kind: 'changed', inputKind: 'choice', answered: { a: true, foreign: false } });
+  send(page, { kind: 'changed', inputKind: 'text' });
+  assert.deepEqual(JSON.parse(JSON.stringify(changes)), [['choice', { a: true }], ['text', null]]);
+  send(page, { kind: 'height', height: 987 }); assert.equal(page.frame.style.height, '987px');
+  for (const data of [{ height: -1 }, { height: Infinity }, { height: '12' }, { height: 50, version: -1 }]) send(page, { kind: 'height', ...data });
+  send(page, { kind: 'height', height: 12 }, dom.window); assert.equal(page.frame.style.height, '987px'); page.destroy();
 });
 
 test('same-question context updates require matching acknowledgement without replacing the frame; changed notifications are scoped', async t => {

@@ -93,7 +93,7 @@ try {
   assert.equal(b.frames().find(f => f.parentFrame()), originalFrame, 'same binding reloads through update(context)');
   await go(b, '2'); await go(a, '2');
   await frame(a).getByRole('radio', { name: 'B', exact: true }).check(); await saved(a);
-  await a.getByRole('button', { name: '提交答案', exact: true }).click(); await a.locator('.v2-answer-footer strong').waitFor(); await idle(a);
+  await frame(a).getByRole('button', { name: '提交答案', exact: true }).click(); await frame(a).locator('#result').waitFor(); await idle(a);
   await b.bringToFront(); await frame(b).getByRole('radio', { name: 'A', exact: true }).click(); await notice(b); await idle(b);
   assert.equal(await frame(b).getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
   assert.equal(await frame(b).getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
