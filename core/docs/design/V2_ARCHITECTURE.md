@@ -40,6 +40,8 @@
 | D31 | 同一道题在一轮内重做多次，只保留最后一次的作答和分数，之前各次不保存。一轮历史里每道题只有一份记录 |
 | D32 | "上次的位置"记为最后一次作答所在的题：作答文件里加一个题号字段，在保存答案、草稿、提交、重做时顺带更新（白板笔迹单独存放，不更新它）。只切题不作答不记录、不写文件。下次打开题库时停在这道题 |
 | D33 | 白板笔迹不放在作答文件里，每道题的笔迹单独一个文件，存于题库的 `.qf-v2/ink/`。保存选项不读写任何笔迹，保存一道题的笔迹不影响其他题。依据是实测：50 道题带笔迹时，保存一次选项从约 19 毫秒升到约 473 毫秒 |
+| D34 | 历史可以删除，数量不设上限 |
+| D35 | 提交、重做按钮以及得分和反馈的显示由题型拓展实现，宿主提供提交和重做的接口并决定当前是否允许。作答状态由拓展精确到小题上报，宿主立即更新大纲，状态随答案一起保存。接口全文见第 3.0 节 |
 
 ## 1. 前后端分工
 
@@ -191,15 +193,62 @@ extensions/<分组>/<题型>/
   *.schema.json      可选：字段说明的机器可读形式，程序不执行
 ```
 
-**题型页面**收到的上下文：
+### 3.0 题型页面接口（apiVersion 2，已定稿）
+
+范围：做题页面和评分。编辑器接口在第 6 段另定；答题区在第 5 段之后另定；听力由宿主处理，不经过题型。
+
+**分工**：题型负责把题目画出来、画提交和重做按钮、显示得分和反馈、在被问到时交出答案。宿主负责保存、锁定、评分调度、大纲、汇总，以及决定当前允许做什么。
+
+**题型要提供的**（`QF.page.register({...})`）：
+
+| 函数 | 必需 | 说明 |
+|---|---|---|
+| `load(context)` | 是 | 按 `context` 把整道题画出来。同一页面上会被多次调用（提交后、评分后、重做后、冲突重载后），每次都要按新的 `context` 完整重画。内容（含公式、图片）全部显示完毕后才结束 |
+| `getAnswer()` | 是 | 返回当前作答。格式由题型自定，宿主不解析 |
+| `getDraft()` | 否 | 返回不属于答案的笔记 |
+| `snapshot()` | 否 | 归档时自行给出静态内容（D20）。不提供则由宿主通用处理 |
+
+**`context` 的内容**：
 
 ```
-{ mode: "practice" | "exam" | "history",
-  question, solution | null, answer, draft, result | null,
-  capabilities: { canSave, canSubmit, canRetry, … } }
+{
+  mode: "practice" | "exam" | "archive",
+  question,            // 题库中 questions.<题号>.question
+  item,                // 大纲中该题的条目：label、maxScore、parts
+  answer,              // 已保存的作答，没有则为 null
+  draft,               // 已保存的笔记，没有则为 null
+  locked,              // 答案是否已锁定
+  solution,            // 锁定前为 null
+  result,              // 评分结果，没有则为 null
+  can: { submit, retry },   // 当前是否允许提交、重做
+  appearance           // 外观信息（深浅色等）
+}
 ```
 
-提交前 `solution` 为 `null`。页面通过 SDK 保存答案、请求提交，不自行评分。
+`mode` 为 `archive` 时：全部内容展开，不可操作，不显示按钮。题型目前只需处理 `practice`，另两种在第 3、4 段启用。
+
+**题型可以调用的**：
+
+| 调用 | 说明 |
+|---|---|
+| `QF.page.changed({ kind, answered })` | 用户改了内容。`kind` 为 `choice` / `text` / `ink`，决定多久后保存。`answered` 报告作答状态：没有小题的题传 `true` / `false`；有小题的题传 `{ 小题id: true/false }`，只需包含发生变化的小题。只改了笔记时省略 `answered` |
+| `QF.page.submit()` | 请求提交本题。宿主取答案、保存锁定、评分，然后用新的 `context` 调用 `load`。`can.submit` 为 `false` 时被拒绝 |
+| `QF.page.retry()` | 请求重做本题。宿主清空本题活跃内容，然后用初始 `context` 调用 `load`。`can.retry` 为 `false` 时被拒绝 |
+| `QF.resources.get(引用)` | 把题库内的 `qf-asset:` 引用换成可显示的地址 |
+
+页面高度由宿主运行时自动测量，题型不用上报。`load` 抛出错误时宿主显示"题型页面未能加载"。
+
+**提交、重做的权限**：按钮由题型画，规则由宿主定。`can.submit` / `can.retry` 在考试作答中、已完成、已归档阶段均为 `false`（D22、D24），题型应据此隐藏按钮；不守约的调用会被宿主拒绝。
+
+**作答状态与大纲**：
+
+- 题型通过 `changed` 的 `answered` 报告"哪道题（精确到小题）已作答或变回未作答"。写草稿、写笔记不算作答。
+- 宿主收到后**立即**更新大纲上对应格子，不等保存完成。拿报告里的小题 id 去大纲里查，查不到的忽略。
+- `answered` 随答案一起保存进作答文件。重新打开题库时，宿主直接读取已保存的状态画大纲，不需要加载题型。
+- 保存失败时大纲保持已显示的状态并提示保存失败；发生冲突重载时以后端为准重画。
+- 评分后大纲上的对错来自评分结果中各小题的得分。
+
+**兼容承诺**：apiVersion 2 之内只增加可选项，不改变已有函数和字段的含义。
 
 **评分模块**由纯函数组成，不访问界面、网络或文件。加载后向宿主登记：
 
@@ -207,7 +256,8 @@ extensions/<分组>/<题型>/
 QF.grader.register({
   grade(question, solution, answer, item) {
     // item：大纲中该题的条目（maxScore、parts 等）
-    return { score, feedback, outlineScores, status: "graded" | "pending" };
+    return { status: "graded" | "pending" | "ungradable", score, feedback, outlineScores, reason };
+    // 有小题时 outlineScores 为 [{ id, score }]，逐小题给分，合计等于 score
   },
   // 以下只有支持 AI 评分的题型需要
   prepareAiGrading(question, solution, answer, item, target) { … },
