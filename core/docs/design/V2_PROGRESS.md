@@ -78,14 +78,4 @@
 - 第3段开工先测完成练习/归档的字节数与编码耗时，再决定是否处理jsonBytes；现在不改编码器。
 - 第6段D28应用内编辑保留其他题记录时，需要同步更换笔迹目录的内容指纹层。
 - **D36 去掉题型自带笔记（④里一并做）**：删除 `draft` 字段和 `getDraft()`。涉及：`state.json` 每题的 `draft`、概览里的 `hasDraft`、单题响应和 `context` 里的 `draft`、前端取草稿的调用、锁定后"只带 draft 的保存"这条分支及其用例。保存答案的接口现在只管答案，请把路径由 `Q/draft` 改名为 `Q/answer`，避免与白板草稿混淆。《题型拓展开发说明》已同步。标准向量相应更新；开发版不迁移旧文件，读到带 `draft` 的旧条目时忽略该字段即可。
-- **D37 / D38 状态与大纲显示（④里一并做）**：① `status` 改为五个值：`drafting` 改名 `answering`；`submitted-pending` 与 `pending-review` 合并为 `pending`。需要区分时看 `result`：为 `null` 表示尚未评分（打开题库时自动补评），`result.status === "pending"` 表示等人工或 AI。读文件时的一致性检查相应调整（前两种无锁定凭证，后三种有）。② 大纲格子按下表取五种颜色之一，精确到小题：
-
-  | 条件 | 颜色 |
-  |---|---|
-  | 没有分数，该小题 `answered` 为假 | 未作答 |
-  | 没有分数，该小题 `answered` 为真（未提交、已提交正在评、等人工或 AI 评，都算） | 已作答 |
-  | `graded`，该小题得分等于其满分（无小题时按整题比较） | 对 |
-  | `graded`，其余情况 | 错 |
-  | `ungradable` | 无法评分，用醒目的警示色 |
-
-  鼠标悬停时给出文字说明（如"已作答，待评分"）。同步更新 `V2_API_AND_STATE.md` 和标准向量。
+- **D37 / D38 状态重新设计（④里一并做，取代此前的说明）**：以 [数据结构说明书](V2_DATA_STRUCTURES.md) 第 2.2 节为准。① 每道题的 `status` 改为大纲显示状态，精确到小题：无小题为一个值，有小题为"小题 id → 值"的映射；取值 `unanswered` / `answered` / `correct` / `wrong` / `ungradable`。② 删除 `answered` 字段：拓展通过 `changed` 报告的作答状态直接写入 `status`（真 → `answered`，假 → `unanswered`），大纲查不到的小题 id 忽略。③ 提交后等待评分期间 `status` 不变；评分结果写入时由后端按各小题得分与满分比较写入 `correct` / `wrong`（无小题按整题比较），`ungradable` 时各小题均为 `ungradable`，`result.status` 为 `pending` 时保持不变；重做后回到未作答。④ 原先的流程状态不再存储：是否锁定看提交凭证，是否已评分和是否等人工或 AI 看 `result`；自动补评的条件是"已锁定且 `result` 为 `null`"。⑤ 概览直接返回各题的 `status`，前端按值上色，五种颜色，`ungradable` 用醒目的警示色，悬停给文字说明。说明书第 5 节标为"待负责人确认"的三项（版本号合并、锁定凭证简化、回执合并）先不要动。同步更新 `V2_API_AND_STATE.md` 和标准向量。
