@@ -15,29 +15,52 @@
 
 磁盘上的数据结构见 [数据结构说明书](V2_DATA_STRUCTURES.md)；拓展与宿主之间的接口见 [题型拓展开发说明](../reference/V2_EXTENSIONS.md)，不在本文范围。
 
-## 接口列表
+## 已接通的练习接口
 
-`B = /api/v2/banks/{bankId}`，`Q = B/questions/{questionId}`；`E = /api/v2/exams/{examId}`。
+`B = /api/v2/banks/{bankId}`，`Q = B/questions/{questionId}`。
+
+| 方法与路径 | 读取内容 |
+|---|---|
+| GET `/api/v2/health`、`/api/v2/catalog` | 健康状态；物理分组与题库列表 |
+| GET `B/overview` | 题库信息、大纲、各题状态、上次作答位置、起始题和补评候选；可传 `?questionId=…` 指定起始题 |
+| GET `Q` | 传 `?snapshotId=…`；读取单题（含独立笔迹及其版本） |
+| GET `/api/v2/extensions/{artifactId}/manifest`、`/api/v2/extensions/{artifactId}/files/{entryId}` | 静态题型清单与受限入口，后端不执行 |
+| GET `/api/v2/sdk/{component}/{version}/{entryId}` | 已声明的 SDK 文件；宿主用 `?snapshotId=…` 绑定浏览器缓存 |
+| GET `Q/assets/{assetId}`、`B/listening/{materialId}` | 带 `?snapshotId=…`；按题目可见性取素材、本地听力或 http(s) 地址。听力播放界面尚未接入 |
+
+### 已接通的写接口
+
+请求体为 JSON；每行列出全部业务请求字段，`?` 表示可省略。成功均返回 HTTP 200。表中「单题」与 GET `Q` 共用字段：`bankId`、`snapshotId`、`questionId`、`type`、`extension`、`item`、`question`、`solution`、`answer`、`submissionId`、`result`、`resources`，以及 `state{questionId, status, revision, hasSavedAnswer, locked, score, maxScore, hasInk}`；`solution` 仅锁定时有内容，未锁定时为 `null`。除重做外，这些写入返回的单题省略 `ink` 和 `inkRevision`，前端保留当前笔迹及其版本。
+
+| 方法与路径 | JSON 请求字段 | 成功返回 | 此接口的主要失败 |
+|---|---|---|---|
+| PUT `Q/answer` | `requestId`、`snapshotId`、`expectedRevision`、`answer`、`answered?` | 单题，含已保存的答案和最新题目版本；不修改笔迹 | 400 `INVALID_REQUEST`（缺答案、作答状态非法）；409 `REVISION_CONFLICT` / `ANSWER_LOCKED` |
+| PUT `Q/ink` | `requestId`、`snapshotId`、`expectedInkRevision`、`ink` | `{inkRevision, state}`，前端保留刚保存的笔迹；不改题目版本、锁或结果 | 400 `INVALID_REQUEST`（缺笔迹）；409 `REVISION_CONFLICT`（笔迹版本冲突） |
+| POST `Q/submit` | `requestId`、`snapshotId`、`expectedRevision`、`answer` | 单题，带已锁定的答案、`submissionId`、`solution` 和最新题目版本；保持大纲状态 | 400 `INVALID_REQUEST`（缺答案）；409 `REVISION_CONFLICT` / `ANSWER_LOCKED` |
+| PUT `Q/result` | `requestId`、`snapshotId`、`expectedRevision`、`submissionId`、`source: "grader"`、`result` | 单题，含最新分数、大纲状态和题目版本 | 409 `SUBMISSION_STALE`（锁不匹配）/ `RESULT_CONFLICT`（版本冲突）；422 `INVALID_RESULT` |
+| POST `Q/retry` | `requestId`、`snapshotId`、`expectedRevision` | 单题，答案、锁、评分及笔迹已清空，题目版本递增，笔迹版本回到 0；不返回解析内容 | 409 `REVISION_CONFLICT`；503 `STATE_WRITE_FAILED`（清除笔迹或写作答失败） |
+| POST `B/refresh` | `questionId?`、`expectedSnapshotId?`（现有快照比对，见下） | 新概览（含 `snapshotId`、`activeCleared`、`notice`）；附 `changes{activeCleared, addedQuestionIds, removedQuestionIds, activeRoundInterrupted}`，本段 `activeRoundInterrupted` 固定为 false。保留仍存在的当前题 | 400 `INVALID_REQUEST`（无效题号）；409 `SNAPSHOT_STALE`（带旧预期快照）；题库读取或清理失败时返回相应错误，不发布候选快照 |
+
+统一失败格式：`{"error":{"code":"…","message":"…"}}`，可能附题库、题号、字段或限额等定位信息。各接口还可能返回：400 `INVALID_REQUEST`（如非 JSON、重复键、缺少或无效的请求编号）；401 `AUTH_REQUIRED`；403 `HOST_REJECTED` / `ORIGIN_REJECTED`；404 `BANK_NOT_FOUND` / `QUESTION_NOT_FOUND` / `EXTENSION_NOT_FOUND`；409 `BANK_NOT_OPEN` / `SNAPSHOT_STALE`，同一请求编号换正文为 `REQUEST_CONFLICT`；413 `STATE_SIZE_LIMIT`；422 题库、题型或素材结构不合法（刷新超限为 `FILE_COUNT_LIMIT`）；503 `STATE_INVALID` / `STATE_WRITE_FAILED` / `STORAGE_UNAVAILABLE` 等。各操作只返回适用的错误。失败未确认时，保存答案/笔迹保留输入，重试同一个编号和正文；401 先处理认证。确定拒绝的写入（如版本冲突、快照过期、超限）不重发旧请求，作答界面重新读取已保存状态。无效评分单独降为「无法评分」再上报。
+
+**当前两处既有例外，供审查：** `B/refresh` 是重新读取磁盘并发布快照的动作，现有前端只传当前题号；后端可选 `expectedSnapshotId`，没有请求回执或题目版本。`GET B/overview` 仍按 D27 在打开或重载时发现内容变化并清空过期作答；需重新打开已逐出的题库时也会执行同一检查；首次读取到可识别的旧开发笔迹也可清理该文件。两者沿用已审查行为，本段不改变清理时机、刷新请求或存储。
+
+## 后续接口（未实现，字段随各段审查）
+
+`E = /api/v2/exams/{examId}`。
 
 | 方法与路径 | 用途 |
 |---|---|
-| GET `/api/v2/health`、`/api/v2/catalog` | 健康状态；物理分组与题库列表 |
-| GET `B/overview`、`Q` | 检查并打开题库，附大纲、状态和一道起始题；读取单题 |
-| PUT `Q/answer`、`Q/ink` | 原样保存答案；独立文件、独立版本保存白板笔迹（D36） |
-| POST `Q/submit`；PUT `Q/result` | 原子保存并锁定最终答案，成功后返回 solution；接收前端评分 |
-| POST `Q/retry` | 清空本题活跃答案、笔迹、锁、结果和相关回执，历史不变 |
-| POST `B/refresh` | 显式重新检查；整体内容变化时清空本轮作答与区外笔迹，返回 activeCleared/notice |
 | POST `B/finish`、`B/restart`；GET `B/summary`、`B/pending-grading`；PUT `B/results` | 完成/新一轮、汇总、恢复待评分、批量评分上报（第 3 段） |
 | GET `B/history`、`B/history/{roundId}`；DELETE 同详情路径；POST 同路径 `/continue` | 历史列表、详情、删除、继续（第 3 段细化） |
 | POST/GET `/api/v2/exams`；GET/DELETE `E`；GET `E/questions/{questionId}` | 创建、列出、读取、删除考试与读取考试题（第 4 段） |
-| PUT `E/questions/{questionId}/answer`、`/ink`、`E/position`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、位置、交卷、待评分与结果（第 4 段） |
+| PUT `E/questions/{questionId}/answer`、`/ink`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、交卷、待评分与结果（第 4 段） |
 | POST `/api/v2/practice-sessions`；DELETE `/api/v2/practice-sessions/{sessionId}` | 临时练习的独立内存作用域，后续实现 |
 | POST `Q/ai-tasks`；GET `/api/v2/ai-tasks/{taskId}`；POST 同路径 `/cancel`、`/retry`；POST `/api/v2/ai/chat` | 锁定答案的 AI 任务；辅导对话（第 5 段） |
 | GET/PUT `/api/v2/settings/{ai,network,development}`；POST `/api/v2/settings/ai/test`；GET `/api/v2/settings/ai/hub`；POST 同路径 `/login`、`/logout`、`/redeem` | 设置、连接测试及 Hub 账号（第 5、6 段核对字段） |
 | POST `/api/v2/auth/login`、`/api/v2/settings/network/https/regenerate`；GET `/api/v2/admin-contact` | LAN 登录、证书与固定联系方式查询（后续保留边界） |
 | POST `/api/v2/imports`、`/api/v2/exports`、`/api/v2/library/manage`；GET/PUT `Q/editor`；POST `Q/editor/assets` | 导入导出与本机编辑；包格式和转换在第 6 段确认 |
-| GET `/api/v2/extensions/{artifactId}/manifest`、同路径 `/files/{entryId}`；GET `/api/v2/sdk/{component}/{version}/{entryId}` | 受限静态题型与 SDK 文件，不在后端执行 |
-| GET `Q/assets/{assetId}`、`B/listening/{materialId}`；考试/历史对应作用域资源路径 | 按题目可见性取素材、本地听力或 http(s) 地址；历史资源方案第 3 段确认 |
+| 考试、历史作用域的资源路径 | 随对应功能确定，历史资源方案第 3 段确认 |
 
 ## 状态、锁定与分数
 
@@ -56,10 +79,9 @@
 - D16：完成/交卷时从未保存答案的题直接记 0 分；批量结果后立即汇总，待评/无法评分单列，后续更新。D17 / D39：历史轮次单独保存，摘要来源与最终化规则留第 3 段设计，主状态不预留 historyIndex。
 - D27：根 contentFingerprint 由 bank.json 原始字节和全部已使用题型拓展的文件内容确定，不含物理目录名、题库素材、SDK 或无关文件。打开/刷新/重新加载不一致时清空全部 questions 与 ink 目录；无 state 文件不创建。返回 activeCleared 和“题库或题型已变化，本轮作答已清空”。不保存逐题 fingerprint，锁凭证为 submissionId。开发模式的进一步交互留第 6 段。
 - D32：state.json 根 lastQuestionId 只随 answer/submit/retry 更新，result/ink/浏览不更新；删除 position 接口与文件。窗口内切库仍用内存记浏览位置，浏览器只用 V2 localStorage 记题库。
-- 当前练习没有 GET/POST `B/position`，也没有 `.qf-v2/position.json`；不要再调用或创建。表中 `E/position` 仅为尚未实现的考试提案，第 4 段另定。
 - D33：区外笔迹位于 .qf-v2/ink/<contentFingerprint>/<SHA256(questionId)>.json。按题原子替换且独立 inkRevision/回执；ink 不改 state.json；选择题保存不读写任何 ink；hasInk 只由目录文件名索引给出，代表存在保存记录（包括空白板）。retry 先删本题笔迹后写 state，后一写失败时答案保留、笔迹已删，原请求可重试。D27 先删全 ink 再清主状态，失败恢复同理。
 - D29：后端最近 8 个题库 LRU，逐出时释放 state/身份/笔迹索引；带 snapshotId 访问被逐出题库时重开，比对一致则透明继续，否则返回过期并按 D27 清理。
-- 打开/刷新也检查作答文件的 dev/ino/size/mtimeNs/ctimeNs/birthtimeNs，变化重读，消失回初始态，坏文件报错保留并失效缓存；普通单题读写不扫描题库。写入后下次打开核对身份及字节，避免把外部替换文件身份误配给缓存。POST refresh 接受 questionId/expectedSnapshotId，返回 overview 加 changes（activeCleared 布尔及新增/删除题号、activeRoundInterrupted:false），题目删除才回退；CAS 或清理写入失败不发布新快照，历史阶段尚未实现。
+- 打开/刷新也检查作答文件的 dev/ino/size/mtimeNs/ctimeNs/birthtimeNs，变化重读，消失回初始态，坏文件报错保留并失效缓存；普通单题读写不扫描题库。写入后下次打开核对身份及字节，避免把外部替换文件身份误配给缓存。刷新接口的请求和返回见上表。
 - 打开仅检查 JSON 与大纲，坏题延迟到单题报错；overview 附一道起始题。遍历上限 1000 项，超限返回 lowerBound:1001、limit:1000 与中文原因，不为精确总数继续遍历。
 - 锁前不发 solution 适用于作答/评分；本机管理权限的编辑器和导出是例外。后端不执行作者代码；评分沙箱先做真实浏览器验证。
-- 读取常量沿用已合并实现；负责人本次确认作答文件上限沿用 32 MiB，其他写入字段上限、包格式、历史资源和账号细节尚未定案，不从旧长文档的提案自动变成新要求。涉及保存、锁定、评分、沙箱的 PR 等审查；第 1 段不提前实现其他段。
+- 读取常量沿用已合并实现；负责人本次确认作答文件上限沿用 32 MiB，其他写入字段上限、包格式、历史资源和账号细节尚未定案，不从旧长文档的提案自动变成新要求。涉及保存、锁定、评分、沙箱的 PR 等审查。
