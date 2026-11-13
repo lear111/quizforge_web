@@ -108,7 +108,6 @@ export class V2Server {
       this.authenticate(request);
       if (parts[1] !== 'v2') throw problem('V1_API_REMOVED', 'V2 不提供旧作答接口，请使用 V2 页面或 v1-final。', {}, 410);
       if (!['GET', 'HEAD'].includes(request.method)) {
-        if (parts[2] === 'banks' && parts.length === 5 && parts[4] === 'position' && request.method === 'PUT') return this.json(response, 200, this.library.position(parts[3], await this.body(request)));
         if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'draft', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
           const input = await this.body(request);
           return this.json(response, 200, measureSave('validate', () => this.library.write(parts[3], parts[5], parts[6], input)));
@@ -121,7 +120,6 @@ export class V2Server {
       if (parts.length === 3 && parts[2] === 'catalog') return this.json(response, 200, this.library.catalog());
       if (parts[2] === 'banks') {
         const bankId = parts[3];
-        if (parts.length === 5 && parts[4] === 'position') return this.json(response, 200, this.library.position(bankId));
         if (parts.length === 5 && parts[4] === 'overview') return this.json(response, 200, this.library.open(bankId, url.searchParams.get('questionId') ?? undefined));
         if (parts[4] === 'questions' && parts.length === 6) return this.json(response, 200, this.library.question(bankId, parts[5], snapshotId));
         if (parts[4] === 'questions' && parts.length === 8 && parts[6] === 'assets') return this.binary(request, response, this.library.asset(bankId, parts[5], snapshotId, parts[7]));

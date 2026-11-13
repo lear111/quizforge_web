@@ -20,6 +20,9 @@ export function tooMany(context) {
     { ...context, details: { lowerBound: 1001, limit: READ_LIMITS.treeItems } });
 }
 export function treeDigest(directory, cache, context = {}) {
+  return treeIdentity(directory, cache, context).digest;
+}
+export function treeIdentity(directory, cache, context = {}) {
   const entries = [];
   function visit(file) {
     if (entries.length >= READ_LIMITS.treeItems) throw tooMany(context);
@@ -36,7 +39,9 @@ export function treeDigest(directory, cache, context = {}) {
     if (error.code === 'FILE_COUNT_LIMIT') throw error;
     throw problem('ASSET_PATH_INVALID', '题库或拓展包含不安全、不可读或超过大小上限的文件。', context);
   }
-  return fingerprint(entries, 'quizforge-v2-tree');
+  // Keep deterministic traversal order: swapping two entry bodies must change
+  // the identity too. Physical paths themselves are never hashed here.
+  return { digest: fingerprint(entries, 'quizforge-v2-tree'), contentDigest: fingerprint(entries.filter(entry => !entry.directory).map(entry => entry.hash), 'quizforge-v2-file-contents') };
 }
 export function relativePath(directory, relative) {
   if (typeof relative !== 'string' || !relative || relative.length > 1000 || /[\\:\x00-\x1f\x7f?#]/.test(relative) || path.isAbsolute(relative)) throw problem('ASSET_PATH_INVALID', '资源必须使用题库目录内的安全相对路径。');

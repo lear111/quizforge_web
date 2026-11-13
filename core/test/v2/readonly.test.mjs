@@ -89,9 +89,9 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   assert.equal((await get('/api/v2/sdk/richtext/1.0.0/sdk.js')).response.status, 404);
   assert.equal((await get('/api/v2/extensions/unknown/manifest')).response.status, 404);
   assert.equal((await get('/api/v2/banks/unknown/overview')).response.status, 404);
-  assert.equal((await get('/api/v2/banks/unknown/questions/1' + token)).response.status, 409);
+  assert.equal((await get('/api/v2/banks/unknown/questions/1' + token)).response.status, 404);
   for (const route of ['/api/library', '/api/settings', '/api/ai/tasks']) assert.equal((await get(route)).response.status, 410);
-  assert.deepEqual((await get(base + '/position')).body, { questionId: null });
+  assert.equal((await get(base + '/position')).response.status, 501);
   for (const route of ['/api/v2/settings/ai', base + '/history']) assert.equal((await get(route)).response.status, 501);
   for (const route of [base + '/questions/1/draft', base + '/finish']) assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
   // Submit is now implemented; malformed requests still cannot disclose answers.
@@ -187,18 +187,18 @@ test('catalog distinguishes local instances with identical source IDs and contai
 test('explicit opening detects file changes but ordinary question GET borrows the opened immutable snapshot', async t => {
   const { fixture, server, open, get, base, bankId } = await running(t);
   const first = (await open()).body, query = '?snapshotId=' + first.snapshotId;
-  const oldFingerprint = server.library.opened.get(bankId).questionFingerprints.get('1');
+  const oldFingerprint = server.library.opened.get(bankId).contentFingerprint;
   fixture.bank.questions['1'].question.stem = { text: 'changed' }; writeFixtureFile(fixture.bankFile, fixture.bank);
   const old = await get(base + '/questions/1' + query); assert.notDeepEqual(old.body.question.stem, { text: 'changed' });
   const next = (await open('1')).body; assert.notEqual(next.snapshotId, first.snapshotId); assert.deepEqual(next.initial.question.question.stem, { text: 'changed' });
   assert.equal((await get(base + '/questions/1' + query)).body.error.code, 'SNAPSHOT_STALE');
-  assert.notEqual(server.library.opened.get(bankId).questionFingerprints.get('1'), oldFingerprint);
-  const changedFingerprint = server.library.opened.get(bankId).questionFingerprints.get('1');
+  assert.notEqual(server.library.opened.get(bankId).contentFingerprint, oldFingerprint);
+  const changedFingerprint = server.library.opened.get(bankId).contentFingerprint;
   writeFixtureFile(path.join(fixture.directory, 'assets', 'figure.png'), Buffer.from('different bytes'));
   fixture.bank.listening.https.src = 'https://audio.example.test/replaced.mp3'; writeFixtureFile(fixture.bankFile, fixture.bank);
   writeFixtureFile(path.join(fixture.extension, 'practice.js'), '/* different code, never executed */');
   const resourceChange = (await open('1')).body; assert.notEqual(resourceChange.snapshotId, next.snapshotId);
-  assert.equal(server.library.opened.get(bankId).questionFingerprints.get('1'), changedFingerprint);
+  assert.notEqual(server.library.opened.get(bankId).contentFingerprint, changedFingerprint);
   assert.equal((await open('1')).body.snapshotId, resourceChange.snapshotId);
   // Mutating an outward payload cannot mutate the frozen source data.
   const result = server.library.question(bankId, '1', resourceChange.snapshotId); result.question.stem.text = 'caller mutation';

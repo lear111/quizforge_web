@@ -30,8 +30,7 @@ try {
     const opened = await (await fetch(origin + base + '/overview')).json(), snapshot = server.library.opened.get(id), store = server.library.stateStore;
     if (populated) {
       const ink = { schemaVersion: 1, viewport: { x: 0, y: 0, zoom: 1 }, paper: { color: '#ffffff', pattern: 'plain' }, strokes: Array.from({ length: 200 }, (_, i) => ({ id: `pen-${i}`, color: '#334155', width: 3, points: Array.from({ length: 8 }, (_, j) => ({ x: 30 + i % 20 * 24 + j * 2, y: 40 + Math.floor(i / 20) * 22 + j % 3, pressure: .5 })) })) };
-      const questions = Object.fromEntries([...snapshot.items.keys()].map(qid => [qid, { ...store.get(snapshot, qid), ink }]));
-      store.commit(directory, { formatVersion: 2, questions, historyIndex: [] });
+      for (const qid of snapshot.items.keys()) store.ink.apply(snapshot, qid, { requestId: 'seed-' + qid, expectedInkRevision: 0, ink });
     }
     const samples = [];
     for (let i = 0; i < 32; i++) {
@@ -44,11 +43,11 @@ try {
       samples.push({ ...stages, ...sample, client: performance.now() - started });
     }
     const values = samples.slice(2), bytes = jsonBytes(store.load(directory)).length;
-    rows.push({ scenario: populated ? '50 questions x 200 strokes x 8 points' : 'small state, no ink', stateBytes: bytes,
+    rows.push({ scenario: populated ? '50 questions x 200 strokes x 8 points' : 'small state, no ink', stateBytes: bytes, inkBytes: [...snapshot.items.keys()].reduce((n, qid) => n + (fs.existsSync(store.ink.file(snapshot, qid)) ? fs.statSync(store.ink.file(snapshot, qid)).size : 0), 0),
       metrics: Object.fromEntries(Object.keys(values[0]).map(key => [key, stat(values.map(row => row[key]))])) });
   }
   const result = { machine: { platform: `${os.type()} ${os.release()}`, cpu: os.cpus()[0]?.model, node: process.version }, rows,
-    method: '2 warmups + 30 samples each. Server-Timing exclusive parse/validate+assembly/serialize(state and response)/atomic-write/other. Optional fs wrappers count temporary state-file bytes, fsync and rename without production hooks; no directory fsync in replaceFile. Includes unquantified instrumentation overhead; client is loopback fetch+JSON, not browser. No optimization or storage split.' };
+    method: '2 warmups + 30 samples each. Server-Timing exclusive parse/validate+assembly/serialize(state and response)/atomic-write/other. Optional fs wrappers count temporary persistence-file bytes, fsync and rename without production hooks; no directory fsync in replaceFile. Includes unquantified instrumentation overhead; client is loopback fetch+JSON, not browser. D33 split ink files; choice saves never load ink.' };
   const output = path.join(repo, '.temp/v2-ink-save.json'); fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
 } finally {
   collecting = false; for (const [key, value] of Object.entries(native)) fs[key] = value;
