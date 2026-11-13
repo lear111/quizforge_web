@@ -31,7 +31,7 @@ try {
     const frame = () => page.frameLocator('.v2-question-frame iframe');
     const idle = () => page.waitForFunction(() => document.querySelector('.v2-card')?.getAttribute('aria-busy') === 'false');
     const saved = () => page.locator('.v2-save-status').filter({ hasText: /^已保存$/ }).waitFor();
-    const go = async qid => { if (name === 'mobile') await page.getByRole('button', { name: '大纲', exact: true }).click(); await page.locator(`[data-question-id="${qid}"]`).click(); await idle(); };
+    const go = async qid => { if (await page.locator(`[data-question-id="${qid}"]`).getAttribute('class').then(s => s.includes('active'))) return; if (name === 'mobile') await page.getByRole('button', { name: '大纲', exact: true }).click(); await page.locator(`[data-question-id="${qid}"]`).click(); await idle(); };
     const question = async () => { const opened = await api(base + '/overview'); return api(`${base}/questions/${name === 'desktop' ? '1' : '4'}?snapshotId=${opened.snapshotId}`); };
     async function stroke() {
       const rect = await page.locator('.v2-viewport').boundingBox(); const x = rect.x + rect.width * .35, y = rect.y + Math.min(270, rect.height * .5);
@@ -67,18 +67,18 @@ try {
     await page.getByRole('button', { name: '草稿', exact: true }).click(); await stroke(); await saved();
     await page.screenshot({ path: path.join(output, name + '-draft.png'), fullPage: true });
     q = await question(); assert.deepEqual(q.submission, submission); assert.deepEqual(q.result, result); assert.equal(q.state.answerVersion, answerVersion); assert.deepEqual(q.answer, { selected: 'B' }); assert.equal(q.ink.strokes.length, lockedInk.strokes.length + 1);
-    // Independent position and browser restoration; no automatic first bank for
+    // Per-window browsing position and durable last-answer restoration; no automatic first bank for
     // a new user, but reopening this context recovers bank + question.
-    const positionSaved = page.waitForResponse(r => r.url().endsWith(`${base}/position`) && JSON.parse(r.request().postData()).questionId === other && r.ok());
-    await go(other); await positionSaved; await page.getByRole('button', { name: '返回作答', exact: true }).click();
+    await go(other); await page.getByRole('button', { name: '返回作答', exact: true }).click();
     const selectBank = async title => { if (name === 'mobile') await page.getByRole('button', { name: '题库', exact: true }).click(); await page.locator('.library-item').filter({ hasText: title }).click(); await idle(); };
     await selectBank('合成另一本');
     // Another window changes the durable cursor; this window still remembers
-    // where it left this bank, independently of that other window's cursor.
-    await api(base + '/position', { questionId: qid }, 'PUT');
+    // where it left this bank, independently of that other window's last answer.
+    const otherWindow = await question();
+    await api(base + `/questions/${qid}/draft`, { snapshotId: otherWindow.snapshotId, requestId: 'other-window-' + name, expectedRevision: otherWindow.state.revision, draft: 'other window notes' }, 'PUT');
     await selectBank(bank.title);
     assert.equal(await page.locator(`[data-question-id="${other}"]`).getAttribute('class').then(s => s.includes('active')), true);
-    await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), other);
+    await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), qid);
     await go(qid); await page.getByRole('button', { name: '重做', exact: true }).click(); await idle();
     q = await question(); assert.equal(q.answer, null); assert.equal(q.ink, null); assert.equal(q.submission, null); assert.equal(q.result, null);
     // Explicit refresh keeps a surviving current question; a removed one falls

@@ -1,0 +1,660 @@
+{
+  "method": "Synthetic data only; details and limitations in V2-SEG2-STORAGE.md.",
+  "baselineCommit": "9eec2e0",
+  "saveDiagnostic": {
+    "before": {
+      "exclusive": {
+        "library.snapshot": {
+          "median": 0.007200000000125328,
+          "p95": 0.009500000000116415
+        },
+        "library.snapshot.calls": {
+          "median": 3,
+          "p95": 3
+        },
+        "library.resolution": {
+          "median": 0.0036000000000058208,
+          "p95": 0.0053999999997813575
+        },
+        "library.resolution.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "state.file": {
+          "median": 9.01260000000002,
+          "p95": 12.529700000000503
+        },
+        "state.file.calls": {
+          "median": 9,
+          "p95": 9
+        },
+        "state.load": {
+          "median": 0.15059999999971296,
+          "p95": 0.3264000000000351
+        },
+        "state.load.calls": {
+          "median": 8,
+          "p95": 8
+        },
+        "state.get": {
+          "median": 0.04849999999987631,
+          "p95": 0.08029999999985193
+        },
+        "state.get.calls": {
+          "median": 7,
+          "p95": 7
+        },
+        "library.visibleAssets": {
+          "median": 0.03449999999975262,
+          "p95": 0.07119999999986248
+        },
+        "library.visibleAssets.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "library.state": {
+          "median": 0.017700000000331784,
+          "p95": 0.054600000000050386
+        },
+        "library.state.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "library.question": {
+          "median": 0.7417000000004919,
+          "p95": 1.0419999999998026
+        },
+        "library.question.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "state.freeze": {
+          "median": 0.034799999999904685,
+          "p95": 0.11779999999998836
+        },
+        "state.freeze.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "state.commit": {
+          "median": 5.084800000000087,
+          "p95": 6.974100000000135
+        },
+        "state.commit.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "state.apply": {
+          "median": 0.35149999999998727,
+          "p95": 0.5670000000000073
+        },
+        "state.apply.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "validate.other": {
+          "median": 1.1946999999995427,
+          "p95": 1.6778999999996884
+        }
+      },
+      "timings": [
+        "parse;dur=0.135, validate;dur=14.258, serialize;dur=0.244, write;dur=5.936, other;dur=0.704, total;dur=21.276",
+        "parse;dur=0.143, validate;dur=19.827, serialize;dur=0.223, write;dur=8.158, other;dur=0.796, total;dur=29.146",
+        "parse;dur=0.102, validate;dur=14.558, serialize;dur=0.193, write;dur=5.242, other;dur=0.532, total;dur=20.627",
+        "parse;dur=0.120, validate;dur=13.587, serialize;dur=0.214, write;dur=5.957, other;dur=0.528, total;dur=20.406",
+        "parse;dur=0.111, validate;dur=14.458, serialize;dur=0.316, write;dur=6.815, other;dur=0.390, total;dur=22.090",
+        "parse;dur=0.099, validate;dur=13.565, serialize;dur=0.211, write;dur=6.758, other;dur=0.466, total;dur=21.099",
+        "parse;dur=0.166, validate;dur=12.520, serialize;dur=0.174, write;dur=5.724, other;dur=0.438, total;dur=19.021",
+        "parse;dur=0.088, validate;dur=12.372, serialize;dur=0.201, write;dur=5.140, other;dur=0.389, total;dur=18.190",
+        "parse;dur=0.092, validate;dur=14.279, serialize;dur=0.200, write;dur=5.363, other;dur=0.475, total;dur=20.409",
+        "parse;dur=0.094, validate;dur=11.595, serialize;dur=0.256, write;dur=4.893, other;dur=0.455, total;dur=17.292",
+        "parse;dur=0.141, validate;dur=11.504, serialize;dur=0.235, write;dur=5.144, other;dur=0.645, total;dur=17.668",
+        "parse;dur=0.093, validate;dur=11.740, serialize;dur=0.212, write;dur=5.869, other;dur=0.593, total;dur=18.507",
+        "parse;dur=0.100, validate;dur=10.282, serialize;dur=0.248, write;dur=4.664, other;dur=0.474, total;dur=15.768",
+        "parse;dur=0.085, validate;dur=11.752, serialize;dur=0.199, write;dur=4.417, other;dur=0.410, total;dur=16.863",
+        "parse;dur=0.119, validate;dur=11.628, serialize;dur=0.192, write;dur=4.619, other;dur=0.440, total;dur=16.997",
+        "parse;dur=0.096, validate;dur=14.597, serialize;dur=0.185, write;dur=6.190, other;dur=0.724, total;dur=21.792",
+        "parse;dur=0.091, validate;dur=10.592, serialize;dur=0.204, write;dur=5.061, other;dur=0.451, total;dur=16.398",
+        "parse;dur=0.088, validate;dur=10.259, serialize;dur=0.198, write;dur=4.228, other;dur=0.491, total;dur=15.264",
+        "parse;dur=0.097, validate;dur=10.553, serialize;dur=0.218, write;dur=5.961, other;dur=0.431, total;dur=17.260",
+        "parse;dur=0.093, validate;dur=9.375, serialize;dur=0.256, write;dur=4.982, other;dur=0.383, total;dur=15.089",
+        "parse;dur=0.089, validate;dur=8.628, serialize;dur=0.178, write;dur=4.577, other;dur=0.370, total;dur=13.842",
+        "parse;dur=0.092, validate;dur=8.762, serialize;dur=0.177, write;dur=4.815, other;dur=0.471, total;dur=14.316",
+        "parse;dur=0.095, validate;dur=10.404, serialize;dur=0.294, write;dur=4.144, other;dur=0.556, total;dur=15.494",
+        "parse;dur=0.113, validate;dur=10.009, serialize;dur=0.178, write;dur=4.586, other;dur=0.577, total;dur=15.464",
+        "parse;dur=0.163, validate;dur=9.439, serialize;dur=0.196, write;dur=4.917, other;dur=0.442, total;dur=15.157",
+        "parse;dur=0.081, validate;dur=8.910, serialize;dur=0.184, write;dur=4.572, other;dur=0.357, total;dur=14.104",
+        "parse;dur=0.103, validate;dur=8.609, serialize;dur=0.170, write;dur=4.365, other;dur=0.372, total;dur=13.619",
+        "parse;dur=0.077, validate;dur=10.265, serialize;dur=0.211, write;dur=4.780, other;dur=0.336, total;dur=15.669",
+        "parse;dur=0.077, validate;dur=10.065, serialize;dur=0.404, write;dur=4.178, other;dur=0.413, total;dur=15.137",
+        "parse;dur=0.084, validate;dur=9.499, serialize;dur=0.175, write;dur=5.190, other;dur=0.439, total;dur=15.387"
+      ]
+    },
+    "after": {
+      "exclusive": {
+        "library.snapshot": {
+          "median": 0.009900000000016007,
+          "p95": 0.018499999999903594
+        },
+        "library.snapshot.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "library.resolution": {
+          "median": 0.002900000000181535,
+          "p95": 0.00379999999984193
+        },
+        "library.resolution.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "state.load": {
+          "median": 0.1879999999998745,
+          "p95": 0.2686999999998534
+        },
+        "state.load.calls": {
+          "median": 6,
+          "p95": 6
+        },
+        "state.get": {
+          "median": 0.03360000000009222,
+          "p95": 0.08320000000003347
+        },
+        "state.get.calls": {
+          "median": 5,
+          "p95": 5
+        },
+        "library.visibleAssets": {
+          "median": 0.03360000000009222,
+          "p95": 0.056500000000028194
+        },
+        "library.visibleAssets.calls": {
+          "median": 2,
+          "p95": 2
+        },
+        "state.file": {
+          "median": 0.9279000000001361,
+          "p95": 1.3156000000000176
+        },
+        "state.file.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "state.freeze": {
+          "median": 0.03489999999999327,
+          "p95": 0.07110000000000127
+        },
+        "state.freeze.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "state.commit": {
+          "median": 5.7154000000002725,
+          "p95": 6.400300000000129
+        },
+        "state.commit.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "state.apply": {
+          "median": 0.28920000000016444,
+          "p95": 0.47840000000019245
+        },
+        "state.apply.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "library.state": {
+          "median": 0.07929999999998927,
+          "p95": 0.12000000000000455
+        },
+        "library.state.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "library.question": {
+          "median": 0.4073000000000775,
+          "p95": 0.5494000000001051
+        },
+        "library.question.calls": {
+          "median": 1,
+          "p95": 1
+        },
+        "validate.other": {
+          "median": 0.8819000000001131,
+          "p95": 1.2679999999999008
+        }
+      },
+      "timings": [
+        "parse;dur=0.201, validate;dur=2.913, serialize;dur=0.194, write;dur=5.520, other;dur=0.592, total;dur=9.421",
+        "parse;dur=0.139, validate;dur=3.259, serialize;dur=0.252, write;dur=5.924, other;dur=1.072, total;dur=10.646",
+        "parse;dur=0.118, validate;dur=2.598, serialize;dur=0.221, write;dur=6.165, other;dur=0.621, total;dur=9.723",
+        "parse;dur=0.091, validate;dur=2.456, serialize;dur=0.225, write;dur=6.149, other;dur=0.464, total;dur=9.384",
+        "parse;dur=0.126, validate;dur=2.291, serialize;dur=0.167, write;dur=5.761, other;dur=0.449, total;dur=8.795",
+        "parse;dur=0.133, validate;dur=2.304, serialize;dur=0.153, write;dur=5.614, other;dur=0.434, total;dur=8.639",
+        "parse;dur=0.095, validate;dur=2.284, serialize;dur=0.210, write;dur=6.284, other;dur=0.466, total;dur=9.340",
+        "parse;dur=0.090, validate;dur=2.265, serialize;dur=0.386, write;dur=5.708, other;dur=0.421, total;dur=8.870",
+        "parse;dur=0.096, validate;dur=2.241, serialize;dur=0.174, write;dur=4.827, other;dur=0.452, total;dur=7.790",
+        "parse;dur=0.105, validate;dur=2.146, serialize;dur=0.193, write;dur=5.683, other;dur=0.445, total;dur=8.571",
+        "parse;dur=0.131, validate;dur=2.252, serialize;dur=0.156, write;dur=5.344, other;dur=0.758, total;dur=8.642",
+        "parse;dur=0.089, validate;dur=2.401, serialize;dur=0.164, write;dur=7.168, other;dur=0.418, total;dur=10.240",
+        "parse;dur=0.092, validate;dur=2.422, serialize;dur=0.178, write;dur=5.865, other;dur=0.442, total;dur=8.999",
+        "parse;dur=0.103, validate;dur=2.322, serialize;dur=0.167, write;dur=6.049, other;dur=0.459, total;dur=9.101",
+        "parse;dur=0.138, validate;dur=1.968, serialize;dur=0.179, write;dur=5.272, other;dur=0.475, total;dur=8.032",
+        "parse;dur=0.087, validate;dur=2.443, serialize;dur=0.283, write;dur=5.349, other;dur=0.461, total;dur=8.624",
+        "parse;dur=0.090, validate;dur=1.995, serialize;dur=0.192, write;dur=5.713, other;dur=0.409, total;dur=8.398",
+        "parse;dur=0.089, validate;dur=2.493, serialize;dur=0.237, write;dur=5.588, other;dur=0.612, total;dur=9.018",
+        "parse;dur=0.106, validate;dur=2.211, serialize;dur=0.201, write;dur=5.797, other;dur=0.385, total;dur=8.700",
+        "parse;dur=0.100, validate;dur=2.111, serialize;dur=0.169, write;dur=5.614, other;dur=0.371, total;dur=8.364",
+        "parse;dur=0.096, validate;dur=2.040, serialize;dur=0.155, write;dur=5.432, other;dur=0.395, total;dur=8.117",
+        "parse;dur=0.089, validate;dur=2.098, serialize;dur=0.216, write;dur=4.361, other;dur=0.382, total;dur=7.146",
+        "parse;dur=0.085, validate;dur=2.097, serialize;dur=0.168, write;dur=5.011, other;dur=0.452, total;dur=7.813",
+        "parse;dur=0.079, validate;dur=1.742, serialize;dur=0.148, write;dur=4.930, other;dur=0.371, total;dur=7.270",
+        "parse;dur=0.079, validate;dur=2.148, serialize;dur=0.142, write;dur=5.611, other;dur=0.380, total;dur=8.359",
+        "parse;dur=0.109, validate;dur=1.885, serialize;dur=0.156, write;dur=4.868, other;dur=0.487, total;dur=7.505",
+        "parse;dur=0.103, validate;dur=1.937, serialize;dur=0.184, write;dur=4.764, other;dur=0.390, total;dur=7.378",
+        "parse;dur=0.068, validate;dur=1.572, serialize;dur=0.153, write;dur=5.254, other;dur=0.315, total;dur=7.362",
+        "parse;dur=0.100, validate;dur=1.714, serialize;dur=0.143, write;dur=5.024, other;dur=0.390, total;dur=7.372",
+        "parse;dur=0.079, validate;dur=2.835, serialize;dur=0.184, write;dur=5.352, other;dur=0.377, total;dur=8.827"
+      ]
+    }
+  },
+  "serialization": {
+    "before": {
+      "bytes": 3276903,
+      "raw-custom": {
+        "median": 255.54389999999967,
+        "p95": 352.9224000000013
+      },
+      "numeric-frozen-custom": {
+        "median": 296.1692000000003,
+        "p95": 391.3237000000008
+      },
+      "native": {
+        "median": 29.344199999999546,
+        "p95": 39.75460000000021
+      }
+    },
+    "after": {
+      "bytes": 3276903,
+      "raw-custom": {
+        "median": 207.03069999999934,
+        "p95": 268.90020000000004
+      },
+      "numeric-frozen-custom": {
+        "median": 233.2474000000002,
+        "p95": 306.39010000000053
+      },
+      "native": {
+        "median": 38.14579999999842,
+        "p95": 50.278300000001764
+      }
+    }
+  },
+  "choiceSave": {
+    "machine": {
+      "platform": "Windows_NT 10.0.26200",
+      "cpu": "13th Gen Intel(R) Core(TM) i5-13500H",
+      "node": "v24.13.0"
+    },
+    "rows": [
+      {
+        "scenario": "small state, no ink",
+        "stateBytes": 887,
+        "inkBytes": 0,
+        "metrics": {
+          "parse": {
+            "n": 30,
+            "median": 0.094,
+            "p95": 0.148
+          },
+          "validate": {
+            "n": 30,
+            "median": 1.921,
+            "p95": 2.66
+          },
+          "serialize": {
+            "n": 30,
+            "median": 0.177,
+            "p95": 0.345
+          },
+          "write": {
+            "n": 30,
+            "median": 5.045,
+            "p95": 6.104
+          },
+          "other": {
+            "n": 30,
+            "median": 0.456,
+            "p95": 0.756
+          },
+          "total": {
+            "n": 30,
+            "median": 7.947,
+            "p95": 9.575
+          },
+          "files": {
+            "n": 30,
+            "median": 1,
+            "p95": 1
+          },
+          "bytes": {
+            "n": 30,
+            "median": 887,
+            "p95": 887
+          },
+          "fileWrite": {
+            "n": 30,
+            "median": 0.2261999999999489,
+            "p95": 0.31569999999999254
+          },
+          "fsyncs": {
+            "n": 30,
+            "median": 1,
+            "p95": 1
+          },
+          "fsync": {
+            "n": 30,
+            "median": 0.7638999999999214,
+            "p95": 1.1369999999999436
+          },
+          "rename": {
+            "n": 30,
+            "median": 1.2980000000000018,
+            "p95": 1.6105999999999767
+          },
+          "client": {
+            "n": 30,
+            "median": 10.879000000000019,
+            "p95": 14.947299999999927
+          }
+        }
+      },
+      {
+        "scenario": "50 questions x 200 strokes x 8 points",
+        "stateBytes": 887,
+        "inkBytes": 3171082,
+        "metrics": {
+          "parse": {
+            "n": 30,
+            "median": 0.108,
+            "p95": 0.226
+          },
+          "validate": {
+            "n": 30,
+            "median": 2.193,
+            "p95": 2.859
+          },
+          "serialize": {
+            "n": 30,
+            "median": 0.201,
+            "p95": 0.346
+          },
+          "write": {
+            "n": 30,
+            "median": 6.741,
+            "p95": 8.6
+          },
+          "other": {
+            "n": 30,
+            "median": 0.487,
+            "p95": 0.898
+          },
+          "total": {
+            "n": 30,
+            "median": 9.885,
+            "p95": 12.505
+          },
+          "files": {
+            "n": 30,
+            "median": 1,
+            "p95": 1
+          },
+          "bytes": {
+            "n": 30,
+            "median": 887,
+            "p95": 887
+          },
+          "fileWrite": {
+            "n": 30,
+            "median": 0.2948999999998705,
+            "p95": 0.43580000000019936
+          },
+          "fsyncs": {
+            "n": 30,
+            "median": 1,
+            "p95": 1
+          },
+          "fsync": {
+            "n": 30,
+            "median": 0.8910000000000764,
+            "p95": 1.424699999999575
+          },
+          "rename": {
+            "n": 30,
+            "median": 1.8408999999996922,
+            "p95": 2.5435999999999694
+          },
+          "client": {
+            "n": 30,
+            "median": 13.114199999999983,
+            "p95": 16.04029999999966
+          }
+        }
+      }
+    ],
+    "method": "2 warmups + 30 samples each. Server-Timing exclusive parse/validate+assembly/serialize(state and response)/atomic-write/other. Optional fs wrappers count temporary persistence-file bytes, fsync and rename without production hooks; no directory fsync in replaceFile. Includes unquantified instrumentation overhead; client is loopback fetch+JSON, not browser. D33 split ink files; choice saves never load ink."
+  },
+  "bankReturn": {
+    "machine": {
+      "system": "Windows_NT 10.0.26200",
+      "node": "v24.13.0",
+      "cpu": "13th Gen Intel(R) Core(TM) i5-13500H",
+      "browser": "157.0.8103.39"
+    },
+    "results": [
+      {
+        "name": "desktop",
+        "total": {
+          "n": 30,
+          "median": 157.89999985694885,
+          "p95": 190.19999980926514
+        },
+        "resources": {
+          "type/SDK": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 5,
+              "p95": 5
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 50.10000014305115,
+              "p95": 62.60000014305115
+            },
+            "cacheHits": 0
+          },
+          "image": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 1,
+              "p95": 1
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 8.899999856948853,
+              "p95": 11.199999809265137
+            },
+            "cacheHits": 0
+          },
+          "overview/question": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 1,
+              "p95": 1
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 65.5,
+              "p95": 82.29999995231628
+            },
+            "cacheHits": 0
+          }
+        },
+        "waterfall": [
+          {
+            "kind": "overview/question",
+            "start": 1.4000000953674316,
+            "duration": 68.79999995231628,
+            "bytes": 3260,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 73.10000014305115,
+            "duration": 2.8999998569488525,
+            "bytes": 684,
+            "cacheHit": false
+          },
+          {
+            "kind": "image",
+            "start": 73.40000009536743,
+            "duration": 8.399999856948853,
+            "bytes": 368,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 78.29999995231628,
+            "duration": 8.700000047683716,
+            "bytes": 6905,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 78.60000014305115,
+            "duration": 10.199999809265137,
+            "bytes": 469,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 79.10000014305115,
+            "duration": 11,
+            "bytes": 1478,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 79.5,
+            "duration": 12.400000095367432,
+            "bytes": 852,
+            "cacheHit": false
+          }
+        ]
+      },
+      {
+        "name": "mobile",
+        "total": {
+          "n": 30,
+          "median": 141.90000009536743,
+          "p95": 182.09999990463257
+        },
+        "resources": {
+          "type/SDK": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 5,
+              "p95": 5
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 42.40000009536743,
+              "p95": 53.700000047683716
+            },
+            "cacheHits": 0
+          },
+          "image": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 1,
+              "p95": 1
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 7.6000001430511475,
+              "p95": 10.5
+            },
+            "cacheHits": 0
+          },
+          "overview/question": {
+            "countPerReturn": {
+              "n": 30,
+              "median": 1,
+              "p95": 1
+            },
+            "summedDuration": {
+              "n": 30,
+              "median": 57.90000009536743,
+              "p95": 85.09999990463257
+            },
+            "cacheHits": 0
+          }
+        },
+        "waterfall": [
+          {
+            "kind": "overview/question",
+            "start": 1.3999998569488525,
+            "duration": 157.70000004768372,
+            "bytes": 3260,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 162,
+            "duration": 3.1999998092651367,
+            "bytes": 684,
+            "cacheHit": false
+          },
+          {
+            "kind": "image",
+            "start": 162.39999985694885,
+            "duration": 9.799999952316284,
+            "bytes": 368,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 167.09999990463257,
+            "duration": 9,
+            "bytes": 6905,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 167.19999980926514,
+            "duration": 10.900000095367432,
+            "bytes": 469,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 167.39999985694885,
+            "duration": 12.900000095367432,
+            "bytes": 1478,
+            "cacheHit": false
+          },
+          {
+            "kind": "type/SDK",
+            "start": 167.5,
+            "duration": 14.299999952316284,
+            "bytes": 852,
+            "cacheHit": false
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "method": "2 warmups + 30 returns from B to already-opened A (3 questions, 1 image). Actual DOM click to new iframe ready/host busy=false and next animation frame, both timed inside the browser. Radio enabled and image decoded are asserted after each sample. Resource durations overlap and must not be summed into total. No browser cache implementation. Synthetic small banks, not real mobile hardware."
+  }
+}

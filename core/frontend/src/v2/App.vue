@@ -15,8 +15,8 @@ import type { Picture } from './page';
 const props = defineProps<{ nonce: string }>();
 interface State { questionId: string; revision: number; resultRevision: number; status: string; locked: boolean; score: number | null; maxScore: number }
 interface Item { id: string; label?: string; maxScore?: number; parts?: { id: string; label: string; maxScore: number }[] }
-interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; draft: unknown; ink: unknown; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
-interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
+interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; draft: unknown; ink: unknown; inkRevision: number; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
+interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; notice?: string | null; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
 const typeName = ref('题目'), saveStatus = ref('');
@@ -27,11 +27,10 @@ const queue = createWriteQueue();
 const enqueue = queue.enqueue;
 const LAST_BANK = 'quizforge.v2.last-bank';
 const lastQuestions = new Map<string, string>();
-let positions: Promise<unknown> = Promise.resolve();
 function remember(q: Question) {
-  lastQuestions.set(q.bankId, q.questionId);
-  try { localStorage.setItem(LAST_BANK, q.bankId); } catch { /* Storage disabled: server position still works. */ }
-  positions = positions.catch(() => {}).then(() => json(`/api/v2/banks/${q.bankId}/position`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: q.questionId }) })).catch(error => { message.value = error instanceof Error ? error.message : '上次位置未能保存。'; });
+  lastQuestions.delete(q.bankId); lastQuestions.set(q.bankId, q.questionId);
+  while (lastQuestions.size > 8) lastQuestions.delete(lastQuestions.keys().next().value!);
+  try { localStorage.setItem(LAST_BANK, q.bankId); } catch { /* Storage disabled: last answered position still works. */ }
 }
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
 let saver: ReturnType<typeof createSaveController<Record<string, unknown>>> | null = null;
@@ -50,7 +49,7 @@ const outlineModel = computed<OutlineModel>(() => ({ summaryAvailable: false, su
   const state = overview.value?.states.find(s => s.questionId === item.id), status = state?.status === 'graded' ? (state.score === state.maxScore ? 'correct' : 'incorrect') : state?.locked ? 'pending' : 'unanswered';
   return (item.parts ?? [{ id: null, label: item.label ?? item.id }]).map(part => ({ key: `${item.id}:${part.id}`, questionId: item.id, itemId: part.id, label: part.label, status, active: current.value?.questionId === item.id, title: `第 ${part.label} 题`, ariaLabel: `第 ${part.label} 题` }));
 }) })) }));
-function update(q: Question) { current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s); }
+function update(q: Question) { if (!Object.hasOwn(q, 'ink') && current.value?.bankId === q.bankId && current.value.questionId === q.questionId) q = { ...q, ink: current.value.ink, inkRevision: current.value.inkRevision }; current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s); }
 const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, draft: q.draft, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked }; };
 async function pictures(q: Question, has: (id: string) => boolean = () => false): Promise<Picture[]> {
   const references = new Set<string>();
@@ -140,7 +139,7 @@ async function show(q: Question, resume = true) {
       const fields = value.fields as Record<string, unknown>, av = value.av as number, iv = value.iv as number;
       const operation = (kind: string, fields: Record<string, unknown>, done: () => void) => queue.prepare(() => {
         const active = current.value!;
-        return { route: base(active) + '/' + kind, body: JSON.stringify({ requestId: requestId(), snapshotId: active.snapshotId, expectedRevision: active.state.revision, ...fields }) };
+        return { route: base(active) + '/' + kind, body: JSON.stringify({ requestId: requestId(), snapshotId: active.snapshotId, ...(kind === 'ink' ? { expectedInkRevision: active.inkRevision } : { expectedRevision: active.state.revision }), ...fields }) };
       }, (route, body) => json(route, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }), (saved: Question) => { if (mine === generation) { update(saved); done(); } });
       const answer = Object.keys(fields).length ? operation('draft', fields, () => { savedAnswer = av; }) : async () => { savedAnswer = av; };
       const ink = value.ink !== undefined ? operation('ink', { ink: value.ink }, () => { savedInk = iv; }) : async () => {};
@@ -171,6 +170,7 @@ async function openBank(_kind: string, id?: string) { if (!id) return; await run
   if (initial) {
     try { await show(initial, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) overview.value = previous; throw error; }
   } else { disposePage(); current.value = null; message.value = value.initial.error?.message ?? '题库没有题目。'; }
+  if (value.notice) message.value = value.notice;
   await recoverGrades(value.pendingGrading.flatMap(pending => pending.question ? [pending.question] : []), score, async saved => {
     overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
     if (saved.questionId === current.value?.questionId) { await flush(); if (current.value) await applyContext(current.value); }
@@ -221,6 +221,7 @@ async function refreshBank() { if (!overview.value) return; await run('正在刷
   await flush(); const active = current.value, bank = overview.value!;
   const value: Overview = await json(`/api/v2/banks/${bank.bank.bankId}/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(active ? { questionId: active.questionId } : {}) }) });
   overview.value = value; sources.dispose();
+  if (value.notice) message.value = value.notice;
   if (value.initial.question) await show(value.initial.question); else { disposePage(); current.value = null; scratch?.load(null); }
 }); }
 async function retry() { if (!current.value) return; await run('正在重做', async () => {

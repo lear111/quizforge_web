@@ -23,14 +23,14 @@ async function setup(t) {
 
 test('draft and ink persist opaque JSON without releasing solution, and notes alone do not mark an answer saved', async t => {
   const { write, api, base, snapshotId, store, fixture, file } = await setup(t);
-  let saved = await write('ink', { requestId: 'ink-1', expectedRevision: 0, ink: { strokes: [{ points: [[1, 2]] }] } });
+  let saved = await write('ink', { requestId: 'ink-1', expectedInkRevision: 0, ink: { strokes: [{ points: [[1, 2]] }] } });
   assert.equal(saved.status, 200); assert.equal(saved.value.state.status, 'unanswered'); assert.equal(saved.value.state.hasSavedAnswer, false);
-  saved = await write('draft', { requestId: 'notes', expectedRevision: 1, draft: ['plain', { any: true }] });
+  saved = await write('draft', { requestId: 'notes', expectedRevision: 0, draft: ['plain', { any: true }] });
   assert.equal(saved.status, 200); assert.equal(saved.value.state.answerVersion, 0);
-  saved = await write('draft', { requestId: 'answer', expectedRevision: 2, answer: { arbitrary: [false, 'hello', null] } });
+  saved = await write('draft', { requestId: 'answer', expectedRevision: 1, answer: { arbitrary: [false, 'hello', null] } });
   assert.equal(saved.status, 200); assert.equal(saved.value.state.status, 'drafting'); assert.equal(saved.value.state.hasSavedAnswer, true);
   const version = saved.value.state.answerVersion;
-  const again = await write('draft', { requestId: 'same-answer', expectedRevision: 3, answer: saved.value.answer });
+  const again = await write('draft', { requestId: 'same-answer', expectedRevision: 2, answer: saved.value.answer });
   assert.equal(again.status, 200); assert.equal(again.value.state.answerVersion, version);
   const question = await api(`${base}/questions/1?snapshotId=${snapshotId}`);
   assert.deepEqual(question.value.answer, saved.value.answer); assert.deepEqual(question.value.draft, ['plain', { any: true }]);
@@ -40,12 +40,12 @@ test('draft and ink persist opaque JSON without releasing solution, and notes al
 });
 
 test('raw numeric literals survive answer, draft and ink field patches and later unrelated writes', async t => {
-  const { api, base, snapshotId, file, write } = await setup(t);
+  const { api, base, snapshotId, file, write, store, snapshot } = await setup(t);
   const route = base + '/questions/1';
   assert.equal((await api(route + '/draft', `{"snapshotId":"${snapshotId}","requestId":"n1","expectedRevision":0,"answer":1.0,"draft":2.0}`, 'PUT')).status, 200);
-  assert.equal((await api(route + '/ink', `{"snapshotId":"${snapshotId}","requestId":"n2","expectedRevision":1,"ink":3.0}`, 'PUT')).status, 200);
-  assert.equal((await write('draft', { requestId: 'n3', expectedRevision: 2, draft: null })).status, 200);
-  assert.match(fs.readFileSync(file, 'utf8'), /"answer":1\.0/); assert.match(fs.readFileSync(file, 'utf8'), /"ink":3\.0/);
+  assert.equal((await api(route + '/ink', `{"snapshotId":"${snapshotId}","requestId":"n2","expectedInkRevision":0,"ink":3.0}`, 'PUT')).status, 200);
+  assert.equal((await write('draft', { requestId: 'n3', expectedRevision: 1, draft: null })).status, 200);
+  assert.match(fs.readFileSync(file, 'utf8'), /"answer":1\.0/); assert.match(fs.readFileSync(store.ink.file(snapshot, '1'), 'utf8'), /"ink":3\.0/); assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /"ink"/);
 });
 
 test('locked ink and non-answer notes preserve answer version, credential and score; answer patches remain forbidden', async t => {
@@ -53,14 +53,14 @@ test('locked ink and non-answer notes preserve answer version, credential and sc
   const locked = await write('submit', { requestId: 's', expectedRevision: 0, answer: { selected: '乙' } });
   const graded = await write('result', { requestId: 'g', submission: locked.value.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 2 } });
   assert.equal(graded.status, 200);
-  const ink = await write('ink', { requestId: 'i', expectedRevision: 2, ink: { strokes: [1, 2] } }); assert.equal(ink.status, 200);
-  const notes = await write('draft', { requestId: 'd', expectedRevision: 3, draft: 'post-submit notes' }); assert.equal(notes.status, 200);
+  const ink = await write('ink', { requestId: 'i', expectedInkRevision: 0, ink: { strokes: [1, 2] } }); assert.equal(ink.status, 200);
+  const notes = await write('draft', { requestId: 'd', expectedRevision: 2, draft: 'post-submit notes' }); assert.equal(notes.status, 200);
   for (const value of [ink.value, notes.value]) {
     assert.deepEqual(value.answer, graded.value.answer); assert.deepEqual(value.submission, graded.value.submission); assert.deepEqual(value.result, graded.value.result);
     assert.equal(value.state.answerVersion, graded.value.state.answerVersion); assert.equal(value.state.resultRevision, graded.value.state.resultRevision); assert.equal(value.state.status, 'graded');
   }
-  for (const answer of [null, graded.value.answer, {}]) assert.equal((await write('draft', { requestId: 'bad', expectedRevision: 4, answer })).value.error.code, 'ANSWER_LOCKED');
-  assert.equal(notes.value.state.revision, 4);
+  for (const answer of [null, graded.value.answer, {}]) assert.equal((await write('draft', { requestId: 'bad', expectedRevision: 3, answer })).value.error.code, 'ANSWER_LOCKED');
+  assert.equal(notes.value.state.revision, 3);
 });
 
 test('retry clears active content and prior receipts while keeping versions monotonic and rejecting old submissions/results', async t => {
@@ -68,13 +68,13 @@ test('retry clears active content and prior receipts while keeping versions mono
   const seed = store.load(snapshot.directory); store.commit(snapshot.directory, { ...seed, historyIndex: [{ id: 'immutable-history' }] });
   const draftInput = { requestId: 'd', expectedRevision: 0, answer: { selected: '乙' }, draft: 'notes' };
   assert.equal((await write('draft', draftInput)).status, 200);
-  assert.equal((await write('ink', { requestId: 'i', expectedRevision: 1, ink: 'ink' })).status, 200);
-  const submission = { requestId: 's', expectedRevision: 2, answer: { selected: '乙' } };
+  assert.equal((await write('ink', { requestId: 'i', expectedInkRevision: 0, ink: 'ink' })).status, 200);
+  const submission = { requestId: 's', expectedRevision: 1, answer: { selected: '乙' } };
   const locked = await write('submit', submission); assert.equal(locked.status, 200);
   const grading = { requestId: 'r', submission: locked.value.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 2 } };
   assert.equal((await write('result', grading)).status, 200);
-  const redo = { requestId: 'retry', expectedRevision: 4 }, retry = await write('retry', redo); assert.equal(retry.status, 200);
-  assert.equal(retry.value.state.status, 'unanswered'); assert.equal(retry.value.state.hasSavedAnswer, false); assert.equal(retry.value.state.revision, 5);
+  const redo = { requestId: 'retry', expectedRevision: 3 }, retry = await write('retry', redo); assert.equal(retry.status, 200);
+  assert.equal(retry.value.state.status, 'unanswered'); assert.equal(retry.value.state.hasSavedAnswer, false); assert.equal(retry.value.state.revision, 4);
   assert.ok(retry.value.state.answerVersion >= locked.value.state.answerVersion);
   for (const key of ['answer', 'draft', 'ink', 'submission', 'result', 'solution']) assert.equal(retry.value[key], null);
   assert.doesNotMatch(retry.text, new RegExp(SOLUTION_MARKER));
@@ -105,27 +105,29 @@ test('100 sequential saves retain only four FIFO receipts and bounded state byte
 test('numeric request IDs follow write order, not JavaScript integer-key enumeration', async t => {
   const { write, store, snapshot } = await setup(t);
   const ids = ['9', '1', '8', '2', '7'];
-  for (let i = 0; i < ids.length; i++) assert.equal((await write('ink', { requestId: ids[i], expectedRevision: i, ink: [i] })).status, 200);
-  assert.deepEqual(store.get(snapshot, '1').receiptOrder, ['1', '8', '2', '7']);
-  assert.equal((await write('ink', { requestId: '9', expectedRevision: 0, ink: [0] })).value.error.code, 'REVISION_CONFLICT');
-  assert.equal((await write('ink', { requestId: '8', expectedRevision: 2, ink: [2] })).status, 200);
+  for (let i = 0; i < ids.length; i++) assert.equal((await write('ink', { requestId: ids[i], expectedInkRevision: i, ink: [i] })).status, 200);
+  assert.deepEqual(store.ink.read(snapshot, '1').receiptOrder, ['1', '8', '2', '7']);
+  assert.equal((await write('ink', { requestId: '9', expectedInkRevision: 0, ink: [0] })).value.error.code, 'REVISION_CONFLICT');
+  assert.equal((await write('ink', { requestId: '8', expectedInkRevision: 2, ink: [2] })).status, 200);
 });
 
-test('the four-receipt pool is shared by saves, submit and scores; retry revokes old grading even after resubmission', async t => {
+test('answer receipts are independent of ink receipts; retry revokes old grading even after resubmission', async t => {
   const { write, store, snapshot } = await setup(t);
   await write('draft', { requestId: 'd', expectedRevision: 0, answer: 'choice' });
-  await write('ink', { requestId: 'i', expectedRevision: 1, ink: [1] });
-  const locked = await write('submit', { requestId: 's', expectedRevision: 2, answer: 'choice' });
+  await write('ink', { requestId: 'i', expectedInkRevision: 0, ink: [1] });
+  const locked = await write('submit', { requestId: 's', expectedRevision: 1, answer: 'choice' });
   const score = { requestId: 'r', submission: locked.value.submission, expectedResultRevision: 0, source: 'grader', result: { status: 'graded', score: 2 } };
   await write('result', score);
-  assert.deepEqual(store.get(snapshot, '1').receiptOrder, ['d', 'i', 's', 'r']);
-  await write('draft', { requestId: 'notes', expectedRevision: 4, draft: 'notes' });
-  assert.deepEqual(store.get(snapshot, '1').receiptOrder, ['i', 's', 'r', 'notes']);
-  for (let i = 0; i < 4; i++) assert.equal((await write('ink', { requestId: 'later-' + i, expectedRevision: 5 + i, ink: [i] })).status, 200);
+  assert.deepEqual(store.get(snapshot, '1').receiptOrder, ['d', 's', 'r']);
+  await write('draft', { requestId: 'notes', expectedRevision: 3, draft: 'notes' });
+  assert.deepEqual(store.get(snapshot, '1').receiptOrder, ['d', 's', 'r', 'notes']);
+  for (let i = 0; i < 4; i++) assert.equal((await write('ink', { requestId: 'later-' + i, expectedInkRevision: 1 + i, ink: [i] })).status, 200);
+  assert.equal(Object.hasOwn(store.get(snapshot, '1').receipts, 'r'), true);
+  for (let i = 0; i < 4; i++) assert.equal((await write('draft', { requestId: 'notes-' + i, expectedRevision: 4 + i, draft: String(i) })).status, 200);
   assert.equal(Object.hasOwn(store.get(snapshot, '1').receipts, 'r'), false);
   assert.equal((await write('result', score)).value.error.code, 'RESULT_CONFLICT');
-  await write('retry', { requestId: 'redo', expectedRevision: 9 });
-  const second = await write('submit', { requestId: 's2', expectedRevision: 10, answer: 'new' });
+  await write('retry', { requestId: 'redo', expectedRevision: 8 });
+  const second = await write('submit', { requestId: 's2', expectedRevision: 9, answer: 'new' });
   assert.equal(second.status, 200); assert.notDeepEqual(second.value.submission, locked.value.submission);
   assert.equal((await write('result', score)).value.error.code, 'SUBMISSION_STALE');
   assert.equal(store.get(snapshot, '1').result, null);
@@ -147,12 +149,12 @@ test('failed draft/ink/retry commits preserve old immutable graph, disk and rece
   const { store, snapshot, write, file } = await setup(t);
   assert.equal((await write('draft', { requestId: 'seed', expectedRevision: 0, answer: { nested: [1] } })).status, 200);
   for (const [op, fields] of [['draft', { answer: { nested: [2] } }], ['ink', { ink: { points: [1, 2] } }], ['retry', {}]]) {
-    const old = store.load(snapshot.directory), before = jsonBytes(old), bytes = fs.readFileSync(file), originalWrite = store.write;
-    const request = { requestId: op, expectedRevision: store.get(snapshot, '1').revision, ...fields };
-    store.write = () => { throw new Error('synthetic failure'); };
+    const old = store.load(snapshot.directory), before = jsonBytes(old), bytes = fs.readFileSync(file), writer = op === 'ink' ? store.ink : store, originalWrite = writer.write;
+    const request = { requestId: op, ...(op === 'ink' ? { expectedInkRevision: store.ink.read(snapshot, '1').inkRevision } : { expectedRevision: store.get(snapshot, '1').revision }), ...fields };
+    writer.write = () => { throw new Error('synthetic failure'); };
     const failed = await write(op, request); assert.equal(failed.value.error.code, 'STATE_WRITE_FAILED');
     assert.equal(store.load(snapshot.directory), old); assert.ok(jsonBytes(old).equals(before)); assert.ok(fs.readFileSync(file).equals(bytes));
-    store.write = originalWrite; assert.equal((await write(op, request)).status, 200);
+    writer.write = originalWrite; assert.equal((await write(op, request)).status, 200);
     assert.ok(jsonBytes(old).equals(before)); assert.ok(Object.isFrozen(store.get(snapshot, '1').receipts));
   }
 });
@@ -216,7 +218,7 @@ test('explicit refresh rechecks state and content, reports changes, keeps reques
   fixture.bank.questions['1'].solution.explanation = 'new solution'; writeFixtureFile(fixture.bankFile, fixture.bank);
   const refreshed = await api(base + '/refresh', { expectedSnapshotId: snapshotId, questionId: '3' }, 'POST');
   assert.equal(refreshed.status, 200); assert.equal(refreshed.value.initial.question.questionId, '3');
-  assert.deepEqual(refreshed.value.changes.clearedQuestionIds, ['1']); assert.equal(refreshed.value.states[0].status, 'unanswered');
+  assert.deepEqual(refreshed.value.changes.activeCleared, true); assert.equal(refreshed.value.states[0].status, 'unanswered');
   assert.doesNotMatch(refreshed.text, /new solution/);
   assert.equal((await api(base + '/refresh', { expectedSnapshotId: snapshotId }, 'POST')).value.error.code, 'SNAPSHOT_STALE');
   assert.equal((await write('draft', { requestId: 'old', expectedRevision: 1, answer: 'old' })).value.error.code, 'SNAPSHOT_STALE');
@@ -236,5 +238,5 @@ test('refresh falls back only for a removed question and a failed clearing write
   store.write = writer;
   const refreshed = await api(base + '/refresh', { expectedSnapshotId: snapshotId, questionId: '1' }, 'POST');
   assert.equal(refreshed.status, 200); assert.equal(refreshed.value.initial.question.questionId, '2');
-  assert.deepEqual(refreshed.value.changes.removedQuestionIds, ['1']); assert.deepEqual(refreshed.value.changes.clearedQuestionIds, ['1']);
+  assert.deepEqual(refreshed.value.changes.removedQuestionIds, ['1']); assert.deepEqual(refreshed.value.changes.activeCleared, true);
 });

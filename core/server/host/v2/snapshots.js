@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cloneJson, fingerprint, hash } from '../platform/json.js';
+import { cloneJson, fingerprint, hash, projectJson, patchJson } from '../platform/json.js';
 import { checkPath } from '../platform/files.js';
 import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, newCache, readJson, relativeFile, relativePath, treeDigest, READ_LIMITS } from './io.js';
 import { TypeRegistry } from './type-registry.js';
-import { PracticePosition } from './position.js';
+
+export const OPEN_BANK_LIMIT = 8;
 
 export class LibrarySnapshots {
   constructor(root, codeRoot, { development = false, stateStore = null } = {}) {
@@ -14,7 +15,6 @@ export class LibrarySnapshots {
     this.cache = newCache(); this.types = new TypeRegistry(root, this.cache); this.development = development;
     this.opened = new Map();
     this.stateStore = stateStore;
-    this.positions = new PracticePosition();
   }
   locations() {
     const base = path.join(this.root, 'question-banks'), result = [];
@@ -49,65 +49,65 @@ export class LibrarySnapshots {
     try { return { directory, digest: treeDigest(directory, this.cache, { field: 'sdk' }) }; }
     catch (error) { if (error.code === 'FILE_COUNT_LIMIT') throw error; throw problem('SDK_UNAVAILABLE', '题型所需的公共组件未安装或无法读取。', {}, 404); }
   }
-  open(bankId, requestedQuestionId, { refresh = false } = {}) {
+  open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
     const previous = this.opened.get(bankId);
     const location = this.locations().find(row => row.bankId === bankId);
     if (!location) throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
     const tree = treeDigest(location.directory, this.cache, { bankId, field: 'bank.files' });
     const bank = readBank(location.directory, this.cache, bankId);
     const types = new Set();
-    for (const id of bank.items.keys()) { const raw = object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && bank.raw.questions[id]; if (object(raw) && typeof raw.type === 'string') types.add(raw.type); }
+    for (const raw of Object.values(bank.raw.questions)) if (object(raw) && typeof raw.type === 'string') types.add(raw.type);
     const resolutions = this.types.resolutions(types), sdk = new Map();
     for (const [type, resolution] of resolutions) if (resolution.artifact) {
       try { for (const [component, version] of Object.entries(resolution.artifact.sdkVersions)) sdk.set(`${component}@${version}`, this.sdk(component, version)); }
       catch (error) { resolutions.set(type, { error: publicError(error) }); }
     }
     const snapshotId = fingerprint({ bankId, tree, types: [...resolutions].map(([id, value]) => [id, value.artifact?.descriptor ?? value.error]), sdk: [...sdk].map(([id, value]) => [id, value.digest]) }, 'quizforge-v2-snapshot');
-    const snapshot = { ...bank, ...location, snapshotId, resolutions, sdk, questionFingerprints: new Map() };
-    for (const [id, item] of bank.items) snapshot.questionFingerprints.set(id, fingerprint({ question: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) ? bank.raw.questions[id] : { missing: true }, item }, 'quizforge-bank-v2-question'));
+    // Active-answer identity excludes storage paths, assets and shared SDKs.
+    // File bodies follow deterministic traversal order; physical directory names
+    // are absent. bank.json's exact bytes always participate.
+    const contentFingerprint = fingerprint({ bank: this.cache.hash(relativeFile(location.directory, 'bank.json'), READ_LIMITS.bankBytes), types: [...resolutions].map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code]).sort(([a], [b]) => a.localeCompare(b)) }, 'quizforge-v2-content');
+    const snapshot = { ...bank, ...location, snapshotId, contentFingerprint, resolutions, sdk };
     if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) {
       if (!refresh) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
       requestedQuestionId = undefined;
     }
-    const savedPosition = this.positions.read(location.directory);
+    let activeCleared;
+    try { activeCleared = this.stateStore?.reconcile(snapshot) ?? false; }
+    catch (error) { if (!previous) this.stateStore?.evict(location.directory); throw error; }
+    snapshot.activeCleared = activeCleared;
+    const savedPosition = this.stateStore?.load(location.directory).lastQuestionId;
     const lastQuestionId = bank.items.has(savedPosition) ? savedPosition : null;
-    const clearedQuestionIds = this.stateStore?.reconcile(snapshot) ?? [];
-    this.opened.set(bankId, snapshot);
+    this.opened.delete(bankId); this.opened.set(bankId, snapshot);
+    while (this.opened.size > OPEN_BANK_LIMIT) { const first = this.opened.keys().next().value, old = this.opened.get(first); this.opened.delete(first); this.stateStore?.evict(old.directory); }
     const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
     let initial = { question: null, error: null };
-    if (questionId !== undefined) {
+    if (includeInitial && questionId !== undefined) {
       try { initial.question = this.question(bankId, questionId, snapshotId); }
       catch (error) { initial.error = publicError(error); }
     }
     return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
       questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
-      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial,
-      pendingGrading: [...bank.items.keys()].filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
+      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial, activeCleared,
+      notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
+      pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
         try { return { question: this.question(bankId, id, snapshotId), error: null }; }
         catch (error) { return { question: null, error: publicError(error) }; }
-      }), ...(refresh ? { changes: { clearedQuestionIds, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
+      }), ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
   }
   refresh(bankId, input) {
     if (!object(input) || Object.hasOwn(input, 'questionId') && !validId(input.questionId)) throw problem('INVALID_REQUEST', '刷新请求或当前题号无效。', {}, 400);
     if (Object.hasOwn(input, 'expectedSnapshotId')) this.snapshot(bankId, input.expectedSnapshotId);
     return this.open(bankId, input.questionId, { refresh: true });
   }
-  position(bankId, input) {
-    const snapshot = this.opened.get(bankId);
-    if (!snapshot) throw problem('BANK_NOT_OPEN', '请先打开该题库的概览。', { bankId }, 409);
-    if (input === undefined) {
-      const id = this.positions.read(snapshot.directory);
-      return { questionId: snapshot.items.has(id) ? id : null };
-    }
-    if (!object(input) || Object.keys(input).some(key => key !== 'questionId') || !validId(input.questionId)) throw problem('INVALID_REQUEST', '上次位置的题号无效。', {}, 400);
-    if (!snapshot.items.has(input.questionId)) throw problem('QUESTION_NOT_FOUND', '该题不在题库大纲中。', { bankId, questionId: input.questionId }, 404);
-    return this.positions.save(snapshot.directory, input.questionId);
-  }
   snapshot(bankId, snapshotId) {
-    const value = this.opened.get(bankId);
-    if (!value) throw problem('BANK_NOT_OPEN', '请先打开该题库的概览。', { bankId }, 409);
-    if (typeof snapshotId !== 'string' || snapshotId !== value.snapshotId) throw problem('SNAPSHOT_STALE', '题库快照已变化，请重新打开或刷新。', { bankId }, 409);
-    return value;
+    let value = this.opened.get(bankId);
+    if (!value) {
+      if (typeof snapshotId !== 'string') throw problem('BANK_NOT_OPEN', '请先打开该题库的概览。', { bankId }, 409);
+      this.open(bankId, undefined, { includeInitial: false }); value = this.opened.get(bankId);
+    }
+    if (typeof snapshotId !== 'string' || snapshotId !== value.snapshotId) throw problem('SNAPSHOT_STALE', value.activeCleared ? '题库或题型已变化，本轮作答已清空' : '题库快照已变化，请重新打开或刷新。', { bankId }, 409);
+    this.opened.delete(bankId); this.opened.set(bankId, value); return value;
   }
   state(snapshot, id) {
     if (this.stateStore) return this.stateStore.summary(snapshot, id);
@@ -137,13 +137,14 @@ export class LibrarySnapshots {
     if (this.stateStore?.get(snapshot, id).submission) visit(record.solution);
     return assets;
   }
-  question(bankId, id, snapshotId) {
+  question(bankId, id, snapshotId, { includeInk = true } = {}) {
     const snapshot = this.snapshot(bankId, snapshotId);
     try {
       const record = questionRecord(snapshot, id), artifact = this.resolution(snapshot, record), assets = this.visibleAssets(snapshot, id, record);
       const saved = this.stateStore?.get(snapshot, id);
+      const ink = includeInk ? this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 } : null;
       return { bankId, snapshotId, questionId: id, type: record.type, extension: cloneJson(artifact.descriptor), item: cloneJson(snapshot.items.get(id)), question: cloneJson(record.question),
-        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), draft: cloneJson(saved?.draft ?? null), ink: cloneJson(saved?.ink ?? null), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
+        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), draft: cloneJson(saved?.draft ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
         resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })) };
     } catch (error) {
       if (error.context) error.context = { ...error.context, bankId, questionId: id };
@@ -153,9 +154,14 @@ export class LibrarySnapshots {
   write(bankId, id, op, input) {
     const snapshot = this.snapshot(bankId, input?.snapshotId);
     // Validate the question and installed type before touching persistence.
-    this.question(bankId, id, snapshot.snapshotId);
+    const record = questionRecord(snapshot, id);
+    this.resolution(snapshot, record); this.visibleAssets(snapshot, id, record);
+    if (op === 'ink') {
+      const saved = this.stateStore.ink.apply(snapshot, id, input);
+      return patchJson(this.question(bankId, id, snapshot.snapshotId, { includeInk: false }), cloneJson(projectJson(saved, ['ink', 'inkRevision'])));
+    }
     this.stateStore.apply(snapshot, id, op, input);
-    return this.question(bankId, id, snapshot.snapshotId);
+    return this.question(bankId, id, snapshot.snapshotId, { includeInk: op === 'retry' });
   }
   asset(bankId, id, snapshotId, assetId) {
     const snapshot = this.snapshot(bankId, snapshotId), record = questionRecord(snapshot, id);

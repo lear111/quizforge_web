@@ -97,24 +97,29 @@ function javaNumber(number, literal) {
   return `${coefficient.includes('.') ? coefficient : coefficient + '.0'}E${Number(exponent)}`;
 }
 export function stringifyJson(value, { canonical = false } = {}) {
-  const seen = new Set();
-  function encode(current, parent, key) {
+  const seen = new Set(), namesEncoded = new Map(), numbersEncoded = new Map();
+  // A serialization-local, bounded memo avoids repeatedly quoting the same
+  // point keys / converting identical numeric literals in large ink graphs.
+  // No object or numeric metadata is mutated, and nothing survives this call.
+  const memo = (cache, key, make) => { if (cache.has(key)) return cache.get(key); const value = make(); if (cache.size < 1024) cache.set(key, value); return value; };
+  function encode(current, metadata, key) {
     if (current === null || current === undefined) return 'null';
     if (typeof current === 'number') {
       if (!Number.isFinite(current)) throw new TypeError('Non-finite JSON number');
-      const original = parent && numericSources.get(parent)?.get(String(key));
-      return original && Object.is(original.value, current) ? javaNumber(current, original.literal) : JSON.stringify(current);
+      const original = metadata?.get(String(key));
+      return original && Object.is(original.value, current) ? memo(numbersEncoded, original.literal, () => javaNumber(current, original.literal)) : JSON.stringify(current);
     }
     if (typeof current === 'string' || typeof current === 'boolean') return JSON.stringify(current);
     if (typeof current !== 'object') throw new TypeError('Unsupported JSON value');
     if (seen.has(current)) throw new TypeError('Cyclic JSON value');
     seen.add(current);
     let result;
-    if (Array.isArray(current)) result = '[' + current.map((child, index) => encode(child, current, index)).join(',') + ']';
+    const source = numericSources.get(current);
+    if (Array.isArray(current)) result = '[' + current.map((child, index) => encode(child, source, index)).join(',') + ']';
     else {
       const names = Object.keys(current);
       if (canonical) names.sort();
-      result = '{' + names.filter(name => current[name] !== undefined).map(name => JSON.stringify(name) + ':' + encode(current[name], current, name)).join(',') + '}';
+      result = '{' + names.filter(name => current[name] !== undefined).map(name => memo(namesEncoded, name, () => JSON.stringify(name)) + ':' + encode(current[name], source, name)).join(',') + '}';
     }
     seen.delete(current);
     return result;

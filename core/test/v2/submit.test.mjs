@@ -68,11 +68,11 @@ test('result validation covers exact decimal parts, missing/duplicate/foreign pa
   for (const value of [{ ...good, score: '0.3' }, { ...good, score: Infinity }, { ...good, score: -1 }, { ...good, score: 0.31 }, { ...good, score: 0.2 }, { ...good, outlineScores: good.outlineScores.slice(1) }, { ...good, outlineScores: [good.outlineScores[0], good.outlineScores[0]] }, { ...good, outlineScores: [{ id: 'x', score: 0.1 }, good.outlineScores[1]] }, { ...good, outlineScores: [{ id: 'a', score: 0.2 }, { id: 'b', score: 0.1 }] }]) assert.throws(() => validateResult(item, value), e => e.code === 'INVALID_RESULT');
   for (const status of ['pending', 'ungradable']) { assert.doesNotThrow(() => validateResult(item, { status, score: null })); assert.throws(() => validateResult(item, { status, score: 0 })); }
 });
-test('only changing the question record or outline item clears active state on open; assets, listening and extension edits preserve it', async t => {
+test('D27 bank bytes and used extension edits clear all active state; assets alone preserve it', async t => {
   const { directory, fixture, server, api, base, bankId, submit } = await setup(t); await submit();
   const original = server.library.stateStore.load(directory);
   fs.appendFileSync(path.join(fixture.directory, 'assets', 'figure.png'), 'x');
-  fixture.bank.listening.https.title = 'new title'; writeFixtureFile(fixture.bankFile, fixture.bank); fs.appendFileSync(path.join(fixture.extension, 'practice.js'), '\n// external edit');
+
   assert.equal((await api(base + '/overview')).value.initial.question.state.locked, true); assert.equal(server.library.stateStore.load(directory), original);
   fixture.bank.questions['1'].solution.explanation = 'changed'; writeFixtureFile(fixture.bankFile, fixture.bank);
   const changed = await api(base + '/overview'); assert.equal(changed.value.initial.question.state.locked, false); assert.equal(changed.value.initial.question.solution, null); assert.deepEqual(server.library.stateStore.load(directory).historyIndex, []);
@@ -99,9 +99,9 @@ test('deterministic V2 persistence follows an independently specified state vect
   store.uuid = () => '00000000-0000-4000-8000-000000000001';
   const request = `{"requestId":"golden-submit","snapshotId":"${snapshotId}","expectedRevision":0,"answer":{"number":1.0}}`;
   const saved = await api(`${base}/questions/1/submit`, request); assert.equal(saved.status, 200);
-  const snapshot = server.library.opened.get(bankId), fp = snapshot.questionFingerprints.get('1');
+  const snapshot = server.library.opened.get(bankId), fp = snapshot.contentFingerprint;
   const { fingerprint } = await import('../../server/host/platform/json.js');
-  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"fingerprint":"${fp}","status":"submitted-pending","revision":1,"answerVersion":1,"answer":{"number":1.0},"draft":null,"ink":null,"submission":{"submissionId":"00000000-0000-4000-8000-000000000001","answerVersion":1,"questionFingerprint":"${fp}"},"resultRevision":0,"result":null,"receipts":{"golden-submit":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"},"receiptOrder":["golden-submit"]}},"historyIndex":[]}`);
+  const expected = parseJson(`{"formatVersion":2,"questions":{"1":{"status":"submitted-pending","revision":1,"answerVersion":1,"answer":{"number":1.0},"draft":null,"submission":{"submissionId":"00000000-0000-4000-8000-000000000001","answerVersion":1,"contentFingerprint":"${fp}"},"resultRevision":0,"result":null,"receipts":{"golden-submit":"${fingerprint({ op: 'submit', input: parseJson(request) }, 'quizforge-v2-receipt')}"},"receiptOrder":["golden-submit"]}},"historyIndex":[],"contentFingerprint":"${fp}","lastQuestionId":"1"}`);
   assert.ok(fs.readFileSync(store.file(directory)).equals(jsonBytes(expected))); assert.match(fs.readFileSync(store.file(directory), 'utf8'), /"number":1\.0/);
   // External callers receive clones, not borrowed frozen state.
   saved.value.answer.number = 99; assert.equal(store.get(snapshot, '1').answer.number, 1);
