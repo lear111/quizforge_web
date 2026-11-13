@@ -58,7 +58,7 @@ try {
   const a = endpoint('Synthetic A'), b = endpoint('Synthetic B');
   const open = async url => {
     const start = performance.now(), response = await fetch(url + '/overview');
-    const headers = performance.now(), bytes = await response.text(), parsed = JSON.parse(bytes);
+    const headers = performance.now(), bytes = Buffer.from(await response.arrayBuffer()), parsed = JSON.parse(bytes.toString('utf8'));
     const end = performance.now();
     assert.equal(response.status, 200);
     assert.equal(parsed.initial.question.solution, null);
@@ -85,7 +85,7 @@ try {
       server.timings = i % 4 === 0 || i % 4 === 3; // Alternate paired order.
       const row = await open(a);
       expectedBytes ??= row.bytes;
-      assert.equal(row.bytes, expectedBytes);
+      assert.ok(row.bytes.equals(expectedBytes));
       assert.equal(Boolean(row.header), server.timings);
       assert.equal(Boolean(row.parsed.states[0].hasInk), scenario !== 'no records');
       rows[server.timings ? 'on' : 'off'].push(row);

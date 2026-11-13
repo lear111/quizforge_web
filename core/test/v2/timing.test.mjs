@@ -41,15 +41,15 @@ test('V2 GET overview reports exclusive phases on the save timing switch without
       await (await fetch(url + '/overview')).text();
       const overview = await fetch(url + '/overview');
       assert.equal(overview.status, 200);
-      const bytes = await overview.text(), header = overview.headers.get('Server-Timing');
-      const snapshotId = JSON.parse(bytes).snapshotId;
+      const bytes = Buffer.from(await overview.arrayBuffer()), header = overview.headers.get('Server-Timing');
+      const snapshotId = JSON.parse(bytes.toString('utf8')).snapshotId;
       const question = await fetch(`${url}/questions/1?snapshotId=${snapshotId}`);
       assert.equal(question.status, 200);
       assert.equal(question.headers.get('Server-Timing'), null);
       await question.text();
       if (!timings) {
         assert.equal(header, null);
-        assert.equal(bytes, enabledBytes);
+        assert.ok(bytes.equals(enabledBytes));
         continue;
       }
       enabledBytes = bytes;
