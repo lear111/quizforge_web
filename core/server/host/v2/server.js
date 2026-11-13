@@ -103,10 +103,11 @@ export class V2Server {
       this.authenticate(request);
       if (parts[1] !== 'v2') throw problem('V1_API_REMOVED', 'V2 不提供旧作答接口，请使用 V2 页面或 v1-final。', {}, 410);
       if (!['GET', 'HEAD'].includes(request.method)) {
-        if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (parts[6] === 'submit' && request.method === 'POST' || parts[6] === 'result' && request.method === 'PUT')) {
+        if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'draft', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
           const input = await this.body(request);
           return this.json(response, 200, this.library.write(parts[3], parts[5], parts[6], input));
         }
+        if (parts[2] === 'banks' && parts[4] === 'refresh' && parts.length === 5 && request.method === 'POST') return this.json(response, 200, this.library.refresh(parts[3], await this.body(request)));
         request.resume(); throw problem('FEATURE_NOT_IMPLEMENTED', '此功能将在后续阶段开放。', {}, 501);
       }
       const snapshotId = url.searchParams.get('snapshotId');

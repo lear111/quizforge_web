@@ -47,7 +47,8 @@ export class LibrarySnapshots {
     try { return { directory, digest: treeDigest(directory, this.cache, { field: 'sdk' }) }; }
     catch (error) { if (error.code === 'FILE_COUNT_LIMIT') throw error; throw problem('SDK_UNAVAILABLE', '题型所需的公共组件未安装或无法读取。', {}, 404); }
   }
-  open(bankId, requestedQuestionId) {
+  open(bankId, requestedQuestionId, { refresh = false } = {}) {
+    const previous = this.opened.get(bankId);
     const location = this.locations().find(row => row.bankId === bankId);
     if (!location) throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
     const tree = treeDigest(location.directory, this.cache, { bankId, field: 'bank.files' });
@@ -62,8 +63,11 @@ export class LibrarySnapshots {
     const snapshotId = fingerprint({ bankId, tree, types: [...resolutions].map(([id, value]) => [id, value.artifact?.descriptor ?? value.error]), sdk: [...sdk].map(([id, value]) => [id, value.digest]) }, 'quizforge-v2-snapshot');
     const snapshot = { ...bank, ...location, snapshotId, resolutions, sdk, questionFingerprints: new Map() };
     for (const [id, item] of bank.items) snapshot.questionFingerprints.set(id, fingerprint({ question: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) ? bank.raw.questions[id] : { missing: true }, item }, 'quizforge-bank-v2-question'));
-    if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
-    this.stateStore?.reconcile(snapshot);
+    if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) {
+      if (!refresh) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
+      requestedQuestionId = undefined;
+    }
+    const clearedQuestionIds = this.stateStore?.reconcile(snapshot) ?? [];
     this.opened.set(bankId, snapshot);
     const questionId = requestedQuestionId ?? bank.items.keys().next().value;
     let initial = { question: null, error: null };
@@ -77,7 +81,12 @@ export class LibrarySnapshots {
       pendingGrading: [...bank.items.keys()].filter(id => this.state(snapshot, id).status === 'submitted-pending').map(id => {
         try { return { question: this.question(bankId, id, snapshotId), error: null }; }
         catch (error) { return { question: null, error: publicError(error) }; }
-      }) };
+      }), ...(refresh ? { changes: { clearedQuestionIds, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
+  }
+  refresh(bankId, input) {
+    if (!object(input) || Object.hasOwn(input, 'questionId') && !validId(input.questionId)) throw problem('INVALID_REQUEST', '刷新请求或当前题号无效。', {}, 400);
+    if (Object.hasOwn(input, 'expectedSnapshotId')) this.snapshot(bankId, input.expectedSnapshotId);
+    return this.open(bankId, input.questionId, { refresh: true });
   }
   snapshot(bankId, snapshotId) {
     const value = this.opened.get(bankId);
