@@ -25,4 +25,4 @@
 
 **结论：** 暖缓存下概览请求是最大的单段，其次是建 iframe 与 SDK 脚本加载；合成起始题的 load 本身约 5 ms。缓存已经省下富文本网络读取，但并不消除每次建题页和在新页面执行 SDK 的代价。本次只定位，未改变切换行为。真实题库、真机与高负载表现未测。
 
-复现：以 Playwright 的 `index.mjs` 为第一个参数运行 `node core/scripts/dev/measure-v2-bank-return.mjs <playwright/index.mjs>`；依次跑 `--phases`、无选项和 `--phases --no-resource-cache`。结果写入忽略目录 `.temp/`。验证：三组 180 个测量样本通过浏览器断言，无页面异常；无新生产用例；CI 见本 PR 检查。
+复现：以 Playwright 的 `index.mjs` 为第一个参数运行 `node core/scripts/dev/measure-v2-bank-return.mjs <playwright/index.mjs>`；依次跑 `--phases`、无选项和 `--phases --no-resource-cache`。结果写入忽略目录 `.temp/`。验证：三组 180 个测量样本通过浏览器断言，无页面异常；无新生产用例；CI：Windows Checks、Ubuntu Checks、Ubuntu Performance 均通过，无失败用例（[代码头 d439768 的运行](https://github.com/lear111/quizforge_web/actions/runs/43463322348)）。
