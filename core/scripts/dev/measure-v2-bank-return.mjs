@@ -1,5 +1,7 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Real Chromium, synthetic banks and an ephemeral loopback host. Measurement
-// only: this deliberately does not add a browser cache or prefetch mechanism.
+// only: --no-resource-cache disables response cache headers on this test server
+// for an otherwise identical control. It is not a production option.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,10 +11,11 @@ import { V2Server } from '../../server/host/v2/server.js';
 const core = fileURLToPath(new URL('../../', import.meta.url)), repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-bank-return-'));
+const cacheEnabled = !process.argv.includes('--no-resource-cache');
 const stats = a => { a.sort((a,b) => a-b); return { n: a.length, median: a[Math.ceil(a.length*.5)-1], p95: a[Math.ceil(a.length*.95)-1] }; };
 let server, browser;
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const directory = path.join(root, 'question-banks/基础题型/单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(directory, 'bank.json'), 'utf8'));
   bank.title = 'Synthetic A';
@@ -22,7 +25,9 @@ try {
   fs.writeFileSync(path.join(directory, 'bank.json'), JSON.stringify(bank));
   const other = path.join(path.dirname(directory), 'other'); fs.cpSync(directory, other, { recursive: true });
   fs.writeFileSync(path.join(other, 'bank.json'), JSON.stringify({ ...bank, title: 'Synthetic B' }));
-  server = await new V2Server({ root, codeRoot: core }).start(); const origin = `http://127.0.0.1:${server.port()}`;
+  server = new V2Server({ root, codeRoot: core });
+  if (!cacheEnabled) server.immutable = () => {};
+  await server.start(); const origin = `http://127.0.0.1:${server.port()}`;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const results = [], errors = [];
   for (const [name, viewport] of [['desktop', {width:1440,height:900}], ['mobile', {width:390,height:844}]]) {
@@ -62,10 +67,15 @@ try {
     const rows = [];
     for (let i=0;i<32;i++) { rows.push(await select('Synthetic A')); await select('Synthetic B'); }
     const samples = rows.slice(2), kinds = ['type/SDK','image','overview/question'];
+    for (const row of samples) {
+      assert.equal(row.requests.filter(e => e.kind === 'overview/question' && e.cacheHit).length, 0);
+      assert.equal(row.requests.filter(e => e.kind === 'type/SDK' && e.cacheHit).length, cacheEnabled ? 6 : 0);
+      assert.equal(row.requests.filter(e => e.kind === 'image' && e.cacheHit).length, cacheEnabled ? 1 : 0);
+    }
     results.push({ name, total:stats(samples.map(r=>r.total)), resources:Object.fromEntries(kinds.map(kind=>[kind,{ countPerReturn:stats(samples.map(r=>r.requests.filter(e=>e.kind===kind).length)), summedDuration:stats(samples.map(r=>r.requests.filter(e=>e.kind===kind).reduce((n,e)=>n+e.duration,0))), cacheHits:samples.flatMap(r=>r.requests).filter(e=>e.kind===kind&&e.cacheHit).length }])), waterfall:samples[0].requests });
     await context.close();
   }
   assert.deepEqual(errors, []);
-  const result = { machine:{system:`${os.type()} ${os.release()}`,node:process.version,cpu:os.cpus()[0]?.model,browser:browser.version()}, results, errors, method:'2 warmups + 30 returns from B to already-opened A (3 questions, 1 image). Actual DOM click to new iframe ready/host busy=false and next animation frame, both timed inside the browser. Radio enabled and image decoded are asserted after each sample. Resource durations overlap and must not be summed into total. No browser cache implementation. Synthetic small banks, not real mobile hardware.' };
-  const output = path.join(repo,'.temp/v2-bank-return.json'); fs.mkdirSync(path.dirname(output),{recursive:true}); fs.writeFileSync(output,JSON.stringify(result,null,2)); console.log(JSON.stringify(result,null,2));
+  const result = { machine:{system:`${os.type()} ${os.release()}`,node:process.version,cpu:os.cpus()[0]?.model,browser:browser.version()}, cacheEnabled, results, errors, method:'2 warmups + 30 returns from B to already-opened A (3 synthetic questions, 1 image). Actual DOM click to new iframe ready/host busy=false and next animation frame, both timed inside the browser. Radio enabled and image decoded are asserted after each sample. Resource durations overlap and must not be summed into total. Same current code and advanced SDK JS/CSS with/without immutable response headers; no interception or prefetch. Synthetic small banks, not real mobile hardware.' };
+  const output = path.join(repo,`.temp/v2-basic-return-${cacheEnabled ? 'on' : 'off'}.json`); fs.mkdirSync(path.dirname(output),{recursive:true}); fs.writeFileSync(output,JSON.stringify(result,null,2)); console.log(JSON.stringify(result,null,2));
 } finally { await browser?.close(); server?.server.closeAllConnections(); await server?.close(); fs.rmSync(root,{recursive:true,force:true}); }

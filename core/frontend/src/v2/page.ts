@@ -1,7 +1,7 @@
 import { ANSWERED_PART_LIMIT, mergeAnswered } from '../../../shared/v2/answered.js';
 import type { Answered } from '../../../shared/v2/answered.js';
 // Each question gets its own opaque page. No state or solution crosses frames.
-export interface PageContext { question: unknown; answer: unknown; draft?: unknown; solution: unknown; result: unknown; item: { parts?: { id: string }[] }; mode: 'practice' | 'exam' | 'archive'; locked: boolean; can: { submit: boolean; retry: boolean }; appearance: { theme: 'light' | 'dark' } }
+export interface PageContext { question: unknown; answer: unknown; solution: unknown; result: unknown; item: { parts?: { id: string }[] }; mode: 'practice' | 'exam' | 'archive'; locked: boolean; can: { submit: boolean; retry: boolean }; appearance: { theme: 'light' | 'dark' } }
 export interface PageSources { html: string; js: string; css: string; sdks: string[] }
 export interface Picture { assetId: string; reference: string; bytes: ArrayBuffer; type: string }
 interface PageOptions { title?: string; resources?: Picture[]; onChanged?(kind: 'choice' | 'text' | 'ink', answered?: Answered): void; onSubmit?(): Promise<void>; onRetry?(): Promise<void> }
@@ -71,9 +71,9 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
           finally{applying=false;}
         });return;
       }
-      if(!['answer','draft'].includes(data.kind)||data.version!==version)return;
+      if(data.kind!=='answer'||data.version!==version)return;
       const scope=version;
-      (async()=>{try{send({kind:data.kind,request:data.request,value:data.kind==='answer'?await page.getAnswer():typeof page.getDraft==='function'?await page.getDraft():undefined},scope);}
+      (async()=>{try{send({kind:data.kind,request:data.request,value:await page.getAnswer()},scope);}
       catch{send({kind:data.kind,request:data.request,error:true},scope);}})();
     });
     (async()=>{try{
@@ -124,7 +124,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
       actionRunning = true;
       void Promise.resolve().then(callback).then(() => reply(), () => reply('操作未完成，请查看宿主提示并重试。')).finally(() => { actionRunning = false; });
     }
-    if (['answer', 'draft', 'updated'].includes(event.data.kind)) {
+    if (['answer', 'updated'].includes(event.data.kind)) {
       const request = pending.get(event.data.request); if (!request || request.kind !== event.data.kind) return;
       pending.delete(event.data.request);
       if (event.data.error) { if (event.data.kind === 'updated') faulted = true; request.reject(new Error(event.data.kind === 'updated' ? '题型页面更新失败，请重新打开本题。' : '无法读取作答，请重试。')); } else request.resolve(event.data.value);
@@ -135,7 +135,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
     frame.contentWindow!.postMessage({ channel, version, kind, context, resources: fresh, request }, '*', fresh.map(row => row.bytes));
   }
   let latest = ready;
-  async function read(kind: 'answer' | 'draft') {
+  async function read(kind: 'answer') {
     await latest; if (disposed || faulted) throw new Error(disposed ? '题目已关闭。' : '题型页面更新失败，请重新打开本题。');
     return new Promise<unknown>((resolve, reject) => { const request = ++sequence; pending.set(request, { kind, resolve, reject }); post(kind, undefined, [], request); });
   }
@@ -146,7 +146,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
   frame.srcdoc = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${attr}' blob:; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"><style>html,body{margin:0}#question{display:flow-root}${sources.css.replaceAll('</', '<\\/')}</style><div id="question"></div><script nonce="${attr}">${runtime.replaceAll('</', '<\\/')}</script></html>`;
   container.replaceChildren(frame);
   return { ready, frame,
-    answer: () => read('answer'), draft: () => read('draft'),
+    answer: () => read('answer'),
     hasResource: (assetId: string) => sent.has(assetId),
     get can() { return { ...activeContext.can }; },
     get faulted() { return faulted; },

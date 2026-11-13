@@ -49,7 +49,9 @@ export class PracticeState {
       const cached = this.loaded.get(file);
       value = bytes && cached && jsonBytes(cached).equals(bytes) ? cached : bytes ? parseJson(bytes, { maxDepth: 68 }) : { formatVersion: 2, questions: {}, historyIndex: [] };
       if (!object(value) || value.formatVersion !== 2 || !object(value.questions) || !Array.isArray(value.historyIndex)) throw invalid();
-      for (const state of Object.values(value.questions)) {
+      for (const [id, state] of Object.entries(value.questions)) {
+        // D36: ignore obsolete development-only notes without rewriting on read.
+        if (object(state) && own(state, 'draft')) value.questions[id] = projectJson(state, Object.keys(state).filter(key => key !== 'draft'));
         if (!object(state) || !integer(state.revision) || !integer(state.answerVersion) || !integer(state.resultRevision) || !object(state.receipts)) throw invalid();
         if (Object.values(state.receipts).some(value => typeof value !== 'string')) throw invalid();
         if (own(state, 'answered')) validateAnswered(state.answered);
@@ -85,14 +87,14 @@ export class PracticeState {
   evict(directory) { const file = path.join(directory, '.qf-v2', 'state.json'); this.loaded.delete(file); this.identities.delete(file); this.ink.evict(directory); }
   get(snapshot, id) {
     const root = this.load(snapshot.directory);
-    return own(root.questions, id) ? root.questions[id] : freezeJson({ status: 'unanswered', revision: 0, answerVersion: 0, answer: null, draft: null, submission: null, resultRevision: 0, result: null, receipts: {} });
+    return own(root.questions, id) ? root.questions[id] : freezeJson({ status: 'unanswered', revision: 0, answerVersion: 0, answer: null, submission: null, resultRevision: 0, result: null, receipts: {} });
   }
   summary(snapshot, id) {
     const s = this.get(snapshot, id);
     const item = snapshot.items.get(id);
     let answered;
     try { answered = mergeAnswered(s.answered ?? (item.parts ? {} : false), item); } catch { throw invalid(); }
-    return { questionId: id, status: s.status, revision: s.revision, answerVersion: s.answerVersion, answered, hasSavedAnswer: s.status !== 'unanswered', locked: s.submission !== null, resultRevision: s.resultRevision, score: s.result?.score ?? null, maxScore: snapshot.maxScores.get(id), gradingStatus: s.result?.status ?? null, ...(s.result?.outlineScores ? { outlineScores: cloneJson(s.result.outlineScores) } : {}), hasDraft: s.draft !== null, hasInk: this.ink.has(snapshot, id) };
+    return { questionId: id, status: s.status, revision: s.revision, answerVersion: s.answerVersion, answered, hasSavedAnswer: s.status !== 'unanswered', locked: s.submission !== null, resultRevision: s.resultRevision, score: s.result?.score ?? null, maxScore: snapshot.maxScores.get(id), gradingStatus: s.result?.status ?? null, ...(s.result?.outlineScores ? { outlineScores: cloneJson(s.result.outlineScores) } : {}), hasInk: this.ink.has(snapshot, id) };
   }
   apply(snapshot, id, op, input) {
     if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
@@ -108,23 +110,20 @@ export class PracticeState {
     if (op !== 'result') {
       if (!integer(input.expectedRevision) || input.expectedRevision !== old.revision) throw problem('REVISION_CONFLICT', '作答记录已变化，请重新打开本题。', {}, 409);
     }
-    if (op === 'draft') {
-      if (!own(input, 'answer') && !own(input, 'draft')) throw problem('INVALID_REQUEST', '缺少待保存的作答或笔记。', {}, 400);
-      if (own(input, 'answer') && old.submission) throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
-      const fields = cloneJson(projectJson(input, ['answer', 'draft']));
+    if (op === 'answer') {
+      if (!own(input, 'answer')) throw problem('INVALID_REQUEST', '缺少待保存的答案。', {}, 400);
+      if (old.submission) throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
+      const fields = cloneJson(projectJson(input, ['answer']));
       if (own(input, 'answered')) {
-        if (!own(input, 'answer')) throw problem('INVALID_REQUEST', '作答状态必须随答案保存。', {}, 400);
         try { fields.answered = mergeAnswered(input.answered, snapshot.items.get(id), old.answered); }
         catch (error) { throw problem('INVALID_REQUEST', error.message, {}, 400); }
       }
       next = patchJson(old, fields); next.revision = increment(old.revision);
-      if (own(input, 'answer')) {
-        if (!jsonEqual(projectJson(old, ['answer']), projectJson(input, ['answer']))) next.answerVersion = increment(old.answerVersion);
-        next.status = input.answer === null ? 'unanswered' : 'drafting';
-      }
+      if (!jsonEqual(projectJson(old, ['answer']), projectJson(input, ['answer']))) next.answerVersion = increment(old.answerVersion);
+      next.status = input.answer === null ? 'unanswered' : 'drafting';
     } else if (op === 'retry') {
       this.ink.remove(snapshot, id);
-      next = patchJson(old, { status: 'unanswered', revision: increment(old.revision), answerVersion: increment(old.answerVersion), answer: null, draft: null, submission: null, resultRevision: 0, result: null, ...(own(old, 'answered') ? { answered: snapshot.items.get(id).parts ? {} : false } : {}) });
+      next = patchJson(old, { status: 'unanswered', revision: increment(old.revision), answerVersion: increment(old.answerVersion), answer: null, submission: null, resultRevision: 0, result: null, ...(own(old, 'answered') ? { answered: snapshot.items.get(id).parts ? {} : false } : {}) });
     } else if (op === 'submit') {
       if (old.submission) throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
       if (!own(input, 'answer')) throw problem('INVALID_REQUEST', '缺少待提交的作答。', {}, 400);

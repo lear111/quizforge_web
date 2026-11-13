@@ -4,7 +4,7 @@ import { cloneJson, fingerprint, hash, projectJson } from '../platform/json.js';
 import { checkPath } from '../platform/files.js';
 import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
-import { directories, newCache, readJson, relativeFile, relativePath, treeDigest, READ_LIMITS } from './io.js';
+import { directories, newCache, readJson, relativeFile, relativePath, treeIdentity, READ_LIMITS } from './io.js';
 import { TypeRegistry } from './type-registry.js';
 
 export const OPEN_BANK_LIMIT = 8;
@@ -46,14 +46,14 @@ export class LibrarySnapshots {
   sdk(component, version) {
     if (!['richtext', 'answer-area', 'ink'].includes(component) || typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw problem('SDK_UNAVAILABLE', '公共组件或版本不存在。', {}, 404);
     const directory = path.join(this.codeRoot, 'shared', component, version);
-    try { return { directory, digest: treeDigest(directory, this.cache, { field: 'sdk' }) }; }
+    try { const { digest, hashes } = treeIdentity(directory, this.cache, { field: 'sdk' }); return { directory, digest, hashes }; }
     catch (error) { if (error.code === 'FILE_COUNT_LIMIT') throw error; throw problem('SDK_UNAVAILABLE', '题型所需的公共组件未安装或无法读取。', {}, 404); }
   }
   open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
     const previous = this.opened.get(bankId);
     const location = this.locations().find(row => row.bankId === bankId);
     if (!location) throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
-    const tree = treeDigest(location.directory, this.cache, { bankId, field: 'bank.files' });
+    const { digest: tree, hashes } = treeIdentity(location.directory, this.cache, { bankId, field: 'bank.files' });
     const bank = readBank(location.directory, this.cache, bankId);
     const types = new Set();
     for (const raw of Object.values(bank.raw.questions)) if (object(raw) && typeof raw.type === 'string') types.add(raw.type);
@@ -67,7 +67,7 @@ export class LibrarySnapshots {
     // File bodies follow deterministic traversal order; physical directory names
     // are absent. bank.json's exact bytes always participate.
     const contentFingerprint = fingerprint({ bank: this.cache.hash(relativeFile(location.directory, 'bank.json'), READ_LIMITS.bankBytes), types: [...resolutions].map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code]).sort(([a], [b]) => a.localeCompare(b)) }, 'quizforge-v2-content');
-    const snapshot = { ...bank, ...location, snapshotId, contentFingerprint, resolutions, sdk };
+    const snapshot = { ...bank, ...location, snapshotId, contentFingerprint, resolutions, sdk, hashes };
     if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) {
       if (!refresh) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
       requestedQuestionId = undefined;
@@ -111,7 +111,7 @@ export class LibrarySnapshots {
   }
   state(snapshot, id) {
     if (this.stateStore) return this.stateStore.summary(snapshot, id);
-    return { questionId: id, status: 'unanswered', revision: 0, answerVersion: 0, hasSavedAnswer: false, locked: false, resultRevision: 0, score: null, maxScore: snapshot.maxScores.get(id), gradingStatus: null, hasDraft: false, hasInk: false };
+    return { questionId: id, status: 'unanswered', revision: 0, answerVersion: 0, hasSavedAnswer: false, locked: false, resultRevision: 0, score: null, maxScore: snapshot.maxScores.get(id), gradingStatus: null, hasInk: false };
   }
   resolution(snapshot, record) {
     let value = snapshot.resolutions.get(record.type);
@@ -123,7 +123,7 @@ export class LibrarySnapshots {
     if (value.error) throw problem(value.error.code, value.error.message, { field: value.error.field, details: value.error.details }, value.error.code === 'EXTENSION_NOT_FOUND' ? 404 : 422);
     return value.artifact;
   }
-  visibleAssets(snapshot, id, record) {
+  visibleAssets(snapshot, id, record, includeSolution = Boolean(this.stateStore?.get(snapshot, id).submission)) {
     const assets = new Map();
     const visit = value => {
       if (typeof value === 'string' && value.startsWith('qf-asset:')) {
@@ -134,7 +134,7 @@ export class LibrarySnapshots {
       else if (object(value)) for (const child of Object.values(value)) visit(child);
     };
     visit(record.question);
-    if (this.stateStore?.get(snapshot, id).submission) visit(record.solution);
+    if (includeSolution) visit(record.solution);
     return assets;
   }
   question(bankId, id, snapshotId, { includeInk = true } = {}) {
@@ -144,7 +144,7 @@ export class LibrarySnapshots {
       const saved = this.stateStore?.get(snapshot, id);
       const ink = includeInk ? this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 } : null;
       return { bankId, snapshotId, questionId: id, type: record.type, extension: cloneJson(artifact.descriptor), item: cloneJson(snapshot.items.get(id)), question: cloneJson(record.question),
-        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), draft: cloneJson(saved?.draft ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
+        solution: saved?.submission ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submission: cloneJson(saved?.submission ?? null), result: cloneJson(saved?.result ?? null),
         resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })) };
     } catch (error) {
       if (error.context) error.context = { ...error.context, bankId, questionId: id };
@@ -166,9 +166,13 @@ export class LibrarySnapshots {
   asset(bankId, id, snapshotId, assetId) {
     const snapshot = this.snapshot(bankId, snapshotId), record = questionRecord(snapshot, id);
     this.resolution(snapshot, record);
-    const asset = this.visibleAssets(snapshot, id, record).get(assetId);
+    const publicAssets = this.visibleAssets(snapshot, id, record, false);
+    const publicAsset = publicAssets.get(assetId);
+    const asset = publicAsset ?? this.visibleAssets(snapshot, id, record).get(assetId);
     if (!asset) throw problem('RESOURCE_NOT_FOUND', '该题的可见资源不存在。', { bankId, questionId: id }, 404);
-    return relativeFile(snapshot.directory, asset.relative);
+    // Solution-only assets must never bypass the lock check via browser cache
+    // after retry. Question assets remain public throughout this snapshot.
+    return { file: relativeFile(snapshot.directory, asset.relative), expectedHash: publicAsset ? snapshot.hashes.get(asset.relative) : undefined };
   }
   listening(bankId, id, snapshotId) {
     const snapshot = this.snapshot(bankId, snapshotId), material = snapshot.listening.get(id);

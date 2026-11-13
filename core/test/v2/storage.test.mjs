@@ -22,7 +22,7 @@ test('D33 choice saves never read or serialize any ink; an ink save writes only 
   const reader = store.ink.read, inkWriter = store.ink.write;
   store.ink.read = () => { throw Error('A choice save must not read any ink'); };
   store.ink.write = () => { throw Error('A choice save must not write ink'); };
-  const saved = write('1', 'draft', { requestId: 'answer', expectedRevision: 0, answer: 'A' });
+  const saved = write('1', 'answer', { requestId: 'answer', expectedRevision: 0, answer: 'A' });
   assert.equal(saved.state.revision, 1); assert.equal(Object.hasOwn(saved, 'ink'), false);
   const stateFile = store.file(fixture.directory), stateBytes = fs.readFileSync(stateFile);
   assert.doesNotMatch(stateBytes.toString(), /"ink"|"points"/);
@@ -62,7 +62,7 @@ test('D27 exact bank bytes or any used extension file clear all active questions
   for (const mutation of [() => fs.appendFileSync(fixture.bankFile, ' '), () => fs.appendFileSync(path.join(fixture.extension, 'practice.css'), ' ')]) {
     let overview = library.open(id), snapshot = library.opened.get(id);
     for (const qid of ['1', '3']) {
-      library.write(id, qid, 'draft', { snapshotId: overview.snapshotId, requestId: 'draft-' + qid, expectedRevision: 0, answer: qid });
+      library.write(id, qid, 'answer', { snapshotId: overview.snapshotId, requestId: 'draft-' + qid, expectedRevision: 0, answer: qid });
       library.write(id, qid, 'ink', { snapshotId: overview.snapshotId, requestId: 'ink-' + qid, expectedInkRevision: 0, ink: [qid] });
     }
     store.commit(fixture.directory, { ...store.load(fixture.directory), historyIndex: [{ id: 'frozen' }] });
@@ -71,7 +71,7 @@ test('D27 exact bank bytes or any used extension file clear all active questions
     assert.deepEqual(store.load(fixture.directory).questions, {}); assert.deepEqual(store.load(fixture.directory).historyIndex, [{ id: 'frozen' }]);
     assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/ink')), false);
     assert.equal(overview.states.some(s => s.hasInk || s.hasSavedAnswer), false);
-    assert.throws(() => library.write(id, '1', 'draft', { snapshotId: snapshot.snapshotId, requestId: 'stale', expectedRevision: 0, answer: 'old' }), { code: 'SNAPSHOT_STALE' });
+    assert.throws(() => library.write(id, '1', 'answer', { snapshotId: snapshot.snapshotId, requestId: 'stale', expectedRevision: 0, answer: 'old' }), { code: 'SNAPSHOT_STALE' });
   }
 });
 
@@ -80,7 +80,7 @@ test('D27 image/unrelated file and physical folder names never clear answers; ch
   fs.appendFileSync(fixture.bankFile, ' '); library.open(id);
   assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2')), false);
   let overview = library.open(id);
-  library.write(id, '1', 'draft', { snapshotId: overview.snapshotId, requestId: 'a', expectedRevision: 0, answer: 'A' });
+  library.write(id, '1', 'answer', { snapshotId: overview.snapshotId, requestId: 'a', expectedRevision: 0, answer: 'A' });
   const before = fs.readFileSync(store.file(fixture.directory));
   fs.appendFileSync(path.join(fixture.directory, 'assets/figure.png'), 'changed');
   writeFixtureFile(path.join(fixture.directory, 'unrelated.txt'), 'other'); overview = library.open(id);
@@ -93,7 +93,7 @@ test('D27 image/unrelated file and physical folder names never clear answers; ch
 
 test('retry removes its ink before state commit; failure retains answer and makes the ordered partial cleanup explicit', t => {
   const { store, snapshot, fixture, write } = setup(t);
-  write('1', 'draft', { requestId: 'a', expectedRevision: 0, answer: 'A' });
+  write('1', 'answer', { requestId: 'a', expectedRevision: 0, answer: 'A' });
   write('1', 'ink', { requestId: 'i', expectedInkRevision: 0, ink: [1] });
   const bytes = fs.readFileSync(store.file(fixture.directory)), writer = store.write;
   store.write = () => { assert.equal(fs.existsSync(store.ink.file(snapshot, '1')), false); throw Error('disk failure'); };
@@ -133,24 +133,24 @@ test('atomic state writes retain private-directory redirect checks and never rec
   writeFixtureFile(protectedFile, 'protected synthetic content');
   const local = path.join(fixture.directory, '.qf-v2');
   fs.symlinkSync(outside, local, process.platform === 'win32' ? 'junction' : 'dir');
-  assert.throws(() => write('1', 'draft', { requestId:'redirect', expectedRevision:0, answer:'A' }), { code:'STATE_WRITE_FAILED' });
+  assert.throws(() => write('1', 'answer', { requestId:'redirect', expectedRevision:0, answer:'A' }), { code:'STATE_WRITE_FAILED' });
   assert.equal(fs.readFileSync(protectedFile, 'utf8'), 'protected synthetic content');
   const old = store.load(fixture.directory);
   fs.renameSync(fixture.directory, fixture.directory + '-moved');
-  assert.throws(() => write('1', 'draft', { requestId:'missing', expectedRevision:0, answer:'A' }));
+  assert.throws(() => write('1', 'answer', { requestId:'missing', expectedRevision:0, answer:'A' }));
   assert.equal(fs.existsSync(snapshot.directory), false); assert.equal(store.load(snapshot.directory), old);
 });
 
 test('D29 LRU retains eight banks and their state/index caches; evicted snapshots reopen transparently or clear on content change', t => {
   const { fixture, library, store, id, opened, write } = setup(t);
-  write('1', 'draft', { requestId: 'a', expectedRevision: 0, answer: 'A' });
+  write('1', 'answer', { requestId: 'a', expectedRevision: 0, answer: 'A' });
   const ids = [id];
   for (let i = 1; i <= 8; i++) { const directory = path.join(path.dirname(fixture.directory), 'bank-' + i); fs.cpSync(fixture.directory, directory, { recursive: true }); ids.push(library.locations().find(row => row.directory === directory).bankId); }
   for (const next of ids.slice(1)) library.open(next);
   assert.equal(OPEN_BANK_LIMIT, 8); assert.equal(library.opened.size, 8); assert.equal(library.opened.has(id), false);
   assert.equal(store.loaded.has(store.file(fixture.directory)), false); assert.ok(store.identities.size <= 8); assert.ok(store.ink.indexes.size <= 8);
   assert.equal(library.question(id, '1', opened.snapshotId).answer, 'A');
-  library.write(id, '1', 'draft', { snapshotId: opened.snapshotId, requestId: 'b', expectedRevision: 1, answer: 'B' });
+  library.write(id, '1', 'answer', { snapshotId: opened.snapshotId, requestId: 'b', expectedRevision: 1, answer: 'B' });
   for (const next of ids.slice(1)) library.open(next);
   assert.equal(library.opened.has(id), false);
   fs.appendFileSync(fixture.bankFile, ' ');

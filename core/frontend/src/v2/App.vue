@@ -15,7 +15,7 @@ import { createWriteQueue } from './write-queue';
 import { mountScratch } from './whiteboard';
 import type { Picture } from './page';
 const props = defineProps<{ nonce: string }>();
-interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; draft: unknown; ink: unknown; inkRevision: number; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
+interface Question { bankId: string; questionId: string; snapshotId: string; question: unknown; solution: unknown; answer: unknown; ink: unknown; inkRevision: number; resources: { assetId: string; reference: string }[]; result: { score: number | null; feedback?: string; reason?: string } | null; submission: unknown; item: Item; extension: { artifactId: string }; state: State }
 interface Overview { bank: { bankId: string; title: string }; snapshotId: string; outline: { title: string; items: Item[] }[]; states: State[]; initial: { question: Question | null; error: { message: string } | null }; notice?: string | null; pendingGrading: { question: Question | null; error: { message: string } | null }[] }
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
@@ -53,7 +53,7 @@ function update(q: Question, preserveAnswered = false) {
   }
   current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s);
 }
-const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, draft: q.draft, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked, retry: q.state.status !== 'unanswered' }, appearance: { theme: 'light' as const } }; };
+const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked, retry: q.state.status !== 'unanswered' }, appearance: { theme: 'light' as const } }; };
 async function pictures(q: Question, has: (id: string) => boolean = () => false): Promise<Picture[]> {
   const references = new Set<string>();
   const visit = (value: unknown) => {
@@ -145,9 +145,8 @@ async function show(q: Question, resume = true) {
       const active = current.value!, av = answerVersion, iv = inkVersion;
       const fields: Record<string, unknown> = {};
       if (av > savedAnswer) {
-        const [answer, draft] = await Promise.all([active.state.locked ? undefined : instance.answer(), instance.draft()]);
+        const answer = active.state.locked ? undefined : await instance.answer();
         if (!active.state.locked) { fields.answer = answer; if (active.state.answered !== undefined) fields.answered = toRaw(active.state.answered); }
-        if (draft !== undefined) fields.draft = draft;
       }
       return { fields, ink: iv > savedInk ? scratch?.getDraft() : undefined, av, iv };
     },
@@ -157,7 +156,7 @@ async function show(q: Question, resume = true) {
         const active = current.value!;
         return { route: base(active) + '/' + kind, body: JSON.stringify({ requestId: requestId(), snapshotId: active.snapshotId, ...(kind === 'ink' ? { expectedInkRevision: active.inkRevision } : { expectedRevision: active.state.revision }), ...fields }) };
       }, (route, body) => json(route, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }), (saved: Question) => { if (mine === generation) { done(); update(kind === 'ink' ? { ...toRaw(current.value!), ink: value.ink, inkRevision: saved.inkRevision, state: saved.state } : saved, answerVersion > savedAnswer); } });
-      const answer = Object.keys(fields).length ? operation('draft', fields, () => { savedAnswer = av; }) : async () => { savedAnswer = av; };
+      const answer = Object.keys(fields).length ? operation('answer', fields, () => { savedAnswer = av; }) : async () => { savedAnswer = av; };
       const ink = value.ink !== undefined ? operation('ink', { ink: value.ink }, () => { savedInk = iv; }) : async () => {};
       let answerDone = false;
       return async () => {
@@ -167,7 +166,7 @@ async function show(q: Question, resume = true) {
         // changed messages. A newer edit cancels this repaint and saves next.
         if (mine === generation && av === answerVersion && !current.value!.state.locked && instance.can.retry !== context(current.value!).can.retry) {
           instance.frame.inert = true;
-          try { await Promise.all([instance.answer(), instance.draft()]); if (mine === generation && av === answerVersion) await instance.update(context(current.value!)); }
+          try { await instance.answer(); if (mine === generation && av === answerVersion) await instance.update(context(current.value!)); }
           finally { instance.frame.inert = false; }
         }
         await ink();

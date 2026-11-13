@@ -10,14 +10,14 @@
 |---|---|
 | GET `/api/v2/health`、`/api/v2/catalog` | 健康状态；物理分组与题库列表 |
 | GET `B/overview`、`Q` | 检查并打开题库，附大纲、状态和一道起始题；读取单题 |
-| PUT `Q/draft`、`Q/ink` | 原样保存答案/非答案草稿；独立文件、独立版本保存区外笔迹（③b） |
+| PUT `Q/answer`、`Q/ink` | 原样保存答案；独立文件、独立版本保存白板笔迹（D36） |
 | POST `Q/submit`；PUT `Q/result` | 原子保存并锁定最终答案，成功后返回 solution；接收前端评分 |
 | POST `Q/retry` | 清空本题活跃答案、草稿、笔迹、锁、结果和相关回执，历史不变 |
 | POST `B/refresh` | 显式重新检查；整体内容变化时清空本轮作答与区外笔迹，返回 activeCleared/notice |
 | POST `B/finish`、`B/restart`；GET `B/summary`、`B/pending-grading`；PUT `B/results` | 完成/新一轮、汇总、恢复待评分、批量评分上报（第 3 段） |
 | GET `B/history`、`B/history/{roundId}`；DELETE 同详情路径；POST 同路径 `/continue` | 历史列表、详情、删除、继续（第 3 段细化） |
 | POST/GET `/api/v2/exams`；GET/DELETE `E`；GET `E/questions/{questionId}` | 创建、列出、读取、删除考试与读取考试题（第 4 段） |
-| PUT `E/questions/{questionId}/draft`、`/ink`、`E/position`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、位置、交卷、待评分与结果（第 4 段） |
+| PUT `E/questions/{questionId}/answer`、`/ink`、`E/position`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、位置、交卷、待评分与结果（第 4 段） |
 | POST `/api/v2/practice-sessions`；DELETE `/api/v2/practice-sessions/{sessionId}` | 临时练习的独立内存作用域，后续实现 |
 | POST `Q/ai-tasks`；GET `/api/v2/ai-tasks/{taskId}`；POST 同路径 `/cancel`、`/retry`；POST `/api/v2/ai/chat` | 锁定答案的 AI 任务；辅导对话（第 5 段） |
 | GET/PUT `/api/v2/settings/{ai,network,development}`；POST `/api/v2/settings/ai/test`；GET `/api/v2/settings/ai/hub`；POST 同路径 `/login`、`/logout`、`/redeem` | 设置、连接测试及 Hub 账号（第 5、6 段核对字段） |
@@ -37,14 +37,14 @@
 | pending-review 待人工或 AI 评分 | 是 | graded、ungradable、继续待评；练习重做 |
 | ungradable 无法评分 | 是 | 明确重新评分；练习重做 |
 
-- 主状态为 `.qf-v2/state.json`：根字段 formatVersion:2、questions、historyIndex、contentFingerprint、lastQuestionId；题状态含 status、revision、answerVersion、answer、draft、submission、resultRevision、result、receipts、receiptOrder，以及可选的 answered，不含 ink 或逐题 fingerprint。未出现的题提供未作答默认值；没有作答文件时只读不创建，尚未写入的空根可不含指纹/位置。historyIndex 只存轮次索引，绝不内嵌历史内容；目录独立于 v1 `.state`。
+- 主状态为 `.qf-v2/state.json`：根字段 formatVersion:2、questions、historyIndex、contentFingerprint、lastQuestionId；题状态含 status、revision、answerVersion、answer、submission、resultRevision、result、receipts、receiptOrder，以及可选的 answered，不含 ink 或逐题 fingerprint。未出现的题提供未作答默认值；没有作答文件时只读不创建，尚未写入的空根可不含指纹/位置。historyIndex 只存轮次索引，绝不内嵌历史内容；目录独立于 v1 `.state`。
 - 笔迹记录为独立文件，字段 ink、inkRevision、receipts、receiptOrder（路径与清理见 D33）；不存在时返回 ink:null、inkRevision:0。主状态上限 32 MiB，每题笔迹文件另限 32 MiB；不是把全部笔迹算进主状态。
 - 提交信封：requestId、snapshotId、expectedRevision、answer。先保存成功再返回 solution；当前锁凭证为 submissionId + answerVersion + contentFingerprint（题库整体内容指纹），评分请求通过题库/题号路径绑定该题的当前锁。
 - 结果上报：requestId、snapshotId、submission、expectedResultRevision、source:"grader"、result。必须对应当前锁定答案；score 为有限数且 0 ≤ score ≤ 大纲满分。小题 ID 不重复且属于本题、各自不越界，总分按精确十进制求和一致；拒绝数字字符串、越界截断及过期结果。
-- 同作用域同 requestId 同内容重放幂等，不同内容冲突；先核对权限与代际。每题 draft/submit/result/retry 共用最近 4 条成功回执；ink 的独立文件另保留最近 4 条成功回执，receiptOrder 显式 FIFO，不依赖数字键枚举；仅存 ID/签名/顺序。已淘汰请求仍校验 revision 或评分版本/锁凭证。重做清旧回执，保留本次重做回执供重放。较早 V2 记录没有顺序时读取不改写，下次成功写入按现存键序取最近 3 条再加入新条；无法倒推旧数字键的真实顺序。V1 状态及标准答案不迁移。
-- draft/retry 信封为 requestId、snapshotId、expectedRevision；ink 使用 requestId、snapshotId、expectedInkRevision；draft 至少有 answer/draft 一个字段，ink 必须有 ink。省略不改、显式 null 清空。answer 变化递增 answerVersion，保存非答案 draft 只递增 revision，ink 只递增独立 inkRevision；retry 同时递增 revision/answerVersion、清空活跃内容，hasSavedAnswer 为 false。旧锁及评分不可恢复。单题 GET 附 ink/inkRevision；ink 保存仅返回 `{ inkRevision, state }`，不回传笔迹正文；其他写入确认省略 ink/inkRevision（retry 附清空后的当前笔迹），前端保留已知笔迹版本；写时复制、提交后冻结、串行与原子替换沿用，写失败不替换缓存。
-- D35 作答状态：draft 可选 answered，必须随 answer 提交；无小题时为布尔值，有小题时为至多 1000 键的布尔映射，只合并提供的小题，忽略大纲中不存在的 id。省略保留原值；仅 draft/ink 的非答案笔记不改变它，锁后不能随 answer 修改，retry 清空为 false/空映射。概览和单题 state 返回 answered（旧记录缺省 false/空映射），有小题的已评分状态另附 outlineScores；不解析 answer 推测是否已作答。旧记录读取不补写该字段，未传 answered 的原有持久化标准向量不变。
-- D15：answer 包括正式答题区笔迹；区外 ink 不评分。锁后 draft 请求只要含 answer 就拒绝，其余非答案 draft/ink 可保存，分别增加 revision/inkRevision，不改变答案版本、锁或分数；重做历史不变。第 2 段保留独立非答案 draft，白板全部为 ink；答题区契约留第 5 段。
+- 同作用域同 requestId 同内容重放幂等，不同内容冲突；先核对权限与代际。每题 answer/submit/result/retry 共用最近 4 条成功回执；ink 的独立文件另保留最近 4 条成功回执，receiptOrder 显式 FIFO，不依赖数字键枚举；仅存 ID/签名/顺序。已淘汰请求仍校验 revision 或评分版本/锁凭证。重做清旧回执，保留本次重做回执供重放。较早 V2 记录没有顺序时读取不改写，下次成功写入按现存键序取最近 3 条再加入新条；无法倒推旧数字键的真实顺序。V1 状态及标准答案不迁移。
+- answer/retry 信封为 requestId、snapshotId、expectedRevision；ink 使用 requestId、snapshotId、expectedInkRevision。answer 接口必须带 answer，ink 必须带 ink，显式 null 清空。answer 变化递增 answerVersion；ink 只递增独立 inkRevision；retry 同时递增 revision/answerVersion、清空活跃内容，hasSavedAnswer 为 false。旧锁及评分不可恢复。单题 GET 附 ink/inkRevision；ink 保存仅返回 `{ inkRevision, state }`，不回传笔迹正文；其他写入确认省略 ink/inkRevision（retry 附清空后的当前笔迹），前端保留已知笔迹版本；写时复制、提交后冻结、串行与原子替换沿用，写失败不替换缓存。
+- D35 作答状态：answer 可选 answered，必须随 answer 提交；无小题时为布尔值，有小题时为至多 1000 键的布尔映射，只合并提供的小题，忽略大纲中不存在的 id。省略保留原值；ink 不改变它，锁后答案及 answered 不可修改，retry 清空为 false/空映射。概览和单题 state 返回 answered（旧记录缺省 false/空映射），有小题的已评分状态另附 outlineScores；不解析 answer 推测是否已作答。
+- D15 / D36：answer 包括正式答题区笔迹（组件后续实现），随提交锁定；白板 ink 不评分、锁后仍可保存，只增加 inkRevision，不改变答案版本、锁或分数。删除非答案 draft 字段、hasDraft 和题型 getDraft()；单题响应与 context 不再携带 draft。开发版旧条目的 draft 读取时忽略，不因读取改写磁盘，下次成功写入不再保留；不做旧文件迁移。原 Q/draft 接口删除，改为 Q/answer。重做历史不变。
 
 ## 审查决定与后续边界
 
@@ -52,7 +52,7 @@
 - D19：作答及历史位于题库内部 `.qf-v2/`，随文件夹移动/改名/复制，副本各自保存；不按路径或 id 匹配记录。该目录不属于题库内容，资源接口不可见，后续导出必须排除。D20：历史保存当时题目、解析、作答与结果；素材仅存引用，失效时按条降级（第 3 段实现）。
 - D16：完成/交卷时从未保存答案的题直接记 0 分；批量结果后立即汇总，待评/无法评分单列，后续更新。D17：每轮不可变文件先落盘，再在主状态登记摘要索引；最终化规则留第 3 段设计。
 - D27：根 contentFingerprint 由 bank.json 原始字节和全部已使用题型拓展的文件内容确定，不含物理目录名、题库素材、SDK 或无关文件。打开/刷新/重新加载不一致时清空全部 questions 与 ink 目录，historyIndex 不变；无 state 文件不创建。返回 activeCleared 和“题库或题型已变化，本轮作答已清空”。锁凭证携带 contentFingerprint；不再保存逐题 fingerprint。开发模式的进一步交互留第 6 段。
-- D32：state.json 根 lastQuestionId 只随 draft/submit/retry 更新，result/ink/浏览不更新；删除 position 接口与文件。窗口内切库仍用内存记浏览位置，浏览器只用 V2 localStorage 记题库。
+- D32：state.json 根 lastQuestionId 只随 answer/submit/retry 更新，result/ink/浏览不更新；删除 position 接口与文件。窗口内切库仍用内存记浏览位置，浏览器只用 V2 localStorage 记题库。
 - 当前练习没有 GET/POST `B/position`，也没有 `.qf-v2/position.json`；不要再调用或创建。表中 `E/position` 仅为尚未实现的考试提案，第 4 段另定。
 - D33：区外笔迹位于 .qf-v2/ink/<contentFingerprint>/<SHA256(questionId)>.json。按题原子替换且独立 inkRevision/回执；ink 不改 state.json；选择题保存不读写任何 ink；hasInk 只由目录文件名索引给出，代表存在保存记录（包括空白板）。retry 先删本题笔迹后写 state，后一写失败时答案保留、笔迹已删，原请求可重试。D27 先删全 ink 再清主状态，失败恢复同理。
 - D29：后端最近 8 个题库 LRU，逐出时释放 state/身份/笔迹索引；带 snapshotId 访问被逐出题库时重开，比对一致则透明继续，否则返回过期并按 D27 清理。

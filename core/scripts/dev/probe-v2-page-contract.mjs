@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Real Chromium acceptance. Only copied examples/synthetic input, ephemeral
 // loopback server and an ignored Playwright installation; no user state.
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-contract-'));
 const output = path.join(repo, '.temp/v2-page-contract'); fs.mkdirSync(output, { recursive: true });
 let server, browser;
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const originalDirectory = path.join(root, 'question-banks/基础题型/单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(originalDirectory, 'bank.json'), 'utf8'));
   const extension = path.join(root, 'extensions/基础题型/parts'); fs.mkdirSync(extension);
@@ -52,14 +53,14 @@ try {
     await page.waitForFunction(() => { const height = parseInt(document.querySelector('.v2-question-frame iframe').style.height); return height > 0 && height < 1000; });
     let firstResolve, secondResolve;
     const first = new Promise(resolve => { firstResolve = resolve; }), second = new Promise(resolve => { secondResolve = resolve; }); let calls = 0;
-    await page.route('**/questions/1/draft', route => { if (++calls === 1) firstResolve(route); else secondResolve(route); });
+    await page.route('**/questions/1/answer', route => { if (++calls === 1) firstResolve(route); else secondResolve(route); });
     await frame().getByRole('radio', { name: 'A', exact: true }).check(); const firstRoute = await first;
     await page.waitForFunction(() => document.querySelector('[data-question-id="1"]').classList.contains('draft'));
     await frame().locator('input:checked').evaluate(input => { input.checked = false; QF.page.changed({ kind: 'choice', answered: false }); });
     await page.waitForFunction(() => document.querySelector('[data-question-id="1"]').classList.contains('unanswered'));
     await firstRoute.continue(); const secondRoute = await second;
     assert.ok((await page.locator('[data-question-id="1"]').getAttribute('class')).includes('unanswered'), 'old save acknowledgement must not replace newer answered:false');
-    await secondRoute.continue(); await saved(); await page.unroute('**/questions/1/draft');
+    await secondRoute.continue(); await saved(); await page.unroute('**/questions/1/answer');
     assert.equal((await read('1')).state.answered, false);
     await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
     assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).isVisible(), true, 'a saved draft refreshes button permissions without leaving the question');
@@ -74,10 +75,10 @@ try {
     assert.deepEqual((await read('2')).state.answered, { a: true });
     assert.ok((await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('draft'));
     assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('unanswered'));
-    await page.route('**/questions/2/draft', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: '合成写入失败' } }) }));
+    await page.route('**/questions/2/answer', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: '合成写入失败' } }) }));
     await frame().getByRole('checkbox', { name: '小题乙' }).check(); await page.locator('.v2-save-status').filter({ hasText: '保存失败' }).waitFor();
     assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('draft'));
-    await page.unroute('**/questions/2/draft'); await page.getByRole('button', { name: '重试保存', exact: true }).click(); await saved();
+    await page.unroute('**/questions/2/answer'); await page.getByRole('button', { name: '重试保存', exact: true }).click(); await saved();
     assert.deepEqual((await read('2')).state.answered, { a: true, b: true });
     await page.reload(); await frame().getByRole('checkbox', { name: '小题乙' }).waitFor(); await idle();
     assert.ok((await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('draft'));

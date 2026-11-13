@@ -15,6 +15,8 @@ function setup(t) {
 test('page sandbox has no host origin/network and safely embeds hostile question text', async t => {
   const { mount, send, dom } = setup(t), page = mount();
   assert.equal(page.frame.getAttribute('sandbox'), 'allow-scripts');
+  assert.equal(Object.hasOwn(page, 'draft'), false);
+  assert.doesNotMatch(page.frame.srcdoc, /getDraft/);
   assert.match(page.frame.srcdoc, /connect-src 'none'/); assert.match(page.frame.srcdoc, /form-action 'none'/);
   assert.doesNotMatch(page.frame.srcdoc, /<!--<script>parent/);
   assert.match(page.frame.srcdoc, /\\u003c\/script>/);

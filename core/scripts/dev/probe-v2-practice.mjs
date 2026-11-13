@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional real-Chromium acceptance. Playwright is supplied from an ignored
 // directory and is not a project dependency. Only synthetic copied data is used.
 import fs from 'node:fs';
@@ -88,7 +89,7 @@ try {
     browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
     console.log(JSON.stringify(await probeNetwork(browser, process.argv.includes('--network-baseline'))));
   } else {
-  fs.cpSync(path.join(repo, 'examples', 'v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const bankDirectory = path.join(root, 'question-banks', '基础题型', '单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(bankDirectory, 'bank.json'), 'utf8'));
   // 20 measured questions plus one independent interrupted-grading case.
@@ -121,7 +122,7 @@ try {
     if (name === 'desktop') {
       await frame().getByRole('radio', { name: 'B', exact: true }).check();
       await page.route('**/questions/1/submit', route => { failed = true; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: '测试：本次未保存' } }) }); });
-      await page.getByRole('button', { name: '提交答案', exact: true }).click();
+      await page.frameLocator('.v2-question-frame iframe').getByRole('button', { name: '提交答案', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: '本次未保存' }).waitFor();
       assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
       assert.equal(await frame().locator('#explanation').isVisible(), false); await page.unroute('**/questions/1/submit'); assert.ok(failed);
@@ -133,11 +134,11 @@ try {
         if (name === 'mobile') await page.getByRole('button', { name: '大纲', exact: true }).click();
         await page.locator(`[data-question-id="${qid}"]`).click();
         await frame().getByRole('radio', { name: 'B', exact: true }).waitFor({ state: 'visible' });
-        await page.getByRole('button', { name: '提交答案', exact: true }).waitFor({ state: 'visible' });
+        await page.frameLocator('.v2-question-frame iframe').getByRole('button', { name: '提交答案', exact: true }).waitFor({ state: 'visible' });
       }
       await frame().getByRole('radio', { name: n % 2 ? 'B' : 'A', exact: true }).check();
-      const start = performance.now(); await page.getByRole('button', { name: '提交答案', exact: true }).click();
-      await page.locator('.v2-answer-footer strong').filter({ hasText: n % 2 ? '2 / 2 分' : '0 / 2 分' }).waitFor();
+      const start = performance.now(); await page.frameLocator('.v2-question-frame iframe').getByRole('button', { name: '提交答案', exact: true }).click();
+      await page.frameLocator('.v2-question-frame iframe').locator('#result').filter({ hasText: n % 2 ? '2 / 2 分' : '0 / 2 分' }).waitFor();
       await frame().getByRole('radio', { name: 'B', exact: true }).waitFor({ state: 'visible' });
       assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
       timings.push(performance.now() - start);
@@ -146,7 +147,7 @@ try {
       await page.locator('[data-question-id="21"]').click();
       await frame().getByRole('radio', { name: 'B', exact: true }).check();
       await page.route('**/questions/21/result', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { message: '测试：评分保存中断' } }) }));
-      await page.getByRole('button', { name: '提交答案', exact: true }).click();
+      await page.frameLocator('.v2-question-frame iframe').getByRole('button', { name: '提交答案', exact: true }).click();
       await page.getByRole('alert').filter({ hasText: '评分保存中断' }).waitFor();
       assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
       await page.unroute('**/questions/21/result');
@@ -160,7 +161,7 @@ try {
     await frame().getByRole('radio', { name: 'B', exact: true }).waitFor();
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
-    await page.locator('.v2-answer-footer strong').filter({ hasText: '2 / 2 分' }).waitFor();
+    await page.frameLocator('.v2-question-frame iframe').locator('#result').filter({ hasText: '2 / 2 分' }).waitFor();
     if (name === 'desktop') {
       // Opening the bank auto-recovers the OTHER pending question without a click.
       await page.waitForFunction(() => document.querySelector('[data-question-id="21"]')?.classList.contains('correct'));

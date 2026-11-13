@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,7 +10,7 @@ const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).h
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-save-recovery-'));
 let browser, server;
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const file = path.join(root, 'question-banks/基础题型/单选题展示/bank.json'), bank = JSON.parse(fs.readFileSync(file, 'utf8')), original = bank.questions['1'];
   bank.questions = {}; bank.outline[0].items = [];
   for (let i = 1; i <= 8; i++) { bank.questions[i] = structuredClone(original); bank.outline[0].items.push({ id: String(i), label: String(i), maxScore: 2 }); }
@@ -33,7 +34,7 @@ try {
   }
   await page.goto(origin); await page.locator('.extension-group-toggle').click(); await page.locator('.library-item').click(); await idle();
   await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
-  await held('**/questions/1/submit', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => write(await read('1'), 'draft', { answer: { selected: 'A' } }));
+  await held('**/questions/1/submit', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => write(await read('1'), 'answer', { answer: { selected: 'A' } }));
   assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('1')).state.locked, false);
   await go('2'); await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
   await held('**/questions/2/result', () => frame().getByRole('button', { name: '提交答案', exact: true }).click(), async () => {
@@ -46,14 +47,14 @@ try {
   });
   assert.equal(await frame().getByRole('radio', { name: 'A', exact: true }).isChecked(), true); assert.equal((await read('3')).state.status, 'submitted-pending');
   for (const [qid, status, code] of [['4', 400, 'INVALID_REQUEST'], ['5', 413, 'STATE_SIZE_LIMIT']]) {
-    await go(qid); const pattern = `**/questions/${qid}/draft`; let attempts = 0;
+    await go(qid); const pattern = `**/questions/${qid}/answer`; let attempts = 0;
     await page.route(pattern, route => { attempts++; return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: { code, message: 'synthetic rejection' } }) }); });
     await frame().getByRole('radio', { name: 'B', exact: true }).check();
     await page.getByRole('alert').filter({ hasText: status === 413 ? '作答文件已达上限' : '已载入最新内容' }).waitFor();
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), false); assert.equal(attempts, 1); await page.unroute(pattern);
   }
   for (const [qid, status] of [['6', 401], ['7', 503]]) {
-    await go(qid); const pattern = `**/questions/${qid}/draft`, bodies = [];
+    await go(qid); const pattern = `**/questions/${qid}/answer`, bodies = [];
     await page.route(pattern, async route => { bodies.push(route.request().postData()); if (bodies.length === 1) await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: { code: status === 401 ? 'AUTH_REQUIRED' : 'STATE_WRITE_FAILED', message: 'synthetic retry' } }) }); else await route.continue(); });
     await frame().getByRole('radio', { name: 'B', exact: true }).check(); await page.getByRole('button', { name: '重试保存', exact: true }).waitFor();
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);

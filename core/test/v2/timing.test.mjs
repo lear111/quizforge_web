@@ -11,7 +11,7 @@ test('V2 save Server-Timing separates parse, validation/assembly, serialization 
       const root = `http://127.0.0.1:${server.port()}/api/v2`;
       const catalog = await (await fetch(root + '/catalog')).json(), id = catalog.groups[0].items[0].bankId;
       const opened = await (await fetch(`${root}/banks/${id}/overview`)).json();
-      const response = await fetch(`${root}/banks/${id}/questions/1/draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId: opened.snapshotId, requestId: `timing-${timings}`, expectedRevision: opened.initial.question.state.revision, answer: 'synthetic' }) });
+      const response = await fetch(`${root}/banks/${id}/questions/1/answer`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snapshotId: opened.snapshotId, requestId: `timing-${timings}`, expectedRevision: opened.initial.question.state.revision, answer: 'synthetic' }) });
       assert.equal(response.status, 200);
       assert.equal((await response.json()).answer, 'synthetic');
       const header = response.headers.get('Server-Timing');

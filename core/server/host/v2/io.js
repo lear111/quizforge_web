@@ -41,7 +41,8 @@ export function treeIdentity(directory, cache, context = {}) {
   }
   // Keep deterministic traversal order: swapping two entry bodies must change
   // the identity too. Physical paths themselves are never hashed here.
-  return { digest: fingerprint(entries, 'quizforge-v2-tree'), contentDigest: fingerprint(entries.filter(entry => !entry.directory).map(entry => entry.hash), 'quizforge-v2-file-contents') };
+  const files = entries.filter(entry => !entry.directory);
+  return { digest: fingerprint(entries, 'quizforge-v2-tree'), contentDigest: fingerprint(files.map(entry => entry.hash), 'quizforge-v2-file-contents'), hashes: new Map(files.map(entry => [entry.path, entry.hash])) };
 }
 export function relativePath(directory, relative) {
   if (typeof relative !== 'string' || !relative || relative.length > 1000 || /[\\:\x00-\x1f\x7f?#]/.test(relative) || path.isAbsolute(relative)) throw problem('ASSET_PATH_INVALID', '资源必须使用题库目录内的安全相对路径。');

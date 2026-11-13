@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional actual-Chromium acceptance; ignored Playwright, copied examples,
 // synthetic banks, ephemeral ports. No daily service or user data touched.
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-whiteboard-'));
 const output = path.join(repo, '.temp/v2-whiteboard'); fs.mkdirSync(output, { recursive: true });
 let browser, server;
 try {
-  fs.cpSync(path.join(repo, 'examples/v2'), root, { recursive: true });
+  copyBrowserFixture(root);
   const bankDirectory = path.join(root, 'question-banks/基础题型/单选题展示');
   const original = JSON.parse(fs.readFileSync(path.join(bankDirectory, 'bank.json'), 'utf8'));
   const bank = structuredClone(original); bank.outline[0].items = []; bank.questions = {};
@@ -75,7 +76,8 @@ try {
     // Another window changes the durable cursor; this window still remembers
     // where it left this bank, independently of that other window's last answer.
     const otherWindow = await question();
-    await api(base + `/questions/${qid}/draft`, { snapshotId: otherWindow.snapshotId, requestId: 'other-window-' + name, expectedRevision: otherWindow.state.revision, draft: 'other window notes' }, 'PUT');
+    const otherRetry = await api(base + `/questions/${qid}/retry`, { snapshotId: otherWindow.snapshotId, requestId: 'other-window-' + name, expectedRevision: otherWindow.state.revision }, 'POST');
+    await api(base + `/questions/${qid}/answer`, { snapshotId: otherWindow.snapshotId, requestId: 'other-answer-' + name, expectedRevision: otherRetry.state.revision, answer: otherWindow.answer }, 'PUT');
     await selectBank(bank.title);
     assert.equal(await page.locator(`[data-question-id="${other}"]`).getAttribute('class').then(s => s.includes('active')), true);
     await page.reload(); await idle(); await page.waitForFunction(id => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'), qid);

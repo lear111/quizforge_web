@@ -1,3 +1,4 @@
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Synthetic, test-only prototype hooks; timings are exclusive and instrumentation overhead is not subtracted.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,7 +18,7 @@ const hook=registerHooks({load(url,context,next){const result=next(url,context);
 const { V2Server } = await import('../../server/host/v2/server.js');
 import { jsonBytes, parseJson, freezeJson } from '../../server/host/platform/json.js';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'qf-storage-profile-'));
-fs.cpSync('examples/v2',root,{recursive:true});
+copyBrowserFixture(root);
 let server;
 const stats=a=>{a.sort((a,b)=>a-b);return {median:a[Math.ceil(a.length*.5)-1],p95:a[Math.ceil(a.length*.95)-1]}};
 try {
@@ -27,7 +28,7 @@ try {
  const opened=await fetch(origin+`/api/v2/banks/${id}/overview`).then(r=>r.json()), lib=server.library, store=lib.stateStore;
  const rows=[];
  for(const [obj,keys,label] of [[lib,['snapshot','question','resolution','visibleAssets','state'],'library'],[store,['load','get','file','commit','apply'],'state']])for(const key of keys){const original=obj[key];obj[key]=function(...args){if(!current)return original.apply(this,args);return trace(label+'.'+key,()=>original.apply(this,args));}}
- for(let i=0;i<35;i++){current=null;const q=store.get(lib.opened.get(id),'1');current={};const r=await fetch(origin+`/api/v2/banks/${id}/questions/1/draft`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({snapshotId:opened.snapshotId,requestId:'d'+i,expectedRevision:q.revision,answer:{selected:'A'}})});await r.json();const timing=r.headers.get('server-timing');const validate=Number(/validate;dur=([0-9.]+)/.exec(timing)[1]);current['validate.other']=validate-['library.snapshot','state.apply','state.freeze','state.file'].reduce((n,key)=>n+(current[key]||0),0);rows.push({...current,timing});current=null;}
+ for(let i=0;i<35;i++){current=null;const q=store.get(lib.opened.get(id),'1');current={};const r=await fetch(origin+`/api/v2/banks/${id}/questions/1/answer`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({snapshotId:opened.snapshotId,requestId:'d'+i,expectedRevision:q.revision,answer:{selected:'A'}})});await r.json();const timing=r.headers.get('server-timing');const validate=Number(/validate;dur=([0-9.]+)/.exec(timing)[1]);current['validate.other']=validate-['library.snapshot','state.apply','state.freeze','state.file'].reduce((n,key)=>n+(current[key]||0),0);rows.push({...current,timing});current=null;}
  const data=rows.slice(5), result={exclusive:Object.fromEntries(Object.keys(data[0]).filter(k=>k!=='timing').map(k=>[k,stats(data.map(r=>r[k]||0))])),timings:data.map(r=>r.timing)};
  if (!process.argv.includes('--save-only')) {
  const strokes=Array.from({length:10000},(_,i)=>({id:'pen-'+i,color:'#334155',width:3,points:Array.from({length:8},(_,j)=>({x:30+i%20*24+j*2,y:40+Math.floor(i/20)*22+j%3,pressure:.5}))}));
