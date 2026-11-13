@@ -102,6 +102,45 @@ test('retry removes its ink before state commit; failure retains answer and make
   store.write = writer; const saved = write('1', 'retry', request); assert.equal(saved.answer, null); assert.equal(saved.inkRevision, 0);
 });
 
+test('ink-only progress is cleared on content change without ever creating state.json', t => {
+  const { fixture, library, store, id, snapshot, write } = setup(t);
+  write('1', 'ink', { requestId:'ink', expectedInkRevision:0, ink:[1] });
+  assert.equal(fs.existsSync(store.file(fixture.directory)), false);
+  fs.appendFileSync(fixture.bankFile, ' ');
+  const changed = library.open(id);
+  assert.equal(changed.activeCleared, true); assert.equal(changed.initial.question.ink, null);
+  assert.equal(fs.existsSync(store.file(fixture.directory)), false);
+  assert.equal(fs.existsSync(store.ink.directory(snapshot)), false);
+});
+
+test('ink reading, saving and recursive clearing reject redirected private directories without touching the target', t => {
+  const { fixture, store, snapshot, write } = setup(t);
+  const outside = path.join(fixture.root, 'outside'), protectedFile = path.join(outside, 'keep.json');
+  writeFixtureFile(protectedFile, 'protected synthetic content');
+  const local = path.join(fixture.directory, '.qf-v2'); fs.mkdirSync(local);
+  fs.symlinkSync(outside, path.join(local, 'ink'), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => store.ink.read(snapshot, '1'));
+  assert.throws(() => write('1', 'ink', { requestId:'i', expectedInkRevision:0, ink:[1] }));
+  assert.throws(() => store.ink.clear(snapshot));
+  assert.equal(fs.readFileSync(protectedFile, 'utf8'), 'protected synthetic content');
+  assert.deepEqual(fs.readdirSync(outside), ['keep.json']);
+  assert.equal(fs.existsSync(store.file(fixture.directory)), false);
+});
+
+test('atomic state writes retain private-directory redirect checks and never recreate a removed bank', t => {
+  const { fixture, store, snapshot, write } = setup(t);
+  const outside = path.join(fixture.root, 'outside'), protectedFile = path.join(outside, 'state.json');
+  writeFixtureFile(protectedFile, 'protected synthetic content');
+  const local = path.join(fixture.directory, '.qf-v2');
+  fs.symlinkSync(outside, local, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.throws(() => write('1', 'draft', { requestId:'redirect', expectedRevision:0, answer:'A' }), { code:'STATE_WRITE_FAILED' });
+  assert.equal(fs.readFileSync(protectedFile, 'utf8'), 'protected synthetic content');
+  const old = store.load(fixture.directory);
+  fs.renameSync(fixture.directory, fixture.directory + '-moved');
+  assert.throws(() => write('1', 'draft', { requestId:'missing', expectedRevision:0, answer:'A' }));
+  assert.equal(fs.existsSync(snapshot.directory), false); assert.equal(store.load(snapshot.directory), old);
+});
+
 test('D29 LRU retains eight banks and their state/index caches; evicted snapshots reopen transparently or clear on content change', t => {
   const { fixture, library, store, id, opened, write } = setup(t);
   write('1', 'draft', { requestId: 'a', expectedRevision: 0, answer: 'A' });

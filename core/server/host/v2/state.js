@@ -23,9 +23,12 @@ export class PracticeState {
   remember(file, value) {
     this.loaded.delete(file); this.loaded.set(file, value);
   }
-  file(directory) {
+  file(directory, { atomic = false } = {}) {
     const local = path.join(checkPath(directory, { directory: true }), '.qf-v2');
-    checkedStat(local, { directory: true, optional: true });
+    // replaceFile's safeDirectory checks this very directory (including links
+    // and canonical paths) immediately before creating its temporary file.
+    // Still check the bank here so a deleted/moved bank is never recreated.
+    if (!atomic) checkedStat(local, { directory: true, optional: true });
     return path.join(local, 'state.json');
   }
   load(directory, { refresh = false } = {}) {
@@ -58,7 +61,7 @@ export class PracticeState {
   commit(directory, value) {
     const bytes = measureSave('serialize', () => jsonBytes(value));
     if (bytes.length > STATE_BYTES) throw problem('STATE_SIZE_LIMIT', '作答记录超过 32 MiB，本次未保存，原记录保留。', { details: { limit: STATE_BYTES } }, 413);
-    const file = this.file(directory);
+    const file = this.file(directory, { atomic: this.write === replaceFile });
     try { measureSave('write', () => this.write(file, bytes)); } catch { throw problem('STATE_WRITE_FAILED', '作答未能保存，请重试；原记录保持不变。', {}, 503); }
     freezeJson(value); this.remember(file, value);
     // A post-write stat could already describe an external replacement rather
