@@ -45,6 +45,7 @@
 | D36 | 一道题会变化的内容只有三种：答案、白板笔迹、评分。去掉"题型自带的非答案笔记"（`draft` 字段和 `getDraft`）。以后确有需要再加 |
 | D37 | 每道题的 `status` 存大纲的显示状态，精确到小题：没有小题时是一个值，有小题时是"小题 id → 值"的映射。取值为 `unanswered`、`answered`、`correct`、`wrong`、`ungradable`。答没答由拓展报告，对错由宿主按得分与满分比较得出。不再单独保存 `answered`；答案是否锁定、是否已评分由提交凭证和评分结果得出，不另存。详见 [数据结构说明书](V2_DATA_STRUCTURES.md) |
 | D38 | 大纲的每个格子（精确到小题）用五种颜色：未作答；已作答（含已提交但还没有分数的，包括等人工或 AI 评分）；对；错；无法评分。得满分为对，否则为错，不设"部分得分"。"无法评分"用醒目的警示色，提醒题库或拓展有问题 |
+| D39 | 作答文件每道题只有六个字段：`status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。评分结果只有 `score`、`parts`、`message` 三项，不设状态字段；`message` 只在没有分数时说明原因。三个版本号合并为一个；锁定凭证只留编号；请求凭据保留（幂等）并合并为一个列表；`historyIndex` 删除，第 3 段再定。全文见 [数据结构说明书](V2_DATA_STRUCTURES.md) |
 
 ## 1. 前后端分工
 
@@ -206,16 +207,15 @@ extensions/<分组>/<题型>/
 QF.grader.register({
   grade(question, solution, answer, item) {
     // item：大纲中该题的条目（maxScore、parts 等）
-    return { status: "graded" | "pending" | "ungradable", score, feedback, outlineScores, reason };
-    // 有小题时 outlineScores 为 [{ id, score }]，逐小题给分，合计等于 score
+    return { score, parts };   // 需要人工或 AI 评分时 score 为 null；评不了就抛出错误
   },
-  // 以下只有支持 AI 评分的题型需要
+  // 以下只有支持 AI 评分的题型需要（第 5 段）
   prepareAiGrading(question, solution, answer, item, target) { … },
   applyReview(question, solution, answer, item, previousResult, review) { … }
 });
 ```
 
-`status: "pending"` 表示需要人工或 AI 评分（如简答题）。
+返回值和保存格式见 [题型拓展开发说明](../reference/V2_EXTENSIONS.md) 第 4 节与 [数据结构说明书](V2_DATA_STRUCTURES.md) 2.2 节。
 
 **题型页面沙箱**：沿用现有 iframe 沙箱与 CSP（不能联网、不能访问宿主）。
 
