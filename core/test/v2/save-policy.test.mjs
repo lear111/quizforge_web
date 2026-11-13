@@ -40,6 +40,31 @@ test('new input during an in-flight save remains dirty until its own save comple
   saver.changed('text'); const flushing = saver.flush(); for (let i = 0; i < 5; i++) await Promise.resolve(); value = 'B'; saver.changed('text'); release(); await flushing;
   assert.deepEqual(seen, ['A', 'B']); assert.equal(saver.dirty, false); saver.destroy();
 });
+
+test('only conflict and missing-state failures discard frozen writes; network, 5xx and write failures retain them', () => {
+  const classify = dom.window.Policy.isSaveConflict;
+  assert.equal(typeof classify, 'function');
+  for (const error of [{ status: 409 }, { status: 404 }, { code: 'REVISION_CONFLICT' }, { code: 'ANSWER_LOCKED' }, { code: 'SNAPSHOT_STALE' }, { code: 'QUESTION_NOT_FOUND' }, { code: 'BANK_NOT_OPEN' }]) assert.equal(classify(error), true);
+  for (const error of [Error('offline'), { status: 503 }, { code: 'STATE_WRITE_FAILED' }, { status: 500, code: 'REVISION_CONFLICT' }, { status: 401 }, { status: 413 }]) assert.equal(classify(error), false);
+});
+
+test('conflict reload discards all local input and frozen requests, releases exit barriers and permits later saves', async () => {
+  const time = clock(); let value = 'losing input', reloaded = 0, attempts = 0, release;
+  const saver = createSaveController({ clock: time, read: async () => value, prepare: () => async () => { attempts++; if (attempts === 1) throw { status: 409 }; },
+    recovery: { accepts: error => error.status === 409, async reload() { reloaded++; await new Promise(r => { release = r; }); value = 'winner'; } } });
+  saver.changed('text'); const saving = saver.flush(); for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(reloaded, 1); value = 'more losing input'; saver.changed('text'); release(); await saving;
+  assert.equal(value, 'winner'); assert.equal(saver.dirty, false); await saver.flush(); assert.equal(attempts, 1);
+  value = 'new edit'; saver.changed('text'); await saver.flush(); assert.equal(attempts, 2); saver.destroy();
+});
+
+test('failed conflict reload retries only the read, never resends the rejected write', async () => {
+  const time = clock(); let attempts = 0, reads = 0;
+  const saver = createSaveController({ clock: time, read: async () => 'local', prepare: () => async () => { attempts++; throw { status: 404 }; },
+    recovery: { accepts: error => error.status === 404, async reload() { if (++reads === 1) throw Error('reload offline'); } } });
+  saver.changed('choice'); await assert.rejects(saver.flush(), /reload offline/); assert.equal(saver.dirty, true);
+  await saver.flush(); assert.equal(attempts, 1); assert.equal(reads, 2); assert.equal(saver.dirty, false); saver.destroy();
+});
 test('unload warns only with unsaved input; hidden flushes now and teardown removes listeners/timers', async () => {
   const win = new JSDOM('', { url: 'http://localhost/' }).window, time = clock(); let saves = 0;
   const saver = createSaveController({ clock: time, read: async () => 1, prepare: () => async () => { saves++; } });

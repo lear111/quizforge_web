@@ -7,7 +7,7 @@ import type { OutlineModel } from '../outline/model';
 import { mountQuestionPage } from './page';
 import { createGradingService } from './grading';
 import { saveGrade, recoverGrades } from './scoring';
-import { createSaveController, attachSaveLifecycle } from './save-policy';
+import { createSaveController, attachSaveLifecycle, isSaveConflict } from './save-policy';
 import { createPageSourceCache } from './source-cache';
 import type { Picture } from './page';
 const props = defineProps<{ nonce: string }>();
@@ -18,6 +18,7 @@ interface Overview { bank: { bankId: string; title: string }; snapshotId: string
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null), current = ref<Question | null>(null), container = ref<HTMLElement>();
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
 const typeName = ref('题目'), saveStatus = ref('');
+const recovering = ref(false);
 let page: ReturnType<typeof mountQuestionPage> | null = null, generation = 0;
 let saver: ReturnType<typeof createSaveController<Record<string, unknown>>> | null = null;
 let writes: Promise<unknown> = Promise.resolve();
@@ -65,6 +66,40 @@ async function applyContext(q: Question) {
   update(q);
   if (instance) { const assets = await pictures(q, id => instance.hasResource(id)); if (mine === generation) await instance.update(context(q), assets); }
 }
+async function reloadAfterConflict(previous: Question, mine: number) {
+  if (mine !== generation) return;
+  recovering.value = true;
+  try {
+    let latest: Question;
+    try { latest = await json(base(previous) + `?snapshotId=${encodeURIComponent(previous.snapshotId)}`); }
+    catch (error) {
+      if (!isSaveConflict(error)) throw error;
+      let value: Overview;
+      try { value = await json(`/api/v2/banks/${previous.bankId}/overview`); }
+      catch (error) {
+        if (!isSaveConflict(error)) throw error;
+        disposePage(); current.value = null; overview.value = null; sources.dispose();
+        message.value = '本题或题库已移除，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+      if (mine !== generation) return;
+      overview.value = value; sources.scope(previous.bankId, value.snapshotId, token.value);
+      if (!value.states.some(state => state.questionId === previous.questionId)) {
+        disposePage(); current.value = null;
+        message.value = '本题已移除，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+      try { latest = await json(base(previous) + `?snapshotId=${encodeURIComponent(value.snapshotId)}`); }
+      catch (error) {
+        if (!isSaveConflict(error)) throw error;
+        disposePage(); current.value = null;
+        message.value = '本题暂时不可用，本地未保存内容已放弃，请选择其他题目。'; return;
+      }
+    }
+    if (mine !== generation) return;
+    if (latest.snapshotId === previous.snapshotId && latest.extension.artifactId === previous.extension.artifactId) await applyContext(latest);
+    else await show(latest, false);
+    message.value = '本题已在别处修改，已载入最新内容';
+  } finally { recovering.value = false; }
+}
 async function show(q: Question, resume = true) {
   // Keep the current page and its input intact if fetching the next page fails.
   sources.scope(q.bankId, q.snapshotId, token.value);
@@ -88,7 +123,8 @@ async function show(q: Question, resume = true) {
         if (mine === generation) update(saved);
       });
     },
-    status(value) { if (mine === generation) { saveStatus.value = ({ unsaved: '未保存', saving: '正在保存', saved: '已保存', failed: '保存失败' })[value]; if (value === 'saved') message.value = ''; } },
+    recovery: { accepts: isSaveConflict, reload: () => reloadAfterConflict(q, mine) },
+    status(value) { if (mine === generation) { saveStatus.value = ({ unsaved: '未保存', saving: '正在保存', saved: '已保存', failed: '保存失败', recovered: '已载入最新内容' })[value]; if (value === 'saved') message.value = ''; } },
     error(error) { if (mine === generation) message.value = error instanceof Error ? error.message : '保存失败，请重试。'; }
   });
   await instance.ready;
@@ -112,7 +148,7 @@ async function openBank(_kind: string, id?: string) { if (!id) return; await run
     if (saved.questionId === current.value?.questionId) await applyContext(saved);
   }, error => { message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。'; });
 }); }
-async function navigate(id: string) { const bank = overview.value; if (!bank || id === current.value?.questionId && !page?.faulted) return; await run('正在打开题目', async () => { await flush(); await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
+async function navigate(id: string) { if (!overview.value || id === current.value?.questionId && !page?.faulted) return; await run('正在打开题目', async () => { await flush(); const bank = overview.value; if (!bank) return; await show(await json(`/api/v2/banks/${bank.bank.bankId}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null; }); }
 async function score(q: Question): Promise<Question> {
   // Browser postMessage cannot clone Vue proxies from the current-question ref.
   q = toRaw(q);
@@ -123,10 +159,10 @@ async function score(q: Question): Promise<Question> {
 async function grade(q: Question) {
   await flush();
   const active = current.value;
-  await applyContext(await score(active?.bankId === q.bankId && active.questionId === q.questionId ? active : q));
+  if (active?.bankId === q.bankId && active.questionId === q.questionId) await applyContext(await score(active));
 }
 async function submit() { if (!current.value || !page || current.value.state.locked) return; await run('正在提交并评分', async () => {
-  await flush(); const q = current.value!;
+  await flush(); const q = current.value; if (!q || q.state.locked) return;
   const answer = await page!.answer();
   const saved: Question = await enqueue(() => json(base(q) + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, expectedRevision: q.state.revision, answer }) }));
   await applyContext(saved); await grade(saved);
@@ -144,7 +180,7 @@ onMounted(catalog); onBeforeUnmount(() => { detach(); disposePage(); sources.dis
     <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span></header>
       <p v-if="message" class="v2-error" role="alert">{{ message }}</p>
       <div v-if="!current" class="v2-empty">从一道题开始<p>选择左侧题库，开始练习。</p></div>
-      <section v-show="current" class="v2-card" :aria-busy="busy"><div class="v2-question-heading"><span>{{ typeName }}</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame" :inert="busy"></div>
+      <section v-show="current" class="v2-card" :aria-busy="busy || recovering"><div class="v2-question-heading"><span>{{ typeName }}</span><span>{{ current?.state.maxScore }} 分</span></div><div ref="container" class="v2-question-frame" :inert="busy || recovering"></div>
         <div class="v2-answer-footer"><button class="primary" :disabled="busy || current?.state.locked" @click="submit">{{ current?.state.locked ? '已提交' : '提交答案' }}</button>
           <span v-if="saveStatus" class="v2-save-status" role="status">{{ saveStatus }}</span><button v-if="saveStatus === '保存失败'" :disabled="busy" @click="run('正在保存', flush)">重试保存</button>
           <strong v-if="current?.result" role="status">{{ current.result.score === null ? (current.result.reason ?? '待评分') : `${current.result.score} / ${current.state.maxScore} 分` }}</strong>
