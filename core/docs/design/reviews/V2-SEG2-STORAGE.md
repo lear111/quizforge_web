@@ -8,6 +8,7 @@ PR [#83](https://github.com/lear111/quizforge_web/pull/83)，目标 `v2`，等�
 - `state/snapshots/io/type-registry/server`：D27根整体指纹覆盖bank.json原始字节与使用的题型文件内容，不含物理路径、素材、无关文件、SDK；不一致清空全部活跃题和ink，保留historyIndex，显示“题库或题型已变化，本轮作答已清空”；没有state不创建。删除逐题指纹，锁凭证带整体指纹；旧V2无指纹按变化清理，不迁移。D32删除position文件/接口，lastQuestionId只随draft/submit/retry更新，浏览/result/ink不更新。App保留本窗口位置与V2上次题库；ink改用expectedInkRevision，其他写确认省略ink，前端保留其版本。
 - D29：opened最近8库LRU，同步逐出state/身份/ink索引/题型及SDK描述；逐出后带snapshotId访问从磁盘重开，同快照透明继续，变更走D27/过期。其余缓存：FileCache正文256条/32MiB、摘要8192条/64MiB；前端位置8条，源码/SDK仅当前库，切库/刷新/授权改变/卸载清空取消；评分槽闲置60秒删除、10秒超时销毁、卸载全释放；页面资源/URL随iframe销毁；数字WeakMap随对象回收，序列化局部键/数字备忘各≤1024项且调用后释放。
 - 暖状态借用冻结图，打开/刷新仍核对外部身份与字节，写盘仍检查安全路径；原子写的私有目录检查交给已有replaceFile，保留题库目录检查，防止重建已被移走的目录。其他文件：App/UI产物、v2测试、三个测量脚本、白板浏览器检查、接口速查/进度。未改V1白板、评分校验、solution边界、四份V1标准答案、真实数据、日常服务、部署/安装包；同步#81/#82仅文档，④和2.5未开始。
+- 文档补充：同步#84，题型与宿主接口唯一依据为 `core/docs/reference/V2_EXTENSIONS.md`；`V2_API_AND_STATE.md` 仅维护前后端与存储。修正主状态不含ink、锁凭证使用整体contentFingerprint，列明独立ink版本/上限及result的source字段，删除练习position接口/文件的旧约定；未提前实现D35，未修改定稿原文。
 
 ## 诊断与速度
 
