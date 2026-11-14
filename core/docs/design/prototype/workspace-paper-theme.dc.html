@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>QuizForge 做题页 · 答题卡风格</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&amp;display=swap">
+<style>
+body{margin:0;background:#EDE8DE}
+a{color:#2B4A9B}a:hover{color:#1F3878}
+button{font:inherit;cursor:pointer}
+.serif{font-family:"Noto Serif SC","Songti SC","SimSun",serif}
+.cell{position:relative}
+button:focus-visible{outline:2px solid #2B4A9B;outline-offset:2px}
+.app{display:flex;height:100vh;min-height:620px;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;color:#24211C;background:#EDE8DE;position:relative;overflow:hidden}
+.lib{width:256px;flex:none;display:flex;flex-direction:column;background:#F5F1E8;border-right:1px solid #E2DACB}
+.outline{width:244px;flex:none;display:flex;flex-direction:column;background:#FFFDF8;border-left:1px solid #E2DACB}
+.lib.closed,.outline.closed{display:none}
+.mobilebar{display:none}
+.scrim{display:none}
+@media (max-width: 900px){
+.app{flex-direction:column}
+.mobilebar{display:flex}
+.lib,.outline{display:none;position:absolute;top:56px;bottom:0;z-index:20;box-shadow:0 12px 32px rgba(20,22,40,.18)}
+.lib{left:0}
+.outline{right:0}
+.lib.mopen,.outline.mopen{display:flex}
+.scrim.on{display:block;position:absolute;inset:56px 0 0 0;background:rgba(20,22,40,.28);z-index:10}
+.desk{display:none}
+.card{padding:20px 18px !important}
+.scroller{padding:16px 44px 24px !important}
+.sidenav{width:32px !important;height:72px !important}
+.sidenav.l{left:6px !important}
+.sidenav.r{right:6px !important}
+}
+</style>
+</helmet>
+<div class="app">
+
+<header class="mobilebar" style="height: 56px; flex: none; align-items: center; gap: 8px; padding: 0 12px; background: #FFFDF8; border-bottom: 1px solid #E2DACB; box-sizing: border-box">
+  <button onClick="{{toggleLibMobile}}" style="height: 40px; padding: 0 12px; border: 1px solid #D9D0BE; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 14px">题库</button>
+  <strong style="flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center">{{bankTitle}}</strong>
+  <button onClick="{{toggleOutlineMobile}}" style="height: 40px; padding: 0 12px; border: 1px solid #D9D0BE; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 14px">大纲</button>
+</header>
+<div class="scrim {{scrimClass}}" onClick="{{closeDrawer}}"></div>
+
+<aside class="lib {{libClass}}" aria-label="题库">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px">
+    <div style="width: 34px; height: 34px; border-radius: 9px; background: #2B4A9B; display: flex; align-items: center; justify-content: center">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M8 11l2 2 4-4"></path><path d="M16.5 16.5L20 20"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 1px">
+      <strong class="serif" style="font-size: 17px; letter-spacing: 0.5px">QuizForge</strong>
+      <span style="font-size: 12px; color: #6E6656">你的练习空间</span>
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 4px; padding: 6px 12px 6px 18px">
+    <span class="serif" style="flex: 1; font-size: 13px; color: #5A5345; font-weight: 700; letter-spacing: 2px">书架</span>
+    <button aria-label="导入题库" style="width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #6E6656; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg></button>
+    <button aria-label="新建题库" style="width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #6E6656; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></button>
+    <button aria-label="刷新题库列表" style="width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #6E6656; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 5v6h-6"></path></svg></button>
+  </div>
+  <nav style="flex: 1; overflow-y: auto; padding: 4px 10px 12px">
+    <sc-for list="{{libGroups}}" as="g" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column">
+        <button onClick="{{g.toggle}}" aria-expanded="{{g.expanded}}" style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #3B3529; font-size: 14px; text-align: left">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8E8573" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="{{g.chevronStyle}}" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+          <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{g.name}}</span>
+          <span style="font-size: 12px; color: #8E8573">{{g.count}}</span>
+        </button>
+        <sc-if value="{{g.open}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 13px; padding-left: 10px; border-left: 1px solid #E2DACB">
+            <sc-for list="{{g.banks}}" as="b" hint-placeholder-count="3">
+              <button style="{{b.rowStyle}}">
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                  <span style="font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{b.title}}</span>
+                  <span style="font-size: 12px; color: #6E6656">{{b.meta}}</span>
+                </span>
+                <sc-if value="{{b.dot}}" hint-placeholder-val="{{false}}">
+                  <span aria-label="有未完成的练习" style="width: 7px; height: 7px; border-radius: 4px; background: #2B4A9B; flex: none"></span>
+                </sc-if>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </nav>
+  <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #E2DACB">
+    <button aria-label="设置" style="width: 36px; height: 36px; border: 1px solid #D9D0BE; border-radius: 8px; background: #FFFDF8; color: #5A5345; display: flex; align-items: center; justify-content: center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+    <span style="flex: 1"></span>
+    <a href="#" style="font-size: 13px; text-decoration: none">获取题库</a>
+  </div>
+</aside>
+
+<main style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+  <header style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 56px; padding: 8px 16px; background: #FFFDF8; border-bottom: 1px solid #E2DACB; box-sizing: border-box">
+    <button class="desk" onClick="{{toggleLib}}" aria-label="收起或展开题库栏" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #6E6656; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 200px">
+      <span style="font-size: 12px; color: #6E6656">考研英语</span>
+      <strong class="serif" style="font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{bankTitle}}</strong>
+    </div>
+    <sc-if value="{{exam}}" hint-placeholder-val="{{false}}">
+      <span style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; background: #FFF3E8; color: #9A3F0F; font-size: 13px; font-weight: 600">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2"></path><path d="M9 2h6"></path></svg>
+        考试中 · 剩余 1:42:18
+      </span>
+    </sc-if>
+    <button onClick="{{toggleDraft}}" style="{{draftBtnStyle}}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"></path><path d="M14 6l3 3"></path></svg>
+      {{draftLabel}}
+    </button>
+    <sc-if value="{{notExam}}" hint-placeholder-val="{{true}}">
+      <button onClick="{{startExam}}" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid #D9D0BE; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 14px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2"></path><path d="M9 2h6"></path></svg>
+        开始考试
+      </button>
+    </sc-if>
+    <button class="desk" onClick="{{toggleOutline}}" aria-label="收起或展开大纲栏" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #6E6656; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+  </header>
+
+  <sc-if value="{{drafting}}" hint-placeholder-val="{{false}}">
+    <div role="toolbar" aria-label="草稿工具" style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 16px; background: #ECE6D8; border-bottom: 1px solid #DAD1BF">
+      <sc-for list="{{tools}}" as="t" hint-placeholder-count="4">
+        <button onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+      </sc-for>
+      <span style="width: 1px; height: 22px; background: #D2C8B4; margin: 0 4px"></span>
+      <sc-for list="{{inks}}" as="c" hint-placeholder-count="4">
+        <button onClick="{{c.pick}}" aria-label="{{c.name}}" style="{{c.style}}"></button>
+      </sc-for>
+      <span style="flex: 1"></span>
+      <button style="height: 34px; padding: 0 12px; border: 1px solid #D2C8B4; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 13px">撤销</button>
+      <button style="height: 34px; padding: 0 12px; border: 1px solid #D2C8B4; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 13px">清空本题草稿</button>
+    </div>
+  </sc-if>
+
+  <div style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column">
+  <div class="scroller" style="flex: 1; min-height: 0; overflow-y: auto; padding: 24px 84px 32px; box-sizing: border-box">
+    <sc-if value="{{showQuestion}}" hint-placeholder-val="{{true}}">
+      <article class="card" style="{{cardStyle}}">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding-bottom: 12px; border-bottom: 3px double #CFC6B3">
+          <span class="serif" style="font-size: 13px; letter-spacing: 6px; color: #6E6656">第 二 部 分</span>
+          <span class="serif" style="font-size: 20px; font-weight: 700; letter-spacing: 2px; color: #24211C">阅读理解 · Text 2</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span class="serif" style="width: 34px; height: 34px; border-radius: 17px; border: 1.5px solid #24211C; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #24211C">{{currentLabel}}</span>
+          <span style="flex: 1; height: 1px; background: #E2DACB"></span>
+          <span class="serif" style="font-size: 14px; color: #6E6656">（本题 2 分）</span>
+        </div>
+        <div style="padding: 18px 20px; border-radius: 10px; background: #F8F4EC; border: 1px solid #ECE5D7; font-size: 15px; line-height: 1.8; color: #2A2620; font-family: Georgia, 'Times New Roman', serif">
+          <p style="margin: 0 0 10px">Public libraries were once judged by the size of their collections. Today many of them are judged by how they are used. A branch that lends fewer books but runs language classes, job clinics and homework clubs may serve more people than one with twice the shelves.</p>
+          <p style="margin: 0">Critics argue that this shift turns libraries into community centres and leaves reading behind. Supporters reply that the mission has not changed at all: libraries have always existed to give people access to knowledge, and the form that access takes has simply followed what people need.</p>
+        </div>
+        <p style="margin: 0; font-size: 16px; line-height: 1.7; font-weight: 600">According to the passage, supporters of the change believe that libraries ______.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <sc-for list="{{options}}" as="o" hint-placeholder-count="4">
+            <button onClick="{{o.pick}}" aria-pressed="{{o.selected}}" style="{{o.style}}">
+              <span style="{{o.badgeStyle}}">{{o.key}}</span>
+              <span style="{{o.textStyle}}">{{o.text}}</span>
+              <sc-if value="{{o.ok}}" hint-placeholder-val="{{false}}">
+                <svg width="30" height="26" viewBox="0 0 30 26" fill="none" stroke="#C8372D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="正确答案" style="flex: none; margin-top: -2px"><path d="M3 14 L11 22 L27 3"></path></svg>
+              </sc-if>
+              <sc-if value="{{o.bad}}" hint-placeholder-val="{{false}}">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="#C8372D" stroke-width="3" stroke-linecap="round" role="img" aria-label="你的选择，错误" style="flex: none"><path d="M5 5 L21 21"></path><path d="M21 5 L5 21"></path></svg>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+        <sc-if value="{{submitted}}" hint-placeholder-val="{{false}}">
+          <div style="{{resultStyle}}">
+            <strong style="font-size: 15px">{{resultTitle}}</strong>
+            <span style="font-size: 14px; line-height: 1.7; color: #3B3529">答案 B。第二段末句说图书馆的使命没有变，只是提供知识的形式随需求而变。A 是批评者的看法；C、D 文中没有依据。</span>
+          </div>
+        </sc-if>
+        <div style="display: flex; justify-content: flex-end; gap: 10px">
+          <sc-if value="{{canRetry}}" hint-placeholder-val="{{false}}">
+            <button onClick="{{retry}}" style="height: 40px; padding: 0 18px; border: 1px solid #D9D0BE; border-radius: 8px; background: #FFFDF8; color: #3B3529; font-size: 14px">重做</button>
+          </sc-if>
+          <sc-if value="{{canSubmit}}" hint-placeholder-val="{{true}}">
+            <button onClick="{{submit}}" style="{{submitStyle}}">提交</button>
+          </sc-if>
+        </div>
+      </article>
+    </sc-if>
+
+    <sc-if value="{{showSummary}}" hint-placeholder-val="{{false}}">
+      <section class="card" style="max-width: 760px; margin: 0 auto; padding: 48px 32px; background: #FFFDF8; border: 1px solid #E2DACB; border-radius: 3px; box-shadow: 0 10px 24px rgba(60,48,30,0.08); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+        <span class="serif" style="font-size: 15px; letter-spacing: 2px; color: #6E6656">{{summaryKicker}}</span>
+        <div style="display: flex; align-items: baseline; gap: 6px">
+          <span style="display: flex; flex-direction: column; align-items: center">
+            <strong class="serif" style="font-size: 72px; line-height: 1; color: #C8372D; font-weight: 700; font-style: italic; transform: rotate(-4deg)">{{scoreText}}</strong>
+            <svg width="150" height="16" viewBox="0 0 150 16" fill="none" stroke="#C8372D" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M4 6 C40 2, 100 2, 146 5"></path><path d="M10 12 C50 9, 95 9, 140 11"></path></svg>
+          </span>
+          <span class="serif" style="font-size: 20px; color: #6E6656">/ 100 分</span>
+        </div>
+        <span style="font-size: 14px; color: #5A5345; line-height: 1.7">{{summaryNote}}</span>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px">
+          <button onClick="{{backToQuestions}}" style="height: 44px; padding: 0 20px; border: 1px solid #D9D0BE; border-radius: 10px; background: #FFFDF8; color: #3B3529; font-size: 15px">返回题目</button>
+          <button onClick="{{summaryAction}}" style="height: 44px; padding: 0 22px; border: 0; border-radius: 10px; background: #2B4A9B; color: #FFFDF8; font-size: 15px; font-weight: 600">{{summaryActionLabel}}</button>
+        </div>
+      </section>
+    </sc-if>
+  </div>
+  <button class="sidenav l" onClick="{{prev}}" aria-label="上一题" title="上一题" style="{{prevStyle}}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+  </button>
+  <button class="sidenav r" onClick="{{next}}" aria-label="{{nextLabel}}" title="{{nextLabel}}" style="{{nextStyle}}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+  </button>
+</div>
+
+  
+</main>
+
+<aside class="outline {{outlineClass}}" aria-label="题目大纲">
+  <div style="display: flex; align-items: center; height: 56px; padding: 0 16px; border-bottom: 1px solid #E2DACB; box-sizing: border-box">
+    <strong class="serif" style="flex: 1; font-size: 15px; letter-spacing: 4px">答 题 卡</strong>
+    <span style="font-size: 12px; color: #6E6656">{{progressText}}</span>
+  </div>
+  <div style="flex: 1; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 16px">
+    <sc-for list="{{outline}}" as="sec" hint-placeholder-count="4">
+      <section style="display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 12px; color: #5A5345; font-weight: 600">{{sec.title}}</span>
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 8px">
+          <sc-for list="{{sec.items}}" as="it" hint-placeholder-count="6">
+            <button class="cell" onClick="{{it.go}}" aria-label="{{it.aria}}" style="{{it.style}}">{{it.n}}<sc-if value="{{it.ok}}" hint-placeholder-val="{{false}}"><svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="#C8372D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; right: -6px; top: -7px"><path d="M2 7 L6 11 L14 2"></path></svg></sc-if><sc-if value="{{it.bad}}" hint-placeholder-val="{{false}}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#C8372D" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="position: absolute; right: -5px; top: -6px"><path d="M2 2 L11 11"></path><path d="M11 2 L2 11"></path></svg></sc-if></button>
+          </sc-for>
+        </div>
+      </section>
+    </sc-for>
+    <button onClick="{{openSummary}}" style="{{summaryEntryStyle}}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20H2"></path></svg>
+      {{summaryEntryLabel}}
+    </button>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 12px 16px; border-top: 1px solid #E2DACB">
+    <sc-for list="{{legend}}" as="l" hint-placeholder-count="3">
+      <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; color: #5A5345">
+        <span style="{{l.swatch}}"></span><span style="{{l.markStyle}}">{{l.mark}}</span>{{l.label}}
+      </span>
+    </sc-for>
+  </div>
+</aside>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#2B4A9B","options":["#2B4A9B","#2F5D50","#7A3B2E","#3B3529"]},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var st = {};
+    var plan = [
+      ['Section I 英语知识运用', 1, 20],
+      ['Section II 阅读理解 · Part A', 21, 40],
+      ['Part B 新题型', 41, 45],
+      ['Part C 翻译', 46, 50],
+      ['Section III 写作', 51, 52]
+    ];
+    for (var i = 1; i <= 52; i++) {
+      var s = 'unanswered';
+      if (i <= 14) s = (i % 4 === 0 || i === 7) ? 'wrong' : 'correct';
+      else if (i >= 21 && i <= 27) s = (i === 24) ? 'wrong' : 'correct';
+      else if (i === 46 || i === 47) s = 'answered';
+      st[i] = s;
+    }
+    st[28] = 'unanswered';
+    this.plan = plan;
+    this.state = {
+      status: st, current: 28, view: 'question', selected: null, submitted: false,
+      drafting: false, tool: 'pen', ink: 'navy', libOpen: true, outlineOpen: true,
+      drawer: null, exam: false, completed: false,
+      open: { cet4: false, basic: false, math: false, kaoyan: true }
+    };
+  }
+
+  renderVals() {
+    var self = this;
+    var s = this.state;
+    var accent = this.props.accent || '#2B4A9B';
+    var set = function (patch) { return function () { self.setState(patch); }; };
+
+    var libData = [
+      { id: 'cet4', name: '大学英语四级 · 联网听力版', banks: [['2023年6月 第一套', '57 题'], ['2023年12月 第一套', '57 题'], ['2024年6月 第一套', '57 题']] },
+      { id: 'basic', name: '基础题型示例', banks: [['单选、多选、判断', '7 题']] },
+      { id: 'math', name: '考研数学', banks: [['2023年 数学一', '22 题'], ['2024年 数学一', '22 题']] },
+      { id: 'kaoyan', name: '考研英语', banks: [['2001年考研英语真题', '52 题'], ['2002年考研英语真题', '52 题'], ['2003年考研英语真题', '52 题'], ['2004年考研英语真题', '52 题'], ['2005年考研英语真题', '52 题'], ['2006年考研英语真题', '52 题']] }
+    ];
+    var libGroups = libData.map(function (g) {
+      var open = !!s.open[g.id];
+      return {
+        name: g.name, count: String(g.banks.length), open: open, expanded: open ? 'true' : 'false',
+        chevronStyle: 'transition: transform .15s; transform: rotate(' + (open ? 90 : 0) + 'deg)',
+        toggle: function () { var o = Object.assign({}, s.open); o[g.id] = !open; self.setState({ open: o }); },
+        banks: g.banks.map(function (b) {
+          var active = b[0] === '2004年考研英语真题';
+          return {
+            title: b[0], meta: b[1] + ' · ' + (active ? '进行中' : '未开始'), dot: active,
+            rowStyle: 'display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 6px 10px; border: 0; border-radius: 8px; text-align: left; color: ' + (active ? '#24211C' : '#3B3529') + '; background: ' + (active ? '#FFFDF8' : 'transparent') + '; box-shadow: ' + (active ? 'inset 3px 0 0 #2B4A9B, 0 1px 3px rgba(60,48,30,0.08)' : 'none') + '; border-radius: ' + (active ? '2px 6px 6px 2px' : '8px') + '; font-weight: ' + (active ? '600' : '400')
+          };
+        })
+      };
+    });
+
+    var effective = function (n) {
+      var v = s.status[n];
+      if (s.exam && v !== 'unanswered') return 'answered';
+      return v;
+    };
+    var cellStyle = {
+      unanswered: 'background: transparent; border: 1.3px solid #A89E89; color: #6E6656',
+      answered: 'background: #3B3529; border: 1.3px solid #3B3529; color: #FFFDF8',
+      correct: 'background: #3B3529; border: 1.3px solid #3B3529; color: #FFFDF8',
+      wrong: 'background: #3B3529; border: 1.3px solid #3B3529; color: #FFFDF8'
+    };
+    var names = { unanswered: '未作答', answered: '已作答', correct: '正确', wrong: '错误' };
+    var done = 0;
+    var outline = this.plan.map(function (p) {
+      var items = [];
+      for (var n = p[1]; n <= p[2]; n++) {
+        (function (n) {
+          var st = effective(n);
+          if (st !== 'unanswered') done++;
+          var cur = s.view === 'question' && n === s.current;
+          items.push({
+            n: String(n), aria: '第 ' + n + ' 题，' + names[st], ok: st === 'correct', bad: st === 'wrong',
+            style: 'height: 24px; min-width: 0; padding: 0; border-radius: 12px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; box-sizing: border-box; ' + cellStyle[st] + (cur ? '; box-shadow: 0 0 0 2px #FFFDF8, 0 0 0 3.5px ' + accent : ''),
+            go: function () { self.go(n); }
+          });
+        })(n);
+      }
+      return { title: p[0], items: items };
+    });
+
+    var legendKeys = s.exam ? ['answered'] : ['answered', 'correct', 'wrong'];
+    var legend = legendKeys.map(function (k) {
+      return { label: names[k], mark: k === 'correct' ? '✓' : (k === 'wrong' ? '✗' : ''), markStyle: k === 'answered' ? 'display: none' : 'color: #C8372D; font-weight: 700; margin-left: -10px; margin-right: 2px; font-size: 12px', swatch: 'width: 16px; height: 10px; border-radius: 5px; box-sizing: border-box; ' + cellStyle[k] };
+    });
+
+    var correctKey = 'B';
+    var opts = [
+      ['A', 'should spend less effort on lending books and more on community events.'],
+      ['B', 'still serve their original purpose in a different form.'],
+      ['C', 'are no longer able to compete with online sources.'],
+      ['D', 'ought to be measured by the size of their collections.']
+    ];
+    var options = opts.map(function (o) {
+      var sel = s.selected === o[0];
+      var showAns = s.submitted && !s.exam;
+      var border = '#D9D0BE', bg = '#FFFDF8', badgeBg = '#F1ECE2', badgeFg = '#3B3529';
+      if (sel) { border = accent; bg = '#EEF2FA'; badgeBg = accent; badgeFg = '#FFFDF8'; }
+      var ok = showAns && o[0] === correctKey;
+      var bad = showAns && sel && o[0] !== correctKey;
+      return {
+        key: o[0], text: o[1], selected: sel ? 'true' : 'false', ok: ok, bad: bad,
+        textStyle: 'flex: 1; text-align: left; line-height: 1.6' + (bad ? '; text-decoration: line-through; text-decoration-color: rgba(200,55,45,0.6)' : ''),
+        style: 'display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 52px; padding: 12px 14px; border: 1.5px solid ' + border + '; border-radius: 4px; background: ' + bg + '; color: #24211C; font-size: 15px; box-sizing: border-box; cursor: ' + (s.submitted ? 'default' : 'pointer'),
+        badgeStyle: 'flex: none; width: 26px; height: 26px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: ' + badgeBg + '; color: ' + badgeFg,
+        pick: function () {
+          if (s.submitted || s.drafting) return;
+          var stt = Object.assign({}, s.status); stt[28] = 'answered';
+          self.setState({ selected: o[0], status: stt });
+        }
+      };
+    });
+    var right = s.selected === correctKey;
+
+    var tools = [['pen', '钢笔'], ['marker', '荧光笔'], ['eraser', '橡皮'], ['move', '移动']].map(function (t) {
+      var on = s.tool === t[0];
+      return { label: t[1], pick: set({ tool: t[0] }), style: 'height: 34px; padding: 0 12px; border: 1px solid ' + (on ? accent : '#D2C8B4') + '; border-radius: 8px; background: ' + (on ? accent : '#FFFDF8') + '; color: ' + (on ? '#FFFDF8' : '#3B3529') + '; font-size: 13px' };
+    });
+    var inks = [['navy', '#1F3A8A', '深蓝'], ['red', '#C62828', '红色'], ['green', '#1B7F4B', '绿色'], ['black', '#24211C', '黑色']].map(function (c) {
+      var on = s.ink === c[0];
+      return { name: c[2], pick: set({ ink: c[0] }), style: 'width: 26px; height: 26px; border-radius: 13px; padding: 0; border: 2px solid ' + (on ? '#FFFDF8' : 'transparent') + '; background: ' + c[1] + '; box-shadow: ' + (on ? '0 0 0 2px ' + accent : 'none') };
+    });
+
+    var atFirst = s.view === 'question' && s.current === 1;
+    var atSummary = s.view === 'summary';
+    var navBtn = function (side, disabled) {
+      return 'position: absolute; top: 50%; ' + side + ': 20px; transform: translateY(-50%); width: 40px; height: 120px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #D9D0BE; border-radius: 6px; background: #F8F4EC; box-shadow: 0 2px 6px rgba(60,48,30,0.06); z-index: 2; color: ' + (disabled ? '#C9C0AE' : '#5A5345') + '; cursor: ' + (disabled ? 'default' : 'pointer') + '; opacity: ' + (disabled ? '0.6' : '1');
+    };
+
+    var drawer = s.drawer;
+    return {
+      bankTitle: '2004年考研英语真题',
+      libClass: (s.libOpen ? '' : 'closed') + (drawer === 'lib' ? ' mopen' : ''),
+      outlineClass: (s.outlineOpen ? '' : 'closed') + (drawer === 'outline' ? ' mopen' : ''),
+      scrimClass: drawer ? 'on' : '',
+      toggleLib: set({ libOpen: !s.libOpen }),
+      toggleOutline: set({ outlineOpen: !s.outlineOpen }),
+      toggleLibMobile: set({ drawer: drawer === 'lib' ? null : 'lib' }),
+      toggleOutlineMobile: set({ drawer: drawer === 'outline' ? null : 'outline' }),
+      closeDrawer: set({ drawer: null }),
+      libGroups: libGroups,
+
+      exam: s.exam, notExam: !s.exam,
+      startExam: function () {
+        if (s.completed) return;
+        self.setState({ exam: true, submitted: false, view: 'question' });
+      },
+      drafting: s.drafting,
+      draftLabel: s.drafting ? '收起草稿纸' : '草稿纸',
+      toggleDraft: set({ drafting: !s.drafting }),
+      draftBtnStyle: 'display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid ' + (s.drafting ? accent : '#D9D0BE') + '; border-radius: 8px; background: ' + (s.drafting ? accent : '#FFFDF8') + '; color: ' + (s.drafting ? '#FFFDF8' : '#3B3529') + '; font-size: 14px',
+      tools: tools, inks: inks,
+
+      showQuestion: s.view === 'question', showSummary: s.view === 'summary',
+      currentLabel: String(s.current),
+      cardStyle: 'max-width: 760px; margin: 0 auto; padding: 36px 44px 32px; background: #FFFDF8; border: 1px solid ' + (s.drafting ? '#B7AB92' : '#E2DACB') + '; border-radius: 3px; box-shadow: 0 1px 0 #E2DACB, 0 10px 24px rgba(60,48,30,0.08); box-sizing: border-box; display: flex; flex-direction: column; gap: 18px' + (s.drafting ? '; outline: 2px dashed #B7AB92; outline-offset: 6px; cursor: crosshair' : ''),
+      options: options,
+      submitted: s.submitted && !s.exam,
+      resultTitle: right ? '✓ 正确，得 2 分' : '✗ 错误，得 0 分',
+      resultStyle: 'display: flex; flex-direction: column; gap: 6px; padding: 12px 0 0 16px; border-left: 3px solid #C8372D; color: #C8372D',
+      canSubmit: !s.exam && !s.submitted && !s.completed,
+      canRetry: !s.exam && s.submitted && !s.completed,
+      submitStyle: 'height: 40px; padding: 0 22px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; color: #FFFDF8; background: ' + (s.selected ? accent : '#A9B6D6') + '; cursor: ' + (s.selected ? 'pointer' : 'default'),
+      submit: function () {
+        if (!s.selected) return;
+        var stt = Object.assign({}, s.status); stt[28] = s.selected === correctKey ? 'correct' : 'wrong';
+        self.setState({ submitted: true, status: stt });
+      },
+      retry: function () {
+        var stt = Object.assign({}, s.status); stt[28] = 'unanswered';
+        self.setState({ submitted: false, selected: null, status: stt });
+      },
+
+      summaryKicker: s.completed ? (s.exam ? '考试已交卷 · 用时 1:17:42' : '练习已完成') : (s.exam ? '交卷前确认' : '当前得分'),
+      scoreText: s.completed || !s.exam ? '58.5' : '—',
+      summaryNote: s.completed
+        ? '答案已锁定。主观题可以在题目里修改分数；归档后这一轮进入历史记录。'
+        : (s.exam ? '还有 ' + (52 - done) + ' 道题未作答。交卷后统一评分，答案不能再改。' : '还有 ' + (52 - done) + ' 道题未作答，完成后按 0 分计。完成后答案锁定，未评分的题会自动评分。'),
+      summaryActionLabel: s.completed ? (s.exam ? '归档并返回练习' : '再练一次') : (s.exam ? '交卷' : '完成练习'),
+      summaryAction: function () {
+        if (!s.completed) { self.setState({ completed: true, submitted: true }); return; }
+        self.setState({ completed: false, exam: false, submitted: false, selected: null, view: 'question', current: 1 });
+      },
+      backToQuestions: set({ view: 'question' }),
+
+      prev: function () { if (atFirst) return; if (atSummary) self.go(52); else self.go(s.current - 1); },
+      next: function () { if (atSummary) return; if (s.current === 52) self.setState({ view: 'summary', drawer: null }); else self.go(s.current + 1); },
+      prevStyle: navBtn('left', atFirst),
+      nextStyle: navBtn('right', atSummary),
+      nextLabel: s.current === 52 && !atSummary ? (s.exam ? '去交卷' : '去分数汇总') : '下一题',
+      positionText: atSummary ? (s.exam ? '交卷' : '分数汇总') : ('第 ' + s.current + ' / 52 题'),
+
+      outline: outline,
+      progressText: done + ' / 52',
+      legend: legend,
+      openSummary: set({ view: 'summary', drawer: null }),
+      summaryEntryLabel: s.exam ? '交卷' : '分数汇总',
+      summaryEntryStyle: 'display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; font-size: 14px; font-weight: 600; border: 1px solid ' + (atSummary ? accent : '#D9D0BE') + '; background: ' + (atSummary ? '#E3E8F3' : '#FFFDF8') + '; color: ' + (atSummary ? '#1F3878' : '#3B3529')
+    };
+  }
+
+  go(n) {
+    if (n < 1 || n > 52) return;
+    var sub = n === 28 && (this.state.status[28] === 'correct' || this.state.status[28] === 'wrong');
+    this.setState({ current: n, view: 'question', drawer: null, submitted: n === 28 ? sub : false });
+  }
+}
+</script>
+</body>
+</html>
