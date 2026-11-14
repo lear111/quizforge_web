@@ -1,8 +1,15 @@
+/** @typedef {import('../../../shared/v2/state.js').GradeResult} GradeResult */
+/** @typedef {import('../../../shared/v2/state.js').QuestionState} QuestionState */
+/** @typedef {import('../types/data.js').LoadedState} LoadedState */
 import { projectJson } from '../../host/platform/json.js';
 import { object } from '../utils/errors.js';
 import { integer, own, invalid } from '../utils/state.js';
 import { validOldReceipts, validReceipts } from '../utils/receipts.js';
 import { validateAnswered, isOutlineStatus } from '../../../shared/v2/answered.js';
+/**
+ * @param {unknown} result
+ * @returns {result is GradeResult}
+ */
 export const validResultShape = (result) =>
   object(result) &&
   Object.keys(result).length === 3 &&
@@ -13,6 +20,10 @@ export const validResultShape = (result) =>
       result.message === null &&
       (result.parts === null ||
         (object(result.parts) && Object.values(result.parts).every(Number.isFinite))));
+/**
+ * @param {unknown} state
+ * @param {unknown} contentFingerprint
+ */
 export function validOldQuestion(state, contentFingerprint) {
   if (
     !object(state) ||
@@ -43,10 +54,15 @@ export function validOldQuestion(state, contentFingerprint) {
       'graded',
       'pending-review',
       'ungradable',
-    ].includes(state.status) &&
-    Boolean(state.submission) !== ['unanswered', 'drafting'].includes(state.status)
+    ].includes(/** @type {string} */ (state.status)) &&
+    Boolean(state.submission) !==
+      ['unanswered', 'drafting'].includes(/** @type {string} */ (state.status))
   );
 }
+/**
+ * @param {unknown} state
+ * @returns {state is QuestionState}
+ */
 export function validQuestion(state) {
   if (
     !object(state) ||
@@ -72,6 +88,10 @@ export function validQuestion(state) {
   return state.result === null || (state.submissionId !== null && validResultShape(state.result));
 }
 
+/**
+ * @param {unknown} value
+ * @returns {asserts value is LoadedState}
+ */
 export function validateState(value) {
   if (!object(value) || value.formatVersion !== 2 || !object(value.questions)) {
     throw invalid();

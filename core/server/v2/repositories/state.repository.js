@@ -1,3 +1,4 @@
+/** @typedef {import('../types/data.js').LoadedState} LoadedState */
 import path from 'node:path';
 import { readBytes, replaceFile, checkPath, checkedStat } from '../../host/platform/files.js';
 import { freezeJson, jsonBytes, parseJson } from '../../host/platform/json.js';
@@ -7,21 +8,29 @@ import { validateState } from './state-shape.repository.js';
 import { measureSave } from '../utils/timing.js';
 import { STATE_BYTES } from '../utils/limits.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
+/**
+ * @param {string} file
+ */
 const identity = (file) => {
   const { stat } = checkedStat(file, { optional: true, bigint: true });
   return stat ? statIdentity(stat) : null;
 };
 
 export class StateRepository {
+  /** @param {{write?: typeof replaceFile}} [options] */
   constructor({ write = replaceFile } = {}) {
     this.write = write;
+    /** @type {Map<string, LoadedState>} */
     this.loaded = new Map();
+    /** @type {Map<string, string | null>} */
     this.identities = new Map();
   }
+  /** @param {string} file @param {LoadedState} value */
   remember(file, value) {
     this.loaded.delete(file);
     this.loaded.set(file, value);
   }
+  /** @param {string} directory @param {{atomic?: boolean}} [options] */
   file(directory, { atomic = false } = {}) {
     const local = path.join(checkPath(directory, { directory: true }), '.qf-v2');
     // replaceFile's safeDirectory checks this very directory (including links
@@ -32,16 +41,18 @@ export class StateRepository {
     }
     return path.join(local, 'state.json');
   }
+  /** @param {string} directory @param {{refresh?: boolean}} [options]
+   * @returns {LoadedState} */
   load(directory, { refresh = false } = {}) {
     // A warm immutable graph needs no repeated filesystem resolution. Explicit
     // open/refresh checks identity; every commit still checks the destination.
     const key = path.join(directory, '.qf-v2', 'state.json');
     if (!refresh && this.loaded.has(key)) {
-      return this.loaded.get(key);
+      return /** @type {LoadedState} */ (this.loaded.get(key));
     }
     const file = this.file(directory);
     if (!refresh && this.loaded.has(file)) {
-      return this.loaded.get(file);
+      return /** @type {LoadedState} */ (this.loaded.get(file));
     }
     let value, observed;
     try {
@@ -51,7 +62,7 @@ export class StateRepository {
         this.identities.has(file) &&
         this.identities.get(file) === observed
       ) {
-        return this.loaded.get(file);
+        return /** @type {LoadedState} */ (this.loaded.get(file));
       }
       value = this.readState(file, observed);
       validateState(value);
@@ -65,6 +76,7 @@ export class StateRepository {
     this.identities.set(file, observed);
     return value;
   }
+  /** @param {string} file @param {string | null} observed @returns {unknown} */
   readState(file, observed) {
     const bytes = readBytes(file, STATE_BYTES, true);
     if (identity(file) !== observed) {
@@ -80,6 +92,7 @@ export class StateRepository {
           : empty();
     return value;
   }
+  /** @param {string} directory @param {LoadedState} value */
   commit(directory, value) {
     const bytes = measureSave('serialize', () => jsonBytes(value));
     if (bytes.length > STATE_BYTES) {
@@ -106,9 +119,11 @@ export class StateRepository {
     this.identities.delete(file);
   }
 
+  /** @param {string} directory */
   exists(directory) {
     return this.identities.get(path.join(directory, '.qf-v2', 'state.json')) !== null;
   }
+  /** @param {string} directory */
   evict(directory) {
     const file = path.join(directory, '.qf-v2', 'state.json');
     this.loaded.delete(file);

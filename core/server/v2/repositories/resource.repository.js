@@ -1,11 +1,17 @@
+/** @typedef {import('../../host/platform/file-cache.js').FileCache} FileCache */
 import path from 'node:path';
 import { checkPath, checkedStat, within } from '../../host/platform/files.js';
 import { problem } from '../utils/errors.js';
 import { READ_LIMITS, relativePath } from '../utils/io.js';
 
+/**
+ * @param {string} directory
+ * @param {unknown} relative
+ * @returns {string}
+ */
 export function relativeFile(directory, relative) {
   relativePath(directory, relative);
-  const parts = relative.split('/'),
+  const parts = /** @type {string} */ (relative).split('/'),
     base = checkPath(directory, { directory: true });
   let file = base;
   try {
@@ -22,6 +28,10 @@ export function relativeFile(directory, relative) {
   return file;
 }
 
+/**
+ * @param {FileCache} cache
+ * @param {string} file
+ */
 export function resourceEntry(cache, file) {
   return cache.entry(file, READ_LIMITS.assetBytes);
 }

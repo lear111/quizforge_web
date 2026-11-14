@@ -1,3 +1,5 @@
+/** @typedef {import('../../../shared/v2/state.js').InkFile} InkFile */
+/** @typedef {import('../types/data.js').Snapshot} Snapshot */
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -22,14 +24,24 @@ import { statIdentity } from '../../host/platform/file-cache.js';
 import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
 
 const LIMIT = 32 * 1024 * 1024;
+/**
+ * @returns {InkFile}
+ */
 const empty = () => ({ ink: null, inkRevision: 0, receipts: [] });
-const integer = (n) => Number.isSafeInteger(n) && n >= 0;
+/**
+ * @param {unknown} n
+ * @returns {n is number}
+ */
+const integer = (n) => Number.isSafeInteger(n) && /** @type {number} */ (n) >= 0;
 // No ink bodies are cached. The bank LRU owns only a directory-name index.
 export class PracticeInk {
+  /** @param {{write?: typeof replaceFile}} [options] */
   constructor({ write = replaceFile } = {}) {
     this.write = write;
+    /** @type {Map<string, Set<string>>} */
     this.indexes = new Map();
   }
+  /** @param {Snapshot} snapshot */
   directory(snapshot) {
     const base = checkPath(snapshot.directory, { directory: true }),
       local = path.join(base, '.qf-v2');
@@ -38,14 +50,17 @@ export class PracticeInk {
     checkedStat(ink, { directory: true, optional: true });
     return ink;
   }
+  /** @param {Snapshot} snapshot @param {string} id */
   file(snapshot, id) {
     const directory = path.join(this.directory(snapshot), snapshot.contentFingerprint);
     checkedStat(directory, { directory: true, optional: true });
     return path.join(directory, hash(Buffer.from(id)) + '.json');
   }
+  /** @param {Snapshot} snapshot */
   clear(snapshot) {
     const root = this.directory(snapshot),
-      entries = [];
+      entries = /** @type {{file: string, directory: boolean}[]} */ ([]);
+    /** @param {string} file */
     const walk = (file) => {
       if (!within(root, file)) {
         throw Error('Ink path escape');
@@ -76,6 +91,7 @@ export class PracticeInk {
       throw problem('STATE_WRITE_FAILED', '草稿笔迹未能清除，请重试。', {}, 503);
     }
   }
+  /** @param {Snapshot} snapshot */
   open(snapshot) {
     const root = this.directory(snapshot);
     if (!fs.existsSync(root)) {
@@ -89,7 +105,7 @@ export class PracticeInk {
       return true;
     }
     const directory = path.join(root, snapshot.contentFingerprint);
-    const index = new Set();
+    const index = new Set(/** @type {string[]} */ ([]));
     if (names.length) {
       checkPath(directory, { directory: true });
       for (const name of fs.readdirSync(directory)) {
@@ -104,9 +120,12 @@ export class PracticeInk {
     this.indexes.set(snapshot.directory, index);
     return false;
   }
+  /** @param {Snapshot} snapshot @param {string} id */
   has(snapshot, id) {
     return this.indexes.get(snapshot.directory)?.has(hash(Buffer.from(id))) ?? false;
   }
+  /** @param {Snapshot} snapshot @param {string} id
+   * @returns {InkFile} */
   read(snapshot, id) {
     try {
       const file = this.file(snapshot, id);
@@ -138,14 +157,15 @@ export class PracticeInk {
         this.remove(snapshot, id);
         return empty();
       }
-      return freezeJson(value);
+      return freezeJson(/** @type {Record<string, unknown> & InkFile} */ (value));
     } catch (error) {
-      if (error.code === 'STATE_WRITE_FAILED') {
+      if (/** @type {{code?: unknown}} */ (error).code === 'STATE_WRITE_FAILED') {
         throw error;
       }
       throw problem('STATE_INVALID', '草稿笔迹无法读取，原文件已保留。', {}, 503);
     }
   }
+  /** @param {Snapshot} snapshot @param {string} id */
   remove(snapshot, id) {
     try {
       const file = this.file(snapshot, id),
@@ -161,6 +181,7 @@ export class PracticeInk {
       throw problem('STATE_WRITE_FAILED', '草稿笔迹未能清除，请重试。', {}, 503);
     }
   }
+  /** @param {Snapshot} snapshot @param {string} id @param {unknown} input */
   apply(snapshot, id, input) {
     if (
       !object(input) ||
@@ -203,6 +224,7 @@ export class PracticeInk {
     this.indexes.get(snapshot.directory)?.add(hash(Buffer.from(id)));
     return freezeJson(value);
   }
+  /** @param {string} directory */
   evict(directory) {
     this.indexes.delete(directory);
   }

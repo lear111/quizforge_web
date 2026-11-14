@@ -1,3 +1,5 @@
+/** @typedef {import('../../host/platform/file-cache.js').FileCache} FileCache */
+/** @typedef {import('../types/data.js').SdkEntry} SdkEntry */
 import fs from 'node:fs';
 import path from 'node:path';
 import { checkPath } from '../../host/platform/files.js';
@@ -8,15 +10,17 @@ const components = ['richtext', 'answer-area', 'ink'];
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export class SharedSdks {
+  /** @param {string} codeRoot @param {FileCache} cache */
   constructor(codeRoot, cache) {
     this.root = path.join(codeRoot, 'shared');
     this.cache = cache;
+    /** @type {Map<string, SdkEntry | Error>} */
     this.versions = new Map();
   }
 
   rebuild() {
     // Each boundary builds a fresh generation; removed versions never linger.
-    const versions = new Map();
+    const versions = /** @type {Map<string, SdkEntry | Error>} */ (new Map());
     for (const component of components) {
       const directory = path.join(this.root, component);
       let names;
@@ -32,8 +36,8 @@ export class SharedSdks {
           const { digest, hashes } = treeIdentity(location, this.cache, { field: 'sdk' });
           versions.set(key, { directory: location, digest, hashes });
         } catch (error) {
-          if (error.code === 'FILE_COUNT_LIMIT') {
-            versions.set(key, error);
+          if (/** @type {Error & {code?: string}} */ (error).code === 'FILE_COUNT_LIMIT') {
+            versions.set(key, /** @type {Error} */ (error));
           }
         }
       }
@@ -41,6 +45,7 @@ export class SharedSdks {
     this.versions = versions;
   }
 
+  /** @param {string} component @param {string} version */
   get(component, version) {
     const value = this.versions.get(`${component}@${version}`);
     if (value instanceof Error) {
