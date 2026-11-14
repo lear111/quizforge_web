@@ -14,16 +14,20 @@
 
 ## 验证与实际结果
 
-本地 Windows、Node 24.13.0：`typecheck:ui` 与 `build:ui -- --check` 通过；V2 测试 94/94 通过，独立性能测试 2/2 通过。新增四项用例覆盖范围边界、JS 规则、TS/Vue 模板解析及格式检查不写入。完整测试结果与 CI 结果待回填。
+本地 Windows、Node 24.13.0：`typecheck:ui` 与 `build:ui -- --check` 通过；V2 测试 94/94 通过，独立性能测试 2/2 通过。新增四项用例覆盖范围边界、JS 规则、TS/Vue 模板解析及格式检查不写入。
+
+本地完整测试 1355 项：1344 通过、10 失败、1 取消，1021.57 秒。名单（均在 CI 通过，未改断言）：`server/host/ai/hub-connection.test.mjs` 第 68/88/96/114/133/160 行、`settings-provider.test.mjs` 第 32/54 行报设置文件访问保护失败；`server/host/http/server.test.mjs:290` 预期 200 实际 503；`server/host/library/library-export-images.test.mjs:115` 的 case 2 报目录 rename EPERM；`test/desktop/windows-tray.test.mjs:170` 报原有 60000 ms 超时（取消）。本 PR 不修这些本地差异，也未据此跳过测试或延长超时。
 
 现有源码检查：67 个文件，61 个文件格式不符；2850 条规范错误（行宽 1475、一行多语句 934、缺少花括号 424、未使用变量 8、其余 9），0 警告。工具与新测试自身 0 错误。旧源码在本 PR 保持原样，因此新增规范 job 预期失败；须在审查后另行整理，不能将失败描述为全绿、不能先合并。没有界面变更，本 PR 未重复浏览器验收。性能测试仅验证既有测试通过，不据并行本地运行声称速度改善。
 
-| CI job | 结果 | 失败名单 |
+CI 证据：[运行 43546124706](https://github.com/lear111/quizforge_web/actions/runs/43546124706)，实现提交 `557cadd`；之后只回填文档。
+
+| CI job | 结果 / 总耗时 | 失败名单 |
 |---|---|---|
-| Checks / Ubuntu | 待运行 | 待确认 |
-| Checks / Windows | 待运行 | 待确认 |
-| Performance / Ubuntu | 待运行 | 待确认 |
-| V2 code quality / Ubuntu | 待运行（预计报告既有问题） | 待确认 |
+| Checks / Ubuntu | 1321 通过、0 失败、34 个既有平台跳过；2 分 | 无 |
+| Checks / Windows | 1355 通过、0 失败、0 跳过；3 分 42 秒 | 无 |
+| Performance / Ubuntu | 2 通过、0 失败；14 秒 | 无 |
+| V2 code quality / Ubuntu | 失败；19 秒 | 61 个文件格式不符、2850 条规范错误，与本地一致 |
 
 ## 存疑事项
 
