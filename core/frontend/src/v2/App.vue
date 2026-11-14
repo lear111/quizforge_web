@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import LibraryList from '../library/LibraryList.vue';
 import OutlinePanel from '../outline/OutlinePanel.vue';
 import type { LibraryTree } from '../library/types';
 import { buildV2Outline } from './outline';
 import PracticePage from './PracticePage.vue';
+import FinalScore from './FinalScore.vue';
 import type { Overview, PracticeWorkspace, Question } from './practice-types';
 import './workspace.css';
 
 defineProps<{ nonce: string }>();
 const groups = ref<LibraryTree[]>([]), overview = ref<Overview | null>(null);
 const busy = ref(false), message = ref(''), loading = ref(''), drawer = ref<'library' | 'outline' | null>(null), token = ref(''), authRequired = ref(false);
+const scoreView = ref(false);
 const practice = ref<InstanceType<typeof PracticePage>>();
 const current = computed(() => practice.value?.current);
 const recovering = computed(() => practice.value?.recovering ?? false);
@@ -25,7 +27,7 @@ function remember(q: Question) {
 }
 async function response(route: string, options: RequestInit = {}) {
   const response = await fetch(route, { ...options, credentials: 'omit', referrerPolicy: 'no-referrer', headers: { ...options.headers, ...(token.value ? { 'x-quizforge-token': token.value } : {}) } });
-  if (!response.ok) { const body = await response.json(); if (response.status === 401) { authRequired.value = true; practice.value?.resetSources(); } throw Object.assign(new Error(body.error?.message || '操作未完成。'), { code: body.error?.code, status: response.status }); }
+  if (!response.ok) { const body = await response.json(); if (response.status === 401) { authRequired.value = true; practice.value?.resetSources(); } throw Object.assign(new Error(body.error?.message || '操作未完成。'), { code: body.error?.code, questionId: body.error?.questionId, status: response.status }); }
   return response;
 }
 const json = async (route: string, options?: RequestInit) => (await response(route, options)).json();
@@ -42,30 +44,36 @@ async function openBank(_kind: string, id?: string) { if (!id) return; await run
   const remembered = lastQuestions.get(id);
   const initial = remembered && value.states.some(state => state.questionId === remembered) && remembered !== value.initial.question?.questionId
     ? await json(`${requestPrefix(id)}/questions/${encodeURIComponent(remembered)}?snapshotId=${value.snapshotId}`) as Question : value.initial.question;
-  const previous = overview.value;
-  page.resetSources(); page.scopeSources(value.bank.bankId, value.snapshotId); overview.value = value; drawer.value = null;
+  const previous = overview.value, previousScoreView = scoreView.value;
+  page.resetSources(); page.scopeSources(value.bank.bankId, value.snapshotId); overview.value = value; scoreView.value = !!value.completedAt; drawer.value = null;
   if (initial) {
-    try { await page.show(initial, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) overview.value = previous; throw error; }
+    try { await page.show(initial, false); } catch (error) { if (current.value?.bankId !== value.bank.bankId) { overview.value = previous; await nextTick(); scoreView.value = previousScoreView; } throw error; }
   } else { page.clearQuestion(); message.value = value.initial.error?.message ?? '题库没有题目。'; }
   if (value.notice) message.value = value.notice;
   await page.recoverPending(value);
 }); }
 async function navigate(id: string) {
   const page = practice.value;
-  if (!page || !overview.value || id === current.value?.questionId && !page.pageFaulted()) return;
+  if (!page || !overview.value) return;
+  if (id === current.value?.questionId && !page.pageFaulted()) { if (!busy.value) { scoreView.value = false; drawer.value = null; } return; }
   await run('正在打开题目', async () => {
     await page.flush(); const bank = overview.value; if (!bank) return;
-    await page.show(await json(`${requestPrefix(bank.bank.bankId)}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); drawer.value = null;
+    await page.show(await json(`${requestPrefix(bank.bank.bankId)}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`)); scoreView.value = false; drawer.value = null;
   });
 }
 async function refreshBank() { if (!overview.value) return; await run('正在刷新题库', async () => {
   const page = practice.value; if (!page) return;
   await page.flush(); const active = current.value, bank = overview.value!;
   const value: Overview = await json(`${requestPrefix(bank.bank.bankId)}/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...(active ? { questionId: active.questionId } : {}) }) });
-  overview.value = value; page.resetSources();
+  overview.value = value; scoreView.value = !!value.completedAt; page.resetSources();
   if (value.notice) message.value = value.notice;
   if (value.initial.question) await page.show(value.initial.question); else page.clearQuestion(true);
 }); }
+watch(() => overview.value?.completedAt, value => { scoreView.value = !!value; });
+async function finishPractice() {
+  if (!overview.value || busy.value || !confirm('完成练习后，答案将锁定，未作答题记 0 分。确定完成吗？')) return;
+  await practice.value?.complete();
+}
 const workspace: PracticeWorkspace = { overview, message, busy, token, response, json, run, remember };
 onMounted(async () => {
   await catalog();
@@ -79,9 +87,10 @@ onMounted(async () => {
       <form v-if="authRequired" @submit.prevent="catalog"><label>连接令牌<input v-model="token" type="password" autocomplete="off"></label><button>连接</button></form>
       <LibraryList :groups="groups" mode="bank" :active-key="overview ? `bank:${overview.bank.bankId}` : null" :can-manage="false" empty-message="暂无 V2 题库" :on-open="openBank" :on-toggle-group="id => { const group = groups.find(g => g.kind === 'group' && g.path === id); if (group?.kind === 'group') group.expanded = !group.expanded; }" :on-notice="text => message = text" :on-manage="() => {}" />
     </aside>
-    <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span><div class="v2-actions"><button v-if="current" :disabled="busy || recovering" @click="practice?.toggleDraft()">{{ drafting ? '返回作答' : '草稿' }}</button><button v-if="overview" :disabled="busy || recovering" @click="refreshBank">刷新题库</button></div></header>
+    <main class="v2-main"><header><h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1><span v-if="loading" role="status">{{ loading }}</span><div class="v2-actions"><button v-if="current && !scoreView" :disabled="busy || recovering" @click="practice?.toggleDraft()">{{ drafting ? '返回作答' : '草稿' }}</button><button v-if="overview && !overview.completedAt" :disabled="busy || recovering" @click="finishPractice">完成练习</button><button v-if="overview?.completedAt && !scoreView" :disabled="busy || recovering" @click="scoreView = true">最终得分</button><button v-if="overview" :disabled="busy || recovering" @click="refreshBank">刷新题库</button></div></header>
       <p v-if="message" class="v2-error" role="alert">{{ message }}</p>
-      <PracticePage ref="practice" :nonce="nonce" :request-prefix="requestPrefix" :workspace="workspace" :busy="busy" />
+      <FinalScore v-if="overview && scoreView" :value="overview" :busy="busy" @view="scoreView = false" @grade="practice?.resumeCompletion()" />
+      <PracticePage ref="practice" :visible="!scoreView" :nonce="nonce" :request-prefix="requestPrefix" :workspace="workspace" :busy="busy" />
     </main>
     <aside class="v2-outline" :class="{ open: drawer === 'outline' }"><h2>题目大纲</h2><OutlinePanel :model="outlineModel" :on-navigate="navigate" :on-summary="() => {}" /></aside>
   </div>
