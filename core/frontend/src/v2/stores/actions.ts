@@ -43,7 +43,7 @@ export function createActions(ctx: PracticeSession): PracticeActions {
     pageFaulted: () => ctx.runtime.page?.faulted,
     remember: (q) => banks.remember(ctx, q),
     catalog: () => banks.catalog(ctx),
-    openBank: (kind, id) => banks.openBank(ctx, kind, id),
+    openBank: (kind, id, questionId) => banks.openBank(ctx, kind, id, questionId),
     navigate: (id) => banks.navigate(ctx, id),
     refreshBank: () => banks.refreshBank(ctx),
     finishPractice: () => banks.finishPractice(ctx),

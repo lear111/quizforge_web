@@ -24,6 +24,9 @@ test('D frontend layers reject reverse, re-export, dynamic, type and require imp
     ['stores/probe.ts', "import '../App.vue';"],
     ['services/probe.ts', "import '../main';"],
     ['api/probe.ts', "import '../../outline/OutlinePanel.vue';"],
+    ['api/probe.ts', "import '../router/navigation';"],
+    ['stores/probe.ts', "import '../router/navigation';"],
+    ['router/probe.ts', "import '../views/WorkspaceView.vue';"],
   ]) {
     assert.equal((await architecture(text, file)).length, 1, `${file}: ${text}`);
   }
@@ -37,6 +40,9 @@ test('D frontend layers accept downward imports, shared types and root wiring', 
     ['api/probe.ts', "import '../services/types';"],
     ['services/probe.ts', "import type { PracticeApi } from '../api';"],
     ['main.ts', "import './App.vue'; import './stores/practice';"],
+    ['views/probe.ts', "import '../router/injection';"],
+    ['router/probe.ts', "import '../stores/practice';"],
+    ['router/index.ts', "import '../views/WorkspaceView.vue';"],
   ]) {
     assert.deepEqual(await architecture(text, file), [], `${file}: ${text}`);
   }

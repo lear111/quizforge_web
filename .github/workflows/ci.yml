@@ -142,10 +142,10 @@ jobs:
             2>&1 | tee .temp/ci-browser/chromium.log
       - name: Build UI
         run: npm --prefix core run build:ui 2>&1 | tee .temp/ci-browser/build.log
-      - name: Run all nine browser probes once
+      - name: Run all ten browser probes once
         run: |
           failed=0
-          for probe in page page-contract grading page-review practice save-recovery whiteboard basic-types completion; do
+          for probe in page page-contract grading page-review practice save-recovery whiteboard basic-types completion router; do
             echo "::group::$probe"
             if ! QF_BROWSER_FAILURE_DIR="$PWD/.temp/ci-browser/$probe" \
                 node "core/scripts/dev/probe-v2-$probe.mjs" \

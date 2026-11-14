@@ -1,8 +1,9 @@
 import path from 'node:path';
 
 const allowed = {
-  views: ['views', 'components', 'stores', 'types', 'styles'],
-  components: ['components', 'stores', 'types', 'styles'],
+  views: ['views', 'components', 'router', 'stores', 'types', 'styles'],
+  components: ['components', 'router', 'stores', 'types', 'styles'],
+  router: ['router', 'stores', 'types'],
   stores: ['stores', 'api', 'services', 'types'],
   api: ['api', 'services', 'types'],
   services: ['services', 'api', 'types'],
@@ -14,6 +15,18 @@ function layer(file) {
     return 'views';
   }
   return normalized.match(/\/frontend\/src\/v2\/([^/]+)(?:\/|$)/)?.[1];
+}
+
+function invalidDirection(from, filename, resolved) {
+  const target = layer(resolved);
+  const normalized = resolved.replaceAll('\\', '/');
+  const composition = /\/frontend\/src\/v2\/(main(?:\.ts)?|App\.vue)$/.test(normalized);
+  const routeWiring =
+    filename.replaceAll('\\', '/').endsWith('/v2/router/index.ts') && target === 'views';
+  const reverse = target && !allowed[from].includes(target) && !routeWiring;
+  const lowerVue =
+    ['api', 'services', 'types', 'stores'].includes(from) && normalized.endsWith('.vue');
+  return composition || reverse || lowerVue;
 }
 
 export const frontendLayers = {
@@ -33,12 +46,7 @@ export const frontendLayers = {
       }
       const resolved = path.resolve(path.dirname(context.filename), source);
       const target = layer(resolved);
-      const normalized = resolved.replaceAll('\\', '/');
-      const composition = /\/frontend\/src\/v2\/(main(?:\.ts)?|App\.vue)$/.test(normalized);
-      const reverse = target && !allowed[from].includes(target);
-      const lowerVue =
-        ['api', 'services', 'types', 'stores'].includes(from) && normalized.endsWith('.vue');
-      if (composition || reverse || lowerVue) {
+      if (invalidDirection(from, context.filename, resolved)) {
         context.report({ node, messageId: 'direction', data: { from, target: target ?? source } });
       }
     }
