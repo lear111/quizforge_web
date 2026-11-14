@@ -1,6 +1,6 @@
 import { toRaw } from 'vue';
-import type { Completion, Question } from '../types/practice-types';
-import type { PracticeSession } from '../types/practice-session';
+import type { Completion, Question } from '../../types/practice-types';
+import type { PracticeSession } from '../../types/practice-session';
 
 export function update(ctx: PracticeSession, q: Question, preserveStatus = false) {
   const { overview, current } = ctx;

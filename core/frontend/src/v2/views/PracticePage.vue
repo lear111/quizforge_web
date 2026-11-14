@@ -82,3 +82,5 @@ onBeforeUnmount(practice.detachView);
     </div>
   </div>
 </template>
+
+<style scoped src="./PracticePage.css"></style>

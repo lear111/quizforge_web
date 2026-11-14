@@ -12,8 +12,8 @@ const built = await build({
       export {createWorkspaceNavigation} from './router/navigation';
       export {useUiStore} from './stores/ui';
       export {useCatalogStore} from './stores/catalog';
-      export {createRuntime} from './stores/runtime';
-      export {createActions} from './stores/actions';`,
+      export {createRuntime} from './stores/practice/runtime';
+      export {createActions} from './stores/practice/actions';`,
     resolveDir: fileURLToPath(new URL('../../frontend/src/v2', import.meta.url)),
     loader: 'ts',
   },
@@ -333,10 +333,11 @@ test(
     const f = fixture(t);
     await f.open();
     f.controls.loading = { started: deferred(), finish: deferred() };
-    await f.navigation.openBank('bank', 'a');
+    const pending = f.navigation.openBank('bank', 'a');
     await f.controls.loading.started.promise;
     f.ui.drawer = 'library';
     f.controls.loading.finish.resolve();
+    await pending;
     await until(() => f.router.currentRoute.value.fullPath === '/banks/a/questions/1');
     await nextTick();
     assert.equal(f.ui.drawer, 'library');
@@ -438,5 +439,24 @@ test(
     assert.equal(f.practice.current, null);
     assert.equal(f.practice.overview, null);
     assert.equal(accessed, 0);
+  },
+);
+
+test(
+  'a direct second navigation during iframe loading cannot leave the address on the old question',
+  options,
+  async (t) => {
+    const f = fixture(t);
+    await f.open('/banks/a/questions/1');
+    f.controls.loading = { started: deferred(), finish: deferred() };
+    const first = f.router.push('/banks/a/questions/2');
+    await f.controls.loading.started.promise;
+    const second = f.router.push('/banks/a/questions/3');
+    await nextTick();
+    f.controls.loading.finish.resolve();
+    await Promise.all([first, second]);
+    assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/2');
+    assert.equal(f.practice.current.questionId, '2');
+    assert.equal(f.requests.includes('get:a:3'), false);
   },
 );

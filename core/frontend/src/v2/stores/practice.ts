@@ -4,8 +4,8 @@ import { createApi } from '../api';
 import { buildV2Outline } from '../services/outline';
 import { useUiStore } from './ui';
 import { useCatalogStore } from './catalog';
-import { createRuntime } from './runtime';
-import { createActions } from './actions';
+import { createRuntime } from './practice/runtime';
+import { createActions } from './practice/actions';
 import type { Overview, Question } from '../types/practice-types';
 import type { PracticeSession } from '../types/practice-session';
 

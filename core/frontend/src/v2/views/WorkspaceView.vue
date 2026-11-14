@@ -1,102 +1,33 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import { useWorkspaceNavigation } from '../router/injection';
 import { storeToRefs } from 'pinia';
-import LibraryList from '../../library/LibraryList.vue';
-import OutlinePanel from '../../outline/OutlinePanel.vue';
+import { useWorkspaceNavigation } from '../router/injection';
+import { usePracticeStore } from '../stores/practice';
+import { useUiStore } from '../stores/ui';
 import PracticePage from './PracticePage.vue';
 import FinalScore from '../components/FinalScore.vue';
-import { usePracticeStore } from '../stores/practice';
-import { useCatalogStore } from '../stores/catalog';
-import { useUiStore } from '../stores/ui';
+import WorkspaceLibrary from '../components/WorkspaceLibrary.vue';
+import WorkspaceOutline from '../components/WorkspaceOutline.vue';
+import WorkspaceToolbar from '../components/WorkspaceToolbar.vue';
+import WorkspaceMobile from '../components/WorkspaceMobile.vue';
 import '../styles/workspace.css';
-
 defineProps<{ nonce: string }>();
-const practice = usePracticeStore(),
-  catalogStore = useCatalogStore();
-const { groups } = storeToRefs(catalogStore);
-const { overview, current, recovering, drafting, outlineModel } = storeToRefs(practice);
-const { busy, message, loading, drawer, token, authRequired, scoreView } =
-  storeToRefs(useUiStore());
-const { refreshBank, finishPractice } = practice;
+const practice = usePracticeStore();
+const { overview } = storeToRefs(practice);
+const { busy, message, scoreView } = storeToRefs(useUiStore());
 const navigation = useWorkspaceNavigation();
-const { catalog, openBank, navigate, showSummary, showQuestion } = navigation;
 onMounted(navigation.start);
+async function resumeCompletion() {
+  await practice.resumeCompletion();
+  await navigation.showCurrent();
+}
 </script>
 <template>
   <div class="v2-app">
-    <header class="v2-mobile">
-      <strong>QuizForge</strong
-      ><button @click="drawer = drawer === 'library' ? null : 'library'">题库</button
-      ><button @click="drawer = drawer === 'outline' ? null : 'outline'">大纲</button>
-    </header>
-    <aside
-      class="v2-library"
-      :class="{ open: drawer === 'library' }"
-    >
-      <div class="v2-brand">
-        <span>Q</span>
-        <div><strong>QuizForge</strong><small>你的练习空间 · V2</small></div>
-      </div>
-      <h2>我的题库</h2>
-      <form
-        v-if="authRequired"
-        @submit.prevent="catalog"
-      >
-        <label
-          >连接令牌<input
-            v-model="token"
-            type="password"
-            autocomplete="off" /></label
-        ><button>连接</button>
-      </form>
-      <LibraryList
-        :groups="groups"
-        mode="bank"
-        :active-key="overview ? `bank:${overview.bank.bankId}` : null"
-        :can-manage="false"
-        empty-message="暂无 V2 题库"
-        :on-open="openBank"
-        :on-toggle-group="catalogStore.toggleGroup"
-        :on-notice="(text) => (message = text)"
-        :on-manage="() => {}"
-      />
-    </aside>
+    <WorkspaceMobile />
+    <WorkspaceLibrary />
     <main class="v2-main">
-      <header>
-        <h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1>
-        <span
-          v-if="loading"
-          role="status"
-          >{{ loading }}</span
-        >
-        <div class="v2-actions">
-          <button
-            v-if="current && !scoreView"
-            :disabled="busy || recovering"
-            @click="practice.toggleDraft()"
-          >
-            {{ drafting ? '返回作答' : '草稿' }}</button><button
-            v-if="overview && !overview.completedAt"
-            :disabled="busy || recovering"
-            @click="finishPractice"
-          >
-            完成练习</button
-          ><button
-            v-if="overview?.completedAt && !scoreView"
-            :disabled="busy || recovering"
-            @click="showSummary"
-          >
-            最终得分</button
-          ><button
-            v-if="overview"
-            :disabled="busy || recovering"
-            @click="refreshBank"
-          >
-            刷新题库
-          </button>
-        </div>
-      </header>
+      <WorkspaceToolbar />
       <p
         v-if="message"
         class="v2-error"
@@ -108,24 +39,58 @@ onMounted(navigation.start);
         v-if="overview && scoreView"
         :value="overview"
         :busy="busy"
-        @view="showQuestion"
-        @grade="practice.resumeCompletion()"
+        @view="navigation.showQuestion()"
+        @grade="resumeCompletion"
       />
       <PracticePage
         :visible="!scoreView"
         :nonce="nonce"
       />
     </main>
-    <aside
-      class="v2-outline"
-      :class="{ open: drawer === 'outline' }"
-    >
-      <h2>题目大纲</h2>
-      <OutlinePanel
-        :model="outlineModel"
-        :on-navigate="navigate"
-        :on-summary="() => {}"
-      />
-    </aside>
+    <WorkspaceOutline />
   </div>
 </template>
+<style scoped>
+.v2-app {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) 228px;
+  min-height: 100dvh;
+}
+.v2-main {
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.v2-error {
+  margin: 16px 24px;
+  padding: 12px;
+  border: 1px solid #eac6c1;
+  border-radius: 8px;
+  color: #a13f31;
+  background: #fff7f4;
+}
+@media (max-width: 800px) {
+  .v2-app {
+    display: block;
+    padding-top: 56px;
+  }
+  .v2-main {
+    height: calc(100dvh - 56px);
+  }
+}
+.v2-app.v2-fullscreen {
+  grid-template-columns: minmax(0, 1fr);
+  padding-top: 0;
+}
+.v2-app.v2-fullscreen > .v2-library,
+.v2-app.v2-fullscreen > .v2-outline,
+.v2-app.v2-fullscreen > .v2-mobile,
+.v2-fullscreen .v2-main > header {
+  display: none;
+}
+.v2-fullscreen .v2-main {
+  height: 100dvh;
+}
+</style>

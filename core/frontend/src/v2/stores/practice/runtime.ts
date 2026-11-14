@@ -1,10 +1,12 @@
-import { createWriteQueue } from '../services/write-queue';
-import { createPageSourceCache } from '../services/source-cache';
-import { createGradingService } from '../services/grading';
-import { createCompletionGrader } from '../services/completion';
-import { attachSaveLifecycle } from '../services/save-policy';
-import { mountScratch } from '../services/whiteboard';
-import type { PracticeSession, PracticeRuntime, ViewElements } from '../types/practice-session';
+// DOM handles live with the practice session so saves and iframe callbacks
+// keep their lifetime across route changes; the view only supplies containers.
+import { createWriteQueue } from '../../services/write-queue';
+import { createPageSourceCache } from '../../services/source-cache';
+import { createGradingService } from '../../services/grading';
+import { createCompletionGrader } from '../../services/completion';
+import { attachSaveLifecycle } from '../../services/save-policy';
+import { mountScratch } from '../../services/whiteboard';
+import type { PracticeSession, PracticeRuntime, ViewElements } from '../../types/practice-session';
 
 // Handles are private to this store instance, not reactive/serializable UI state.
 export function createRuntime(): PracticeRuntime {

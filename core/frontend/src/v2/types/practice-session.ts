@@ -70,7 +70,6 @@ export interface PracticeActions {
   openBank(kind: string, id?: string, questionId?: string): Promise<void>;
   navigate(id: string): Promise<void>;
   refreshBank(): Promise<void>;
-  finishPractice(): Promise<void>;
   initializeCatalog(): Promise<void>;
 }
 export interface PracticeSession extends PracticeWorkspace {

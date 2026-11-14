@@ -40,7 +40,7 @@ defineEmits<{ view: []; grade: [] }>();
     </div>
   </section>
 </template>
-<style>
+<style scoped>
 .v2-final {
   margin: 40px auto;
   padding: 36px 24px;
@@ -61,7 +61,8 @@ defineEmits<{ view: []; grade: [] }>();
   color: #7358d5;
   font-size: 24px;
 }
-.v2-app .v2-final h2 {
+.v2-final h2 {
+  font-weight: 500;
   font-size: 20px;
   color: #343542;
   margin: 16px 0;

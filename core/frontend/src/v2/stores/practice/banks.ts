@@ -1,6 +1,6 @@
 import { nextTick } from 'vue';
-import type { Overview, Question } from '../types/practice-types';
-import type { PracticeSession } from '../types/practice-session';
+import type { Overview, Question } from '../../types/practice-types';
+import type { PracticeSession } from '../../types/practice-session';
 
 export function remember(ctx: PracticeSession, q: Question) {
   const { lastQuestions } = ctx;
@@ -124,18 +124,6 @@ export async function refreshBank(ctx: PracticeSession) {
       ctx.actions().clearQuestion(true);
     }
   });
-}
-
-export async function finishPractice(ctx: PracticeSession) {
-  const { overview, busy } = ctx;
-  if (
-    !overview.value ||
-    busy.value ||
-    !confirm('完成练习后，答案将锁定，未作答题记 0 分。确定完成吗？')
-  ) {
-    return;
-  }
-  await ctx.actions().complete();
 }
 
 export async function initializeCatalog(ctx: PracticeSession) {
