@@ -12,4 +12,16 @@
 
 **格式化后行数（含空行）。** bank service / open / question：204 / 167 / 151；practice service / actions / completion / result：118 / 115 / 146 / 50；state repository / shape：117 / 114；bank repository / outline / catalog / extension：82 / 58 / 73 / 238；state utils：11。原 bank / practice 分别 518 / 586 行；拆分后的后端文件与函数没有大小警告。
 
-**验证。** Windows、Node 24.13.0；只用合成数据与临时回环端口，不触碰日常服务或真实题库。针对性 69 项通过；类型、构建一致性通过，lint 0 错误、37 条其他既有警告；性能测试 2 项通过。九项配套 Chromium 158 探针通过（桌面/手机视口，不是真机）。本机完整测试及五项 CI 的最终结果待补；未做性能收益归因。任务 D 未开始；本 PR 不自行合并。
+**验证。** [PR #129](https://github.com/lear111/quizforge_web/pull/129)，目标 `v2`，不自行合并；任务 D 未开始。Windows、Node 24.13.0；只用合成数据与临时回环端口，不触碰日常服务或真实题库。针对性 69 项通过，最终只读与规范用例 20 项通过（有重叠，不相加）；类型、构建一致性通过，lint 0 错误、37 条其他既有警告；性能测试 2 项通过，未做性能收益归因。九项配套 Chromium 158 探针通过（桌面/手机视口，不是真机）。
+
+**CI。** 实现提交 `9301c5c` 的[首次运行 43575001676](https://github.com/lear111/quizforge_web/actions/runs/43575001676) 全绿，无重跑、重试、放宽断言或超时。下表为各 job 的起止时间差；Ubuntu 的 34 项跳过是原有 Windows 专项，不是本次新增跳过。
+
+| Job | 通过 / 失败 / 跳过 | 耗时 |
+|---|---|---|
+| Checks · Ubuntu | 1345 / 0 / 34；类型与构建通过 | 116 s |
+| Checks · Windows | 1379 / 0 / 0；类型与构建通过 | 239 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 16 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、37 既有警告 | 20 s |
+| V2 browser checks · Ubuntu | 九项全部通过 | 142 s |
+
+**本机完整测试的限制。** `npm --prefix core test` 退出 1，1363 通过 / 16 失败 / 0 跳过，1024.15 s；V2 用例均通过。失败均在未改动的 V1 路径：`hub-connection` 6 项、`settings-provider` 2 项与 `http/server` 登录 1 项报 AI 设置访问保护失败（`AI_SETTINGS_SAVE_FAILED` / 503）；`rule-engine` 1 项前后台完成顺序断言失败；`library-export-images`、`library-package`、`library` 各 1 项目录 rename 报 `EPERM`；`windows-tray` 3 项目录 rename 或服务启动报 `EPERM`。这是本机一次完整运行的实测结果，未对这 16 项另做未改动基线复现，不把它们统称为已证明的既有失败，也不以 CI 通过掩盖本机失败；两系统 CI 相应用例全部通过。原始日志与合成生成物留在 git 忽略的 `.temp/`，不提交用户数据。
