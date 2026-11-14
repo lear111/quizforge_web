@@ -222,6 +222,9 @@ try {
         .then((s) => s.includes('active')),
       true,
     );
+    // Drop the old window's Pinia cursor before testing a fresh bank entry;
+    // a hash-only goto would intentionally retain that window's last view.
+    await page.goto('about:blank');
     await page.goto(`${origin}/#/banks/${id}`);
     await idle();
     await page.waitForFunction(
