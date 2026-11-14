@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { LibrarySnapshots, OPEN_BANK_LIMIT } from '../../server/host/v2/snapshots.js';
-import { PracticeState } from '../../server/host/v2/state.js';
+import { LibrarySnapshots, OPEN_BANK_LIMIT } from '../../server/v2/services/bank.service.js';
+import { PracticeState } from '../../server/v2/services/practice.service.js';
 import { fingerprint, hash, jsonBytes, parseJson } from '../../server/host/platform/json.js';
 import { createReadFixture, writeFixtureFile } from '../fixtures/v2-banks.mjs';
 

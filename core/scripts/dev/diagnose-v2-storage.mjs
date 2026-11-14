@@ -31,7 +31,7 @@ globalThis[token] = (action, args) => trace('state.freeze', () => action(...args
 const hook = registerHooks({
   load(url, context, next) {
     const result = next(url, context);
-    if (url.endsWith('/host/v2/state.js')) {
+    if (url.endsWith('/v2/services/practice.service.js')) {
       result.source =
         String(result.source).replace('freezeJson,', 'freezeJson as baseFreezeJson,') +
         '\nconst freezeJson=(...args)=>globalThis[Symbol.for("qf.v2.storage.profile")](baseFreezeJson,args);\n';
@@ -39,7 +39,7 @@ const hook = registerHooks({
     return result;
   },
 });
-const { V2Server } = await import('../../server/host/v2/server.js');
+const { V2Server } = await import('../../server/v2/app.js');
 import { jsonBytes, parseJson, freezeJson } from '../../server/host/platform/json.js';
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-storage-profile-'));
 copyBrowserFixture(root);

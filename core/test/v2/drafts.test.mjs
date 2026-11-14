@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
-import { PracticeState } from '../../server/host/v2/state.js';
+import { V2Server } from '../../server/v2/app.js';
+import { PracticeState } from '../../server/v2/services/practice.service.js';
 import { jsonBytes } from '../../server/host/platform/json.js';
 import { createReadFixture, writeFixtureFile, SOLUTION_MARKER } from '../fixtures/v2-banks.mjs';
 

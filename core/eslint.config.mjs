@@ -27,12 +27,7 @@ export default [
   { basePath: root, files: sourcePatterns, rules },
   {
     basePath: root,
-    files: [
-      'core/server/host/v2/**',
-      'core/test/v2/**',
-      'core/scripts/**',
-      'core/eslint.config.mjs',
-    ],
+    files: ['core/server/v2/**', 'core/test/v2/**', 'core/scripts/**', 'core/eslint.config.mjs'],
     languageOptions: { globals: globals.node },
   },
   {

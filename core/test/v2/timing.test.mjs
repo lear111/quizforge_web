@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture } from '../fixtures/v2-banks.mjs';
 
 test('V2 save Server-Timing separates parse, validation/assembly, serialization and write; diagnostics can be disabled', async (t) => {

@@ -16,7 +16,7 @@ const rules = async (text, file) =>
 test('V2 quality scope excludes V1 and generated files', () => {
   const files = sourceFiles();
   for (const file of [
-    'core/server/host/v2/server.js',
+    'core/server/v2/app.js',
     'core/frontend/src/v2/App.vue',
     'core/frontend/src/v2/workspace.css',
     'core/shared/v2/answered.js',
@@ -34,7 +34,7 @@ test('V2 quality scope excludes V1 and generated files', () => {
 test('V2 JavaScript lint rejects common errors and compressed lines', async () => {
   const messages = await rules(
     `const unused = 1; missing();\n// ${'x'.repeat(101)}\n`,
-    'core/server/host/v2/quality-probe.js',
+    'core/server/v2/quality-probe.js',
   );
   for (const id of ['no-unused-vars', 'no-undef', 'max-len', 'max-statements-per-line']) {
     assert.ok(messages.includes(id), id);
@@ -80,10 +80,10 @@ test('V2 length policy exempts literals and reports size as warnings outside tes
     `export const expression = /${long}/;`,
     `// https://example.test/${long}`,
   ].join('\n');
-  assert.deepEqual(await rules(literalLines, 'core/server/host/v2/literal-probe.js'), []);
+  assert.deepEqual(await rules(literalLines, 'core/server/v2/literal-probe.js'), []);
   const body = `export function longFunction() {\n${'  void 0;\n'.repeat(51)}}\n`;
   const [result] = await lint.lintText(body, {
-    filePath: 'core/server/host/v2/length-probe.js',
+    filePath: 'core/server/v2/length-probe.js',
   });
   assert.equal(result.errorCount, 0);
   assert.ok(

@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkedStat, checkPath, within } from '../platform/files.js';
-import { FileCache } from '../platform/file-cache.js';
-import { fingerprint, parseJson } from '../platform/json.js';
+import { checkedStat, checkPath, within } from '../../host/platform/files.js';
+import { FileCache } from '../../host/platform/file-cache.js';
+import { fingerprint, parseJson } from '../../host/platform/json.js';
 import { problem } from './errors.js';
 
 // Reading limits only. State/write limits require the P1-2 review.
@@ -122,24 +122,6 @@ export function relativePath(directory, relative) {
     file = path.resolve(base, relative);
   if (!within(base, file)) {
     throw problem('ASSET_PATH_INVALID', '资源路径不能越出所属目录。');
-  }
-  return file;
-}
-export function relativeFile(directory, relative) {
-  relativePath(directory, relative);
-  const parts = relative.split('/'),
-    base = checkPath(directory, { directory: true });
-  let file = base;
-  try {
-    for (let i = 0; i < parts.length; i++) {
-      file = path.join(file, parts[i]);
-      checkedStat(file, { directory: i < parts.length - 1 });
-    }
-    if (!within(base, file) || !checkedStat(file).stat.isFile()) {
-      throw new Error('Not a file');
-    }
-  } catch {
-    throw problem('ASSET_PATH_INVALID', '资源不存在，或路径包含链接、越界及非普通文件。');
   }
   return file;
 }

@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { jsonBytes } from '../platform/json.js';
-import { problem, publicError } from './errors.js';
-import { READ_LIMITS } from './io.js';
+import { jsonBytes } from '../../host/platform/json.js';
+import { problem } from './errors.js';
 import { measureResponseSerialization, timingHeader } from './timing.js';
 
 const mime = (file) =>
@@ -86,10 +85,10 @@ export function writeBinary(
   request,
   response,
   file,
+  entry,
   { executable = false, expectedHash } = {},
 ) {
-  const entry = server.library.cache.entry(file, READ_LIMITS.assetBytes),
-    bytes = entry.content;
+  const bytes = entry.content;
   const headers = { 'Content-Type': mime(file), 'Accept-Ranges': 'bytes' };
   // A direct browser navigation to an extension HTML must not gain host origin.
   if (executable || /\.(?:html|svg)$/i.test(file)) {
@@ -105,16 +104,6 @@ export function writeBinary(
   }
   response.writeHead(status, headers);
   response.end(request.method === 'HEAD' ? undefined : bytes.subarray(start, end + 1));
-}
-
-// eslint-disable-next-line no-unused-vars -- Express expects four parameters here.
-export function writeError(error, _request, response, _next) {
-  if (!response.headersSent && !response.destroyed) {
-    response.setHeader('Cache-Control', 'no-store');
-    json(response, error.status ?? 503, { error: publicError(error) });
-  } else {
-    response.destroy();
-  }
 }
 
 export function rootPage(request, response) {

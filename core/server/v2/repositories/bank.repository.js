@@ -1,6 +1,7 @@
-import { decimalSum, freezeJson } from '../platform/json.js';
-import { object, problem } from './errors.js';
-import { readJson, relativeFile, READ_LIMITS } from './io.js';
+import { decimalSum, freezeJson } from '../../host/platform/json.js';
+import { object, problem } from '../utils/errors.js';
+import { readJson, READ_LIMITS } from '../utils/io.js';
+import { relativeFile } from './resource.repository.js';
 
 export const validId = (value) =>
   typeof value === 'string' &&

@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkPath, checkedStat, readBytes, replaceFile, within } from '../platform/files.js';
+import {
+  checkPath,
+  checkedStat,
+  readBytes,
+  replaceFile,
+  within,
+} from '../../host/platform/files.js';
 import {
   cloneJson,
   fingerprint,
@@ -9,11 +15,11 @@ import {
   jsonBytes,
   parseJson,
   projectJson,
-} from '../platform/json.js';
-import { object, problem } from './errors.js';
-import { measureSave } from './timing.js';
-import { statIdentity } from '../platform/file-cache.js';
-import { appendReceipt, replayed, validOldReceipts, validReceipts } from './receipts.js';
+} from '../../host/platform/json.js';
+import { object, problem } from '../utils/errors.js';
+import { measureSave } from '../utils/timing.js';
+import { statIdentity } from '../../host/platform/file-cache.js';
+import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
 
 const LIMIT = 32 * 1024 * 1024;
 const empty = () => ({ ink: null, inkRevision: 0, receipts: [] });

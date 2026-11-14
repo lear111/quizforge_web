@@ -1,21 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cloneJson, fingerprint, hash, projectJson, decimalSum } from '../platform/json.js';
-import { checkPath } from '../platform/files.js';
-import { readBank, questionRecord, validId } from './bank-reader.js';
-import { object, problem, publicError } from './errors.js';
+import { cloneJson, fingerprint, hash, projectJson, decimalSum } from '../../host/platform/json.js';
+import { checkPath } from '../../host/platform/files.js';
+import { readBank, questionRecord, validId } from '../repositories/bank.repository.js';
+import { object, problem, publicError } from '../utils/errors.js';
 import {
   directories,
   newCache,
   readJson,
-  relativeFile,
   relativePath,
   treeIdentity,
   READ_LIMITS,
-} from './io.js';
-import { TypeRegistry } from './type-registry.js';
-import { SharedSdks } from './shared-sdks.js';
-import { measureOverview } from './timing.js';
+} from '../utils/io.js';
+import { relativeFile } from '../repositories/resource.repository.js';
+import { TypeRegistry } from '../repositories/extension.repository.js';
+import { SharedSdks } from '../repositories/shared-sdks.repository.js';
+import { measureOverview } from '../utils/timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 
 export const OPEN_BANK_LIMIT = 8;

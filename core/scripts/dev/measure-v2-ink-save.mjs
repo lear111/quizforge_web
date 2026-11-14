@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import assert from 'node:assert/strict';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { jsonBytes } from '../../server/host/platform/json.js';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);

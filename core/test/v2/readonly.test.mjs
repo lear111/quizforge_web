@@ -6,9 +6,9 @@ import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
-import { V2Server } from '../../server/host/v2/server.js';
-import { LibrarySnapshots } from '../../server/host/v2/snapshots.js';
-import { relativePath } from '../../server/host/v2/io.js';
+import { V2Server } from '../../server/v2/app.js';
+import { LibrarySnapshots } from '../../server/v2/services/bank.service.js';
+import { relativePath } from '../../server/v2/utils/io.js';
 import {
   createReadFixture,
   addFixtureExtension,
@@ -69,7 +69,7 @@ test('V2 entry dependency graph excludes the entire v1 rules, runner, validation
     external: ['express'],
   });
   const files = Object.keys(result.metafile.inputs).map((file) => file.replaceAll('\\', '/'));
-  assert.ok(files.some((file) => file.endsWith('/v2/server.js')));
+  assert.ok(files.some((file) => file.endsWith('/v2/app.js')));
   assert.ok(files.some((file) => file.endsWith('/platform/json.js')));
   for (const file of files) {
     assert.doesNotMatch(

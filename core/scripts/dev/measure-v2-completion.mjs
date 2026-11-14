@@ -1,9 +1,9 @@
 // Isolated synthetic direct-backend diagnostic; no HTTP/browser time claims.
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
-import { LibrarySnapshots } from '../../server/host/v2/snapshots.js';
-import { PracticeState } from '../../server/host/v2/state.js';
-import { withSaveTiming, measureSave, saveTimingHeader } from '../../server/host/v2/timing.js';
+import { LibrarySnapshots } from '../../server/v2/services/bank.service.js';
+import { PracticeState } from '../../server/v2/services/practice.service.js';
+import { withSaveTiming, measureSave, saveTimingHeader } from '../../server/v2/utils/timing.js';
 import { jsonBytes } from '../../server/host/platform/json.js';
 import { createReadFixture } from '../../test/fixtures/v2-banks.mjs';
 const stat = (values) => {

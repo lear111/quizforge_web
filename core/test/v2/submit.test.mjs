@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
-import { PracticeState, STATE_BYTES, validateResult } from '../../server/host/v2/state.js';
+import { V2Server } from '../../server/v2/app.js';
+import {
+  PracticeState,
+  STATE_BYTES,
+  validateResult,
+} from '../../server/v2/services/practice.service.js';
 import { jsonBytes, parseJson } from '../../server/host/platform/json.js';
 import { createReadFixture, writeFixtureFile, SOLUTION_MARKER } from '../fixtures/v2-banks.mjs';
 
@@ -345,7 +349,8 @@ test('D19 private records are excluded from fingerprints, file limits, question 
   }
   assert.equal((await api(base + '/overview')).value.snapshotId, snapshotId);
   assert.equal((await api(base + '/overview')).value.initial.question.state.locked, true);
-  const { relativeFile, treeDigest, newCache } = await import('../../server/host/v2/io.js');
+  const { treeDigest, newCache } = await import('../../server/v2/utils/io.js');
+  const { relativeFile } = await import('../../server/v2/repositories/resource.repository.js');
   const before = treeDigest(directory, newCache());
   writeFixtureFile(path.join(local, 'not-json'), '{broken');
   assert.equal(treeDigest(directory, newCache()), before);

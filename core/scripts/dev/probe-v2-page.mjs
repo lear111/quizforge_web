@@ -9,7 +9,7 @@ import http from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);

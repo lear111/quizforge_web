@@ -15,7 +15,7 @@ node core/server/v2-main.mjs --root examples/v2 --port 8794
 
 访问 `http://127.0.0.1:8794/`，Ctrl+C 停止。Windows 可双击“启动 V2 基础题型演示.cmd”（旧单选演示入口也可）。示例题库和题型均在 `examples/v2/`，演示作答保存在该题库文件夹内部被忽略的 `.qf-v2/state.json`（D19），不覆盖原基础题型。`Start-QuizForge-V2.cmd` 和 `npm --prefix core start` 仍以仓库根目录作为数据根，只有该根已安装 V2 题库时才会显示可用题目。旧 `QuizForge.exe`、旧启动与安装脚本尚未接入 V2，不能用来验收；打包在功能第 7 段处理。V2 不读取 V1 的 `.state`、设置和密钥，不自动迁移真实数据。
 
-前端 Vue / TypeScript 源码在 `core/frontend/`，产物在 `core/web/ui/`；修改后运行 `npm --prefix core run build:ui`。底层通用工具在 `core/server/host/platform/`，新后端在 `core/server/host/v2/`。`core/docs/reference/` 中未迁移的旧接口说明只描述 V1，不能覆盖 V2 总体设计。
+前端 Vue / TypeScript 源码在 `core/frontend/`，产物在 `core/web/ui/`；修改后运行 `npm --prefix core run build:ui`。底层通用工具在 `core/server/host/platform/`，新后端在 `core/server/v2/`。`core/docs/reference/` 中未迁移的旧接口说明只描述 V1，不能覆盖 V2 总体设计。
 
 ## 检查与合并
 
