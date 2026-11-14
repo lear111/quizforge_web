@@ -1,20 +1,20 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, toRaw } from 'vue';
-import { answeredFromStatus, reportOutlineStatus } from '../../../shared/v2/answered.js';
-import { mountQuestionPage } from './page';
-import { createGradingService } from './grading';
-import { saveGrade, recoverGrades } from './scoring';
+import { answeredFromStatus, reportOutlineStatus } from '../../../../shared/v2/answered.js';
+import { mountQuestionPage } from '../services/page';
+import { createGradingService } from '../services/grading';
+import { saveGrade, recoverGrades } from '../services/scoring';
 import {
   createSaveController,
   attachSaveLifecycle,
   isSaveConflict,
   saveRecoveryMessage,
-} from './save-policy';
-import { createPageSourceCache } from './source-cache';
-import { createWriteQueue } from './write-queue';
-import { mountScratch } from './whiteboard';
-import type { Picture } from './page';
-import type { Completion, Overview, PracticeWorkspace, Question } from './practice-types';
-import { createCompletionGrader } from './completion';
+} from '../services/save-policy';
+import { createPageSourceCache } from '../services/source-cache';
+import { createWriteQueue } from '../services/write-queue';
+import { mountScratch } from '../services/whiteboard';
+import type { Picture } from '../services/page';
+import type { Completion, Overview, PracticeWorkspace, Question } from '../types/practice-types';
+import { createCompletionGrader } from '../services/completion';
 
 export function usePracticePage(
   workspace: PracticeWorkspace,

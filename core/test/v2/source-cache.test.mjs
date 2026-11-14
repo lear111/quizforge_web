@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 const compiled = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/source-cache.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/source-cache.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'esm',

@@ -1,4 +1,4 @@
-import type { Item, State } from './outline';
+import type { Item, State } from '../services/outline';
 export interface Question {
   bankId: string;
   questionId: string;

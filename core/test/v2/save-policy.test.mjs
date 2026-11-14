@@ -4,7 +4,9 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'node:url';
 const bundle = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/save-policy.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/save-policy.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'iife',

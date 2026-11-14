@@ -3,11 +3,11 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import LibraryList from '../library/LibraryList.vue';
 import OutlinePanel from '../outline/OutlinePanel.vue';
 import type { LibraryTree } from '../library/types';
-import { buildV2Outline } from './outline';
-import PracticePage from './PracticePage.vue';
-import FinalScore from './FinalScore.vue';
-import type { Overview, PracticeWorkspace, Question } from './practice-types';
-import './workspace.css';
+import { buildV2Outline } from './services/outline';
+import PracticePage from './views/PracticePage.vue';
+import FinalScore from './components/FinalScore.vue';
+import type { Overview, PracticeWorkspace, Question } from './types/practice-types';
+import './styles/workspace.css';
 
 defineProps<{ nonce: string }>();
 const groups = ref<LibraryTree[]>([]),

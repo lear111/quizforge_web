@@ -1,6 +1,6 @@
 import type { GradingInput, GradingOutput, GradeResult } from './grading';
 import { ungradable } from './grading';
-import type { Overview, Question, Completion } from './practice-types';
+import type { Overview, Question, Completion } from '../types/practice-types';
 
 // The same batch/body/request id is retained after an uncertain transport
 // failure. Author code only runs in the existing browser grading service.

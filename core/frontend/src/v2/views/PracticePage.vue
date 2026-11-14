@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PracticeWorkspace } from './practice-types';
+import type { PracticeWorkspace } from '../types/practice-types';
 import { usePracticePage } from './use-practice-page';
 
 const props = defineProps<{

@@ -172,8 +172,8 @@
 |---|---|---|---|
 | A | 后端搬家 | 按 D48 搬到 `core/server/v2/`；[#126](https://github.com/lear111/quizforge_web/pull/126) 已审查合并 | 核对"仅移动" |
 | B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告。[#127](https://github.com/lear111/quizforge_web/pull/127) 已审查合并；见[检查记录](reviews/V2-BROWSER-CI.md) | 需审查 |
-| C | 后端拆分与精简 | [#129](https://github.com/lear111/quizforge_web/pull/129) 已审查合并，见[拆分记录](reviews/V2-BACKEND-SPLIT.md)。评论要求的大纲形状与题号诊断已在 [#133](https://github.com/lear111/quizforge_web/pull/133) 补齐，五项 CI 全绿，见[小 PR 记录](reviews/V2-OUTLINE-DIAGNOSTICS.md)，待审查后进入 D | 需审查 |
-| D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式 | 第 3、4 步需审查 |
+| C | 后端拆分与精简 | [#129](https://github.com/lear111/quizforge_web/pull/129) 与补充 [#133](https://github.com/lear111/quizforge_web/pull/133) 均已审查合并；见[拆分记录](reviews/V2-BACKEND-SPLIT.md)与[大纲诊断记录](reviews/V2-OUTLINE-DIAGNOSTICS.md) | 已完成 |
+| D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式；① 目录搬迁 [#136](https://github.com/lear111/quizforge_web/pull/136) 五项 CI 全绿，见[记录](reviews/V2-FRONTEND-LAYOUT.md)，待审查；后续未开始 | 第 3、4 步需审查 |
 | E | 前后端共用一份数据定义，后端加类型检查 | 接口的请求和答复、`state.json` 等结构只定义一次，放在 `core/shared/v2/`，前端的 `api/` 与后端的 controller / service 都引用它；后端保持 JavaScript，用 JSDoc 注解加 `tsc --checkJs` 做类型检查并接入 CI。先覆盖 `controllers`、`services`、`repositories`，`utils` 和沿用的 V1 工具可以后补。开工前先写半页说明（定义放哪、用什么形式）等审查 | 需审查 |
 | F | 沙箱与保存相关的长函数 | `services/` 下的题目页面装载、评分环境、保存时机、拓展文件缓存、完成评分，逐个文件拆分 | 需审查 |
 | G | 并行准备与测试整理 | 构建成品不进仓库；进度页拆分为"总表 + 每任务一个记录文件"；过长的测试文件按功能拆开（不改断言） | 核对 |

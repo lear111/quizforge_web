@@ -1,6 +1,6 @@
-import { mountWhiteboard } from '../../../web/draft/whiteboard';
-import { createDraftFullscreen } from '../../../web/draft/draft-fullscreen';
-import '../../../web/draft/whiteboard.css';
+import { mountWhiteboard } from '../../../../web/draft/whiteboard';
+import { createDraftFullscreen } from '../../../../web/draft/draft-fullscreen';
+import '../../../../web/draft/whiteboard.css';
 
 // Host-only adapter: the v1 pen, selection, camera, dock and tools are unchanged.
 // No answer-area registration/channel: all strokes here are scratch ink.

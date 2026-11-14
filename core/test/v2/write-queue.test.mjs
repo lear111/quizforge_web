@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 const bundled = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/write-queue.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/write-queue.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'esm',

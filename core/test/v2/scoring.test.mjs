@@ -4,7 +4,9 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { validateResult } from '../../server/v2/services/practice.service.js';
 const compiled = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/scoring.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/scoring.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'esm',
