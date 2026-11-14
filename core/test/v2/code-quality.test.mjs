@@ -18,6 +18,7 @@ test('V2 quality scope excludes V1 and generated files', () => {
   for (const file of [
     'core/server/host/v2/server.js',
     'core/frontend/src/v2/App.vue',
+    'core/frontend/src/v2/workspace.css',
     'core/shared/v2/answered.js',
     'core/scripts/dev/probe-v2-basic-types.mjs',
   ]) {
@@ -69,4 +70,31 @@ test('V2 formatter checks without writing and converges with shared configuratio
   assert.equal(await check(formatted, options), true);
   assert.equal(text, 'export const data={value:1};\n');
   assert.equal(config.printWidth, 100);
+});
+
+test('V2 length policy exempts literals and reports size as warnings outside tests', async () => {
+  const long = 'x'.repeat(120);
+  const literalLines = [
+    `export const quoted = '${long}';`,
+    'export const template = `' + long + '`;',
+    `export const expression = /${long}/;`,
+    `// https://example.test/${long}`,
+  ].join('\n');
+  assert.deepEqual(await rules(literalLines, 'core/server/host/v2/literal-probe.js'), []);
+  const body = `export function longFunction() {\n${'  void 0;\n'.repeat(51)}}\n`;
+  const [result] = await lint.lintText(body, {
+    filePath: 'core/server/host/v2/length-probe.js',
+  });
+  assert.equal(result.errorCount, 0);
+  assert.ok(
+    result.messages.some(
+      (message) => message.ruleId === 'max-lines-per-function' && message.severity === 1,
+    ),
+  );
+  const vue = await lint.calculateConfigForFile('core/frontend/src/v2/LengthProbe.vue');
+  assert.equal(vue.rules['max-lines'][0], 1);
+  assert.equal(vue.rules['max-lines'][1].max, 150);
+  const tests = await lint.calculateConfigForFile('core/test/v2/length-probe.test.mjs');
+  assert.equal(tests.rules['max-lines'][0], 0);
+  assert.equal(tests.rules['max-lines-per-function'][0], 0);
 });
