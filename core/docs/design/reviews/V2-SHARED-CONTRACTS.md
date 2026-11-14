@@ -21,4 +21,13 @@
 
 **验证与兼容性。** 新增 3 项测试：有效请求/作答/题库与 API 返回类型；14 种无效赋值必须得到编译错误（无忽略标记）；错误码联合与后端 AST 清单完全一致。负例注入处理了 Windows 路径分隔符差异，并断言确实注入，未放宽预期。原测试断言全部保留。本机 Windows 11、Node 24.13.0；只运行合成夹具与回环服务，不使用真实题库。不做性能优化，不把并行检查时的性能读数当对比。
 
-**检查结果。** UI 类型检查、构建、格式和 lint 通过（0 错误、36 条既有大小警告）；契约 3/0、性能 2/0。本机完整测试 1423 通过 / 13 失败 / 1 超时（1039.26 s）：hub-connection 6、settings-provider 2、http/server 1，涉及凭据/登录；rule-engine 1 涉及进程排队；library-export-images 2 为 rename EPERM；windows-tray 导入 1 为 Request could not be completed，EXE 生命周期 1 超时。后端与构建成品无差异，不据此调整测试或旧实现，也不把本机完整套件记为通过。十个 Chrome 浏览器探针全部通过（脚本覆盖桌面/手机尺寸，非真机）；五项 CI 最终结果待补。
+**检查结果。** UI 类型检查、构建、格式和 lint 通过（0 错误、36 条既有大小警告）；契约 3/0、性能 2/0。本机完整测试 1423 通过 / 13 失败 / 1 超时（1039.26 s）：hub-connection 6、settings-provider 2、http/server 1，涉及凭据/登录；rule-engine 1 涉及进程排队；library-export-images 2 为 rename EPERM；windows-tray 导入 1 为 Request could not be completed，EXE 生命周期 1 超时。后端与构建成品无差异，不据此调整测试或旧实现，也不把本机完整套件记为通过。十个 Chrome 浏览器探针全部通过（脚本覆盖桌面/手机尺寸，非真机）；实现提交 `d5cd547` 的[运行 43617526510](https://github.com/lear111/quizforge_web/actions/runs/43617526510) 五项全绿，失败名单为空。Ubuntu 的 34 项跳过是既有 Windows 专项。本次只补记录，推送后再核对最终提交。
+
+
+| CI Job | 通过 / 失败 / 跳过 | Job 总耗时 |
+|---|---|---|
+| Checks · Windows | 1437 / 0 / 0；UI 类型与构建通过 | 183 s |
+| Checks · Ubuntu | 1403 / 0 / 34；UI 类型与构建通过 | 121 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 17 s |
+| V2 code quality · Ubuntu | 格式 147 文件无差异；lint 144 文件，0 错误、36 警告 | 30 s |
+| V2 browser checks · Ubuntu | 十个既有探针全部通过 | 166 s |
