@@ -16,12 +16,8 @@ import type { Picture } from '../services/page';
 import type { Completion, Overview, PracticeWorkspace, Question } from '../types/practice-types';
 import { createCompletionGrader } from '../services/completion';
 
-export function usePracticePage(
-  workspace: PracticeWorkspace,
-  requestPrefix: (bankId: string) => string,
-  nonce: string,
-) {
-  const { overview, busy, message, token, response, json, run, remember } = workspace;
+export function usePracticePage(workspace: PracticeWorkspace, nonce: string) {
+  const { overview, busy, message, token, api, run, remember } = workspace;
   const current = ref<Question | null>(null),
     container = ref<HTMLElement>();
   const typeName = ref('题目'),
@@ -41,30 +37,14 @@ export function usePracticePage(
   let page: ReturnType<typeof mountQuestionPage> | null = null,
     generation = 0;
   let saver: ReturnType<typeof createSaveController<Record<string, unknown>>> | null = null;
-  const text = async (route: string, signal?: AbortSignal) =>
-    (await response(route, { signal })).text();
-  const sources = createPageSourceCache({ json: (route, signal) => json(route, { signal }), text });
+  const sources = createPageSourceCache(api);
   const grader = createGradingService({
-    loadSource: (id, signal) => text(`/api/v2/extensions/${id}/files/grade-js`, signal),
+    loadSource: (id, signal) => api.extensions.file(id, 'grade-js', signal),
     scriptNonce: nonce,
   });
-  const base = (q: Question) =>
-    `${requestPrefix(q.bankId)}/questions/${encodeURIComponent(q.questionId)}`;
-  const requestId = () =>
-    Array.from(crypto.getRandomValues(new Uint8Array(16)), (n) =>
-      n.toString(16).padStart(2, '0'),
-    ).join('');
   const completionGrader = createCompletionGrader({
     grade: (id, items) => grader.grade(id, items),
-    requestId,
-    send: (body) =>
-      enqueue(() =>
-        json(`${requestPrefix(overview.value!.bank.bankId)}/results`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-        }),
-      ),
+    send: (body) => enqueue(() => api.banks.results(overview.value!.bank.bankId, body)),
   });
   function update(q: Question, preserveStatus = false) {
     if (current.value?.bankId === q.bankId && current.value.questionId === q.questionId) {
@@ -128,9 +108,7 @@ export function usePracticePage(
           .map(async (asset) => {
             let result: Response;
             try {
-              result = await response(
-                base(q) + `/assets/${asset.assetId}?snapshotId=${encodeURIComponent(q.snapshotId)}`,
-              );
+              result = await api.questions.asset(q, asset.assetId);
             } catch (error) {
               if ((error as { status?: number }).status === 404) {
                 return null;
@@ -184,7 +162,7 @@ export function usePracticePage(
     recovering.value = true;
     try {
       if ((error as { code?: string } | undefined)?.code === 'ROUND_COMPLETED') {
-        const value: Overview = await json(`${requestPrefix(previous.bankId)}/overview`);
+        const value: Overview = await api.banks.overview(previous.bankId);
         if (mine !== generation) {
           return null;
         }
@@ -192,16 +170,14 @@ export function usePracticePage(
       }
       let latest: Question;
       try {
-        latest = await json(
-          base(previous) + `?snapshotId=${encodeURIComponent(previous.snapshotId)}`,
-        );
+        latest = await api.questions.get(previous);
       } catch (error) {
         if (!isSaveConflict(error)) {
           throw error;
         }
         let value: Overview;
         try {
-          value = await json(`${requestPrefix(previous.bankId)}/overview`);
+          value = await api.banks.overview(previous.bankId);
         } catch (error) {
           if (!isSaveConflict(error)) {
             throw error;
@@ -227,9 +203,7 @@ export function usePracticePage(
           return null;
         }
         try {
-          latest = await json(
-            base(previous) + `?snapshotId=${encodeURIComponent(value.snapshotId)}`,
-          );
+          latest = await api.questions.get({ ...previous, snapshotId: value.snapshotId });
         } catch (error) {
           if (!isSaveConflict(error)) {
             throw error;
@@ -349,24 +323,19 @@ export function usePracticePage(
         const fields = value.fields as Record<string, unknown>,
           av = value.av as number,
           iv = value.iv as number;
-        const operation = (kind: string, fields: Record<string, unknown>, done: () => void) =>
+        const operation = (
+          kind: 'answer' | 'ink',
+          fields: Record<string, unknown>,
+          done: () => void,
+        ) =>
           queue.prepare(
             () => {
               const active = current.value!;
-              return {
-                route: base(active) + '/' + kind,
-                body: JSON.stringify({
-                  requestId: requestId(),
-                  snapshotId: active.snapshotId,
-                  ...(kind === 'ink'
-                    ? { expectedInkRevision: active.inkRevision }
-                    : { expectedRevision: active.state.revision }),
-                  ...fields,
-                }),
-              };
+              return kind === 'ink'
+                ? api.questions.prepareInk(active, fields.ink)
+                : api.questions.prepareAnswer(active, fields);
             },
-            (route, body) =>
-              json(route, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }),
+            api.questions.sendSave,
             (saved: Question) => {
               if (mine === generation) {
                 done();
@@ -474,18 +443,7 @@ export function usePracticePage(
         (items) => grader.grade(q.extension.artifactId, items),
         (result) =>
           enqueue(async () => {
-            const saved: Question = await json(base(q) + '/result', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                requestId: requestId(),
-                snapshotId: q.snapshotId,
-                submissionId: q.submissionId,
-                expectedRevision: q.state.revision,
-                source: 'grader',
-                result,
-              }),
-            });
+            const saved: Question = await api.questions.result(q, result);
             // Publish the new revision before releasing the shared write queue.
             if (
               current.value?.bankId === saved.bankId &&
@@ -533,18 +491,7 @@ export function usePracticePage(
       const answer = await page!.answer();
       let saved: Question;
       try {
-        saved = await enqueue(() =>
-          json(base(q) + '/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId: requestId(),
-              snapshotId: q.snapshotId,
-              expectedRevision: q.state.revision,
-              answer,
-            }),
-          }),
-        );
+        saved = await enqueue(() => api.questions.submit(q, answer));
       } catch (error) {
         if (!isSaveConflict(error)) {
           throw error;
@@ -598,17 +545,7 @@ export function usePracticePage(
       await flush();
       const q = current.value!;
       try {
-        const saved = await enqueue(() =>
-          json(base(q) + '/retry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId: requestId(),
-              snapshotId: q.snapshotId,
-              expectedRevision: q.state.revision,
-            }),
-          }),
-        );
+        const saved = await enqueue(() => api.questions.retry(q));
         await applyContext(saved);
         scratch?.load(saved.ink);
       } catch (error) {
@@ -691,11 +628,7 @@ export function usePracticePage(
       return;
     }
     try {
-      await applyContext(
-        await json(
-          base(current.value) + `?snapshotId=${encodeURIComponent(current.value.snapshotId)}`,
-        ),
-      );
+      await applyContext(await api.questions.get(current.value));
     } catch (error) {
       // The bulk response already confirms the lock. Even if the follow-up
       // read fails, never leave an editable old frame behind the score screen.
@@ -736,19 +669,13 @@ export function usePracticePage(
       const bank = overview.value!;
       let saved: Completion;
       try {
-        saved = await enqueue(() =>
-          json(`${requestPrefix(bank.bank.bankId)}/finish`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestId: requestId(), snapshotId: bank.snapshotId }),
-          }),
-        );
+        saved = await enqueue(() => api.banks.finish(bank.bank.bankId, bank.snapshotId));
       } catch (error) {
         // A lost response may follow a successful lock. Read its actual state;
         // offline failures still surface and may be retried without relocking.
         if (!isSaveConflict(error)) {
           try {
-            const latest: Overview = await json(`${requestPrefix(bank.bank.bankId)}/overview`);
+            const latest: Overview = await api.banks.overview(bank.bank.bankId);
             if (latest.completedAt) {
               applyCompletion(latest);
               await reloadCompletedQuestion();
@@ -771,7 +698,7 @@ export function usePracticePage(
     await run('正在评分', async () => {
       await flush();
       const bank = overview.value!;
-      const latest: Overview = await json(`${requestPrefix(bank.bank.bankId)}/overview`);
+      const latest: Overview = await api.banks.overview(bank.bank.bankId);
       overview.value = latest;
       if (!latest.completedAt) {
         completionGrader.clear();

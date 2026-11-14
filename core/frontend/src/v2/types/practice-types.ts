@@ -39,8 +39,7 @@ export interface PracticeWorkspace {
   message: import('vue').Ref<string>;
   busy: import('vue').Ref<boolean>;
   token: import('vue').Ref<string>;
-  response(route: string, options?: RequestInit): Promise<Response>;
-  json(route: string, options?: RequestInit): Promise<any>;
+  api: import('../api').PracticeApi;
   run(label: string, action: () => Promise<void>): Promise<void>;
   remember(question: Question): void;
 }

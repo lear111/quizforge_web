@@ -1,11 +1,5 @@
-interface Manifest {
-  name: string;
-  sdkVersions?: Record<string, string>;
-}
-interface Loaders {
-  json(route: string, signal: AbortSignal): Promise<Manifest>;
-  text(route: string, signal: AbortSignal): Promise<string>;
-}
+import type { PracticeApi } from '../api';
+type Loaders = Pick<PracticeApi, 'extensions' | 'sdk'>;
 export function createPageSourceCache(loaders: Loaders) {
   let key = '',
     snapshot = '',
@@ -40,10 +34,9 @@ export function createPageSourceCache(loaders: Loaders) {
       }
       const mine = epoch,
         signal = abort.signal,
-        snapshotId = snapshot,
-        root = `/api/v2/extensions/${encodeURIComponent(artifactId)}`;
+        snapshotId = snapshot;
       const promise = (async () => {
-        const manifest = await loaders.json(root + '/manifest', signal);
+        const manifest = await loaders.extensions.manifest(artifactId, signal);
         if (mine !== epoch) {
           throw invalid();
         }
@@ -52,27 +45,20 @@ export function createPageSourceCache(loaders: Loaders) {
           .map(([id, version]) => {
             const sdk = `${id}@${version}`;
             if (!sdks.has(sdk)) {
-              const sdkRoot = `/api/v2/sdk/${id}/${encodeURIComponent(version)}/richtext`;
-              const suffix = `?snapshotId=${encodeURIComponent(snapshotId)}`;
-              const pending = Promise.all([
-                loaders.text(sdkRoot + '.js' + suffix, signal),
-                loaders.text(sdkRoot + '.css' + suffix, signal),
-              ])
-                .then(([js, css]) => ({ js, css }))
-                .catch((error) => {
-                  if (sdks.get(sdk) === pending) {
-                    sdks.delete(sdk);
-                  }
-                  throw error;
-                });
+              const pending = loaders.sdk.richtext(version, snapshotId, signal).catch((error) => {
+                if (sdks.get(sdk) === pending) {
+                  sdks.delete(sdk);
+                }
+                throw error;
+              });
               sdks.set(sdk, pending);
             }
             return sdks.get(sdk)!;
           });
         const [html, js, css, sources] = await Promise.all([
-          loaders.text(root + '/files/practice-html', signal),
-          loaders.text(root + '/files/practice-js', signal),
-          loaders.text(root + '/files/practice-css', signal),
+          loaders.extensions.file(artifactId, 'practice-html', signal),
+          loaders.extensions.file(artifactId, 'practice-js', signal),
+          loaders.extensions.file(artifactId, 'practice-css', signal),
           Promise.all(sdkSources),
         ]);
         if (mine !== epoch) {

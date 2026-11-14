@@ -7,6 +7,7 @@ import { buildV2Outline } from './services/outline';
 import PracticePage from './views/PracticePage.vue';
 import FinalScore from './components/FinalScore.vue';
 import type { Overview, PracticeWorkspace, Question } from './types/practice-types';
+import { createApi } from './api';
 import './styles/workspace.css';
 
 defineProps<{ nonce: string }>();
@@ -23,7 +24,6 @@ const practice = ref<InstanceType<typeof PracticePage>>();
 const current = computed(() => practice.value?.current);
 const recovering = computed(() => practice.value?.recovering ?? false);
 const drafting = computed(() => practice.value?.drafting ?? false);
-const requestPrefix = (id: string) => `/api/v2/banks/${id}`;
 const LAST_BANK = 'quizforge.v2.last-bank';
 const lastQuestions = new Map<string, string>();
 function remember(q: Question) {
@@ -38,29 +38,13 @@ function remember(q: Question) {
     /* Storage disabled: last answered position still works. */
   }
 }
-async function response(route: string, options: RequestInit = {}) {
-  const response = await fetch(route, {
-    ...options,
-    credentials: 'omit',
-    referrerPolicy: 'no-referrer',
-    headers: { ...options.headers, ...(token.value ? { 'x-quizforge-token': token.value } : {}) },
-  });
-  if (!response.ok) {
-    const body = await response.json();
-    if (response.status === 401) {
-      authRequired.value = true;
-      practice.value?.resetSources();
-    }
-    throw Object.assign(new Error(body.error?.message || '操作未完成。'), {
-      code: body.error?.code,
-      questionId: body.error?.questionId,
-      status: response.status,
-    });
-  }
-  return response;
-}
-const json = async (route: string, options?: RequestInit) =>
-  (await response(route, options)).json();
+const api = createApi({
+  token: () => token.value,
+  unauthorized() {
+    authRequired.value = true;
+    practice.value?.resetSources();
+  },
+});
 const outlineModel = computed(() =>
   buildV2Outline(
     overview.value?.outline ?? [],
@@ -86,7 +70,7 @@ async function run(label: string, action: () => Promise<void>) {
 }
 async function catalog() {
   await run('正在读取题库', async () => {
-    const value = await json('/api/v2/catalog');
+    const value = await api.catalog.get();
     authRequired.value = false;
     groups.value = value.groups.map(
       (g: {
@@ -116,15 +100,17 @@ async function openBank(_kind: string, id?: string) {
       return;
     }
     await page.flush();
-    const value: Overview = await json(`${requestPrefix(id)}/overview`);
+    const value: Overview = await api.banks.overview(id);
     const remembered = lastQuestions.get(id);
     const initial =
       remembered &&
       value.states.some((state) => state.questionId === remembered) &&
       remembered !== value.initial.question?.questionId
-        ? ((await json(
-            `${requestPrefix(id)}/questions/${encodeURIComponent(remembered)}?snapshotId=${value.snapshotId}`,
-          )) as Question)
+        ? await api.questions.get({
+            bankId: id,
+            questionId: remembered,
+            snapshotId: value.snapshotId,
+          })
         : value.initial.question;
     const previous = overview.value,
       previousScoreView = scoreView.value;
@@ -173,9 +159,11 @@ async function navigate(id: string) {
       return;
     }
     await page.show(
-      await json(
-        `${requestPrefix(bank.bank.bankId)}/questions/${encodeURIComponent(id)}?snapshotId=${bank.snapshotId}`,
-      ),
+      await api.questions.get({
+        bankId: bank.bank.bankId,
+        questionId: id,
+        snapshotId: bank.snapshotId,
+      }),
     );
     scoreView.value = false;
     drawer.value = null;
@@ -193,11 +181,7 @@ async function refreshBank() {
     await page.flush();
     const active = current.value,
       bank = overview.value!;
-    const value: Overview = await json(`${requestPrefix(bank.bank.bankId)}/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...(active ? { questionId: active.questionId } : {}) }),
-    });
+    const value: Overview = await api.banks.refresh(bank.bank.bankId, active?.questionId);
     overview.value = value;
     scoreView.value = !!value.completedAt;
     page.resetSources();
@@ -232,8 +216,7 @@ const workspace: PracticeWorkspace = {
   message,
   busy,
   token,
-  response,
-  json,
+  api,
   run,
   remember,
 };
@@ -353,7 +336,6 @@ onMounted(async () => {
         ref="practice"
         :visible="!scoreView"
         :nonce="nonce"
-        :request-prefix="requestPrefix"
         :workspace="workspace"
         :busy="busy"
       />

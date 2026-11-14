@@ -26,7 +26,7 @@ export async function buildPhaseUi(core) {
             'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
           if (file.endsWith('/v2/App.vue')) {
             const declaration = 'async function openBank(_kind: string, id?: string)';
-            const overview = 'const value: Overview = await json(`${requestPrefix(id)}/overview`);';
+            const overview = 'const value: Overview = await api.banks.overview(id);';
             code = replaceOnce(code, declaration, stamp + '\n' + declaration);
             return replaceOnce(
               code,
