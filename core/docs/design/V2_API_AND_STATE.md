@@ -138,12 +138,25 @@
 - 历史里只读：`GET R/questions/{questionId}/answer-files/{name}` 与 `GET R/questions/{questionId}/answer-ink/{areaId}`。
 - 磁盘文件夹与接口地址都叫 `answer-files`，与题库素材的 `assets` 区分开。
 
+## 第 5 段接口：评分来源与 AI（已定稿，未实现）
+
+设计依据：D60–D62。
+
+| 接口 | 变化 |
+|---|---|
+| PUT `Q/result` | `source` 除 `"grader"` 外增加 `"manual"`（页面调用 `QF.page.grade` 时）。两者检查相同：该题已锁定、提交编号与版本相符、分数合法。已归档的轮次没有这个接口 |
+| POST `/api/v2/ai/ask`（新增） | 请求 `{ prompt, images }`，返回 `{ text }`。后端用设置里保存的密钥和模型调用一次，不保存请求和回答，不理解内容。最多 2 分钟。错误：`AI_NOT_CONFIGURED`、`AI_TIMEOUT`、`AI_REQUEST_FAILED`（附可以给用户看的原因） |
+
+- `ai/ask` 不改变任何作答数据，所以不带请求编号和版本号；分数仍由 `PUT Q/result` 保存。
+- 只有宿主调用它，而且只在某道题的评分函数运行期间。拓展拿不到密钥。
+- 宿主对 `regrade` 的处理：重新调用评分函数，结果照常用 `PUT Q/result` 覆盖。
+- 设置接口（密钥、模型、连接测试）随设置页面另行设计。
+
 ## 后续接口（未实现，字段随各段审查）
 
 | 方法与路径 | 用途 |
 |---|---|
 | POST `/api/v2/practice-sessions`；DELETE `/api/v2/practice-sessions/{sessionId}` | 临时练习的独立内存作用域，后续实现 |
-| POST `Q/ai-tasks`；GET `/api/v2/ai-tasks/{taskId}`；POST 同路径 `/cancel`、`/retry`；POST `/api/v2/ai/chat` | 锁定答案的 AI 任务；辅导对话（第 5 段） |
 | GET/PUT `/api/v2/settings/{ai,network,development}`；POST `/api/v2/settings/ai/test`；GET `/api/v2/settings/ai/hub`；POST 同路径 `/login`、`/logout`、`/redeem` | 设置、连接测试及 Hub 账号（第 5、6 段核对字段） |
 | POST `/api/v2/auth/login`、`/api/v2/settings/network/https/regenerate`；GET `/api/v2/admin-contact` | LAN 登录、证书与固定联系方式查询（后续保留边界） |
 | POST `/api/v2/imports`、`/api/v2/exports`、`/api/v2/library/manage`；GET/PUT `Q/editor`；POST `Q/editor/assets` | 导入导出与本机编辑；包格式和转换在第 6 段确认 |
