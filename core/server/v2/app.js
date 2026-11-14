@@ -1,10 +1,33 @@
 import http from 'node:http';
 import os from 'node:os';
-import { LibrarySnapshots } from './snapshots.js';
-import { problem } from './errors.js';
-import { PracticeState } from './state.js';
-import { createApp } from './routes.js';
-import { writeBinary, immutable } from './http-response.js';
+import express from 'express';
+import { createHandlers } from './controllers/http.controller.js';
+import {
+  apiAccess,
+  checkTarget,
+  defaultHeaders,
+  fallback,
+  readJson,
+  requireJson,
+  saveTiming,
+  writeError,
+} from './middleware/http.middleware.js';
+import {
+  registerBankListeningRoute,
+  registerBankOverviewRoute,
+  registerBankWriteRoutes,
+} from './routes/bank.routes.js';
+import { registerExtensionRoutes } from './routes/extension.routes.js';
+import {
+  registerQuestionReadRoutes,
+  registerQuestionWriteRoutes,
+} from './routes/question.routes.js';
+import { registerSystemRoutes } from './routes/system.routes.js';
+import { LibrarySnapshots } from './services/bank.service.js';
+import { PracticeState } from './services/practice.service.js';
+import { readResource } from './services/resource.service.js';
+import { problem } from './utils/errors.js';
+import { writeBinary, immutable } from './utils/http-response.js';
 
 const loopback = (value) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(value);
 
@@ -26,6 +49,28 @@ function validateListener(host, port, token) {
       403,
     );
   }
+}
+
+export function createApp(server) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.disable('etag');
+  app.disable('query parser');
+  app.enable('case sensitive routing');
+  app.use(saveTiming(server), defaultHeaders, checkTarget(server), apiAccess(server));
+
+  const handlers = createHandlers(server);
+  const body = [requireJson, readJson];
+  registerSystemRoutes(app, handlers);
+  registerBankOverviewRoute(app, handlers);
+  registerQuestionReadRoutes(app, handlers);
+  registerBankListeningRoute(app, handlers);
+  registerExtensionRoutes(app, handlers);
+  registerBankWriteRoutes(app, handlers, body);
+  registerQuestionWriteRoutes(app, handlers, body);
+
+  app.use(fallback, writeError);
+  return app;
 }
 
 export class V2Server {
@@ -86,7 +131,8 @@ export class V2Server {
   }
   // The browser timing probe can still substitute the UI bundle or disable its cache.
   binary(request, response, file, options) {
-    return writeBinary(this, request, response, file, options);
+    const entry = readResource(this.library, file);
+    return writeBinary(this, request, response, file, entry, options);
   }
   immutable(response) {
     immutable(response);

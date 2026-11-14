@@ -3,6 +3,7 @@ import globals from 'globals';
 import ts from 'typescript-eslint';
 import vue from 'eslint-plugin-vue';
 import vueParser from 'vue-eslint-parser';
+import { backendBoundaries } from './scripts/quality/backend-boundaries.mjs';
 import { root, sourcePatterns } from './scripts/quality/scope.mjs';
 
 const rules = {
@@ -27,12 +28,13 @@ export default [
   { basePath: root, files: sourcePatterns, rules },
   {
     basePath: root,
-    files: [
-      'core/server/host/v2/**',
-      'core/test/v2/**',
-      'core/scripts/**',
-      'core/eslint.config.mjs',
-    ],
+    files: ['core/server/v2/**/*.{js,mjs,cjs,ts}'],
+    plugins: { v2: { rules: { 'backend-boundaries': backendBoundaries(root) } } },
+    rules: { 'v2/backend-boundaries': 'error' },
+  },
+  {
+    basePath: root,
+    files: ['core/server/v2/**', 'core/test/v2/**', 'core/scripts/**', 'core/eslint.config.mjs'],
     languageOptions: { globals: globals.node },
   },
   {

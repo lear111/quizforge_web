@@ -16,7 +16,7 @@ const rules = async (text, file) =>
 test('V2 quality scope excludes V1 and generated files', () => {
   const files = sourceFiles();
   for (const file of [
-    'core/server/host/v2/server.js',
+    'core/server/v2/app.js',
     'core/frontend/src/v2/App.vue',
     'core/frontend/src/v2/workspace.css',
     'core/shared/v2/answered.js',
@@ -34,7 +34,7 @@ test('V2 quality scope excludes V1 and generated files', () => {
 test('V2 JavaScript lint rejects common errors and compressed lines', async () => {
   const messages = await rules(
     `const unused = 1; missing();\n// ${'x'.repeat(101)}\n`,
-    'core/server/host/v2/quality-probe.js',
+    'core/server/v2/quality-probe.js',
   );
   for (const id of ['no-unused-vars', 'no-undef', 'max-len', 'max-statements-per-line']) {
     assert.ok(messages.includes(id), id);
@@ -62,6 +62,35 @@ test('V2 TypeScript and Vue lint distinguishes template use from unused declarat
   assert.deepEqual(await rules(component, 'core/frontend/src/v2/QualityProbe.vue'), []);
 });
 
+test('V2 backend lint rejects reversed and skipped layers, including re-exports', async () => {
+  const boundary = 'v2/backend-boundaries';
+  const matches = async (folder, code) =>
+    (await rules(code, `core/server/v2/${folder}/layer-probe.js`)).filter((id) => id === boundary);
+  assert.deepEqual(await matches('routes', "import '../controllers/http.controller.js';"), []);
+  assert.deepEqual(await matches('controllers', "import '../services/bank.service.js';"), []);
+  assert.deepEqual(await matches('services', "import '../repositories/bank.repository.js';"), []);
+  assert.deepEqual(await matches('repositories', "import '../utils/io.js';"), []);
+  assert.deepEqual(await matches('middleware', "import '../utils/limits.js';"), []);
+  assert.deepEqual(await matches('routes', "import '../utils/io.js';"), [boundary]);
+  assert.deepEqual(await matches('routes', "import '../services/practice.service.js';"), [
+    boundary,
+  ]);
+  assert.deepEqual(await matches('routes', "import '../middleware/http.middleware.js';"), [
+    boundary,
+  ]);
+  assert.deepEqual(
+    await matches('controllers', "export * from '../repositories/bank.repository.js';"),
+    [boundary],
+  );
+  assert.deepEqual(await matches('repositories', "void import('../services/bank.service.js');"), [
+    boundary,
+  ]);
+  assert.deepEqual(await matches('services', "import '../../host/main.js';"), [boundary]);
+  assert.deepEqual(await matches('controllers', "import '../../host/platform/files.js';"), [
+    boundary,
+  ]);
+});
+
 test('V2 formatter checks without writing and converges with shared configuration', async () => {
   const text = 'export const data={value:1};\n';
   const options = { ...config, filepath: 'probe.ts' };
@@ -80,10 +109,10 @@ test('V2 length policy exempts literals and reports size as warnings outside tes
     `export const expression = /${long}/;`,
     `// https://example.test/${long}`,
   ].join('\n');
-  assert.deepEqual(await rules(literalLines, 'core/server/host/v2/literal-probe.js'), []);
+  assert.deepEqual(await rules(literalLines, 'core/server/v2/literal-probe.js'), []);
   const body = `export function longFunction() {\n${'  void 0;\n'.repeat(51)}}\n`;
   const [result] = await lint.lintText(body, {
-    filePath: 'core/server/host/v2/length-probe.js',
+    filePath: 'core/server/v2/length-probe.js',
   });
   assert.equal(result.errorCount, 0);
   assert.ok(

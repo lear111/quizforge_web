@@ -196,7 +196,7 @@ core/frontend/src/v2/
 
 | 线 | 范围 | 对接依据 |
 |---|---|---|
-| 后端 | `core/server/host/v2/`、后端测试 | `V2_API_AND_STATE.md`、`V2_DATA_STRUCTURES.md` |
+| 后端 | `core/server/v2/`、后端测试 | `V2_API_AND_STATE.md`、`V2_DATA_STRUCTURES.md` |
 | 前端页面 | `core/frontend/src/v2/`、浏览器检查 | `V2_API_AND_STATE.md`、`reference/V2_EXTENSIONS.md` |
 | 题型拓展 | 各拓展自己的文件夹 | `reference/V2_EXTENSIONS.md` |
 | 题库内容 | 题库文件夹 | `V2_DATA_STRUCTURES.md` 第 1 节 |

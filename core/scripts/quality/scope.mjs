@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 
 export const root = fileURLToPath(new URL('../../../', import.meta.url));
 export const sourcePatterns = [
-  'core/server/host/v2/**/*.{js,mjs,cjs,ts}',
+  'core/server/v2/**/*.{js,mjs,cjs,ts}',
   'core/frontend/src/v2/**/*.{js,ts,vue}',
   'core/frontend/src/v2/**/*.css',
   'core/shared/v2/**/*.{js,ts}',

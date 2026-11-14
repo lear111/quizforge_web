@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { mergeAnswered, ANSWERED_PART_LIMIT } from '../../shared/v2/answered.js';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture, SOLUTION_MARKER } from '../fixtures/v2-banks.mjs';
 const code = await build({
   entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/outline.ts', import.meta.url))],

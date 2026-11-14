@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { checkPath } from '../platform/files.js';
-import { problem } from './errors.js';
-import { treeIdentity } from './io.js';
+import { checkPath } from '../../host/platform/files.js';
+import { problem } from '../utils/errors.js';
+import { treeIdentity } from '../utils/io.js';
 
 const components = ['richtext', 'answer-area', 'ink'];
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;

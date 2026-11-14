@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { build } from 'esbuild';
 import { performance } from 'node:perf_hooks';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);
 const playwright = process.argv[2];

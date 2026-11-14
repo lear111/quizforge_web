@@ -1,9 +1,10 @@
 import path from 'node:path';
-import { hash } from '../platform/json.js';
-import { fileIdentity } from '../platform/file-cache.js';
-import { object, problem, publicError } from './errors.js';
-import { directories, readJson, relativeFile, treeIdentity, READ_LIMITS } from './io.js';
-import { measureOverview } from './timing.js';
+import { hash } from '../../host/platform/json.js';
+import { fileIdentity } from '../../host/platform/file-cache.js';
+import { object, problem, publicError } from '../utils/errors.js';
+import { directories, readJson, treeIdentity, READ_LIMITS } from '../utils/io.js';
+import { relativeFile } from './resource.repository.js';
+import { measureOverview } from '../utils/timing.js';
 
 const versionPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;

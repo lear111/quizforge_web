@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture } from '../fixtures/v2-banks.mjs';
 
 test('D32 browsing and ink never create state or move the last answered position; restart follows last draft/submit/retry', async (t) => {

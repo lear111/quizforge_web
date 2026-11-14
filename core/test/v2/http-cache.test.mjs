@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture, writeFixtureFile, SOLUTION_MARKER } from '../fixtures/v2-banks.mjs';
 
 const immutable = 'private, max-age=31536000, immutable';

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture, writeFixtureFile } from '../../test/fixtures/v2-banks.mjs';
 
 const token = 'synthetic-http-token';
@@ -291,7 +291,10 @@ const [baseline, output] = process.argv.slice(2);
 if (!baseline || !output) {
   throw new Error('Usage: node compare-v2-http.mjs <baseline checkout> <output directory>');
 }
-const entry = path.resolve(baseline, 'core/server/host/v2/server.js');
+const relocatedEntry = path.resolve(baseline, 'core/server/v2/app.js');
+const entry = fs.existsSync(relocatedEntry)
+  ? relocatedEntry
+  : path.resolve(baseline, 'core/server/host/v2/server.js');
 const { V2Server: Before } = await import(pathToFileURL(entry).href);
 fs.mkdirSync(output, { recursive: true });
 const compare = [];

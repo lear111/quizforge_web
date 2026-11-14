@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 
 const core = fileURLToPath(new URL('../../', import.meta.url));

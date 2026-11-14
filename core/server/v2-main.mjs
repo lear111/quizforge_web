@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { V2Server } from './host/v2/server.js';
+import { V2Server } from './v2/app.js';
 
 const options = { root: '.', codeRoot: fileURLToPath(new URL('../', import.meta.url)), port: 8794 };
 let service;

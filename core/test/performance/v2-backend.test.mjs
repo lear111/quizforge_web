@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { createReadFixture, SOLUTION_MARKER } from '../fixtures/v2-banks.mjs';
 
 const WARMUP = 5, SAMPLES = 30;

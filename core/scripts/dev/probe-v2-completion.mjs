@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);

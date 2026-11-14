@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
-import { validateResult } from '../../server/host/v2/state.js';
+import { validateResult } from '../../server/v2/services/practice.service.js';
 const compiled = await build({
   entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/scoring.ts', import.meta.url))],
   bundle: true,

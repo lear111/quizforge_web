@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { problem } from './errors.js';
-import { relativeFile } from './io.js';
-import { json } from './http-response.js';
-import { measureSave, withOverviewTiming } from './timing.js';
+import { problem } from '../utils/errors.js';
+import { sdkResource, uiFile } from '../services/resource.service.js';
+import { json, rootPage } from '../utils/http-response.js';
+import { measureSave, withOverviewTiming } from '../utils/timing.js';
 
 const snapshotId = (response) => response.locals.target.searchParams.get('snapshotId');
 
@@ -113,27 +113,15 @@ function extensionHandlers(server, library) {
 
 function sdkHandler(server, library) {
   return (request, response) => {
-    const { component, version, entry } = request.params;
-    const snapshot = snapshotId(response);
-    const key = `${component}@${version}`;
-    const sdk = [...library.opened.values()]
-      .filter((value) => snapshot === null || value.snapshotId === snapshot)
-      .map((value) => value.sdk.get(key))
-      .find(Boolean);
-    if (!sdk) {
-      throw problem('SDK_UNAVAILABLE', '该公共组件未在已打开题库中声明。', {}, 404);
-    }
-    const relative = entry.join('/');
-    server.binary(request, response, relativeFile(sdk.directory, relative), {
-      executable: true,
-      expectedHash: snapshot === null ? undefined : sdk.hashes.get(relative),
-    });
+    const { file, expectedHash } = sdkResource(library, request.params, snapshotId(response));
+    server.binary(request, response, file, { executable: true, expectedHash });
   };
 }
 
 export function createHandlers(server) {
   const { library } = server;
   return {
+    rootPage,
     health(_request, response) {
       json(response, 200, {
         apiVersion: 2,
@@ -145,7 +133,7 @@ export function createHandlers(server) {
       json(response, 200, library.catalog());
     },
     ui(request, response) {
-      const file = relativeFile(path.join(server.codeRoot, 'web', 'ui'), response.locals.parts[1]);
+      const file = uiFile(server.codeRoot, response.locals.parts[1]);
       server.binary(request, response, file);
     },
     ...bankHandlers(server, library),

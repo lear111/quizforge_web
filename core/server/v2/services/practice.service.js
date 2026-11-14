@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { readBytes, replaceFile, checkPath, checkedStat } from '../platform/files.js';
+import { readBytes, replaceFile, checkPath, checkedStat } from '../../host/platform/files.js';
 import {
   cloneJson,
   shallowCopyJson,
@@ -11,22 +11,22 @@ import {
   parseJson,
   jsonBytes,
   decimalSum,
-} from '../platform/json.js';
-import { statIdentity } from '../platform/file-cache.js';
-import { object, problem } from './errors.js';
-import { measureSave, measureOverview } from './timing.js';
-import { PracticeInk } from './ink.js';
+} from '../../host/platform/json.js';
+import { statIdentity } from '../../host/platform/file-cache.js';
+import { object, problem } from '../utils/errors.js';
+import { measureSave, measureOverview } from '../utils/timing.js';
+import { PracticeInk } from '../repositories/ink.repository.js';
 import {
   emptyOutlineStatus,
   isOutlineStatus,
   reportOutlineStatus,
   validateAnswered,
 } from '../../../shared/v2/answered.js';
-import { appendReceipt, replayed, validOldReceipts, validReceipts } from './receipts.js';
-export { RECEIPT_LIMIT } from './receipts.js';
+import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
+import { STATE_BYTES } from '../utils/limits.js';
+export { STATE_BYTES } from '../utils/limits.js';
+export { RECEIPT_LIMIT } from '../utils/receipts.js';
 
-// Owner-approved limit. V2 never reads the v1 settings or state directories.
-export const STATE_BYTES = 32 * 1024 * 1024;
 const integer = (value) => Number.isSafeInteger(value) && value >= 0;
 const own = (value, key) => Object.hasOwn(value, key);
 const invalid = () => problem('STATE_INVALID', '作答记录无法读取，原文件已保留。', {}, 503);

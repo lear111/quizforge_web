@@ -1,8 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
-import { parseJson } from '../platform/json.js';
-import { problem } from './errors.js';
-import { STATE_BYTES } from './state.js';
-import { withSaveTiming, measureSave } from './timing.js';
+import { parseJson } from '../../host/platform/json.js';
+import { problem, publicError } from '../utils/errors.js';
+import { json } from '../utils/http-response.js';
+import { STATE_BYTES } from '../utils/limits.js';
+import { withSaveTiming, measureSave } from '../utils/timing.js';
 
 export function saveTiming(server) {
   return (request, _response, next) =>
@@ -142,4 +143,25 @@ export async function readJson(request, response, next) {
     throw problem('INVALID_REQUEST', '请求 JSON 无效或包含重复字段。', {}, 400);
   }
   next();
+}
+
+export function fallback(request, response) {
+  if (response.locals.parts[0] !== 'api') {
+    throw problem('RESOURCE_NOT_FOUND', '页面或资源不存在。', {}, 404);
+  }
+  if (['GET', 'HEAD'].includes(request.method)) {
+    throw problem('FEATURE_NOT_IMPLEMENTED', '此接口尚未实现。', {}, 501);
+  }
+  request.resume();
+  throw problem('FEATURE_NOT_IMPLEMENTED', '此功能将在后续阶段开放。', {}, 501);
+}
+
+// eslint-disable-next-line no-unused-vars -- Express expects four parameters here.
+export function writeError(error, _request, response, _next) {
+  if (!response.headersSent && !response.destroyed) {
+    response.setHeader('Cache-Control', 'no-store');
+    json(response, error.status ?? 503, { error: publicError(error) });
+  } else {
+    response.destroy();
+  }
 }

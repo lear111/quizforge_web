@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { V2Server } from '../../server/host/v2/server.js';
+import { V2Server } from '../../server/v2/app.js';
 import { addFixtureExtension, createReadFixture, writeFixtureFile } from '../fixtures/v2-banks.mjs';
 
 async function setup(t) {
