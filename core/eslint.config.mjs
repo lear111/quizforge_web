@@ -30,6 +30,23 @@ export default [
   },
   {
     basePath: root,
+    files: [
+      'examples/v2/**/*.js',
+      'core/scripts/dev/probe-v2*.mjs',
+      'core/scripts/dev/measure-v2-bank-return.mjs',
+    ],
+    // Browser probes evaluate callbacks in the page, which receives these SDK globals.
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        QF: 'readonly',
+        QFRichText: 'readonly',
+        QFGrading: 'readonly',
+      },
+    },
+  },
+  {
+    basePath: root,
     files: ['core/frontend/src/v2/**/*.ts', 'core/shared/v2/**/*.ts'],
     languageOptions: { parser: ts.parser },
     plugins: { '@typescript-eslint': ts.plugin },

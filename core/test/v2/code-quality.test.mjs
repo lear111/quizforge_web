@@ -42,6 +42,8 @@ test('V2 JavaScript lint rejects common errors and compressed lines', async () =
     await rules('export const element = document.body;\n', 'examples/v2/quality-probe.js'),
     [],
   );
+  assert.deepEqual(await rules('QF.register({});\n', 'examples/v2/quality-probe.js'), []);
+  assert.ok((await rules('unknownSdk();\n', 'examples/v2/quality-probe.js')).includes('no-undef'));
   assert.ok(
     (await rules('process.exit();\n', 'examples/v2/quality-probe.js')).includes('no-undef'),
   );
