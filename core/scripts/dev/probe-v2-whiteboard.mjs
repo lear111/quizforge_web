@@ -180,8 +180,8 @@ try {
     assert.equal(q.state.revision, revision);
     assert.deepEqual(q.answer, { selected: 'B' });
     assert.equal(q.ink.strokes.length, lockedInk.strokes.length + 1);
-    // Per-window browsing position and durable last-answer restoration; no automatic first bank for
-    // a new user, but reopening this context recovers bank + question.
+    // Bank-only entry uses the durable answer cursor; an explicit question URL
+    // wins on refresh (covered by the router probe). Runtime bank return stays local.
     await go(other);
     await page.getByRole('button', { name: '返回作答', exact: true }).click();
     const selectBank = async (title) => {
@@ -222,7 +222,10 @@ try {
         .then((s) => s.includes('active')),
       true,
     );
-    await page.reload();
+    // Drop the old window's Pinia cursor before testing a fresh bank entry;
+    // a hash-only goto would intentionally retain that window's last view.
+    await page.goto('about:blank');
+    await page.goto(`${origin}/#/banks/${id}`);
     await idle();
     await page.waitForFunction(
       (id) => document.querySelector(`[data-question-id="${id}"]`)?.classList.contains('active'),

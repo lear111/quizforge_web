@@ -45,6 +45,7 @@
     "katex": "0.16.43",
     "pinia": "4.1.0",
     "qrcode-generator": "2.0.4",
+    "vue-router": "5.5.1",
     "yauzl": "3.4.0",
     "yazl": "3.3.1"
   },

@@ -67,7 +67,7 @@ export interface PracticeActions {
   pageFaulted(): boolean | undefined;
   remember(q: Question): void;
   catalog(): Promise<void>;
-  openBank(kind: string, id?: string): Promise<void>;
+  openBank(kind: string, id?: string, questionId?: string): Promise<void>;
   navigate(id: string): Promise<void>;
   refreshBank(): Promise<void>;
   finishPractice(): Promise<void>;

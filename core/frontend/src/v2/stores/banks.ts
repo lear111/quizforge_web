@@ -1,7 +1,6 @@
 import { nextTick } from 'vue';
 import type { Overview, Question } from '../types/practice-types';
 import type { PracticeSession } from '../types/practice-session';
-const LAST_BANK = 'quizforge.v2.last-bank';
 
 export function remember(ctx: PracticeSession, q: Question) {
   const { lastQuestions } = ctx;
@@ -9,11 +8,6 @@ export function remember(ctx: PracticeSession, q: Question) {
   lastQuestions.value.set(q.bankId, q.questionId);
   while (lastQuestions.value.size > 8) {
     lastQuestions.value.delete(lastQuestions.value.keys().next().value!);
-  }
-  try {
-    localStorage.setItem(LAST_BANK, q.bankId);
-  } catch {
-    /* Storage disabled: last answered position still works. */
   }
 }
 
@@ -25,7 +19,12 @@ export async function catalog(ctx: PracticeSession) {
   });
 }
 
-export async function openBank(ctx: PracticeSession, _kind: string, id?: string) {
+export async function openBank(
+  ctx: PracticeSession,
+  _kind: string,
+  id?: string,
+  questionId?: string,
+) {
   const { overview, current, message, scoreView, drawer, lastQuestions, api } = ctx;
   if (!id) {
     return;
@@ -33,10 +32,10 @@ export async function openBank(ctx: PracticeSession, _kind: string, id?: string)
   await ctx.run('正在打开题库', async () => {
     await ctx.actions().flush();
     const value: Overview = await api.banks.overview(id);
-    const remembered = lastQuestions.value.get(id);
+    const remembered = questionId ?? lastQuestions.value.get(id);
     const initial =
       remembered &&
-      value.states.some((state) => state.questionId === remembered) &&
+      (questionId || value.states.some((state) => state.questionId === remembered)) &&
       remembered !== value.initial.question?.questionId
         ? await api.questions.get({
             bankId: id,
@@ -141,19 +140,4 @@ export async function finishPractice(ctx: PracticeSession) {
 
 export async function initializeCatalog(ctx: PracticeSession) {
   await ctx.actions().catalog();
-  try {
-    const id = localStorage.getItem(LAST_BANK);
-    if (
-      id &&
-      ctx.catalogStore.groups.some(
-        (group) =>
-          group.kind === 'group' &&
-          group.children.some((row) => row.kind === 'extension' && row.row.id === id),
-      )
-    ) {
-      await ctx.actions().openBank('bank', id);
-    }
-  } catch {
-    /* Private/disabled storage. */
-  }
 }

@@ -26,7 +26,7 @@ export async function buildPhaseUi(core) {
             'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
           if (file.endsWith('/v2/stores/banks.ts')) {
             const declaration =
-              'export async function openBank(ctx: PracticeSession, _kind: string, id?: string)';
+              'export async function openBank(\n  ctx: PracticeSession,\n  _kind: string,\n  id?: string,\n  questionId?: string,\n)';
             const overview = 'const value: Overview = await api.banks.overview(id);';
             code = replaceOnce(code, declaration, stamp + '\n' + declaration);
             return replaceOnce(
