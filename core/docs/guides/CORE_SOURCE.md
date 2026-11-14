@@ -20,7 +20,7 @@ Windows 也可运行 `Start-QuizForge-Web.cmd`，自动安装依赖并打开浏�
 | `npm start` | 使用上一级产品目录启动，默认端口 8080 |
 | `npm test` | 递归运行后端、规则及前端测试 |
 | `npm run test:host` | 后端测试 |
-| `npm run test:rules` | 规则进程测试 |
+| `npm run test:perf` | V2 后端打开、读题和保存耗时（独立回环服务、合成题库） |
 | `npm run build:richtext-advanced -- --version <新版本>` | 构建新的高级富文本组件 |
 
 后端测试使用隔离目录与真实 HTTP；`test/fixtures/` 保存旧协议、旧包及旧数据，不参与正式目录扫描。修改公共接口时同时检查旧拓展、混合题库、历史与重启恢复。构建组件不能覆盖已发布的同版本文件。
