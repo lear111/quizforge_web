@@ -80,3 +80,24 @@ export interface CheckedQuestion extends Record<string, unknown> {
   question: Record<string, unknown>;
   solution: Record<string, unknown>;
 }
+
+export type TailArgs<T extends readonly unknown[]> = T extends readonly [unknown, ...infer Rest]
+  ? Rest
+  : never;
+
+export interface PracticeOptions {
+  write?: typeof import('../../host/platform/files.js').replaceFile;
+  uuid?: () => string;
+  now?: () => unknown;
+  inkStore?: import('../repositories/ink.repository.js').PracticeInk;
+}
+export interface OverviewOptions {
+  requestedQuestionId: string | undefined;
+  lastQuestionId: string | null;
+  includeInitial: boolean;
+  refresh: boolean;
+  previous: Snapshot | undefined;
+}
+
+export type OpenedSnapshot = Snapshot & { activeCleared: boolean };
+export type QuestionType = Pick<import('../../../shared/v2/bank.js').BankQuestion, 'type'>;

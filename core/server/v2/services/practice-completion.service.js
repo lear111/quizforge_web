@@ -1,13 +1,24 @@
+/** @typedef {import('./practice.service.js').PracticeState} PracticeState */
+/** @typedef {import('../types/data.js').Snapshot} Snapshot */
+/** @typedef {import('../types/data.js').CurrentState} CurrentState */
+/** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
+/** @typedef {import('../../../shared/v2/state.js').QuestionState} QuestionState */
+/** @typedef {import('../utils/errors.js').V2Error} V2Error */
 import { cloneJson, shallowCopyJson, patchJson, fingerprint } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
 import { integer, increment, invalid } from '../utils/state.js';
 import { appendReceipt, replayed } from '../utils/receipts.js';
 import { statusAfterResult, validateResult } from './practice-result.service.js';
+/**
+ * @param {PracticeState} store
+ * @param {Snapshot} snapshot
+ * @param {unknown} input
+ */
 export function finishRound(store, snapshot, input) {
   if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) {
     throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
   }
-  const root = store.load(snapshot.directory);
+  const root = /** @type {CurrentState} */ (store.load(snapshot.directory));
   // Completion itself is the idempotency marker: repeated calls never create
   // new locks or roll scores back, and the response reflects current scores.
   if (root.completedAt != null) {
@@ -40,6 +51,11 @@ export function finishRound(store, snapshot, input) {
   store.commit(snapshot.directory, candidate);
   return candidate;
 }
+/**
+ * @param {PracticeState} store
+ * @param {Snapshot} snapshot
+ * @param {unknown} input
+ */
 export function recordResults(store, snapshot, input) {
   if (
     !object(input) ||
@@ -49,9 +65,9 @@ export function recordResults(store, snapshot, input) {
   ) {
     throw problem('INVALID_REQUEST', '批量评分请求无效。', {}, 400);
   }
-  const root = store.load(snapshot.directory),
+  const root = /** @type {CurrentState} */ (store.load(snapshot.directory)),
     signature = fingerprint({ op: 'results', input }, 'quizforge-v2-receipt'),
-    seen = new Set(),
+    seen = new Set(/** @type {string[]} */ ([])),
     entries = [];
   for (const entry of input.results) {
     const checked = checkResultEntry(store, snapshot, input, entry, seen, signature);
@@ -68,7 +84,11 @@ export function recordResults(store, snapshot, input) {
   const questions = shallowCopyJson(root.questions);
   for (const { id, old, result } of entries) {
     const next = patchJson(old, {
-      status: statusAfterResult(snapshot.items.get(id), old.status, result),
+      status: statusAfterResult(
+        /** @type {OutlineItem} */ (snapshot.items.get(id)),
+        old.status,
+        result,
+      ),
       result: cloneJson(result),
       revision: increment(old.revision),
       receipts: appendReceipt(old.receipts, input.requestId, signature),
@@ -89,6 +109,12 @@ export function recordResults(store, snapshot, input) {
   return candidate;
 }
 
+/**
+ * @param {PracticeState} store
+ * @param {OutlineItem} item
+ * @param {QuestionState} old
+ * @returns {QuestionState}
+ */
 function lockQuestion(store, item, old) {
   const answered =
     typeof old.status === 'string'
@@ -113,10 +139,18 @@ function lockQuestion(store, item, old) {
         }
       : {}),
   });
-  return next;
+  return /** @type {QuestionState} */ (next);
 }
+/**
+ * @param {PracticeState} store
+ * @param {Snapshot} snapshot
+ * @param {Record<string, unknown>} input
+ * @param {unknown} entry
+ * @param {Set<string>} seen
+ * @param {string} signature
+ */
 function checkResultEntry(store, snapshot, input, entry, seen, signature) {
-  const id = entry?.questionId,
+  const id = /** @type {{questionId?: unknown} | null} */ (entry)?.questionId,
     context = { questionId: typeof id === 'string' ? id : null };
   if (!object(entry) || typeof id !== 'string' || !snapshot.items.has(id) || seen.has(id)) {
     throw problem('INVALID_REQUEST', '批量评分的题号不存在或重复。', context, 400);
@@ -128,18 +162,24 @@ function checkResultEntry(store, snapshot, input, entry, seen, signature) {
   }
   let replay;
   try {
-    replay = replayed(old.receipts, input.requestId, signature);
+    replay = replayed(old.receipts, /** @type {string} */ (input.requestId), signature);
   } catch (error) {
-    error.context = { ...error.context, ...context };
+    /** @type {V2Error} */ (error).context = {
+      .../** @type {V2Error} */ (error).context,
+      ...context,
+    };
     throw error;
   }
   if (!replay && (!integer(entry.expectedRevision) || entry.expectedRevision !== old.revision)) {
     throw problem('RESULT_CONFLICT', '作答记录已变化，请重新读取待评分题。', context, 409);
   }
   try {
-    validateResult(snapshot.items.get(id), entry.result);
+    validateResult(/** @type {OutlineItem} */ (snapshot.items.get(id)), entry.result);
   } catch (error) {
-    error.context = { ...error.context, ...context };
+    /** @type {V2Error} */ (error).context = {
+      .../** @type {V2Error} */ (error).context,
+      ...context,
+    };
     throw error;
   }
   return { id, old, result: entry.result, replay };

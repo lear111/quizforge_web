@@ -10,7 +10,7 @@ export function parseJson(
 export function stringifyJson(value: unknown, options?: { canonical?: boolean }): string;
 export function jsonBytes(value: unknown, options?: { canonical?: boolean }): Buffer;
 export function cloneJson<T>(value: T): T;
-export function projectJson<T extends object, K extends keyof T>(
+export function projectJson<T extends object, const K extends keyof T>(
   value: T,
   fields: readonly K[],
 ): Pick<T, K>;

@@ -1,14 +1,36 @@
+/** @typedef {import('./bank.service.js').LibrarySnapshots} LibrarySnapshots */
+/** @typedef {import('../types/data.js').Snapshot} Snapshot */
+/** @typedef {import('../types/data.js').Artifact} Artifact */
+/** @typedef {import('../types/data.js').Resolution} Resolution */
+/** @typedef {import('../types/data.js').CheckedQuestion} CheckedQuestion */
+/** @typedef {import('../../../shared/v2/api.js').QuestionReadResponse} QuestionReadResponse */
+/** @typedef {import('../../../shared/v2/api.js').QuestionResponse} QuestionResponse */
+/** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
+/** @typedef {import('../utils/errors.js').V2Error} V2Error */
+/** @typedef {import('../../../shared/v2/api.js').InkResponse} InkResponse */
+/** @typedef {import('./practice.service.js').PracticeState} PracticeState */
 import { cloneJson, hash, projectJson } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
 import { questionRecord } from '../repositories/bank.repository.js';
 import { relativePath } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { measureOverview } from '../utils/timing.js';
+/**
+ * @param {LibrarySnapshots} library
+ * @param {Snapshot} snapshot
+ * @param {Record<string, unknown>} record
+ * @returns {Artifact}
+ */
 export function resolution(library, snapshot, record) {
-  let value = snapshot.resolutions.get(record.type);
+  let value = snapshot.resolutions.get(/** @type {string} */ (record.type));
   if (library.development && value?.artifact?.development) {
-    value = library.types.resolutions([record.type]).get(record.type);
-    snapshot.resolutions.set(record.type, value);
+    value = library.types
+      .resolutions([/** @type {string} */ (record.type)])
+      .get(/** @type {string} */ (record.type));
+    snapshot.resolutions.set(
+      /** @type {string} */ (record.type),
+      /** @type {Resolution} */ (value),
+    );
   }
   if (!value) {
     throw problem(
@@ -28,6 +50,14 @@ export function resolution(library, snapshot, record) {
   }
   return value.artifact;
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {Snapshot} snapshot
+ * @param {string} id
+ * @param {CheckedQuestion} record
+ * @param {boolean} [includeSolution]
+ * @returns {Map<string, {reference: string, file: string, relative: string}>}
+ */
 export function visibleAssets(
   library,
   snapshot,
@@ -35,7 +65,12 @@ export function visibleAssets(
   record,
   includeSolution = Boolean(library.stateStore?.get(snapshot, id).submissionId),
 ) {
-  const assets = new Map();
+  const assets = /** @type {Map<string, {reference: string, file: string, relative: string}>} */ (
+    new Map()
+  );
+  /**
+   * @param {unknown} value
+   */
   const visit = (value) => {
     if (typeof value === 'string' && value.startsWith('qf-asset:')) {
       const relative = value.slice(9),
@@ -63,6 +98,32 @@ export function visibleAssets(
   }
   return assets;
 }
+/**
+ * @overload
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {unknown} snapshotId
+ * @param {{includeInk?: true}} [options]
+ * @returns {QuestionReadResponse}
+ */
+/**
+ * @overload
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {unknown} snapshotId
+ * @param {{includeInk?: boolean}} [options]
+ * @returns {QuestionResponse}
+ */
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {unknown} snapshotId
+ * @param {{includeInk?: boolean}} [options]
+ * @returns {QuestionResponse}
+ */
 export function question(library, bankId, id, snapshotId, { includeInk = true } = {}) {
   const snapshot = library.snapshot(bankId, snapshotId);
   try {
@@ -78,11 +139,11 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
       : null;
     return {
       bankId,
-      snapshotId,
+      snapshotId: /** @type {string} */ (snapshotId),
       questionId: id,
-      type: record.type,
+      type: /** @type {string} */ (record.type),
       extension: cloneJson(artifact.descriptor),
-      item: cloneJson(snapshot.items.get(id)),
+      item: cloneJson(/** @type {OutlineItem} */ (snapshot.items.get(id))),
       question: cloneJson(record.question),
       solution: saved?.submissionId ? cloneJson(record.solution) : null,
       answer: cloneJson(saved?.answer ?? null),
@@ -93,25 +154,47 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
       resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })),
     };
   } catch (error) {
-    if (error.context) {
-      error.context = { ...error.context, bankId, questionId: id };
+    if (/** @type {V2Error} */ (error).context) {
+      /** @type {V2Error} */ (error).context = {
+        .../** @type {V2Error} */ (error).context,
+        bankId,
+        questionId: id,
+      };
     }
     throw error;
   }
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {string} op
+ * @param {unknown} input
+ * @returns {QuestionResponse | InkResponse}
+ */
 export function write(library, bankId, id, op, input) {
-  const snapshot = library.snapshot(bankId, input?.snapshotId);
+  const snapshot = library.snapshot(
+    bankId,
+    /** @type {{snapshotId?: unknown} | null} */ (input)?.snapshotId,
+  );
   // Validate the question and installed type before touching persistence.
   const record = questionRecord(snapshot, id);
   library.resolution(snapshot, record);
   library.visibleAssets(snapshot, id, record);
   if (op === 'ink') {
-    const saved = library.stateStore.ink.apply(snapshot, id, input);
+    const saved = /** @type {PracticeState} */ (library.stateStore).ink.apply(snapshot, id, input);
     return { inkRevision: saved.inkRevision, state: library.state(snapshot, id) };
   }
-  library.stateStore.apply(snapshot, id, op, input);
+  /** @type {PracticeState} */ (library.stateStore).apply(snapshot, id, op, input);
   return library.question(bankId, id, snapshot.snapshotId, { includeInk: op === 'retry' });
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {unknown} snapshotId
+ * @param {string} assetId
+ */
 export function asset(library, bankId, id, snapshotId, assetId) {
   const snapshot = library.snapshot(bankId, snapshotId),
     record = questionRecord(snapshot, id);
@@ -129,6 +212,12 @@ export function asset(library, bankId, id, snapshotId, assetId) {
     expectedHash: publicAsset ? snapshot.hashes.get(asset.relative) : undefined,
   };
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} bankId
+ * @param {string} id
+ * @param {unknown} snapshotId
+ */
 export function listening(library, bankId, id, snapshotId) {
   const snapshot = library.snapshot(bankId, snapshotId),
     material = snapshot.listening.get(id);
@@ -139,6 +228,11 @@ export function listening(library, bankId, id, snapshotId) {
     ? { kind: 'remote', src: material.src, title: material.title }
     : { file: relativeFile(snapshot.directory, material.src) };
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} id
+ * @returns {Artifact}
+ */
 export function artifact(library, id) {
   for (const snapshot of library.opened.values()) {
     for (const value of snapshot.resolutions.values()) {

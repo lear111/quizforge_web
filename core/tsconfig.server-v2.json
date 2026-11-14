@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "allowJs": true,
@@ -9,7 +11,13 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": false,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["server/v2/repositories/**/*.js", "server/v2/types/**/*.d.ts"]
+  "include": [
+    "server/v2/repositories/**/*.js",
+    "server/v2/services/**/*.js",
+    "server/v2/types/**/*.d.ts"
+  ]
 }
