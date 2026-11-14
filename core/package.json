@@ -18,7 +18,10 @@
     "test:host": "node scripts/test/run.mjs host",
     "test:perf": "node scripts/test/run.mjs perf",
     "build:ui": "node scripts/build/build-ui.mjs",
-    "typecheck:ui": "vue-tsc --project frontend/tsconfig.json --noEmit"
+    "typecheck:ui": "vue-tsc --project frontend/tsconfig.json --noEmit",
+    "format:check": "node scripts/quality/format.mjs",
+    "format:v2": "node scripts/quality/format.mjs --write",
+    "lint": "node scripts/quality/lint.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.12",
@@ -44,11 +47,18 @@
     "yazl": "3.3.1"
   },
   "devDependencies": {
-    "jsdom": "27.4.0",
+    "@eslint/js": "10.0.1",
     "@vitejs/plugin-vue": "6.0.10",
+    "eslint": "10.15.0",
+    "eslint-plugin-vue": "10.12.1",
+    "globals": "17.14.0",
+    "jsdom": "27.4.0",
+    "prettier": "3.10.1",
     "typescript": "5.9.3",
+    "typescript-eslint": "8.72.2",
     "vite": "8.3.7",
     "vue": "3.5.45",
+    "vue-eslint-parser": "10.4.2",
     "vue-tsc": "3.3.14"
   }
 }
