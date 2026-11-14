@@ -19,13 +19,15 @@ Windows / Node 24.13.0 / Chromium 157.0.8103.39；合成目录与独立回环服
 - 原八脚本 `page / page-contract / grading / page-review / practice / save-recovery / whiteboard / basic-types` 及新增覆盖的 `completion` 全部 exit 0；Chrome 桌面/手机视口，不是真机或 AI 质量验收。诊断用 phase bundle 重建成功。
 - 以 `f2a5771` 比较 69 个非配置/工具测试文件：JS/TS 语法树一致（排除上述未用绑定，等价的数字/字符串属性键统一）；Vue 脚本一致，模板编译结果只需归一化格式折行带来的文本首尾空白；CSS 用同一 Prettier 配置归一化后相同。不是声称编译字节或 DOM 文本空白完全不变。
 
+CI 证据：[运行 43553385839](https://github.com/lear111/quizforge_web/actions/runs/43553385839)，代码提交 `c950843`（与 `1b9dafe` 的差异仅为同步 #118 的文档）。下表是各 job 总耗时；随后仅回填本记录。
+
 | CI job | 实际结果 / 耗时 | 失败用例 |
 |---|---|---|
-| Checks / Ubuntu | 待运行 | 待确认 |
-| Checks / Windows | 待运行 | 待确认 |
-| Performance / Ubuntu | 待运行 | 待确认 |
-| V2 code quality / Ubuntu | 待运行 | 待确认 |
+| Checks / Ubuntu | 通过：1338 通过、34 个既有平台跳过；1 分 52 秒 | 无 |
+| Checks / Windows | 通过：1372 通过；4 分 46 秒 | 无 |
+| Performance / Ubuntu | 通过：2/2；17 秒 | 无 |
+| V2 code quality / Ubuntu | 通过：75 文件格式无差异，0 错误、49 长度警告；15 秒 | 无 |
 
 ## 存疑与交付边界
 
-示例拓展源码字节因格式改变而变化，既有 D27 指纹规则仍生效，打开已记录的开发演示可能按内容变化清空本轮；没有增加迁移/兼容，也没有触碰现有作答文件。没有测量或声称应用提速。四项 CI 通过后仍停在本 PR 等审查，不自行合并或继续下一步。
+示例拓展源码字节因格式改变而变化，既有 D27 指纹规则仍生效，打开已记录的开发演示可能按内容变化清空本轮；没有增加迁移/兼容，也没有触碰现有作答文件。没有测量或声称应用提速。四项 CI 已通过，停在 #119 等审查，不自行合并或继续下一步。
