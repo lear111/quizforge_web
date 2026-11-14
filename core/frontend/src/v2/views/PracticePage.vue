@@ -1,54 +1,27 @@
 <script setup lang="ts">
-import type { PracticeWorkspace } from '../types/practice-types';
-import { usePracticePage } from './use-practice-page';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { usePracticeStore } from '../stores/practice';
+import { useUiStore } from '../stores/ui';
 
-const props = defineProps<{
-  nonce: string;
-  workspace: PracticeWorkspace;
-  busy: boolean;
-  visible: boolean;
-}>();
-const page = usePracticePage(props.workspace, props.nonce);
-const {
-  current,
-  container,
-  typeName,
-  saveStatus,
-  recovering,
-  viewport,
-  stage,
-  world,
-  continueGrading,
-  retrySave,
-} = page;
-const {
-  drafting,
-  flush,
-  show,
-  clearQuestion,
-  resetSources,
-  scopeSources,
-  recoverPending,
-  toggleDraft,
-  pageFaulted,
-  complete,
-  resumeCompletion,
-} = page;
-defineExpose({
-  current,
-  recovering,
-  drafting,
-  flush,
-  show,
-  clearQuestion,
-  resetSources,
-  scopeSources,
-  recoverPending,
-  toggleDraft,
-  pageFaulted,
-  complete,
-  resumeCompletion,
+const props = defineProps<{ nonce: string; visible: boolean }>();
+const practice = usePracticeStore();
+const { current, typeName, saveStatus, recovering } = storeToRefs(practice);
+const { busy } = storeToRefs(useUiStore());
+const { continueGrading, retrySave } = practice;
+const container = ref<HTMLElement>(),
+  viewport = ref<HTMLElement>(),
+  stage = ref<HTMLElement>(),
+  world = ref<HTMLElement>();
+onMounted(() => {
+  practice.attachView(props.nonce, {
+    container: container.value!,
+    viewport: viewport.value!,
+    stage: stage.value!,
+    world: world.value!,
+  });
 });
+onBeforeUnmount(practice.detachView);
 </script>
 <template>
   <div
