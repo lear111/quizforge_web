@@ -14,6 +14,7 @@
   z-index: 1;
   display: flow-root;
   width: 100%;
+  padding: 24px 84px 32px;
   transform-origin: 0 0;
 }
 .v2-drafting .v2-world {
@@ -21,9 +22,11 @@
   top: 0;
   left: 0;
   width: 760px;
+  padding: 0;
   transform: translate(var(--qf-whiteboard-x, 0px), var(--qf-whiteboard-y, 0px))
     scale(var(--qf-whiteboard-zoom, 1));
 }
+/* Keep the existing draft coordinate space so saved ink remains anchored. */
 .v2-drafting .v2-card {
   width: calc(100% - 48px);
   margin: 32px auto;
@@ -32,24 +35,19 @@
 .v2-drafting .v2-question-frame :deep(iframe) {
   height: 420px;
 }
-.v2-empty {
-  position: absolute;
-  inset: 64px 0 0;
-  pointer-events: none;
-}
 .v2-card {
-  margin: 32px auto;
+  margin: 0 auto;
   padding: 24px;
-  background: white;
-  border: 1px solid #e5def2;
-  border-radius: 16px;
-  max-width: 960px;
-  width: calc(100% - 48px);
+  background: var(--qf-surface);
+  border: 1px solid var(--qf-border);
+  border-radius: 14px;
+  max-width: 760px;
+  width: 100%;
 }
 .v2-question-heading {
   display: flex;
   justify-content: space-between;
-  color: #7c61bd;
+  color: var(--qf-accent);
   font-size: 12px;
 }
 .v2-question-frame :deep(iframe) {
@@ -62,31 +60,32 @@
   display: flex;
   gap: 16px;
   align-items: center;
-  border-top: 1px solid #ece7f6;
+  border-top: 1px solid var(--qf-border);
   padding-top: 18px;
   flex-wrap: wrap;
-}
-.v2-answer-footer .primary {
-  background: var(--accent);
-  color: white;
-  border: 0;
 }
 .v2-feedback {
   white-space: pre-wrap;
 }
 .v2-empty {
+  position: absolute;
+  inset: 0;
   display: grid;
   align-content: center;
   text-align: center;
-  min-height: 65vh;
-  color: #827b96;
+  color: var(--qf-text-muted);
   font-size: 22px;
+  pointer-events: none;
 }
-@media (max-width: 800px) {
+.v2-empty p {
+  font-size: 14px;
+}
+@media (max-width: 900px) {
+  .v2-world {
+    padding: 16px 44px 24px;
+  }
   .v2-card {
-    width: calc(100% - 24px);
-    margin: 16px auto;
-    padding: 16px;
+    padding: 20px 18px;
   }
   .v2-question-frame :deep(iframe) {
     height: 460px;

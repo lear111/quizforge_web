@@ -4,7 +4,7 @@ export interface FullscreenState { supported: boolean; active: boolean; pending:
 export function mountWhiteboard(container: HTMLElement, options?: {
   onChange?(draft: Draft): void; onViewChange?(view: Viewport): void;
   onInteractionChange?(active: boolean): void; onFullscreen?(): void; onScroll?(): void;
-  toolbarContainer?: HTMLElement | null; toolbarObstacles?(): { left: number; top: number; width: number; height: number }[];
+  toolbarContainer?: HTMLElement | null; toolbarObstacles?(): Iterable<HTMLElement>;
 }): {
   load(draft: unknown): void; getDraft(): Draft; getLayout(): Draft['layout'];
   setMode(mode: 'draft' | 'practice'): void; setReadOnly(value: boolean): void;

@@ -1,0 +1,30 @@
+.v2-app {
+  --qf-accent: #5b4bc4;
+  --qf-accent-strong: #43369a;
+  --qf-accent-soft: #ece9fb;
+  --qf-bg: #f6f7fb;
+  --qf-surface: #ffffff;
+  --qf-border: #e6e8ef;
+  --qf-border-control: #e1e3ec;
+  --qf-text: #1f2330;
+  --qf-text-secondary: #3a3f52;
+  --qf-text-muted: #6b7084;
+  --qf-scrim: #14162847;
+  --qf-drawer-shadow: 0 12px 32px #1416282e;
+  --qf-unanswered-bg: #ffffff;
+  --qf-unanswered-border: #e3e5ec;
+  --qf-unanswered-text: #6b7084;
+  --qf-answered-bg: #eae7fb;
+  --qf-answered-border: #d5cff5;
+  --qf-answered-text: #4a3db0;
+  --qf-correct-bg: #e1f3ea;
+  --qf-correct-border: #c2e6d4;
+  --qf-correct-text: #17704f;
+  --qf-wrong-bg: #fbe7df;
+  --qf-wrong-border: #f1cbbb;
+  --qf-wrong-text: #a4421a;
+  --qf-ungradable-bg: #fdebeb;
+  --qf-ungradable-border: #c93a3a;
+  --qf-ungradable-text: #a82828;
+  --accent: var(--qf-accent);
+}

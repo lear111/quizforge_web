@@ -1,97 +1,87 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
+import { useCatalogStore } from '../stores/catalog';
+import { useLayoutStore } from '../stores/layout';
 import { useWorkspaceNavigation } from '../router/injection';
+import WorkspaceIcon from './WorkspaceIcon.vue';
 const practice = usePracticeStore();
 const { overview, current, recovering, drafting } = storeToRefs(practice);
 const { busy, loading, scoreView } = storeToRefs(useUiStore());
+const catalog = useCatalogStore();
+const layout = useLayoutStore();
 const navigation = useWorkspaceNavigation();
-async function finishPractice() {
-  if (
-    !overview.value ||
-    busy.value ||
-    !confirm('完成练习后，答案将锁定，未作答题记 0 分。确定完成吗？')
-  ) {
-    return;
-  }
-  await practice.complete();
-  await navigation.showCurrent();
-}
+const groupName = computed(() => {
+  const group = catalog.groups.find(
+    (g) =>
+      g.kind === 'group' &&
+      g.children.some(
+        (child) => child.kind === 'extension' && child.row.id === overview.value?.bank.bankId,
+      ),
+  );
+  return group?.kind === 'group' ? group.name : '';
+});
 async function refreshBank() {
   await practice.refreshBank();
   await navigation.showCurrent();
 }
 </script>
 <template>
-  <header class="v2-toolbar">
-    <h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1>
+  <header
+    class="v2-toolbar"
+    :class="{ empty: !overview }"
+  >
+    <button
+      class="v2-icon-button desktop"
+      aria-label="收起或展开题库栏"
+      :aria-expanded="!layout.collapsed.library"
+      aria-controls="v2-library"
+      @click="layout.toggle('library')"
+    >
+      <WorkspaceIcon name="library" />
+    </button>
+    <div class="v2-bank-heading">
+      <span>{{ groupName }}</span>
+      <h1>{{ overview?.bank.title ?? '选择一本题库' }}</h1>
+    </div>
     <span
       v-if="loading"
+      class="v2-loading"
       role="status"
       >{{ loading }}</span
     >
     <div class="v2-actions">
       <button
         v-if="current && !scoreView"
+        class="v2-draft-button"
+        :class="{ active: drafting }"
         :disabled="busy || recovering"
         @click="practice.toggleDraft()"
       >
-        {{ drafting ? '返回作答' : '草稿' }}
-      </button>
-      <button
-        v-if="overview && !overview.completedAt"
-        :disabled="busy || recovering"
-        @click="finishPractice"
-      >
-        完成练习
-      </button>
-      <button
-        v-if="overview?.completedAt && !scoreView"
-        :disabled="busy || recovering"
-        @click="navigation.showSummary()"
-      >
-        最终得分
+        <WorkspaceIcon name="draft" />{{ drafting ? '返回作答' : '草稿' }}
       </button>
       <button
         v-if="overview"
+        class="v2-icon-button"
+        aria-label="刷新题库"
+        title="刷新题库"
         :disabled="busy || recovering"
         @click="refreshBank"
       >
-        刷新题库
+        <WorkspaceIcon name="refresh" />
       </button>
     </div>
+    <button
+      class="v2-icon-button desktop"
+      aria-label="收起或展开大纲栏"
+      :aria-expanded="!layout.collapsed.outline"
+      aria-controls="v2-outline"
+      @click="layout.toggle('outline')"
+    >
+      <WorkspaceIcon name="outline" />
+    </button>
   </header>
 </template>
-<style scoped>
-.v2-toolbar {
-  min-height: 64px;
-  padding: 14px 24px;
-  background: white;
-  border-bottom: 1px solid #e6e3ee;
-  display: flex;
-  gap: 15px;
-  align-items: center;
-  justify-content: space-between;
-}
-h1 {
-  font-size: 16px;
-  margin: 0;
-}
-span {
-  color: #756199;
-}
-.v2-actions {
-  display: flex;
-  gap: 8px;
-}
-.v2-actions button {
-  white-space: nowrap;
-}
-@media (max-width: 800px) {
-  .v2-toolbar {
-    padding: 14px 16px;
-    flex-wrap: wrap;
-  }
-}
-</style>
+<style scoped src="./WorkspaceToolbar.css"></style>

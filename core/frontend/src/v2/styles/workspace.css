@@ -1,10 +1,13 @@
+@import './tokens.css';
 .v2-app {
-  --accent: #7358d5;
-  background: #f8f9fc;
-  color: #343542;
+  background: var(--qf-bg);
+  color: var(--qf-text);
   font:
-    14px/1.65 'Segoe UI',
+    14px/1.65 -apple-system,
+    'PingFang SC',
     'Microsoft YaHei',
+    'Noto Sans SC',
+    system-ui,
     sans-serif;
 }
 .v2-app * {
@@ -14,21 +17,36 @@
 .v2-app input {
   font: inherit;
 }
-.v2-app :is(header, .v2-answer-footer, .v2-library, .v2-outline) button {
+.v2-app button {
   cursor: pointer;
-  border: 1px solid #e5def6;
-  background: white;
-  color: #655389;
+  border: 1px solid var(--qf-border-control);
+  background: var(--qf-surface);
+  color: var(--qf-text-secondary);
   border-radius: 8px;
   padding: 8px 14px;
 }
 .v2-app button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--qf-accent);
   outline-offset: 2px;
 }
 .v2-app button:disabled {
-  opacity: 0.55;
+  opacity: 0.4;
   cursor: default;
+}
+.v2-app .v2-icon-button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex: none;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--qf-text-muted);
+}
+.v2-app .v2-icon-button:hover {
+  color: var(--qf-accent-strong);
+  background: var(--qf-accent-soft);
 }
 body:has(.v2-app) {
   margin: 0;
