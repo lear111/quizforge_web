@@ -1,6 +1,6 @@
-import { OUTLINE_LABELS } from '../../../shared/v2/answered.js';
-import type { OutlineStatus } from '../../../shared/v2/answered.js';
-import type { OutlineModel } from '../outline/model';
+import { OUTLINE_LABELS } from '../../../../shared/v2/answered.js';
+import type { OutlineStatus } from '../../../../shared/v2/answered.js';
+import type { OutlineModel } from '../../outline/model';
 export interface Item {
   id: string;
   label?: string;

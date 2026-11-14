@@ -34,7 +34,7 @@ export async function buildPhaseUi(core) {
               "phase('overview:start');" + overview + "phase('overview:end');",
             );
           }
-          if (file.endsWith('/v2/use-practice-page.ts')) {
+          if (file.endsWith('/v2/views/use-practice-page.ts')) {
             const declaration = 'async function show(q: Question, resume = true)';
             const sources =
               'const [loaded, assets] = await Promise.all([sources.load(q.extension.artifactId), pictures(q)]);';
@@ -50,7 +50,7 @@ export async function buildPhaseUi(core) {
               "await instance.ready;phase('host:ready');",
             );
           }
-          if (id.replaceAll('\\', '/').endsWith('/v2/page.ts')) {
+          if (id.replaceAll('\\', '/').endsWith('/v2/services/page.ts')) {
             code = replaceOnce(
               code,
               'const frame = document.createElement',

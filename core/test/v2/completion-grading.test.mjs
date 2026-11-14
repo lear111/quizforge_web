@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 const bundle = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/completion.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/completion.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'esm',

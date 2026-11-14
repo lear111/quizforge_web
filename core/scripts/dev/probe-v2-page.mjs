@@ -35,7 +35,7 @@ const png = Buffer.from(
 const image = (src) => ({ type: 'image', attrs: { src, alt: '合成图片' } });
 async function transferProbe() {
   const compiled = await build({
-    entryPoints: [path.join(core, 'frontend/src/v2/page.ts')],
+    entryPoints: [path.join(core, 'frontend/src/v2/services/page.ts')],
     bundle: true,
     write: false,
     format: 'iife',

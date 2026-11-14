@@ -5,7 +5,9 @@ import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'node:url';
 
 const bundle = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/grading.ts', import.meta.url))],
+  entryPoints: [
+    fileURLToPath(new URL('../../frontend/src/v2/services/grading.ts', import.meta.url)),
+  ],
   bundle: true,
   write: false,
   format: 'esm',

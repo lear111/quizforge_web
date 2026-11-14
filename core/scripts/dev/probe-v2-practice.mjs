@@ -36,7 +36,7 @@ async function probeNetwork(browser, baseline = false) {
     res.end('/* synthetic collector */');
   });
   const compiled = await build({
-    entryPoints: [path.join(core, 'frontend/src/v2/page.ts')],
+    entryPoints: [path.join(core, 'frontend/src/v2/services/page.ts')],
     bundle: true,
     write: false,
     format: 'iife',

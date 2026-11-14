@@ -18,7 +18,7 @@ test('V2 quality scope excludes V1 and generated files', () => {
   for (const file of [
     'core/server/v2/app.js',
     'core/frontend/src/v2/App.vue',
-    'core/frontend/src/v2/workspace.css',
+    'core/frontend/src/v2/styles/workspace.css',
     'core/shared/v2/answered.js',
     'core/scripts/dev/probe-v2-basic-types.mjs',
   ]) {

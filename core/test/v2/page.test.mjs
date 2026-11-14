@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { fileURLToPath } from 'node:url';
 const compiled = await build({
-  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/page.ts', import.meta.url))],
+  entryPoints: [fileURLToPath(new URL('../../frontend/src/v2/services/page.ts', import.meta.url))],
   bundle: true,
   write: false,
   format: 'iife',

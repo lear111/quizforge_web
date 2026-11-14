@@ -1,5 +1,5 @@
-import { ANSWERED_PART_LIMIT, mergeAnswered } from '../../../shared/v2/answered.js';
-import type { Answered } from '../../../shared/v2/answered.js';
+import { ANSWERED_PART_LIMIT, mergeAnswered } from '../../../../shared/v2/answered.js';
+import type { Answered } from '../../../../shared/v2/answered.js';
 // Each question gets its own opaque page. No state or solution crosses frames.
 export interface PageContext {
   question: unknown;

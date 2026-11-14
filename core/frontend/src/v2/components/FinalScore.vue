@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Completion } from './practice-types';
+import type { Completion } from '../types/practice-types';
 defineProps<{ value: Completion; busy: boolean }>();
 defineEmits<{ view: []; grade: [] }>();
 </script>
