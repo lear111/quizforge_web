@@ -19,7 +19,7 @@ node core/server/v2-main.mjs --root examples/v2 --port 8794
 
 ## 检查与合并
 
-CI 在 Windows、Ubuntu 检查 Node.js 24，另有 Ubuntu 性能测试。所有 PR 必须三个 job 全绿，以 CI 结果为准；不跳过、删除、放宽测试，不加重试掩盖失败。对应本地四条命令：
+CI 在 Windows、Ubuntu 检查 Node.js 24，另有 Ubuntu 性能测试与 V2 代码规范检查。所有 PR 必须四个 job 全绿，以 CI 结果为准；不跳过、删除、放宽测试，不加重试掩盖失败。对应本地四条命令：
 
 ```powershell
 npm --prefix core ci --ignore-scripts
@@ -37,13 +37,15 @@ npm --prefix core run format:check
 npm --prefix core run lint
 ```
 
-使用 Prettier 统一格式、ESLint 检查 JS / TS / Vue，行宽上限 100，一行一条语句，未使用变量与未声明变量报错（TS 的名称检查由现有类型检查负责）。范围见 `core/scripts/quality/scope.mjs`：V2 后端、前端、共享模块、测试、示例和开发脚本，加上规范工具自身；沿用的 V1 模块、构建产物和被忽略的本地数据不参与。默认两个命令都只检查，不改文件；显式执行 `npm --prefix core run format:v2` 才会写入格式调整。工具依赖仅在 `devDependencies` 中，运行时依赖保持不变。
+使用 Prettier 统一 JS / TS / Vue / CSS 格式、ESLint 检查 JS / TS / Vue，行宽上限 100，一行一条语句，未使用变量与未声明变量报错（TS 的名称检查由现有类型检查负责）。URL、字符串、模板字符串与正则不强行折行。范围见 `core/scripts/quality/scope.mjs`：V2 后端、前端、共享模块、测试、示例和开发脚本，加上规范工具自身；沿用的 V1 模块、构建产物和被忽略的本地数据不参与。默认两个命令都只检查，不改文件；显式执行 `npm --prefix core run format:v2` 才会写入格式调整。工具依赖仅在 `devDependencies` 中，运行时依赖保持不变。
+
+按 #115 审查决定，函数 50 行、普通文件 300 行、Vue 文件 150 行暂为警告（不计空行和注释，测试排除）；`lint` 有错误才失败。完整警告清单见 [整理记录附录](core/docs/design/archive/V2-FORMAT-WARNINGS.md)。一次性整理只记录长度问题，后续可读性 PR 再处理，不在格式 PR 中改逻辑。
 
 引入工具与整理既有代码分开提审。工具 PR 会如实报告既有格式与规范问题，不能因为新检查失败就跳过检查或降低规则；待工具审查后，在单独的整理 PR 处理，不混入功能改动。
 
 作答保存、锁定、分数、重做、历史/考试存储、题库写入、solution 发送、沙箱、鉴权/LAN 等高风险 PR 等审查通过再合并；其他 PR 在 CI 全绿后可合并。一个 PR 只做一件事，不顺带增加用户功能或检查、缓存、限制等保护机制；需改变这些行为时先依工作流程取得决定。
 
-各 PR 的说明同步提交为 `core/docs/design/reviews/<任务>.md`，**不超过一页**；写清范围、没有改什么、测试与 CI 三个 job 的实际结果、失败名单、必要计时和存疑事项。更新 PR 描述时同步更新文件，未完成的检查写“待确认”。长篇原始证据存归档，不作为当前必须阅读的排期。
+各 PR 的说明同步提交为 `core/docs/design/reviews/<任务>.md`，**不超过一页**；写清范围、没有改什么、测试与 CI 四个 job 的实际结果、失败名单、必要计时和存疑事项。更新 PR 描述时同步更新文件，未完成的检查写“待确认”。长篇原始证据存归档，不作为当前必须阅读的排期。
 
 功能合并后提供五步以内的试用方法，负责人确认“可以”才算完成，并更新进度。完整说明见工作流程；不沿用已取消的 P1–P6 后端先行排期。
 

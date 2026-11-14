@@ -7,90 +7,311 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { V2Server } from '../../server/host/v2/server.js';
-const core = fileURLToPath(new URL('../../', import.meta.url)), repo = path.dirname(core);
+const core = fileURLToPath(new URL('../../', import.meta.url)),
+  repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-v2-contract-'));
-const output = path.join(repo, '.temp/v2-page-contract'); fs.mkdirSync(output, { recursive: true });
+const output = path.join(repo, '.temp/v2-page-contract');
+fs.mkdirSync(output, { recursive: true });
 let server, browser;
 try {
   copyBrowserFixture(root);
   const originalDirectory = path.join(root, 'question-banks/基础题型/单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(originalDirectory, 'bank.json'), 'utf8'));
-  const extension = path.join(root, 'extensions/基础题型/parts'); fs.mkdirSync(extension);
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'extensions/基础题型/单选题/manifest.json'), 'utf8'));
-  fs.writeFileSync(path.join(extension, 'manifest.json'), JSON.stringify({ ...manifest, id: 'synthetic.parts', name: '合成小题' }));
-  fs.writeFileSync(path.join(extension, 'practice.css'), 'body{margin:0;font:16px sans-serif}label{display:block;margin:18px}button{margin:12px}');
-  fs.writeFileSync(path.join(extension, 'practice.html'), '<label><input id="a" type="checkbox">小题甲</label><label><input id="b" type="checkbox">小题乙</label><button id="submit">提交答案</button><button id="retry">重做</button><strong id="result"></strong>');
-  fs.writeFileSync(path.join(extension, 'practice.js'), `QF.page.register({load(c){for(const id of ['a','b']){const n=document.getElementById(id);n.checked=c.answer?.[id]===true;n.disabled=c.locked;n.onchange=()=>QF.page.changed({kind:'choice',answered:{[id]:n.checked,foreign:true}});}for(const name of ['submit','retry']){const b=document.getElementById(name);b.hidden=!c.can[name];b.onclick=()=>QF.page[name]().catch(()=>{});}document.getElementById('result').textContent=typeof c.result?.score==='number'?c.result.score+' 分':'';},getAnswer(){return {a:document.getElementById('a').checked,b:document.getElementById('b').checked};}});`);
-  fs.writeFileSync(path.join(extension, 'grade.js'), `QF.grader.register({grade(q,s,a,item){return {score:1,parts:{a:0,b:1}};}});`);
-  bank.outline = [{ title: '合成分组', items: [{ id: '1', label: '1', maxScore: 2 }, { id: '2', parts: [{ id: 'a', label: '2甲', maxScore: 1 }, { id: 'b', label: '2乙', maxScore: 1 }] }] }];
-  bank.questions = { '1': bank.questions['1'], '2': { type: 'synthetic.parts@2', question: {}, solution: { unique: 'SOLUTION_PRIVATE_UNTIL_LOCK' } } };
-  for (const name of ['desktop', 'mobile']) { const dir = path.join(root, 'question-banks/基础题型', name); fs.mkdirSync(dir); fs.writeFileSync(path.join(dir, 'bank.json'), JSON.stringify({ ...bank, title: name })); }
+  const extension = path.join(root, 'extensions/基础题型/parts');
+  fs.mkdirSync(extension);
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(root, 'extensions/基础题型/单选题/manifest.json'), 'utf8'),
+  );
+  fs.writeFileSync(
+    path.join(extension, 'manifest.json'),
+    JSON.stringify({ ...manifest, id: 'synthetic.parts', name: '合成小题' }),
+  );
+  fs.writeFileSync(
+    path.join(extension, 'practice.css'),
+    'body{margin:0;font:16px sans-serif}label{display:block;margin:18px}button{margin:12px}',
+  );
+  fs.writeFileSync(
+    path.join(extension, 'practice.html'),
+    '<label><input id="a" type="checkbox">小题甲</label><label><input id="b" type="checkbox">小题乙</label><button id="submit">提交答案</button><button id="retry">重做</button><strong id="result"></strong>',
+  );
+  fs.writeFileSync(
+    path.join(extension, 'practice.js'),
+    `QF.page.register({load(c){for(const id of ['a','b']){const n=document.getElementById(id);n.checked=c.answer?.[id]===true;n.disabled=c.locked;n.onchange=()=>QF.page.changed({kind:'choice',answered:{[id]:n.checked,foreign:true}});}for(const name of ['submit','retry']){const b=document.getElementById(name);b.hidden=!c.can[name];b.onclick=()=>QF.page[name]().catch(()=>{});}document.getElementById('result').textContent=typeof c.result?.score==='number'?c.result.score+' 分':'';},getAnswer(){return {a:document.getElementById('a').checked,b:document.getElementById('b').checked};}});`,
+  );
+  fs.writeFileSync(
+    path.join(extension, 'grade.js'),
+    `QF.grader.register({grade(q,s,a,item){return {score:1,parts:{a:0,b:1}};}});`,
+  );
+  bank.outline = [
+    {
+      title: '合成分组',
+      items: [
+        { id: '1', label: '1', maxScore: 2 },
+        {
+          id: '2',
+          parts: [
+            { id: 'a', label: '2甲', maxScore: 1 },
+            { id: 'b', label: '2乙', maxScore: 1 },
+          ],
+        },
+      ],
+    },
+  ];
+  bank.questions = {
+    1: bank.questions['1'],
+    2: {
+      type: 'synthetic.parts@2',
+      question: {},
+      solution: { unique: 'SOLUTION_PRIVATE_UNTIL_LOCK' },
+    },
+  };
+  for (const name of ['desktop', 'mobile']) {
+    const dir = path.join(root, 'question-banks/基础题型', name);
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, 'bank.json'), JSON.stringify({ ...bank, title: name }));
+  }
   fs.rmSync(originalDirectory, { recursive: true }); // Only the temp copy.
-  server = await new V2Server({ root, codeRoot: core }).start(); const origin = `http://127.0.0.1:${server.port()}`;
-  const api = async route => { const r = await fetch(origin + route); assert.equal(r.ok, true); return r.json(); };
-  const ids = Object.fromEntries((await api('/api/v2/catalog')).groups[0].items.map(item => [item.title, item.bankId]));
-  browser = await chromium.launch({ channel: 'chrome', headless: true }); const errors = [], rows = [];
-  for (const [name, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
-    const context = await browser.newContext({ viewport }), page = await context.newPage(); page.setDefaultTimeout(15000);
-    page.on('pageerror', error => errors.push(error.message));
+  server = await new V2Server({ root, codeRoot: core }).start();
+  const origin = `http://127.0.0.1:${server.port()}`;
+  const api = async (route) => {
+    const r = await fetch(origin + route);
+    assert.equal(r.ok, true);
+    return r.json();
+  };
+  const ids = Object.fromEntries(
+    (await api('/api/v2/catalog')).groups[0].items.map((item) => [item.title, item.bankId]),
+  );
+  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const errors = [],
+    rows = [];
+  for (const [name, viewport] of [
+    ['desktop', { width: 1440, height: 900 }],
+    ['mobile', { width: 390, height: 844 }],
+  ]) {
+    const context = await browser.newContext({ viewport }),
+      page = await context.newPage();
+    page.setDefaultTimeout(15000);
+    page.on('pageerror', (error) => errors.push(error.message));
     const frame = () => page.frameLocator('.v2-question-frame iframe');
-    const idle = () => page.waitForFunction(() => document.querySelector('.v2-card')?.getAttribute('aria-busy') === 'false');
-    const saved = () => page.locator('.v2-save-status').filter({ hasText: /^已保存$/ }).waitFor();
-    const go = async id => { if (name === 'mobile') await page.getByRole('button', { name: '大纲', exact: true }).click(); await page.locator(`[data-question-id="${id}"]`).first().click(); await idle(); };
+    const idle = () =>
+      page.waitForFunction(
+        () => document.querySelector('.v2-card')?.getAttribute('aria-busy') === 'false',
+      );
+    const saved = () =>
+      page
+        .locator('.v2-save-status')
+        .filter({ hasText: /^已保存$/ })
+        .waitFor();
+    const go = async (id) => {
+      if (name === 'mobile') {
+        await page.getByRole('button', { name: '大纲', exact: true }).click();
+      }
+      await page.locator(`[data-question-id="${id}"]`).first().click();
+      await idle();
+    };
     const base = `/api/v2/banks/${ids[name]}`;
-    const read = async id => { const open = await api(base + '/overview'); return api(`${base}/questions/${id}?snapshotId=${open.snapshotId}`); };
-    await page.goto(origin); if (name === 'mobile') await page.getByRole('button', { name: '题库', exact: true }).click();
-    await page.locator('.extension-group-toggle').click(); await page.locator('.library-item').filter({ hasText: name }).click(); await idle();
-    assert.equal(await page.locator('.v2-answer-footer button').filter({ hasText: /^(提交答案|重做)$/ }).count(), 0);
-    assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).isVisible(), false);
-    assert.equal(await frame().getByRole('button', { name: '提交答案', exact: true }).isVisible(), true);
-    const sandboxed = page.frames().find(f => f.parentFrame());
-    assert.equal(await sandboxed.evaluate(async origin => { let parentDenied = false; try { void parent.document.body; } catch { parentDenied = true; } let networkDenied = false; try { await fetch(origin + '/api/v2/health'); } catch { networkDenied = true; } return parentDenied && networkDenied; }, origin), true);
-    await frame().locator('body').evaluate(body => { const tall = document.createElement('div'); tall.id = 'height-probe'; tall.style.height = '1800px'; body.querySelector('#question').append(tall); });
-    await page.waitForFunction(() => parseInt(document.querySelector('.v2-question-frame iframe').style.height) > 1800);
-    await frame().locator('#height-probe').evaluate(node => node.remove());
-    await page.waitForFunction(() => { const height = parseInt(document.querySelector('.v2-question-frame iframe').style.height); return height > 0 && height < 1000; });
+    const read = async (id) => {
+      const open = await api(base + '/overview');
+      return api(`${base}/questions/${id}?snapshotId=${open.snapshotId}`);
+    };
+    await page.goto(origin);
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '题库', exact: true }).click();
+    }
+    await page.locator('.extension-group-toggle').click();
+    await page.locator('.library-item').filter({ hasText: name }).click();
+    await idle();
+    assert.equal(
+      await page
+        .locator('.v2-answer-footer button')
+        .filter({ hasText: /^(提交答案|重做)$/ })
+        .count(),
+      0,
+    );
+    assert.equal(
+      await frame().getByRole('button', { name: '重做', exact: true }).isVisible(),
+      false,
+    );
+    assert.equal(
+      await frame().getByRole('button', { name: '提交答案', exact: true }).isVisible(),
+      true,
+    );
+    const sandboxed = page.frames().find((f) => f.parentFrame());
+    assert.equal(
+      await sandboxed.evaluate(async (origin) => {
+        let parentDenied = false;
+        try {
+          void parent.document.body;
+        } catch {
+          parentDenied = true;
+        }
+        let networkDenied = false;
+        try {
+          await fetch(origin + '/api/v2/health');
+        } catch {
+          networkDenied = true;
+        }
+        return parentDenied && networkDenied;
+      }, origin),
+      true,
+    );
+    await frame()
+      .locator('body')
+      .evaluate((body) => {
+        const tall = document.createElement('div');
+        tall.id = 'height-probe';
+        tall.style.height = '1800px';
+        body.querySelector('#question').append(tall);
+      });
+    await page.waitForFunction(
+      () => parseInt(document.querySelector('.v2-question-frame iframe').style.height) > 1800,
+    );
+    await frame()
+      .locator('#height-probe')
+      .evaluate((node) => node.remove());
+    await page.waitForFunction(() => {
+      const height = parseInt(document.querySelector('.v2-question-frame iframe').style.height);
+      return height > 0 && height < 1000;
+    });
     let firstResolve, secondResolve;
-    const first = new Promise(resolve => { firstResolve = resolve; }), second = new Promise(resolve => { secondResolve = resolve; }); let calls = 0;
-    await page.route('**/questions/1/answer', route => { if (++calls === 1) firstResolve(route); else secondResolve(route); });
-    await frame().getByRole('radio', { name: 'A', exact: true }).check(); const firstRoute = await first;
-    await page.waitForFunction(() => document.querySelector('[data-question-id="1"]').classList.contains('answered'));
-    await frame().locator('input:checked').evaluate(input => { input.checked = false; QF.page.changed({ kind: 'choice', answered: false }); });
-    await page.waitForFunction(() => document.querySelector('[data-question-id="1"]').classList.contains('unanswered'));
-    await firstRoute.continue(); const secondRoute = await second;
-    assert.ok((await page.locator('[data-question-id="1"]').getAttribute('class')).includes('unanswered'), 'old save acknowledgement must not replace newer answered:false');
-    await secondRoute.continue(); await saved(); await page.unroute('**/questions/1/answer');
+    const first = new Promise((resolve) => {
+        firstResolve = resolve;
+      }),
+      second = new Promise((resolve) => {
+        secondResolve = resolve;
+      });
+    let calls = 0;
+    await page.route('**/questions/1/answer', (route) => {
+      if (++calls === 1) {
+        firstResolve(route);
+      } else {
+        secondResolve(route);
+      }
+    });
+    await frame().getByRole('radio', { name: 'A', exact: true }).check();
+    const firstRoute = await first;
+    await page.waitForFunction(() =>
+      document.querySelector('[data-question-id="1"]').classList.contains('answered'),
+    );
+    await frame()
+      .locator('input:checked')
+      .evaluate((input) => {
+        input.checked = false;
+        QF.page.changed({ kind: 'choice', answered: false });
+      });
+    await page.waitForFunction(() =>
+      document.querySelector('[data-question-id="1"]').classList.contains('unanswered'),
+    );
+    await firstRoute.continue();
+    const secondRoute = await second;
+    assert.ok(
+      (await page.locator('[data-question-id="1"]').getAttribute('class')).includes('unanswered'),
+      'old save acknowledgement must not replace newer answered:false',
+    );
+    await secondRoute.continue();
+    await saved();
+    await page.unroute('**/questions/1/answer');
     assert.equal((await read('1')).state.status, 'unanswered');
-    await frame().getByRole('radio', { name: 'B', exact: true }).check(); await saved();
-    assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).isVisible(), true, 'a saved draft refreshes button permissions without leaving the question');
-    await frame().getByRole('button', { name: '提交答案', exact: true }).click(); await frame().locator('#result').filter({ hasText: '2 / 2 分' }).waitFor(); await idle();
-    assert.equal(page.frames().find(f => f.parentFrame()), sandboxed);
-    assert.ok((await page.locator('[data-question-id="1"]').getAttribute('class')).includes('correct'));
-    await frame().getByRole('button', { name: '重做', exact: true }).click(); await idle();
-    assert.equal((await read('1')).state.status, 'unanswered'); assert.equal(await frame().locator('#result').isVisible(), false);
-    assert.equal(await sandboxed.evaluate(() => QF.page.retry().then(() => false, () => true)), true);
+    await frame().getByRole('radio', { name: 'B', exact: true }).check();
+    await saved();
+    assert.equal(
+      await frame().getByRole('button', { name: '重做', exact: true }).isVisible(),
+      true,
+      'a saved draft refreshes button permissions without leaving the question',
+    );
+    await frame().getByRole('button', { name: '提交答案', exact: true }).click();
+    await frame().locator('#result').filter({ hasText: '2 / 2 分' }).waitFor();
+    await idle();
+    assert.equal(
+      page.frames().find((f) => f.parentFrame()),
+      sandboxed,
+    );
+    assert.ok(
+      (await page.locator('[data-question-id="1"]').getAttribute('class')).includes('correct'),
+    );
+    await frame().getByRole('button', { name: '重做', exact: true }).click();
+    await idle();
+    assert.equal((await read('1')).state.status, 'unanswered');
+    assert.equal(await frame().locator('#result').isVisible(), false);
+    assert.equal(
+      await sandboxed.evaluate(() =>
+        QF.page.retry().then(
+          () => false,
+          () => true,
+        ),
+      ),
+      true,
+    );
     await go('2');
-    await frame().getByRole('checkbox', { name: '小题甲' }).check(); await saved();
+    await frame().getByRole('checkbox', { name: '小题甲' }).check();
+    await saved();
     assert.deepEqual((await read('2')).state.status, { a: 'answered' });
-    assert.ok((await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('answered'));
-    assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('unanswered'));
-    await page.route('**/questions/2/answer', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: '合成写入失败' } }) }));
-    await frame().getByRole('checkbox', { name: '小题乙' }).check(); await page.locator('.v2-save-status').filter({ hasText: '保存失败' }).waitFor();
-    assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('answered'));
-    await page.unroute('**/questions/2/answer'); await page.getByRole('button', { name: '重试保存', exact: true }).click(); await saved();
+    assert.ok(
+      (await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('answered'),
+    );
+    assert.ok(
+      (await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes(
+        'unanswered',
+      ),
+    );
+    await page.route('**/questions/2/answer', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'STATE_WRITE_FAILED', message: '合成写入失败' } }),
+      }),
+    );
+    await frame().getByRole('checkbox', { name: '小题乙' }).check();
+    await page.locator('.v2-save-status').filter({ hasText: '保存失败' }).waitFor();
+    assert.ok(
+      (await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('answered'),
+    );
+    await page.unroute('**/questions/2/answer');
+    await page.getByRole('button', { name: '重试保存', exact: true }).click();
+    await saved();
     assert.deepEqual((await read('2')).state.status, { a: 'answered', b: 'answered' });
-    await page.reload(); await frame().getByRole('checkbox', { name: '小题乙' }).waitFor(); await idle();
-    assert.ok((await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('answered'));
-    assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('answered'));
-    await frame().getByRole('button', { name: '提交答案', exact: true }).click(); await frame().locator('#result').filter({ hasText: '1 分' }).waitFor(); await idle();
-    assert.ok((await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('wrong'));
-    assert.ok((await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('correct'));
-    if (name === 'mobile') await page.getByRole('button', { name: '大纲', exact: true }).click();
+    await page.reload();
+    await frame().getByRole('checkbox', { name: '小题乙' }).waitFor();
+    await idle();
+    assert.ok(
+      (await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('answered'),
+    );
+    assert.ok(
+      (await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('answered'),
+    );
+    await frame().getByRole('button', { name: '提交答案', exact: true }).click();
+    await frame().locator('#result').filter({ hasText: '1 分' }).waitFor();
+    await idle();
+    assert.ok(
+      (await page.locator('[data-outline-item-id="a"]').getAttribute('class')).includes('wrong'),
+    );
+    assert.ok(
+      (await page.locator('[data-outline-item-id="b"]').getAttribute('class')).includes('correct'),
+    );
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '大纲', exact: true }).click();
+    }
     await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
-    rows.push({ name, viewport, sameFrame: true, staleSaveDoesNotRollbackOutline: true, partialAnswersPersist: true, failedSaveKeepsOutline: true, perPartGrades: true, autoHeightGrowsAndShrinks: true, sandbox: true });
+    rows.push({
+      name,
+      viewport,
+      sameFrame: true,
+      staleSaveDoesNotRollbackOutline: true,
+      partialAnswersPersist: true,
+      failedSaveKeepsOutline: true,
+      perPartGrades: true,
+      autoHeightGrowsAndShrinks: true,
+      sandbox: true,
+    });
     await context.close();
   }
-  assert.deepEqual(errors, []); const result = { browser: browser.version(), rows, errors };
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result, null, 2));
-} finally { await browser?.close(); await server?.close(); fs.rmSync(root, { recursive: true, force: true }); }
+  assert.deepEqual(errors, []);
+  const result = { browser: browser.version(), rows, errors };
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
+} finally {
+  await browser?.close();
+  await server?.close();
+  fs.rmSync(root, { recursive: true, force: true });
+}

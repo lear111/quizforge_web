@@ -6,8 +6,11 @@ export class V2Error extends Error {
     this.context = context;
   }
 }
-export const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-export function problem(code, message, context = {}, status = 422) { return new V2Error(status, code, message, context); }
+export const object = (value) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+export function problem(code, message, context = {}, status = 422) {
+  return new V2Error(status, code, message, context);
+}
 export function publicError(error) {
   return error instanceof V2Error
     ? { code: error.code, message: error.message, ...error.context }

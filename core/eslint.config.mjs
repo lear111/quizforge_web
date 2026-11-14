@@ -9,7 +9,19 @@ const rules = {
   ...js.configs.recommended.rules,
   curly: ['error', 'all'],
   'max-statements-per-line': ['error', { max: 1 }],
-  'max-len': ['error', { code: 100, tabWidth: 2 }],
+  'max-len': [
+    'error',
+    {
+      code: 100,
+      tabWidth: 2,
+      ignoreUrls: true,
+      ignoreStrings: true,
+      ignoreTemplateLiterals: true,
+      ignoreRegExpLiterals: true,
+    },
+  ],
+  'max-lines-per-function': ['warn', { max: 50, skipBlankLines: true, skipComments: true }],
+  'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
 };
 export default [
   { basePath: root, files: sourcePatterns, rules },
@@ -68,6 +80,12 @@ export default [
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'error',
       'vue/no-unused-vars': 'error',
+      'max-lines': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
     },
+  },
+  {
+    basePath: root,
+    files: ['core/test/v2/**'],
+    rules: { 'max-lines': 'off', 'max-lines-per-function': 'off' },
   },
 ];
