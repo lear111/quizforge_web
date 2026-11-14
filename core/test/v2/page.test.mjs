@@ -7,7 +7,7 @@ const compiled = await build({ entryPoints: [fileURLToPath(new URL('../../fronte
 function setup(t) {
   const dom = new JSDOM('<div id="app"></div>', { runScripts: 'outside-only', url: 'http://127.0.0.1:8799' });
   dom.window.eval(compiled.outputFiles[0].text + '\nwindow.TestPages = TestPages;'); t.after(() => dom.window.close());
-  const mount = (extra = {}, options = {}) => dom.window.TestPages.mountQuestionPage(dom.window.document.getElementById('app'), { html: '<h2>题目</h2>', js: 'QF.page.register({load(){},getAnswer(){return {selected:"B"}}})', css: '', sdks: [] }, { question: { stem: '</script><!--<script>parent.intrusion=true</script>' }, solution: null, answer: null, result: null, item: { maxScore: 2 }, mode: 'practice', locked: false, can: { submit: true, retry: false }, appearance: { theme: 'light' }, ...extra }, 'trusted-nonce', options);
+  const mount = (extra = {}, options = {}) => dom.window.TestPages.mountQuestionPage(dom.window.document.getElementById('app'), { html: '<h2>题目</h2>', js: 'QF.page.register({load(){},getAnswer(){return {selected:"B"}}})', css: '', sdks: [] }, { question: { stem: '</script><!--<script>parent.intrusion=true</script>' }, solution: null, answer: null, result: null, item: { maxScore: 2 }, locked: false, can: { submit: true, retry: false }, appearance: { theme: 'light' }, ...extra }, 'trusted-nonce', options);
   const channel = page => JSON.parse(/const channel=("[^"]+")/.exec(page.frame.srcdoc)[1]);
   const send = (page, data, source = page.frame.contentWindow) => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { source, data: { channel: channel(page), version: 0, ...data } }));
   return { dom, mount, send, channel };
@@ -17,6 +17,7 @@ test('page sandbox has no host origin/network and safely embeds hostile question
   assert.equal(page.frame.getAttribute('sandbox'), 'allow-scripts');
   assert.equal(Object.hasOwn(page, 'draft'), false);
   assert.doesNotMatch(page.frame.srcdoc, /getDraft/);
+  assert.doesNotMatch(page.frame.srcdoc, /"mode"\s*:|context\.mode/);
   assert.match(page.frame.srcdoc, /connect-src 'none'/); assert.match(page.frame.srcdoc, /form-action 'none'/);
   assert.doesNotMatch(page.frame.srcdoc, /<!--<script>parent/);
   assert.match(page.frame.srcdoc, /\\u003c\/script>/);
@@ -42,10 +43,10 @@ test('page actions check frame/channel/generation and permissions, serialize act
   release(); for (let i = 0; i < 8; i++) await Promise.resolve();
   assert.equal(posts.find(p => p.kind === 'action-result' && p.request === 3).error, undefined);
   page.destroy(); send(page, { kind: 'action', action: 'submit', request: 5 }); await Promise.resolve(); assert.equal(submitted, 1);
-  for (const mode of ['archive', 'exam']) {
-    const other = mount({ mode, can: { submit: true, retry: true } }, { onSubmit: async () => assert.fail(mode) });
+  for (const action of ['submit', 'retry']) {
+    const other = mount({ can: { submit: false, retry: false } }, { onSubmit: async () => assert.fail(action), onRetry: async () => assert.fail(action) });
     const sent = []; other.frame.contentWindow.postMessage = data => sent.push(data); send(other, { kind: 'ready' }); await other.ready;
-    send(other, { kind: 'action', action: 'submit', request: 1 }); assert.match(sent.at(-1).error, /不允许/); other.destroy();
+    send(other, { kind: 'action', action, request: 1 }); assert.match(sent.at(-1).error, /不允许/); other.destroy();
   }
 });
 

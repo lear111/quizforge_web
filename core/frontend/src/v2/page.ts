@@ -1,7 +1,7 @@
 import { ANSWERED_PART_LIMIT, mergeAnswered } from '../../../shared/v2/answered.js';
 import type { Answered } from '../../../shared/v2/answered.js';
 // Each question gets its own opaque page. No state or solution crosses frames.
-export interface PageContext { question: unknown; answer: unknown; solution: unknown; result: unknown; item: { parts?: { id: string }[] }; mode: 'practice' | 'exam' | 'archive'; locked: boolean; can: { submit: boolean; retry: boolean }; appearance: { theme: 'light' | 'dark' } }
+export interface PageContext { question: unknown; answer: unknown; solution: unknown; result: unknown; item: { parts?: { id: string }[] }; locked: boolean; can: { submit: boolean; retry: boolean }; appearance: { theme: 'light' | 'dark' } }
 export interface PageSources { html: string; js: string; css: string; sdks: string[] }
 export interface Picture { assetId: string; reference: string; bytes: ArrayBuffer; type: string }
 interface PageOptions { title?: string; resources?: Picture[]; onChanged?(kind: 'choice' | 'text' | 'ink', answered?: Answered): void; onSubmit?(): Promise<void>; onRetry?(): Promise<void> }
@@ -41,7 +41,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
     addEventListener('pagehide',revoke);addEventListener('unload',revoke);
     const resources=Object.freeze({async get(reference){const asset=assets.get(reference);if(!asset)throw new Error('图片不可用');return {...asset};}});
     const action=name=>{
-      if(applying||context.mode!=='practice'||context.can?.[name]!==true)return Promise.reject(new Error('当前不允许此操作。'));
+      if(applying||context.can?.[name]!==true)return Promise.reject(new Error('当前不允许此操作。'));
       const request=++actionId, scope=version;
       return new Promise((resolve,reject)=>{actions.set(request,{resolve,reject,scope});send({kind:'action',action:name,request},scope);});
     };
@@ -120,7 +120,7 @@ export function mountQuestionPage(container: HTMLElement, sources: PageSources, 
       const scope = version, action = event.data.action as 'submit' | 'retry', request = event.data.request;
       const reply = (error?: string) => { if (!disposed) frame.contentWindow?.postMessage({ channel, version: scope, kind: 'action-result', request, ...(error ? { error } : {}) }, '*'); };
       const callback = action === 'submit' ? options.onSubmit : options.onRetry;
-      if (faulted || actionRunning || activeContext.mode !== 'practice' || !activeContext.can?.[action] || !callback) { reply('当前不允许此操作。'); return; }
+      if (faulted || actionRunning || !activeContext.can?.[action] || !callback) { reply('当前不允许此操作。'); return; }
       actionRunning = true;
       void Promise.resolve().then(callback).then(() => reply(), () => reply('操作未完成，请查看宿主提示并重试。')).finally(() => { actionRunning = false; });
     }

@@ -45,7 +45,9 @@
 
 **当前两处既有例外，供审查：** `B/refresh` 是重新读取磁盘并发布快照的动作，现有前端只传当前题号；后端可选 `expectedSnapshotId`，没有请求回执或题目版本。`GET B/overview` 仍按 D27 在打开或重载时发现内容变化并清空过期作答；需重新打开已逐出的题库时也会执行同一检查；首次读取到可识别的旧开发笔迹也可清理该文件。两者沿用已审查行为，本段不改变清理时机、刷新请求或存储。
 
-## 第 3 段接口：完成练习、归档、历史（已定稿，未实现）
+## 第 3 段接口：完成练习、归档、历史
+
+完成与评分已实现待审查；归档与历史尚未实现。
 
 `B = /api/v2/banks/{bankId}`，`R = B/rounds/{roundId}`。设计依据：D20、D22、D40、D42、D44，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.1、4 节。
 
@@ -53,10 +55,12 @@
 
 | 接口 | 请求 | 成功返回 | 主要错误 |
 |---|---|---|---|
-| POST `B/finish` | `requestId`、`snapshotId` | `completedAt`；各题状态；需要评分的题（已作答、尚无 `result`），每项含完整题目内容和 `solution` | 快照过期；已完成（幂等：同一请求编号返回原结果） |
-| PUT `B/results` | `requestId`、`snapshotId`、`results: [{ questionId, submissionId, expectedRevision, result }]` | 各题新状态；总分 `{ score, maxScore }` | 快照过期；任一条提交编号或版本不符则整批拒绝并指出是哪一题；分数不合格 |
+| POST `B/finish` | `requestId`、`snapshotId` | `{completedAt, states, total, pendingGrading}`；待评分项为 `{question, error}`，成功的 question 含锁定答案、完整题目及 `solution`（省略笔迹） | 快照过期；写入失败不返回解析。已完成则不重复锁定，返回最新汇总 |
+| PUT `B/results` | `requestId`、`snapshotId`、`results: [{ questionId, submissionId, expectedRevision, result }]` | `{completedAt, states, total}`；总分 `{ score, maxScore }` | 快照过期；重复题号、任一条提交编号或版本不符则整批拒绝并指出是哪一题；分数不合格 |
 
-`finish` 的效果：所有尚无提交编号的题填上编号；从未作答的题直接写入 0 分的结果并把各小题状态记为 `wrong`；顶层写 `completedAt`。全部在一次原子写入里完成。`completedAt` 有值后，`PUT Q/answer`、`POST Q/submit`、`POST Q/retry` 一律拒绝，`PUT Q/result` 与 `PUT Q/ink` 照常。
+`finish` 的效果：所有尚无提交编号的题填上编号；未作答的题（包括保存过但已清空、所有大纲状态均为 `unanswered`）直接写入 0 分的结果并把各小题状态记为 `wrong`；顶层写 `completedAt`。全部在一次原子写入里完成。`completedAt` 有值后，`PUT Q/answer`、`POST Q/submit`、`POST Q/retry` 一律拒绝，`PUT Q/result` 与 `PUT Q/ink` 照常。拒绝答案/提交/重做时返回 409 `ROUND_COMPLETED`，包括这些请求的旧回执重放。已锁定的题及已有结果不变。
+
+**负责人确认的整库例外**：`finish` 不带整库版本号，锁定服务器最新保存的答案；不存题库级回执，重复请求只保证不重复锁定并返回最新汇总。`results` 逐题检查版本与锁，全部通过才写一次；每题记录同一个批次请求的完整签名，仍各保留 4 条。全部命中回执返回最新汇总，部分命中而其他已淘汰时整批拒绝；空批次只读汇总、不写盘。
 
 概览 `GET B/overview` 增加 `completedAt` 和 `total: { score, maxScore }`。总分由后端把各题得分相加（没有分数的按 0），不落盘。
 
@@ -104,7 +108,7 @@
 
 ## 状态、锁定与分数
 
-- 主状态为 `.qf-v2/state.json`：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
+- 主状态为 `.qf-v2/state.json`：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`，完成时增加 `completedAt`（缺省按未完成）。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
 - D37/D38：`status` 是大纲显示状态；无小题时为值，有小题时为小题 id 到值的映射，未出现的小题为 `unanswered`。五个值为 `unanswered`、`answered`、`correct`、`wrong`、`ungradable`。拓展通过 `changed` 传布尔值或最多 1000 键的布尔映射 `answered`；宿主立即更新大纲，`Q/answer` 随答案转为 `status` 保存，忽略未知小题。提交锁定不变色；后端按得分等于满分判对，否则判错（含部分得分）；待人工或 AI 保持现状，无法评分显示警示色；重做恢复默认。
 - 保存与锁定：`Q/answer` 带 requestId、snapshotId、expectedRevision、answer，可带 answered；`Q/submit` 同样携带最终 answer，提交成功后返回 solution、submissionId，之后不可改答案。锁定由 submissionId 判断，已锁定且 result 为 null 才自动补评。作答、提交、结果、重做每次成功写入递增同一个 revision。
 - 评分上报：`Q/result` 带 requestId、snapshotId、submissionId、expectedRevision、source:"grader"、result。凭证必须仍属当前锁且版本一致，旧锁返回 SUBMISSION_STALE、旧版本返回 RESULT_CONFLICT。结果为 `{ score, parts, message }`：无小题或无分数时 parts 为 null；有小题的数值评分以小题 ID 为键，全部且仅包含对应小题，分值有限、非负、未越界，精确十进制合计等于总分。无分数时 message 为 null 表示待人工或 AI，非空说明表示无法评分。有分数时 message 为 null。
@@ -116,7 +120,7 @@
 
 - D14：全新设置与默认值，不读取 v1 密钥或密码。D18：type 的 @ 后是拓展主版本，零匹配 EXTENSION_NOT_FOUND，多匹配 EXTENSION_AMBIGUOUS，不自动选取。
 - D19：作答及历史位于题库内部 `.qf-v2/`，随文件夹移动/改名/复制，副本各自保存；不按路径或 id 匹配记录。该目录不属于题库内容，资源接口不可见，后续导出必须排除。D20：历史保存当时题目、解析、作答与结果；素材仅存引用，失效时按条降级（第 3 段实现）。
-- D16：完成/交卷时从未保存答案的题直接记 0 分；批量结果后立即汇总，待评/无法评分单列，后续更新。D17 / D39：历史轮次单独保存，摘要来源与最终化规则留第 3 段设计，主状态不预留 historyIndex。
+- D16：完成/交卷时未作答的题直接记 0 分（负责人补充：存过又清空也按未作答）；批量结果后立即汇总，待评/无法评分单列，后续更新。D17 / D39：历史轮次单独保存，摘要来源与最终化规则留第 3 段设计，主状态不预留 historyIndex。
 - D27：根 contentFingerprint 由 bank.json 原始字节和全部已使用题型拓展的文件内容确定，不含物理目录名、题库素材、SDK 或无关文件。打开/刷新/重新加载不一致时清空全部 questions 与 ink 目录；无 state 文件不创建。返回 activeCleared 和“题库或题型已变化，本轮作答已清空”。不保存逐题 fingerprint，锁凭证为 submissionId。开发模式的进一步交互留第 6 段。
 - D32：state.json 根 lastQuestionId 只随 answer/submit/retry 更新，result/ink/浏览不更新；删除 position 接口与文件。窗口内切库仍用内存记浏览位置，浏览器只用 V2 localStorage 记题库。
 - D33：区外笔迹位于 .qf-v2/ink/<contentFingerprint>/<SHA256(questionId)>.json。按题原子替换且独立 inkRevision/回执；ink 不改 state.json；选择题保存不读写任何 ink；hasInk 只由目录文件名索引给出，代表存在保存记录（包括空白板）。retry 先删本题笔迹后写 state，后一写失败时答案保留、笔迹已删，原请求可重试。D27 先删全 ink 再清主状态，失败恢复同理。
