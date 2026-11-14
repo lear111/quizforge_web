@@ -1,6 +1,6 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
 // Synthetic, loopback-only browser acceptance of the production grading module.
 // Playwright stays outside project dependencies: pass its absolute index.mjs.
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import os from 'node:os';

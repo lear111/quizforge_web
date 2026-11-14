@@ -4,6 +4,7 @@ import ts from 'typescript-eslint';
 import vue from 'eslint-plugin-vue';
 import vueParser from 'vue-eslint-parser';
 import { root, sourcePatterns } from './scripts/quality/scope.mjs';
+import { backendLayers } from './scripts/quality/backend-layers.mjs';
 
 const rules = {
   ...js.configs.recommended.rules,
@@ -25,6 +26,12 @@ const rules = {
 };
 export default [
   { basePath: root, files: sourcePatterns, rules },
+  {
+    basePath: root,
+    files: ['core/server/v2/**'],
+    plugins: { architecture: { rules: { 'backend-layers': backendLayers } } },
+    rules: { 'architecture/backend-layers': 'error' },
+  },
   {
     basePath: root,
     files: ['core/server/v2/**', 'core/test/v2/**', 'core/scripts/**', 'core/eslint.config.mjs'],

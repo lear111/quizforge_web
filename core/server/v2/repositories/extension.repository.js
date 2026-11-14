@@ -110,7 +110,7 @@ export class TypeRegistry {
     return matches;
   }
 
-  resolve(type) {
+  selectCandidate(type) {
     if (!validType(type)) {
       throw problem(
         'EXTENSION_NOT_FOUND',
@@ -135,48 +135,13 @@ export class TypeRegistry {
         { field: 'type', details: { matches: candidates.length } },
       );
     }
-    const { directory, manifest: m } = candidates[0];
-    if (
-      m.apiVersion !== 2 ||
-      typeof m.name !== 'string' ||
-      !m.name.trim() ||
-      !object(m.entries) ||
-      !object(m.entries.practice)
-    ) {
-      throw problem(
-        'EXTENSION_INVALID',
-        '拓展声明必须包含 apiVersion:2、name 和 entries.practice。',
-        { field: 'manifest' },
-      );
-    }
-    const files = new Map();
-    for (const [name, relative] of Object.entries({
-      'practice-html': m.entries.practice.html,
-      'practice-js': m.entries.practice.js,
-      'practice-css': m.entries.practice.css,
-      'grade-js': m.entries.grade,
-    })) {
-      files.set(name, relativeFile(directory, relative));
-    }
-    const sdkVersions = m.sdkVersions ?? {};
-    if (
-      !object(sdkVersions) ||
-      Object.entries(sdkVersions).some(
-        ([id, value]) =>
-          !['richtext', 'answer-area', 'ink'].includes(id) ||
-          typeof value !== 'string' ||
-          !sdkVersionPattern.test(value),
-      )
-    ) {
-      throw problem('EXTENSION_INVALID', 'sdkVersions 须使用已支持组件名和三段数字版本。', {
-        field: 'manifest.sdkVersions',
-      });
-    }
-    if (m.development !== undefined && typeof m.development !== 'boolean') {
-      throw problem('EXTENSION_INVALID', 'development 必须是布尔值。', {
-        field: 'manifest.development',
-      });
-    }
+    return candidates[0];
+  }
+
+  resolve(type) {
+    const candidate = this.selectCandidate(type);
+    const { directory, manifest: m } = candidate;
+    const { files, sdkVersions } = artifactFiles(directory, m);
     const { digest, contentDigest, hashes } = treeIdentity(directory, this.cache, {
       field: 'extension',
     });
@@ -221,4 +186,53 @@ export class TypeRegistry {
       return { error: publicError(error) };
     }
   }
+}
+
+function artifactFiles(directory, m) {
+  if (
+    m.apiVersion !== 2 ||
+    typeof m.name !== 'string' ||
+    !m.name.trim() ||
+    !object(m.entries) ||
+    !object(m.entries.practice)
+  ) {
+    throw problem(
+      'EXTENSION_INVALID',
+      '拓展声明必须包含 apiVersion:2、name 和 entries.practice。',
+      { field: 'manifest' },
+    );
+  }
+  const files = new Map();
+  for (const [name, relative] of Object.entries({
+    'practice-html': m.entries.practice.html,
+    'practice-js': m.entries.practice.js,
+    'practice-css': m.entries.practice.css,
+    'grade-js': m.entries.grade,
+  })) {
+    files.set(name, relativeFile(directory, relative));
+  }
+  const sdkVersions = manifestSdks(m);
+  return { files, sdkVersions };
+}
+function manifestSdks(m) {
+  const sdkVersions = m.sdkVersions ?? {};
+  if (
+    !object(sdkVersions) ||
+    Object.entries(sdkVersions).some(
+      ([id, value]) =>
+        !['richtext', 'answer-area', 'ink'].includes(id) ||
+        typeof value !== 'string' ||
+        !sdkVersionPattern.test(value),
+    )
+  ) {
+    throw problem('EXTENSION_INVALID', 'sdkVersions 须使用已支持组件名和三段数字版本。', {
+      field: 'manifest.sdkVersions',
+    });
+  }
+  if (m.development !== undefined && typeof m.development !== 'boolean') {
+    throw problem('EXTENSION_INVALID', 'development 必须是布尔值。', {
+      field: 'manifest.development',
+    });
+  }
+  return sdkVersions;
 }

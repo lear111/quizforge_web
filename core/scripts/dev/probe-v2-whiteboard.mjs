@@ -1,7 +1,7 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
-import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional actual-Chromium acceptance; ignored Playwright, copied examples,
 // synthetic banks, ephemeral ports. No daily service or user data touched.
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
