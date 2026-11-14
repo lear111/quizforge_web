@@ -18,15 +18,20 @@ export async function buildPhaseUi(core) {
       name: 'quizforge-bank-return-probe',
       enforce: 'pre',
       transform(code, id) {
-        if (id.split('?')[0].replaceAll('\\', '/').endsWith('/v2/App.vue') && !id.includes('?')) {
-          const stamp = 'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
-          code = replaceOnce(code, "async function show(q: Question, resume = true) {", stamp + "\nasync function show(q: Question, resume = true) {");
-          for (const [line, key] of [
-            ['const value: Overview = await json(`/api/v2/banks/${id}/overview`);', 'overview'],
-            ['const [loaded, assets] = await Promise.all([sources.load(q.extension.artifactId), pictures(q)]);', 'sources'],
-          ]) code = replaceOnce(code, line, `phase('${key}:start');${line}phase('${key}:end');`);
-          code = replaceOnce(code, 'await instance.ready;', "await instance.ready;phase('host:ready');");
-          return code;
+        const file = id.replaceAll('\\', '/');
+        const stamp = 'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
+        if (file.endsWith('/v2/App.vue')) {
+          const declaration = 'async function openBank(_kind: string, id?: string)';
+          const overview = 'const value: Overview = await json(`${requestPrefix(id)}/overview`);';
+          code = replaceOnce(code, declaration, stamp + "\n" + declaration);
+          return replaceOnce(code, overview, "phase('overview:start');" + overview + "phase('overview:end');");
+        }
+        if (file.endsWith('/v2/use-practice-page.ts')) {
+          const declaration = 'async function show(q: Question, resume = true)';
+          const sources = 'const [loaded, assets] = await Promise.all([sources.load(q.extension.artifactId), pictures(q)]);';
+          code = replaceOnce(code, declaration, stamp + "\n" + declaration);
+          code = replaceOnce(code, sources, "phase('sources:start');" + sources + "phase('sources:end');");
+          return replaceOnce(code, 'await instance.ready;', "await instance.ready;phase('host:ready');");
         }
         if (id.replaceAll('\\', '/').endsWith('/v2/page.ts')) {
           code = replaceOnce(code, 'const frame = document.createElement', "(globalThis as any).__qfBankReturnPhases?.push(['frame:start', performance.timeOrigin + performance.now()]);\n  const frame = document.createElement");
