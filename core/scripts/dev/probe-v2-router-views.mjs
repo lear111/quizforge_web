@@ -5,15 +5,19 @@ const deferred = () => Promise.withResolvers();
 export async function checkSummary(h, output) {
   const { page, id, name, origin, idle } = h;
   page.once('dialog', (dialog) => dialog.accept());
+  if (name === 'mobile') {
+    await page.getByRole('button', { name: '大纲', exact: true }).click();
+  }
+  await page.locator('.v2-summary-entry').click();
   await page.getByRole('button', { name: '完成练习', exact: true }).click();
-  await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
+  await page.getByRole('heading', { name: '练习已完成' }).waitFor();
   await page.waitForURL(`${origin}/#/banks/${id}/summary`);
-  await page.getByRole('button', { name: '查看题目', exact: true }).waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: '返回题目', exact: true }).waitFor({ state: 'visible' });
   await page.reload();
-  await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
+  await page.getByRole('heading', { name: '练习已完成' }).waitFor();
   await idle();
   const originalFrame = await page.locator('.v2-question-frame iframe').elementHandle();
-  await page.getByRole('button', { name: '查看题目', exact: true }).click();
+  await page.getByRole('button', { name: '返回题目', exact: true }).click();
   await page.waitForURL(/\/questions\//);
   await page.locator('.v2-question-frame iframe').waitFor({ state: 'visible' });
   assert.equal(
@@ -22,7 +26,10 @@ export async function checkSummary(h, output) {
     ),
     true,
   );
-  await page.getByRole('button', { name: '最终得分', exact: true }).click();
+  if (name === 'mobile') {
+    await page.getByRole('button', { name: '大纲', exact: true }).click();
+  }
+  await page.locator('.v2-summary-entry').click();
   await page.waitForURL(`${origin}/#/banks/${id}/summary`);
   assert.equal(
     await originalFrame.evaluate(

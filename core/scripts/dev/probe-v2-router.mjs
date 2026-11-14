@@ -1,4 +1,6 @@
 // Real-browser address/guard checks; disposable synthetic banks and loopback only.
+import { checkWorkspaceLayout } from './probe-v2-workspace-layout.mjs';
+import { checkSideNavigation } from './probe-v2-workspace-navigation.mjs';
 import { checkReload, checkSummary } from './probe-v2-router-views.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import { captureBrowserFailure } from './v2-browser-failure.mjs';
@@ -211,6 +213,8 @@ async function exercise(page, origin, name, catalog) {
   await page.goto(h.url('2'));
   await h.question('2');
   await checkReload(h);
+  await checkWorkspaceLayout(h, output);
+  await checkSideNavigation(h, output);
   await checkPending(h);
   await checkFailedSave(h);
   await checkNativeHistory(h);
@@ -227,6 +231,9 @@ async function exercise(page, origin, name, catalog) {
     bankReturn: true,
     summaryReload: true,
     sameFrame: true,
+    workspaceLayout: true,
+    sidebarResizeAndDrawers: true,
+    activeSummaryWithoutLock: true,
   });
 }
 
