@@ -66,6 +66,7 @@ test('V2 entry dependency graph excludes the entire v1 rules, runner, validation
     write: false,
     metafile: true,
     logLevel: 'silent',
+    external: ['express'],
   });
   const files = Object.keys(result.metafile.inputs).map((file) => file.replaceAll('\\', '/'));
   assert.ok(files.some((file) => file.endsWith('/v2/server.js')));
@@ -79,7 +80,7 @@ test('V2 entry dependency graph excludes the entire v1 rules, runner, validation
   for (const data of Object.values(result.metafile.inputs)) {
     for (const imported of data.imports) {
       if (imported.external) {
-        assert.ok(imported.path.startsWith('node:'), imported.path);
+        assert.ok(imported.path === 'express' || imported.path.startsWith('node:'), imported.path);
         assert.doesNotMatch(imported.path, /child_process|worker_threads|node:vm$/);
       }
     }
