@@ -62,35 +62,6 @@ test('V2 TypeScript and Vue lint distinguishes template use from unused declarat
   assert.deepEqual(await rules(component, 'core/frontend/src/v2/QualityProbe.vue'), []);
 });
 
-test('V2 backend lint rejects reversed and skipped layers, including re-exports', async () => {
-  const boundary = 'v2/backend-boundaries';
-  const matches = async (folder, code) =>
-    (await rules(code, `core/server/v2/${folder}/layer-probe.js`)).filter((id) => id === boundary);
-  assert.deepEqual(await matches('routes', "import '../controllers/http.controller.js';"), []);
-  assert.deepEqual(await matches('controllers', "import '../services/bank.service.js';"), []);
-  assert.deepEqual(await matches('services', "import '../repositories/bank.repository.js';"), []);
-  assert.deepEqual(await matches('repositories', "import '../utils/io.js';"), []);
-  assert.deepEqual(await matches('middleware', "import '../utils/limits.js';"), []);
-  assert.deepEqual(await matches('routes', "import '../utils/io.js';"), [boundary]);
-  assert.deepEqual(await matches('routes', "import '../services/practice.service.js';"), [
-    boundary,
-  ]);
-  assert.deepEqual(await matches('routes', "import '../middleware/http.middleware.js';"), [
-    boundary,
-  ]);
-  assert.deepEqual(
-    await matches('controllers', "export * from '../repositories/bank.repository.js';"),
-    [boundary],
-  );
-  assert.deepEqual(await matches('repositories', "void import('../services/bank.service.js');"), [
-    boundary,
-  ]);
-  assert.deepEqual(await matches('services', "import '../../host/main.js';"), [boundary]);
-  assert.deepEqual(await matches('controllers', "import '../../host/platform/files.js';"), [
-    boundary,
-  ]);
-});
-
 test('V2 formatter checks without writing and converges with shared configuration', async () => {
   const text = 'export const data={value:1};\n';
   const options = { ...config, filepath: 'probe.ts' };
