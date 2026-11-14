@@ -1,11 +1,21 @@
+/** @typedef {import('./bank.service.js').LibrarySnapshots} LibrarySnapshots */
 import path from 'node:path';
 import { problem } from '../utils/errors.js';
 import { relativeFile, resourceEntry } from '../repositories/resource.repository.js';
 
+/**
+ * @param {string} codeRoot
+ * @param {unknown} entry
+ */
 export function uiFile(codeRoot, entry) {
   return relativeFile(path.join(codeRoot, 'web', 'ui'), entry);
 }
 
+/**
+ * @param {LibrarySnapshots} library
+ * @param {{component: string, version: string, entry: string[]}} params
+ * @param {string | null} snapshot
+ */
 export function sdkResource(library, { component, version, entry }, snapshot) {
   const key = `${component}@${version}`;
   const sdk = [...library.opened.values()]
@@ -22,6 +32,10 @@ export function sdkResource(library, { component, version, entry }, snapshot) {
   };
 }
 
+/**
+ * @param {LibrarySnapshots} library
+ * @param {string} file
+ */
 export function readResource(library, file) {
   return resourceEntry(library.cache, file);
 }

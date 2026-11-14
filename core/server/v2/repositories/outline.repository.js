@@ -1,6 +1,18 @@
+/** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
 import { decimalSum } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
+/**
+ * @param {unknown} value
+ * @returns {value is number}
+ */
 const positive = (value) => typeof value === 'number' && Number.isFinite(value) && value > 0;
+/**
+ * @param {string} bankId
+ * @param {string} field
+ * @param {string} reason
+ * @param {unknown} [questionId]
+ * @returns {never}
+ */
 function fail(bankId, field, reason, questionId) {
   throw problem('BANK_STRUCTURE_INVALID', '题库的大纲或信息有误：' + field + '，' + reason, {
     bankId,
@@ -8,16 +20,36 @@ function fail(bankId, field, reason, questionId) {
     field,
   });
 }
+/**
+ * @param {unknown} value
+ * @param {string} bankId
+ * @param {string} field
+ * @param {unknown} [questionId]
+ * @returns {asserts value is Record<string, unknown>}
+ */
 function requireObject(value, bankId, field, questionId) {
   if (!object(value)) {
     fail(bankId, field, '必须是对象', questionId);
   }
 }
+/**
+ * @param {unknown} value
+ * @param {string} bankId
+ * @param {string} field
+ * @param {unknown} [questionId]
+ * @returns {asserts value is string}
+ */
 function requireId(value, bankId, field, questionId) {
   if (typeof value !== 'string' || value.length === 0) {
     fail(bankId, field, '题号必须是非空字符串', questionId);
   }
 }
+/**
+ * @param {Record<string, unknown>} item
+ * @param {string} field
+ * @param {string} bankId
+ * @returns {number}
+ */
 function itemScore(item, field, bankId) {
   if (!Object.hasOwn(item, 'parts')) {
     if (!positive(item.maxScore)) {
@@ -53,12 +85,17 @@ function itemScore(item, field, bankId) {
   }
   return total;
 }
+/**
+ * @param {unknown} outline
+ * @param {string} bankId
+ * @returns {{items: Map<string, OutlineItem>, maxScores: Map<string, number>}}
+ */
 export function outlineIndex(outline, bankId) {
   if (!Array.isArray(outline)) {
     fail(bankId, 'outline', '必须是分组数组');
   }
-  const items = new Map(),
-    maxScores = new Map();
+  const /** @type {Map<string, OutlineItem>} */ items = new Map(),
+    /** @type {Map<string, number>} */ maxScores = new Map();
   for (const [groupIndex, group] of outline.entries()) {
     const groupField = 'outline[' + groupIndex + ']';
     requireObject(group, bankId, groupField);
@@ -73,7 +110,7 @@ export function outlineIndex(outline, bankId) {
         fail(bankId, field + '.id', '大题题号在全库重复', item.id);
       }
       maxScores.set(item.id, itemScore(item, field, bankId));
-      items.set(item.id, item);
+      items.set(item.id, /** @type {Record<string, unknown> & OutlineItem} */ (item));
     }
   }
   return { items, maxScores };

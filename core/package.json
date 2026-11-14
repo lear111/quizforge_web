@@ -21,7 +21,8 @@
     "typecheck:ui": "vue-tsc --project frontend/tsconfig.json --noEmit",
     "format:check": "node scripts/quality/format.mjs",
     "format:v2": "node scripts/quality/format.mjs --write",
-    "lint": "node scripts/quality/lint.mjs"
+    "lint": "node scripts/quality/lint.mjs",
+    "typecheck:server": "tsc --project tsconfig.server-v2.json --noEmit"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.12",
@@ -51,6 +52,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
     "@vitejs/plugin-vue": "6.0.10",
     "eslint": "10.15.0",
     "eslint-plugin-vue": "10.12.1",

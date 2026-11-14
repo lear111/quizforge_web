@@ -1,3 +1,9 @@
+/** @typedef {import('../../host/platform/file-cache.js').FileCache} FileCache */
+/** @typedef {import('../types/data.js').IdentifiedManifest} IdentifiedManifest */
+/** @typedef {import('../types/data.js').Artifact} Artifact */
+/** @typedef {import('../types/data.js').CheckedManifest} CheckedManifest */
+/** @typedef {import('../types/data.js').Resolution} Resolution */
+/** @typedef {import('../types/data.js').SdkVersions} SdkVersions */
 import path from 'node:path';
 import { hash } from '../../host/platform/json.js';
 import { fileIdentity } from '../../host/platform/file-cache.js';
@@ -12,12 +18,22 @@ const typePattern = /^([A-Za-z][A-Za-z0-9._-]{0,119})@(0|[1-9]\d*)$/;
 const sdkVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const MANIFEST_CACHE_LIMIT = 256;
 
+/**
+ * @param {unknown} type
+ * @returns {type is string}
+ */
 function validType(type) {
   const match = typeof type === 'string' && typePattern.exec(type);
   return Boolean(match && Number.isSafeInteger(Number(match[2])));
 }
 
-function manifestType(manifest) {
+/**
+ * @param {unknown} input
+ * @returns {string | null}
+ */
+function manifestType(input) {
+  // Only an optional-property probe: values remain unknown until the checks below.
+  const manifest = /** @type {Record<string, unknown> | null} */ (input);
   if (typeof manifest?.id !== 'string' || typeof manifest.version !== 'string') {
     return null;
   }
@@ -29,14 +45,19 @@ function manifestType(manifest) {
 }
 
 export class TypeRegistry {
+  /** @param {string} root @param {FileCache} cache */
   constructor(root, cache) {
     this.root = path.join(root, 'extensions');
     this.cache = cache;
+    /** @type {Map<string, string[]>} */
     this.index = new Map();
+    /** @type {Map<string, {identity: string, manifest: unknown}>} */
     this.manifests = new Map();
+    /** @type {unknown} */
     this.scanError = null;
   }
 
+  /** @param {string} directory @returns {unknown} */
   manifest(directory) {
     const file = path.join(directory, 'manifest.json');
     const identity = fileIdentity(file);
@@ -53,7 +74,7 @@ export class TypeRegistry {
           );
     this.manifests.set(directory, { identity, manifest });
     if (this.manifests.size > MANIFEST_CACHE_LIMIT) {
-      this.manifests.delete(this.manifests.keys().next().value);
+      this.manifests.delete(/** @type {string} */ (this.manifests.keys().next().value));
     }
     return manifest;
   }
@@ -75,8 +96,8 @@ export class TypeRegistry {
 
   rebuild() {
     this.manifests.clear();
-    const index = new Map();
-    let scanError = null;
+    const /** @type {Map<string, string[]>} */ index = new Map();
+    let /** @type {unknown} */ scanError = null;
     try {
       for (const candidate of measureOverview('extension-scan', () => this.scan())) {
         const { directory, type } = candidate;
@@ -84,7 +105,7 @@ export class TypeRegistry {
           if (!index.has(type)) {
             index.set(type, []);
           }
-          index.get(type).push(directory);
+          /** @type {string[]} */ (index.get(type)).push(directory);
         }
       }
     } catch (error) {
@@ -95,13 +116,17 @@ export class TypeRegistry {
     this.scanError = scanError;
   }
 
+  /** @param {string} type @returns {{directory: string, manifest: IdentifiedManifest}[]} */
   candidates(type) {
     const matches = [];
     for (const directory of this.index.get(type) ?? []) {
       try {
         const manifest = this.manifest(directory);
         if (manifestType(manifest) === type) {
-          matches.push({ directory, manifest });
+          matches.push({
+            directory,
+            manifest: /** @type {IdentifiedManifest} */ (manifest),
+          });
         }
       } catch {
         // A removed or unreadable manifest is no longer a candidate.
@@ -110,6 +135,7 @@ export class TypeRegistry {
     return matches;
   }
 
+  /** @param {unknown} type */
   selectCandidate(type) {
     if (!validType(type)) {
       throw problem(
@@ -138,6 +164,7 @@ export class TypeRegistry {
     return candidates[0];
   }
 
+  /** @param {unknown} type @returns {Artifact} */
   resolve(type) {
     const candidate = this.selectCandidate(type);
     const { directory, manifest: m } = candidate;
@@ -149,7 +176,7 @@ export class TypeRegistry {
       'e_' + hash(Buffer.from(path.relative(this.root, directory) + '\0' + digest));
     return {
       directory,
-      manifest: m,
+      manifest: /** @type {CheckedManifest} */ (m),
       files,
       hashes,
       sdkVersions,
@@ -158,6 +185,7 @@ export class TypeRegistry {
       descriptor: { artifactId, id: m.id, version: m.version, apiVersion: 2, digest },
     };
   }
+  /** @param {Iterable<string>} types */
   resolveAll(types) {
     if (this.scanError) {
       throw this.scanError;
@@ -165,6 +193,7 @@ export class TypeRegistry {
     return new Map([...types].map((type) => [type, this.resolveEntry(type)]));
   }
 
+  /** @param {Iterable<string>} types @param {{scanOnMiss?: boolean}} [options] */
   resolutions(types, { scanOnMiss = true } = {}) {
     const result = this.resolveAll(types);
     if (
@@ -179,6 +208,7 @@ export class TypeRegistry {
     return result;
   }
 
+  /** @param {string} type @returns {Resolution} */
   resolveEntry(type) {
     try {
       return { artifact: measureOverview('extension-resolve', () => this.resolve(type)) };
@@ -188,6 +218,10 @@ export class TypeRegistry {
   }
 }
 
+/**
+ * @param {string} directory
+ * @param {IdentifiedManifest} m
+ */
 function artifactFiles(directory, m) {
   if (
     m.apiVersion !== 2 ||
@@ -214,6 +248,10 @@ function artifactFiles(directory, m) {
   const sdkVersions = manifestSdks(m);
   return { files, sdkVersions };
 }
+/**
+ * @param {IdentifiedManifest} m
+ * @returns {SdkVersions}
+ */
 function manifestSdks(m) {
   const sdkVersions = m.sdkVersions ?? {};
   if (
@@ -234,5 +272,5 @@ function manifestSdks(m) {
       field: 'manifest.development',
     });
   }
-  return sdkVersions;
+  return /** @type {SdkVersions} */ (sdkVersions);
 }

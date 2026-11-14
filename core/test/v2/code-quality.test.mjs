@@ -140,3 +140,33 @@ test('D48 layer rule accepts downward, same-layer and shared utility imports plu
     [],
   );
 });
+
+test('E data declarations allow type-only dependencies and keep runtime layer restrictions', async () => {
+  assert.deepEqual(
+    await rules(
+      "import type { Snapshot } from '../types/data.js';\nexport type Value = Snapshot;",
+      'core/server/v2/utils/type-probe.d.ts',
+    ),
+    [],
+  );
+  for (const [text, file] of [
+    ["import '../types/data.js';", 'core/server/v2/utils/runtime-probe.js'],
+    [
+      "import type { PracticeState } from '../services/practice.service.js';\nexport type Value = PracticeState;",
+      'core/server/v2/utils/type-probe.d.ts',
+    ],
+  ]) {
+    assert.ok((await rules(text, file)).includes('architecture/backend-layers'));
+  }
+  const overloads = `export declare function probe(value: string): string;
+    export declare function probe(value: number): number;`;
+  assert.deepEqual(await rules(overloads, 'core/server/v2/utils/overloads.d.ts'), []);
+  assert.ok(
+    (
+      await rules(
+        'let value = 1; let value = 2; export { value };',
+        'core/server/v2/utils/duplicate.ts',
+      )
+    ).includes('@typescript-eslint/no-redeclare'),
+  );
+});

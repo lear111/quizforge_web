@@ -1,3 +1,6 @@
+/** @typedef {import('../types/data.js').BankLocation} BankLocation */
+/** @typedef {import('../../host/platform/file-cache.js').FileCache} FileCache */
+/** @typedef {import('../../../shared/v2/api.js').CatalogResponse} Catalog */
 import fs from 'node:fs';
 import path from 'node:path';
 import { checkPath } from '../../host/platform/files.js';
@@ -5,10 +8,18 @@ import { hash } from '../../host/platform/json.js';
 import { publicError } from '../utils/errors.js';
 import { directories, readJson, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from './resource.repository.js';
+/**
+ * @param {string} directory
+ */
 export const bankRoot = (directory) => checkPath(directory, { directory: true });
+/**
+ * @param {string} root
+ * @returns {BankLocation[]}
+ */
 export function bankLocations(root) {
   const base = path.join(root, 'question-banks'),
-    result = [];
+    /** @type {BankLocation[]} */ result = [];
+  /** @param {string} directory @param {string} group */
   const add = (directory, group) => {
     const relative = path.relative(base, directory).replaceAll('\\', '/');
     result.push({
@@ -33,15 +44,23 @@ export function bankLocations(root) {
   }
   return result;
 }
+/**
+ * @param {string} root
+ * @param {FileCache} cache
+ * @returns {Catalog}
+ */
 export function bankCatalog(root, cache) {
-  const groups = new Map();
+  const /** @type {Map<string, Catalog['groups'][number]>} */ groups = new Map();
   for (const row of bankLocations(root)) {
+    /** @type {Catalog['groups'][number]['items'][number]} */
     let item;
     try {
-      const raw = readJson(relativeFile(row.directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
-        bankId: row.bankId,
-        field: 'bank.json',
-      });
+      const raw = /** @type {Record<string, unknown> | null} */ (
+        readJson(relativeFile(row.directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
+          bankId: row.bankId,
+          field: 'bank.json',
+        })
+      );
       item = {
         bankId: row.bankId,
         sourceId: typeof raw?.id === 'string' ? raw.id : null,
@@ -67,7 +86,7 @@ export function bankCatalog(root, cache) {
         items: [],
       });
     }
-    groups.get(row.group).items.push(item);
+    /** @type {Catalog['groups'][number]} */ (groups.get(row.group)).items.push(item);
   }
   return { groups: [...groups.values()] };
 }

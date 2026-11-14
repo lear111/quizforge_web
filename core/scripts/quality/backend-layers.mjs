@@ -32,7 +32,10 @@ export const backendLayers = {
       const diskAccess =
         /^(node:)?fs(?:\/promises)?$/.test(source) ||
         /\/host\/platform\/(files|file-cache)\.js$/.test(normalized);
-      const reversed = target && !allowed[from].includes(target);
+      // Declaration-only data dependencies do not reverse runtime layer calls.
+      const sharedType =
+        target === 'types' && (node.importKind === 'type' || node.exportKind === 'type');
+      const reversed = target && !allowed[from].includes(target) && !sharedType;
       const compositionRoot = normalized.endsWith('/server/v2/app.js');
       if (
         reversed ||

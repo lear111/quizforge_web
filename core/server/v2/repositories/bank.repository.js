@@ -1,8 +1,18 @@
+/** @typedef {import('../types/data.js').CheckedQuestion} CheckedQuestion */
+/** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
+/** @typedef {import('../types/data.js').ListeningEntry} ListeningEntry */
+/** @typedef {import('../../host/platform/file-cache.js').FileCache} FileCache */
+/** @typedef {import('../types/data.js').ReadBank} ReadBank */
+/** @typedef {import('../../../shared/v2/bank.js').OutlineGroup} OutlineGroup */
 import { freezeJson } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
 import { readJson, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from './resource.repository.js';
 import { outlineIndex } from './outline.repository.js';
+/**
+ * @param {unknown} value
+ * @returns {value is string}
+ */
 export const validId = (value) =>
   typeof value === 'string' &&
   value.length > 0 &&
@@ -10,33 +20,50 @@ export const validId = (value) =>
   // eslint-disable-next-line no-control-regex -- Identifiers deliberately reject control bytes.
   !/[\x00-\x1f\x7f/\\]/.test(value);
 
+/**
+ * @param {Record<string, unknown>} raw
+ * @param {Map<string, OutlineItem>} items
+ * @returns {Map<unknown, ListeningEntry>}
+ */
 function listeningMaterials(raw, items) {
   // Opening builds only the display list. Reading a local file still goes
   // through relativeFile; authoring checks belong to the later listening work.
-  const listening = new Map();
+  const /** @type {Map<unknown, ListeningEntry>} */ listening = new Map();
   for (const item of items.values()) {
     const id = item.listening;
     if (id !== undefined && !listening.has(id)) {
-      const value = raw.listening?.[id];
+      const value = /** @type {{title?: unknown, src?: unknown} | null | undefined} */ (
+        /** @type {Record<PropertyKey, unknown> | null | undefined} */ (raw.listening)?.[
+          /** @type {PropertyKey} */ (id)
+        ]
+      );
       listening.set(id, {
         id,
         title: value?.title ?? '',
         src: value?.src ?? '',
-        remote: /^https?:\/\//i.test(value?.src ?? ''),
+        remote: /^https?:\/\//i.test(/** @type {string} */ (value?.src ?? '')),
       });
     }
   }
   return listening;
 }
+/**
+ * @param {string} directory
+ * @param {FileCache} cache
+ * @param {string} bankId
+ * @returns {ReadBank}
+ */
 export function readBank(directory, cache, bankId) {
-  const raw = readJson(relativeFile(directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
-    bankId,
-    field: 'bank.json',
-  });
+  const raw = /** @type {Record<string, unknown>} */ (
+    readJson(relativeFile(directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
+      bankId,
+      field: 'bank.json',
+    })
+  );
   const { items, maxScores } = outlineIndex(raw?.outline, bankId);
   freezeJson(raw);
   return {
-    raw,
+    raw: /** @type {Record<string, unknown> & {outline: OutlineGroup[]}} */ (raw),
     items,
     maxScores,
     listening: listeningMaterials(raw, items),
@@ -45,10 +72,18 @@ export function readBank(directory, cache, bankId) {
       sourceId: raw.id ?? '',
       title: raw.title ?? '',
       description: raw.description ?? '',
-      features: { history: raw.features?.history ?? true, exam: raw.features?.exam ?? true },
+      features: {
+        history: /** @type {{history?: unknown} | null} */ (raw.features)?.history ?? true,
+        exam: /** @type {{exam?: unknown} | null} */ (raw.features)?.exam ?? true,
+      },
     },
   };
 }
+/**
+ * @param {ReadBank} bank
+ * @param {string} id
+ * @returns {CheckedQuestion}
+ */
 export function questionRecord(bank, id) {
   const context = { bankId: bank.info.bankId, questionId: id };
   if (
@@ -78,5 +113,5 @@ export function questionRecord(bank, id) {
       });
     }
   }
-  return record;
+  return /** @type {CheckedQuestion} */ (record);
 }

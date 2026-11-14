@@ -1,12 +1,30 @@
+/** @typedef {import('../types/data.js').OverviewResult} OverviewResult */
+/** @typedef {import('../types/data.js').OpenedSnapshot} OpenedSnapshot */
+/** @typedef {import('../types/data.js').QuestionType} QuestionType */
+/** @typedef {{type?: unknown}} QuestionTypeProbe */
+/** @typedef {import('../types/data.js').OverviewOptions} OverviewOptions */
+/** @typedef {import('./bank.service.js').LibrarySnapshots} LibrarySnapshots */
+/** @typedef {import('../types/data.js').ReadBank} ReadBank */
+/** @typedef {import('../types/data.js').SdkEntry} SdkEntry */
+/** @typedef {import('../types/data.js').Resolution} Resolution */
+/** @typedef {import('../types/data.js').BankLocation} BankLocation */
+/** @typedef {import('../types/data.js').Snapshot} Snapshot */
+/** @import { QuestionCandidate } from '../../../shared/v2/api.js' */
+/** @typedef {import('../../../shared/v2/api.js').QuestionReadResponse} QuestionReadResponse */
 import { cloneJson, fingerprint } from '../../host/platform/json.js';
 import { object, publicError, problem } from '../utils/errors.js';
 import { treeIdentity, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { readBank, validId } from '../repositories/bank.repository.js';
 import { measureOverview } from '../utils/timing.js';
+/**
+ * @param {LibrarySnapshots} library
+ * @param {ReadBank} bank
+ * @param {boolean} rebuild
+ */
 function resolveTypes(library, bank, rebuild) {
   const types = measureOverview('extension-resolve', () => {
-    const ids = new Set();
+    const /** @type {Set<string>} */ ids = new Set();
     for (const raw of Object.values(bank.raw.questions ?? {})) {
       if (object(raw) && typeof raw.type === 'string') {
         ids.add(raw.type);
@@ -15,10 +33,16 @@ function resolveTypes(library, bank, rebuild) {
     return ids;
   });
   const resolutions = library.types.resolutions(types, { scanOnMiss: !rebuild }),
-    sdk = new Map();
+    /** @type {Map<string, SdkEntry>} */ sdk = new Map();
   resolveSdks(library, resolutions, sdk);
   return { resolutions, sdk };
 }
+/**
+ * @param {string} bankId
+ * @param {string} tree
+ * @param {Map<string, Resolution>} resolutions
+ * @param {Map<string, SdkEntry>} sdk
+ */
 function snapshotIdentity(bankId, tree, resolutions, sdk) {
   const snapshotId = measureOverview('snapshot-id', () =>
     fingerprint(
@@ -36,6 +60,11 @@ function snapshotIdentity(bankId, tree, resolutions, sdk) {
   );
   return snapshotId;
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {BankLocation} location
+ * @param {Map<string, Resolution>} resolutions
+ */
 function contentIdentity(library, location, resolutions) {
   // Active-answer identity excludes storage paths, assets and shared SDKs.
   // File bodies follow deterministic traversal order; physical directory names
@@ -48,7 +77,12 @@ function contentIdentity(library, location, resolutions) {
           READ_LIMITS.bankBytes,
         ),
         types: [...resolutions]
-          .map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code])
+          .map(
+            /** @returns {[string, string | undefined]} */ ([id, value]) => [
+              id,
+              value.artifact?.contentDigest ?? value.error?.code,
+            ],
+          )
           .sort(([a], [b]) => a.localeCompare(b)),
       },
       'quizforge-v2-content',
@@ -56,6 +90,13 @@ function contentIdentity(library, location, resolutions) {
   );
   return contentFingerprint;
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {BankLocation} location
+ * @param {string} bankId
+ * @param {boolean} rebuild
+ * @returns {Snapshot}
+ */
 export function readSnapshot(library, location, bankId, rebuild) {
   const { digest: tree, hashes } = measureOverview('bank-tree', () =>
     treeIdentity(location.directory, library.cache, { bankId, field: 'bank.files' }),
@@ -78,14 +119,21 @@ export function readSnapshot(library, location, bankId, rebuild) {
   };
   return snapshot;
 }
+/**
+ * @param {LibrarySnapshots} library
+ * @param {Snapshot} snapshot
+ * @param {OverviewOptions} options
+ * @returns {OverviewResult}
+ */
 export function overviewResponse(
   library,
   snapshot,
   { requestedQuestionId, lastQuestionId, includeInitial, refresh, previous },
 ) {
-  const { bankId, snapshotId, activeCleared } = snapshot;
+  const { bankId, snapshotId, activeCleared } = /** @type {OpenedSnapshot} */ (snapshot);
   const bank = snapshot;
   const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
+  /** @type {QuestionCandidate<QuestionReadResponse>} */
   let initial = { question: null, error: null };
   if (includeInitial && questionId !== undefined) {
     try {
@@ -104,8 +152,8 @@ export function overviewResponse(
       type:
         object(bank.raw.questions) &&
         Object.hasOwn(bank.raw.questions, id) &&
-        typeof bank.raw.questions[id]?.type === 'string'
-          ? bank.raw.questions[id].type
+        typeof (/** @type {QuestionTypeProbe | null} */ (bank.raw.questions[id])?.type) === 'string'
+          ? /** @type {QuestionType} */ (bank.raw.questions[id]).type
           : null,
     })),
     ...library.completion(snapshot),
@@ -129,6 +177,11 @@ export function overviewResponse(
   };
 }
 
+/**
+ * @param {LibrarySnapshots} library
+ * @param {Map<string, Resolution>} resolutions
+ * @param {Map<string, SdkEntry>} sdk
+ */
 function resolveSdks(library, resolutions, sdk) {
   for (const [type, resolution] of resolutions) {
     if (resolution.artifact) {
@@ -146,6 +199,12 @@ function resolveSdks(library, resolutions, sdk) {
   }
 }
 
+/**
+ * @param {Snapshot} snapshot
+ * @param {unknown} requestedQuestionId
+ * @param {boolean} refresh
+ * @returns {string | undefined}
+ */
 export function startingQuestion(snapshot, requestedQuestionId, refresh) {
   const bankId = snapshot.bankId;
   if (
@@ -163,5 +222,5 @@ export function startingQuestion(snapshot, requestedQuestionId, refresh) {
     requestedQuestionId = undefined;
   }
 
-  return requestedQuestionId;
+  return /** @type {string | undefined} */ (requestedQuestionId);
 }
