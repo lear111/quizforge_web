@@ -17,4 +17,14 @@
 
 **本机验证。** Windows、Node 24.13.0；147 项 V2 测试通过 / 0 失败 / 0 跳过；类型、构建及构建一致性通过；格式、lint 通过，0 错误、37 条原有大小警告。这一步原样保留长函数，后续按 D③ 与任务 F 拆分。本机未重跑包含旧 V1 权限失败的完整默认套件，完整套件与九项真实浏览器探针由 CI 执行；不是手机真机验收。只用合成夹具，不启动日常服务或使用真实数据。
 
-**CI。** 推送后补齐五项结果、总耗时、失败用例名单。本 PR 等审查；后续按 D② api → D③ Pinia → D④ Router → D⑤ 组件解耦推进，不提前做后续任务。
+**CI。** [PR #136](https://github.com/lear111/quizforge_web/pull/136)，目标 `v2`，待审查。实现提交 `bb057c8` 的[首次运行 43582772246](https://github.com/lear111/quizforge_web/actions/runs/43582772246) 全绿，失败用例名单为空。Ubuntu 的 34 项跳过是原有 Windows 专项；本次未新增跳过。
+
+| Job | 通过 / 失败 / 跳过 | 总耗时 |
+|---|---|---|
+| Checks · Ubuntu | 1374 / 0 / 34，类型与构建通过 | 93 s |
+| Checks · Windows | 1408 / 0 / 0，类型与构建通过 | 252 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 23 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、37 既有警告 | 23 s |
+| V2 browser checks · Ubuntu | 九项全部通过 | 169 s |
+
+**后续。** 本 PR 等审查；后续按 D② api → D③ Pinia → D④ Router → D⑤ 组件解耦推进，不提前做后续任务。

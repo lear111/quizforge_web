@@ -8,7 +8,7 @@
 
 **用例。** 新增 `core/test/v2/outline.test.mjs`：27 种合成错误输入逐一经 HTTP 断言 422、错误码、精确位置、非权限提示且不泄露 solution；另有合法题号、空大纲/分组及重复题号的用例。修复前 27 个子用例均失败（外层统计 28 失败 / 1 通过），修复后含外层共 29 通过 / 0 失败。与原只读测试一起 42 通过 / 0 失败；全部 V2 测试 147 通过 / 0 失败。Windows、Node 24.13.0，本机类型、UI 构建一致性与 lint 均通过；不据此声称性能提升。
 
-**CI。** [PR #133](https://github.com/lear111/quizforge_web/pull/133)，目标 `v2`，待审查。实现提交 `7c3672a` 的[首次运行 43580526783](https://github.com/lear111/quizforge_web/actions/runs/43580526783) 五项全绿，失败用例名单为空。不删除、放宽断言或超时，不加重试；Ubuntu 的 34 项跳过均为原有 Windows 专项。
+**CI。** [PR #133](https://github.com/lear111/quizforge_web/pull/133)，目标 `v2`，已审查合并。实现提交 `7c3672a` 的[首次运行 43580526783](https://github.com/lear111/quizforge_web/actions/runs/43580526783) 五项全绿，失败用例名单为空。不删除、放宽断言或超时，不加重试；Ubuntu 的 34 项跳过均为原有 Windows 专项。
 
 | Job | 结果（通过 / 失败 / 跳过） | 总耗时 |
 |---|---|---|
