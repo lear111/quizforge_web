@@ -14,6 +14,7 @@ import {
   READ_LIMITS,
 } from './io.js';
 import { TypeRegistry } from './type-registry.js';
+import { SharedSdks } from './shared-sdks.js';
 import { measureOverview } from './timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 
@@ -25,9 +26,16 @@ export class LibrarySnapshots {
     this.codeRoot = checkPath(codeRoot, { directory: true });
     this.cache = newCache();
     this.types = new TypeRegistry(root, this.cache);
+    this.sharedSdks = new SharedSdks(this.codeRoot, this.cache);
+    this.indexed = false;
     this.development = development;
     this.opened = new Map();
     this.stateStore = stateStore;
+  }
+  rebuildIndexes() {
+    this.types.rebuild();
+    measureOverview('sdk-digest', () => this.sharedSdks.rebuild());
+    this.indexed = true;
   }
   locations() {
     const base = path.join(this.root, 'question-banks'),
@@ -57,6 +65,7 @@ export class LibrarySnapshots {
     return result;
   }
   catalog() {
+    this.rebuildIndexes();
     const groups = new Map();
     for (const row of this.locations()) {
       let item;
@@ -99,26 +108,12 @@ export class LibrarySnapshots {
     }
     return { groups: [...groups.values()] };
   }
-  sdk(component, version) {
-    if (
-      !['richtext', 'answer-area', 'ink'].includes(component) ||
-      typeof version !== 'string' ||
-      !/^\d+\.\d+\.\d+$/.test(version)
-    ) {
-      throw problem('SDK_UNAVAILABLE', '公共组件或版本不存在。', {}, 404);
-    }
-    const directory = path.join(this.codeRoot, 'shared', component, version);
-    try {
-      const { digest, hashes } = treeIdentity(directory, this.cache, { field: 'sdk' });
-      return { directory, digest, hashes };
-    } catch (error) {
-      if (error.code === 'FILE_COUNT_LIMIT') {
-        throw error;
-      }
-      throw problem('SDK_UNAVAILABLE', '题型所需的公共组件未安装或无法读取。', {}, 404);
-    }
-  }
   open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
+    // Direct library users (without an HTTP listener) initialize on first open.
+    const rebuild = refresh || !this.indexed;
+    if (rebuild) {
+      this.rebuildIndexes();
+    }
     const previous = this.opened.get(bankId);
     const location = measureOverview('locate-bank', () =>
       this.locations().find((row) => row.bankId === bankId),
@@ -141,16 +136,16 @@ export class LibrarySnapshots {
       }
       return ids;
     });
-    const resolutions = this.types.resolutions(types),
+    const resolutions = this.types.resolutions(types, { scanOnMiss: !rebuild }),
       sdk = new Map();
     for (const [type, resolution] of resolutions) {
       if (resolution.artifact) {
         try {
           for (const [component, version] of Object.entries(resolution.artifact.sdkVersions)) {
-            sdk.set(
-              `${component}@${version}`,
-              measureOverview('sdk-digest', () => this.sdk(component, version)),
-            );
+            const key = `${component}@${version}`;
+            if (!sdk.has(key)) {
+              sdk.set(key, this.sharedSdks.get(component, version));
+            }
           }
         } catch (error) {
           resolutions.set(type, { error: publicError(error) });

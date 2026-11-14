@@ -35,8 +35,10 @@ async function countFiles(server, endpoint) {
   const scan = types.scan,
     resolve = types.resolve,
     entry = cache.entry,
-    open = fs.openSync,
-    sdk = library.sdk;
+    open = fs.openSync;
+  const sdkOwner = library.sharedSdks ?? library;
+  const sdkMethod = library.sharedSdks ? 'rebuild' : 'sdk';
+  const sdk = sdkOwner[sdkMethod];
   const counts = {
     scans: 0,
     installedManifests: 0,
@@ -68,7 +70,7 @@ async function countFiles(server, endpoint) {
     }
     return open.call(this, file, ...args);
   };
-  library.sdk = function (...args) {
+  sdkOwner[sdkMethod] = function (...args) {
     counts.sdkDigests++;
     return sdk.apply(this, args);
   };
@@ -84,7 +86,7 @@ async function countFiles(server, endpoint) {
     types.resolve = resolve;
     cache.entry = entry;
     fs.openSync = open;
-    library.sdk = sdk;
+    sdkOwner[sdkMethod] = sdk;
   }
 }
 

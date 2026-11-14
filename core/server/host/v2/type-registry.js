@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { hash } from '../platform/json.js';
+import { fileIdentity } from '../platform/file-cache.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, readJson, relativeFile, treeIdentity, READ_LIMITS } from './io.js';
 import { measureOverview } from './timing.js';
@@ -8,24 +9,61 @@ const versionPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const typePattern = /^([A-Za-z][A-Za-z0-9._-]{0,119})@(0|[1-9]\d*)$/;
 const sdkVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const MANIFEST_CACHE_LIMIT = 256;
+
+function validType(type) {
+  const match = typeof type === 'string' && typePattern.exec(type);
+  return Boolean(match && Number.isSafeInteger(Number(match[2])));
+}
+
+function manifestType(manifest) {
+  if (typeof manifest?.id !== 'string' || typeof manifest.version !== 'string') {
+    return null;
+  }
+  if (!versionPattern.test(manifest.version)) {
+    return null;
+  }
+  const type = `${manifest.id}@${manifest.version.split('.')[0]}`;
+  return validType(type) ? type : null;
+}
+
 export class TypeRegistry {
   constructor(root, cache) {
     this.root = path.join(root, 'extensions');
     this.cache = cache;
+    this.index = new Map();
+    this.manifests = new Map();
+    this.scanError = null;
   }
+
+  manifest(directory) {
+    const file = path.join(directory, 'manifest.json');
+    const identity = fileIdentity(file);
+    const cached = this.manifests.get(directory);
+    this.manifests.delete(directory);
+    const manifest =
+      cached?.identity === identity
+        ? cached.manifest
+        : readJson(
+            relativeFile(directory, 'manifest.json'),
+            this.cache,
+            READ_LIMITS.manifestBytes,
+            { field: 'manifest.json' },
+          );
+    this.manifests.set(directory, { identity, manifest });
+    if (this.manifests.size > MANIFEST_CACHE_LIMIT) {
+      this.manifests.delete(this.manifests.keys().next().value);
+    }
+    return manifest;
+  }
+
   scan() {
     const result = [];
     for (const group of directories(this.root)) {
       for (const name of directories(path.join(this.root, group))) {
         const directory = path.join(this.root, group, name);
         try {
-          const manifest = readJson(
-            relativeFile(directory, 'manifest.json'),
-            this.cache,
-            READ_LIMITS.manifestBytes,
-            { field: 'manifest.json' },
-          );
-          result.push({ directory, manifest });
+          result.push({ directory, type: manifestType(this.manifest(directory)) });
         } catch {
           /* An unreadable unrelated extension must not prevent other questions opening. */
         }
@@ -33,9 +71,46 @@ export class TypeRegistry {
     }
     return result;
   }
-  resolve(type, rows) {
-    const match = typeof type === 'string' && typePattern.exec(type);
-    if (!match || !Number.isSafeInteger(Number(match[2]))) {
+
+  rebuild() {
+    this.manifests.clear();
+    const index = new Map();
+    let scanError = null;
+    try {
+      for (const candidate of measureOverview('extension-scan', () => this.scan())) {
+        const { directory, type } = candidate;
+        if (type !== null) {
+          if (!index.has(type)) {
+            index.set(type, []);
+          }
+          index.get(type).push(directory);
+        }
+      }
+    } catch (error) {
+      // Installing a broken directory must not take down health or catalog.
+      scanError = error;
+    }
+    this.index = index;
+    this.scanError = scanError;
+  }
+
+  candidates(type) {
+    const matches = [];
+    for (const directory of this.index.get(type) ?? []) {
+      try {
+        const manifest = this.manifest(directory);
+        if (manifestType(manifest) === type) {
+          matches.push({ directory, manifest });
+        }
+      } catch {
+        // A removed or unreadable manifest is no longer a candidate.
+      }
+    }
+    return matches;
+  }
+
+  resolve(type) {
+    if (!validType(type)) {
       throw problem(
         'EXTENSION_NOT_FOUND',
         '题型须以 id@主版本号 指定已安装的拓展。',
@@ -43,13 +118,7 @@ export class TypeRegistry {
         404,
       );
     }
-    const candidates = rows.filter(
-      ({ manifest: m }) =>
-        m?.id === match[1] &&
-        typeof m.version === 'string' &&
-        versionPattern.test(m.version) &&
-        m.version.split('.')[0] === match[2],
-    );
+    const candidates = this.candidates(type);
     if (!candidates.length) {
       throw problem(
         'EXTENSION_NOT_FOUND',
@@ -123,18 +192,32 @@ export class TypeRegistry {
       descriptor: { artifactId, id: m.id, version: m.version, apiVersion: 2, digest },
     };
   }
-  resolutions(types) {
-    const rows = measureOverview('extension-scan', () => this.scan()),
-      result = new Map();
-    for (const type of types) {
-      try {
-        result.set(type, {
-          artifact: measureOverview('extension-resolve', () => this.resolve(type, rows)),
-        });
-      } catch (error) {
-        result.set(type, { error: publicError(error) });
-      }
+  resolveAll(types) {
+    if (this.scanError) {
+      throw this.scanError;
+    }
+    return new Map([...types].map((type) => [type, this.resolveEntry(type)]));
+  }
+
+  resolutions(types, { scanOnMiss = true } = {}) {
+    const result = this.resolveAll(types);
+    if (
+      scanOnMiss &&
+      [...result].some(
+        ([type, value]) => value.error?.code === 'EXTENSION_NOT_FOUND' && validType(type),
+      )
+    ) {
+      this.rebuild();
+      return this.resolveAll(types);
     }
     return result;
+  }
+
+  resolveEntry(type) {
+    try {
+      return { artifact: measureOverview('extension-resolve', () => this.resolve(type)) };
+    } catch (error) {
+      return { error: publicError(error) };
+    }
   }
 }

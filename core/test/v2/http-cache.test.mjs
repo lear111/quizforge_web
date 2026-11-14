@@ -140,7 +140,8 @@ test('development artifacts are no-store; refreshing SDK or image bytes changes 
     );
   }
   fs.appendFileSync(path.join(fixture.codeRoot, 'shared/richtext/2.0.0/sdk.js'), '\n/* changed */');
-  const sdk = (await api(base + '/overview')).body;
+  assert.equal((await api(base + '/overview')).body.snapshotId, s);
+  const sdk = (await api(base + '/refresh', {})).body;
   assert.notEqual(sdk.snapshotId, s);
   fs.appendFileSync(path.join(fixture.directory, 'assets/figure.png'), 'x');
   const image = (await api(base + '/overview')).body;
