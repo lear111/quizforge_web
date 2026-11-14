@@ -91,14 +91,39 @@
 
 拓展副本无法解析或载入时，该题按"题型不可用"处理，概览中的状态和分数照常返回。
 
-## 后续接口（未实现，字段随各段审查）
+## 第 4 段接口：考试（已定稿，未实现）
 
-`E = /api/v2/exams/{examId}`。
+设计依据：D24、D49–D52，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.4 节。
+
+只新增一个接口。其余全部沿用练习的接口，地址不变：**后端自动作用在这个题库当前的一轮上，有考试就是考试，否则是练习。**
+
+| 接口 | 请求 | 成功返回 | 主要错误 |
+|---|---|---|---|
+| POST `B/exam` | `requestId`、`snapshotId`、`durationMinutes`（正整数） | 考试的概览，同 `B/overview` | 快照过期；已有考试 409 `EXAM_EXISTS`；时长不合格 |
+
+效果：建立 `.qf-v2/exam/state.json`，写入 `exam: { startedAt, endsAt }`。练习的文件不动。
+
+现有接口在考试中的变化：
+
+| 接口 | 变化 |
+|---|---|
+| GET `B/overview` | 多返回 `exam: { startedAt, endsAt, now }`，`now` 为后端当前时间，供页面校准倒计时；练习时为 `null` |
+| PUT `Q/answer` | 过了 `endsAt` 加 5 秒后拒绝，409 `EXAM_ENDED` |
+| POST `Q/submit`、POST `Q/retry` | 交卷前一律拒绝，409 `EXAM_IN_PROGRESS` |
+| GET `Q` | 交卷前不返回 `solution` 和 `result`（本来也不会有） |
+| PUT `Q/ink` | 不变，过期和交卷后仍可写 |
+| POST `B/finish`、PUT `B/results` | 就是交卷和上报评分。提前交、到点交、过期后补交都用它，过期不拒绝 |
+| POST `B/restart` | 归档考试：生成一轮历史，删除 `exam/`，返回练习的概览 |
+| GET `B/rounds` | 每条多 `kind: "practice" \| "exam"`；考试另有 `startedAt`，用时由页面相减得出 |
+
+开始考试和归档考试都会更换 `snapshotId`。别的标签页里停在另一种状态的页面，下一次写入会收到 `SNAPSHOT_STALE` 并重新载入，不会写到错的那一轮上。
+
+过期但未交卷时，概览里 `completedAt` 为空而 `exam.now` 已超过 `exam.endsAt`。页面据此直接调用 `B/finish`，再按现有流程补评分。后端不主动改文件（D51）。
+
+## 后续接口（未实现，字段随各段审查）
 
 | 方法与路径 | 用途 |
 |---|---|
-| POST/GET `/api/v2/exams`；GET/DELETE `E`；GET `E/questions/{questionId}` | 创建、列出、读取、删除考试与读取考试题（第 4 段） |
-| PUT `E/questions/{questionId}/answer`、`/ink`；POST `E/hand-in`；GET `E/pending-grading`、`E/summary`；PUT `E/results` | 考试保存、交卷、待评分与结果（第 4 段） |
 | POST `/api/v2/practice-sessions`；DELETE `/api/v2/practice-sessions/{sessionId}` | 临时练习的独立内存作用域，后续实现 |
 | POST `Q/ai-tasks`；GET `/api/v2/ai-tasks/{taskId}`；POST 同路径 `/cancel`、`/retry`；POST `/api/v2/ai/chat` | 锁定答案的 AI 任务；辅导对话（第 5 段） |
 | GET/PUT `/api/v2/settings/{ai,network,development}`；POST `/api/v2/settings/ai/test`；GET `/api/v2/settings/ai/hub`；POST 同路径 `/login`、`/logout`、`/redeem` | 设置、连接测试及 Hub 账号（第 5、6 段核对字段） |
@@ -108,7 +133,7 @@
 
 ## 状态、锁定与分数
 
-- 主状态为 `.qf-v2/state.json`：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`，完成时增加 `completedAt`（缺省按未完成）。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
+- 主状态现为 `.qf-v2/state.json`（按 D50 将搬到 `.qf-v2/practice/state.json`）：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`，完成时增加 `completedAt`（缺省按未完成）。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
 - D37/D38：`status` 是大纲显示状态；无小题时为值，有小题时为小题 id 到值的映射，未出现的小题为 `unanswered`。五个值为 `unanswered`、`answered`、`correct`、`wrong`、`ungradable`。拓展通过 `changed` 传布尔值或最多 1000 键的布尔映射 `answered`；宿主立即更新大纲，`Q/answer` 随答案转为 `status` 保存，忽略未知小题。提交锁定不变色；后端按得分等于满分判对，否则判错（含部分得分）；待人工或 AI 保持现状，无法评分显示警示色；重做恢复默认。
 - 保存与锁定：`Q/answer` 带 requestId、snapshotId、expectedRevision、answer，可带 answered；`Q/submit` 同样携带最终 answer，提交成功后返回 solution、submissionId，之后不可改答案。锁定由 submissionId 判断，已锁定且 result 为 null 才自动补评。作答、提交、结果、重做每次成功写入递增同一个 revision。
 - 评分上报：`Q/result` 带 requestId、snapshotId、submissionId、expectedRevision、source:"grader"、result。凭证必须仍属当前锁且版本一致，旧锁返回 SUBMISSION_STALE、旧版本返回 RESULT_CONFLICT。结果为 `{ score, parts, message }`：无小题或无分数时 parts 为 null；有小题的数值评分以小题 ID 为键，全部且仅包含对应小题，分值有限、非负、未越界，精确十进制合计等于总分。无分数时 message 为 null 表示待人工或 AI，非空说明表示无法评分。有分数时 message 为 null。
