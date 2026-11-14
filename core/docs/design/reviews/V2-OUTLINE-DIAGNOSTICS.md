@@ -6,6 +6,14 @@
 
 **用例。** 新增 `core/test/v2/outline.test.mjs`：27 种合成错误输入逐一经 HTTP 断言 422、错误码、精确位置、非权限提示且不泄露 solution；另有合法题号、空大纲/分组及重复题号的用例。修复前 27 个子用例均失败（外层统计 28 失败 / 1 通过），修复后含外层共 29 通过 / 0 失败。与原只读测试一起 42 通过 / 0 失败；全部 V2 测试 147 通过 / 0 失败。Windows、Node 24.13.0，本机类型、UI 构建一致性与 lint 均通过；不据此声称性能提升。
 
-**CI。** 提交后补齐五个 job 的结果、总耗时和失败名单。全套测试由两系统 CI 执行；不删除、放宽断言或超时，不加重试。
+**CI。** [PR #133](https://github.com/lear111/quizforge_web/pull/133)，目标 `v2`，待审查。实现提交 `7c3672a` 的[首次运行 43580526783](https://github.com/lear111/quizforge_web/actions/runs/43580526783) 五项全绿，失败用例名单为空。不删除、放宽断言或超时，不加重试；Ubuntu 的 34 项跳过均为原有 Windows 专项。
+
+| Job | 结果（通过 / 失败 / 跳过） | 总耗时 |
+|---|---|---|
+| Checks · Ubuntu | 1374 / 0 / 34，类型与构建通过 | 93 s |
+| Checks · Windows | 1408 / 0 / 0，类型与构建通过 | 286 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 12 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、37 既有警告 | 23 s |
+| V2 browser checks · Ubuntu | 九项全部通过 | 162 s |
 
 **后续记录，不在本 PR 修改。** D50 / 任务 J 时收拢状态文件路径；以后直接注入 `StateRepository` 后移除旧测试转发；`retry` 删除笔迹的副作用待改为显式调用；`historyIndex` 旧开发记录判断待无旧记录后删除。按任务顺序等本小 PR 审查后再进入 D，D 内按搬家、api、Pinia、Router、组件解耦分小 PR，涉及保存/切题顺序的步骤继续提审。
