@@ -170,8 +170,8 @@
 
 | 序 | 任务 | 要点 | 审查 |
 |---|---|---|---|
-| A | 后端搬家 | 按 D48 把 `core/server/host/v2/` 搬到 `core/server/v2/` 的分层目录并改名，不改逻辑 | 核对"仅移动" |
-| B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告 | 需审查 |
+| A | 后端搬家 | 按 D48 搬到 `core/server/v2/`；[#126](https://github.com/lear111/quizforge_web/pull/126) 已审查合并 | 核对"仅移动" |
+| B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告。[#127](https://github.com/lear111/quizforge_web/pull/127) 已提交，待审查；见[检查记录](reviews/V2-BROWSER-CI.md) | 需审查 |
 | C | 后端拆分与精简 | 拆长函数（`open`、`load` 等），`state` 拆成 service 与 repository，按 D46 精简读题库，补"为什么"的注释，加层间依赖方向的自动检查 | 需审查 |
 | D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式 | 第 3、4 步需审查 |
 | E | 前后端共用一份数据定义，后端加类型检查 | 接口的请求和答复、`state.json` 等结构只定义一次，放在 `core/shared/v2/`，前端的 `api/` 与后端的 controller / service 都引用它；后端保持 JavaScript，用 JSDoc 注解加 `tsc --checkJs` 做类型检查并接入 CI。先覆盖 `controllers`、`services`、`repositories`，`utils` 和沿用的 V1 工具可以后补。开工前先写半页说明（定义放哪、用什么形式）等审查 | 需审查 |

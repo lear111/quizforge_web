@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 // Real Chromium, curated demo copied into disposable banks; no author records.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -35,7 +36,7 @@ try {
   const catalog = await api('/api/v2/catalog'),
     rows = [],
     errors = [];
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
   for (const [name, viewport] of [
     ['desktop', { width: 1440, height: 900 }],
     ['mobile', { width: 390, height: 844 }],
@@ -262,6 +263,9 @@ try {
       2,
     ),
   );
+} catch (error) {
+  await captureBrowserFailure(browser);
+  throw error;
 } finally {
   await browser?.close();
   await server?.close();

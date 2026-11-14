@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -36,7 +37,7 @@ try {
   };
   const id = (await api('/catalog')).groups[0].items[0].bankId,
     base = `/banks/${id}`;
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
   const page = await browser.newPage();
   page.setDefaultTimeout(15000);
   const errors = [];
@@ -201,6 +202,9 @@ try {
       errors,
     }),
   );
+} catch (error) {
+  await captureBrowserFailure(browser);
+  throw error;
 } finally {
   await browser?.close();
   server?.server.closeAllConnections();

@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 // Synthetic, loopback-only browser acceptance of the production grading module.
 // Playwright stays outside project dependencies: pass its absolute index.mjs.
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ import { build } from 'esbuild';
 const modulePath = process.argv[2];
 if (!modulePath) {
   throw Error(
-    'Usage: node core/scripts/dev/probe-v2-grading.mjs ABSOLUTE_PLAYWRIGHT_INDEX_MJS [chrome|msedge]',
+    'Usage: node core/scripts/dev/probe-v2-grading.mjs ABSOLUTE_PLAYWRIGHT_INDEX_MJS [chrome|msedge|chromium]',
   );
 }
 const { chromium } = await import(pathToFileURL(path.resolve(modulePath)).href);
@@ -231,6 +232,9 @@ try {
       2,
     ),
   );
+} catch (error) {
+  await captureBrowserFailure(browser);
+  throw error;
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));

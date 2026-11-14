@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Real Chromium acceptance. Only copied examples/synthetic input, ephemeral
 // loopback server and an ignored Playwright installation; no user state.
@@ -82,7 +83,7 @@ try {
   const ids = Object.fromEntries(
     (await api('/api/v2/catalog')).groups[0].items.map((item) => [item.title, item.bankId]),
   );
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
   const errors = [],
     rows = [];
   for (const [name, viewport] of [
@@ -310,6 +311,9 @@ try {
   const result = { browser: browser.version(), rows, errors };
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
+} catch (error) {
+  await captureBrowserFailure(browser);
+  throw error;
 } finally {
   await browser?.close();
   await server?.close();

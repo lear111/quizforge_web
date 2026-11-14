@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // #73 follow-up: actual Chromium, synthetic banks, isolated loopback port.
 // No production instrumentation, user data, fixed sleeps or project dependency.
@@ -280,7 +281,7 @@ try {
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {
-  console.error(error);
+  await captureBrowserFailure(browser);
   throw error;
 } finally {
   await browser?.close();
