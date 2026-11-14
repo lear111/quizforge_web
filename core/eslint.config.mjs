@@ -5,6 +5,7 @@ import vue from 'eslint-plugin-vue';
 import vueParser from 'vue-eslint-parser';
 import { root, sourcePatterns } from './scripts/quality/scope.mjs';
 import { backendLayers } from './scripts/quality/backend-layers.mjs';
+import { frontendLayers } from './scripts/quality/frontend-layers.mjs';
 
 const rules = {
   ...js.configs.recommended.rules,
@@ -26,6 +27,12 @@ const rules = {
 };
 export default [
   { basePath: root, files: sourcePatterns, rules },
+  {
+    basePath: root,
+    files: ['core/frontend/src/v2/**/*.{js,ts,vue}'],
+    plugins: { frontendArchitecture: { rules: { layers: frontendLayers } } },
+    rules: { 'frontendArchitecture/layers': 'error' },
+  },
   {
     basePath: root,
     files: ['core/server/v2/**'],

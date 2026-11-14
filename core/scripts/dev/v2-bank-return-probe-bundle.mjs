@@ -24,8 +24,9 @@ export async function buildPhaseUi(core) {
           const file = id.replaceAll('\\', '/');
           const stamp =
             'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
-          if (file.endsWith('/v2/App.vue')) {
-            const declaration = 'async function openBank(_kind: string, id?: string)';
+          if (file.endsWith('/v2/stores/banks.ts')) {
+            const declaration =
+              'export async function openBank(ctx: PracticeSession, _kind: string, id?: string)';
             const overview = 'const value: Overview = await api.banks.overview(id);';
             code = replaceOnce(code, declaration, stamp + '\n' + declaration);
             return replaceOnce(
@@ -34,10 +35,11 @@ export async function buildPhaseUi(core) {
               "phase('overview:start');" + overview + "phase('overview:end');",
             );
           }
-          if (file.endsWith('/v2/views/use-practice-page.ts')) {
-            const declaration = 'async function show(q: Question, resume = true)';
+          if (file.endsWith('/v2/stores/page.ts')) {
+            const declaration =
+              'export async function show(ctx: PracticeSession, q: Question, resume = true)';
             const sources =
-              'const [loaded, assets] = await Promise.all([sources.load(q.extension.artifactId), pictures(q)]);';
+              'const [loaded, assets] = await Promise.all([\n    ctx.runtime.sources!.load(q.extension.artifactId),\n    ctx.actions().pictures(q),\n  ]);';
             code = replaceOnce(code, declaration, stamp + '\n' + declaration);
             code = replaceOnce(
               code,

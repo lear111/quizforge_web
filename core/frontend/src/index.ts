@@ -1,6 +1,5 @@
 import WorkspaceIdentity from './workspace/WorkspaceIdentity.vue';
-import V2App from './v2/App.vue';
-export function mountV2App(container: HTMLElement, nonce: string) { return createApp(V2App, { nonce }).mount(container); }
+export { mountV2App } from './v2/main';
 import WorkspaceActions from './workspace/WorkspaceActions.vue';
 import CollectionLoading from './workspace/CollectionLoading.vue';
 import SaveRecovery from './workspace/SaveRecovery.vue';

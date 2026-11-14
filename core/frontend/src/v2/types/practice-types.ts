@@ -1,4 +1,6 @@
 import type { Item, State } from '../services/outline';
+import type { Ref } from 'vue';
+import type { PracticeApi } from '../api';
 export interface Question {
   bankId: string;
   questionId: string;
@@ -35,11 +37,10 @@ export interface Overview extends Completion {
 }
 
 export interface PracticeWorkspace {
-  overview: import('vue').Ref<Overview | null>;
-  message: import('vue').Ref<string>;
-  busy: import('vue').Ref<boolean>;
-  token: import('vue').Ref<string>;
-  api: import('../api').PracticeApi;
+  overview: Ref<Overview | null>;
+  message: Ref<string>;
+  busy: Ref<boolean>;
+  token: Ref<string>;
+  api: PracticeApi;
   run(label: string, action: () => Promise<void>): Promise<void>;
-  remember(question: Question): void;
 }
