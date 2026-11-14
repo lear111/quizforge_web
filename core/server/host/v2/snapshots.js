@@ -6,6 +6,7 @@ import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
 import { directories, newCache, readJson, relativeFile, relativePath, treeIdentity, READ_LIMITS } from './io.js';
 import { TypeRegistry } from './type-registry.js';
+import { measureOverview } from './timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 
 export const OPEN_BANK_LIMIT = 8;
@@ -52,49 +53,54 @@ export class LibrarySnapshots {
   }
   open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
     const previous = this.opened.get(bankId);
-    const location = this.locations().find(row => row.bankId === bankId);
+    const location = measureOverview('locate-bank', () => this.locations().find(row => row.bankId === bankId));
     if (!location) throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
-    const { digest: tree, hashes } = treeIdentity(location.directory, this.cache, { bankId, field: 'bank.files' });
-    const bank = readBank(location.directory, this.cache, bankId);
-    const types = new Set();
-    for (const raw of Object.values(bank.raw.questions)) if (object(raw) && typeof raw.type === 'string') types.add(raw.type);
+    const { digest: tree, hashes } = measureOverview('bank-tree', () => treeIdentity(location.directory, this.cache, { bankId, field: 'bank.files' }));
+    const bank = measureOverview('bank-json', () => readBank(location.directory, this.cache, bankId));
+    const types = measureOverview('extension-resolve', () => {
+      const ids = new Set();
+      for (const raw of Object.values(bank.raw.questions)) if (object(raw) && typeof raw.type === 'string') ids.add(raw.type);
+      return ids;
+    });
     const resolutions = this.types.resolutions(types), sdk = new Map();
     for (const [type, resolution] of resolutions) if (resolution.artifact) {
-      try { for (const [component, version] of Object.entries(resolution.artifact.sdkVersions)) sdk.set(`${component}@${version}`, this.sdk(component, version)); }
+      try { for (const [component, version] of Object.entries(resolution.artifact.sdkVersions)) sdk.set(`${component}@${version}`, measureOverview('sdk-digest', () => this.sdk(component, version))); }
       catch (error) { resolutions.set(type, { error: publicError(error) }); }
     }
-    const snapshotId = fingerprint({ bankId, tree, types: [...resolutions].map(([id, value]) => [id, value.artifact?.descriptor ?? value.error]), sdk: [...sdk].map(([id, value]) => [id, value.digest]) }, 'quizforge-v2-snapshot');
+    const snapshotId = measureOverview('snapshot-id', () => fingerprint({ bankId, tree, types: [...resolutions].map(([id, value]) => [id, value.artifact?.descriptor ?? value.error]), sdk: [...sdk].map(([id, value]) => [id, value.digest]) }, 'quizforge-v2-snapshot'));
     // Active-answer identity excludes storage paths, assets and shared SDKs.
     // File bodies follow deterministic traversal order; physical directory names
     // are absent. bank.json's exact bytes always participate.
-    const contentFingerprint = fingerprint({ bank: this.cache.hash(relativeFile(location.directory, 'bank.json'), READ_LIMITS.bankBytes), types: [...resolutions].map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code]).sort(([a], [b]) => a.localeCompare(b)) }, 'quizforge-v2-content');
+    const contentFingerprint = measureOverview('content-fingerprint', () => fingerprint({ bank: this.cache.hash(relativeFile(location.directory, 'bank.json'), READ_LIMITS.bankBytes), types: [...resolutions].map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code]).sort(([a], [b]) => a.localeCompare(b)) }, 'quizforge-v2-content'));
     const snapshot = { ...bank, ...location, snapshotId, contentFingerprint, resolutions, sdk, hashes };
     if (requestedQuestionId !== undefined && (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))) {
       if (!refresh) throw problem('QUESTION_NOT_FOUND', '指定的起始题不在题库大纲中。', { bankId, questionId: requestedQuestionId }, 404);
       requestedQuestionId = undefined;
     }
     let activeCleared;
-    try { activeCleared = this.stateStore?.reconcile(snapshot) ?? false; }
+    try { activeCleared = measureOverview('state-check', () => this.stateStore?.reconcile(snapshot) ?? false); }
     catch (error) { if (!previous) this.stateStore?.evict(location.directory); throw error; }
     snapshot.activeCleared = activeCleared;
-    const savedPosition = this.stateStore?.load(location.directory).lastQuestionId;
+    const savedPosition = measureOverview('state-check', () => this.stateStore?.load(location.directory).lastQuestionId);
     const lastQuestionId = bank.items.has(savedPosition) ? savedPosition : null;
-    this.opened.delete(bankId); this.opened.set(bankId, snapshot);
-    while (this.opened.size > OPEN_BANK_LIMIT) { const first = this.opened.keys().next().value, old = this.opened.get(first); this.opened.delete(first); this.stateStore?.evict(old.directory); }
-    const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
-    let initial = { question: null, error: null };
-    if (includeInitial && questionId !== undefined) {
-      try { initial.question = this.question(bankId, questionId, snapshotId); }
-      catch (error) { initial.error = publicError(error); }
-    }
-    return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
-      questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
-      states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial, activeCleared,
-      notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
-      pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.stateStore && this.needsGrading(snapshot, id)).map(id => {
-        try { return { question: this.question(bankId, id, snapshotId), error: null }; }
-        catch (error) { return { question: null, error: publicError(error) }; }
-      }), ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
+    return measureOverview('assemble', () => {
+      this.opened.delete(bankId); this.opened.set(bankId, snapshot);
+      while (this.opened.size > OPEN_BANK_LIMIT) { const first = this.opened.keys().next().value, old = this.opened.get(first); this.opened.delete(first); this.stateStore?.evict(old.directory); }
+      const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
+      let initial = { question: null, error: null };
+      if (includeInitial && questionId !== undefined) {
+        try { initial.question = this.question(bankId, questionId, snapshotId); }
+        catch (error) { initial.error = publicError(error); }
+      }
+      return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
+        questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
+        states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial, activeCleared,
+        notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
+        pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.stateStore && this.needsGrading(snapshot, id)).map(id => {
+          try { return { question: this.question(bankId, id, snapshotId), error: null }; }
+          catch (error) { return { question: null, error: publicError(error) }; }
+        }), ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
+    });
   }
   refresh(bankId, input) {
     if (!object(input) || Object.hasOwn(input, 'questionId') && !validId(input.questionId)) throw problem('INVALID_REQUEST', '刷新请求或当前题号无效。', {}, 400);
@@ -147,7 +153,7 @@ export class LibrarySnapshots {
     try {
       const record = questionRecord(snapshot, id), artifact = this.resolution(snapshot, record), assets = this.visibleAssets(snapshot, id, record);
       const saved = this.stateStore?.get(snapshot, id);
-      const ink = includeInk ? this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 } : null;
+      const ink = includeInk ? measureOverview('ink-body', () => this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 }) : null;
       return { bankId, snapshotId, questionId: id, type: record.type, extension: cloneJson(artifact.descriptor), item: cloneJson(snapshot.items.get(id)), question: cloneJson(record.question),
         solution: saved?.submissionId ? cloneJson(record.solution) : null, answer: cloneJson(saved?.answer ?? null), ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}), state: this.state(snapshot, id), submissionId: saved?.submissionId ?? null, result: cloneJson(saved?.result ?? null),
         resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })) };

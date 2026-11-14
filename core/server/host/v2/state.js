@@ -4,7 +4,7 @@ import { readBytes, replaceFile, checkPath, checkedStat } from '../platform/file
 import { cloneJson, shallowCopyJson, projectJson, patchJson, freezeJson, fingerprint, parseJson, jsonBytes, decimalSum } from '../platform/json.js';
 import { statIdentity } from '../platform/file-cache.js';
 import { object, problem } from './errors.js';
-import { measureSave } from './timing.js';
+import { measureSave, measureOverview } from './timing.js';
 import { PracticeInk } from './ink.js';
 import { emptyOutlineStatus, isOutlineStatus, reportOutlineStatus, validateAnswered } from '../../../shared/v2/answered.js';
 import { appendReceipt, replayed, validOldReceipts, validReceipts } from './receipts.js';
@@ -103,7 +103,7 @@ export class PracticeState {
       this.ink.clear(snapshot);
       this.commit(snapshot.directory, { ...empty(), contentFingerprint: snapshot.contentFingerprint, lastQuestionId: null });
     }
-    const inkChanged = this.ink.open(snapshot);
+    const inkChanged = measureOverview('ink-index', () => this.ink.open(snapshot));
     return changed || inkChanged;
   }
   evict(directory) { const file = path.join(directory, '.qf-v2', 'state.json'); this.loaded.delete(file); this.identities.delete(file); this.ink.evict(directory); }

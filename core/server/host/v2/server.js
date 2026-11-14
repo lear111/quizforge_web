@@ -7,7 +7,7 @@ import { LibrarySnapshots } from './snapshots.js';
 import { problem, publicError } from './errors.js';
 import { relativeFile, READ_LIMITS } from './io.js';
 import { PracticeState, STATE_BYTES } from './state.js';
-import { withSaveTiming, measureSave, saveTimingHeader } from './timing.js';
+import { withSaveTiming, withOverviewTiming, measureSave, measureResponseSerialization, timingHeader } from './timing.js';
 
 const loopback = value => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(value);
 const mime = file => ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.woff2': 'font/woff2' }[path.extname(file).toLowerCase()] ?? 'application/octet-stream');
@@ -52,8 +52,8 @@ export class V2Server {
     if (a.length !== b.length || !timingSafeEqual(a, b)) throw problem('AUTH_REQUIRED', '请输入有效的连接令牌。', {}, 401);
   }
   json(response, status, value) {
-    const bytes = measureSave('serialize', () => jsonBytes(value));
-    const timing = saveTimingHeader(); if (timing) response.setHeader('Server-Timing', timing);
+    const bytes = measureResponseSerialization(() => jsonBytes(value));
+    const timing = timingHeader(); if (timing) response.setHeader('Server-Timing', timing);
     response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.length });
     response.end(bytes);
   }
@@ -127,7 +127,8 @@ export class V2Server {
       if (parts.length === 3 && parts[2] === 'catalog') return this.json(response, 200, this.library.catalog());
       if (parts[2] === 'banks') {
         const bankId = parts[3];
-        if (parts.length === 5 && parts[4] === 'overview') return this.json(response, 200, this.library.open(bankId, url.searchParams.get('questionId') ?? undefined));
+        if (parts.length === 5 && parts[4] === 'overview') return withOverviewTiming(this.timings && request.method === 'GET', () =>
+          this.json(response, 200, this.library.open(bankId, url.searchParams.get('questionId') ?? undefined)));
         if (parts[4] === 'questions' && parts.length === 6) return this.json(response, 200, this.library.question(bankId, parts[5], snapshotId));
         if (parts[4] === 'questions' && parts.length === 8 && parts[6] === 'assets') { const { file, expectedHash } = this.library.asset(bankId, parts[5], snapshotId, parts[7]); return this.binary(request, response, file, { expectedHash }); }
         if (parts[4] === 'listening' && parts.length === 6) { const material = this.library.listening(bankId, parts[5], snapshotId); return material.file ? this.binary(request, response, material.file) : this.json(response, 200, material); }
