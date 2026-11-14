@@ -1,3 +1,4 @@
+import type { ErrorResponse } from '../../../../shared/v2/api.js';
 export interface ClientOptions {
   token(): string;
   unauthorized(): void;
@@ -16,7 +17,7 @@ export function createClient(options: ClientOptions) {
       headers: { ...init.headers, ...(token ? { 'x-quizforge-token': token } : {}) },
     });
     if (!response.ok) {
-      const body = await response.json();
+      const body: Partial<ErrorResponse> = await response.json();
       if (response.status === 401) {
         options.unauthorized();
       }

@@ -7,11 +7,8 @@ export interface GradingInput {
   answer: unknown;
   item: unknown;
 }
-export interface GradeResult {
-  score: number | null;
-  parts: Record<string, number> | null;
-  message: string | null;
-}
+import type { GradeResult } from '../../../../shared/v2/state.js';
+export type { GradeResult } from '../../../../shared/v2/state.js';
 export interface GradingOutput {
   questionId: string;
   result: GradeResult;
