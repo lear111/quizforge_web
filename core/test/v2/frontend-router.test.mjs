@@ -164,6 +164,10 @@ function fixture(t) {
   actions.show = async (q) => {
     actions.update(q);
     actions.remember(q);
+    if (controls.loading) {
+      controls.loading.started.resolve();
+      await controls.loading.finish.promise;
+    }
   };
   ctx.runtime.sources = { scope() {}, dispose() {} };
   ctx.runtime.completionGrader = { run: async () => null, clear() {} };
@@ -320,6 +324,23 @@ test('named routes encode identifiers without treating them as page delimiters',
   assert.equal(resolved.name, 'practice');
   assert.deepEqual(resolved.params, { bankId: '组/库', questionId: '1 #?%' });
 });
+
+test(
+  'canonical bank URL must not close a drawer the user opened during iframe loading',
+  options,
+  async (t) => {
+    const f = fixture(t);
+    await f.open();
+    f.controls.loading = { started: deferred(), finish: deferred() };
+    await f.navigation.openBank('bank', 'a');
+    await f.controls.loading.started.promise;
+    f.ui.drawer = 'library';
+    f.controls.loading.finish.resolve();
+    await until(() => f.router.currentRoute.value.fullPath === '/banks/a/questions/1');
+    await nextTick();
+    assert.equal(f.ui.drawer, 'library');
+  },
+);
 
 test(
   'completed summary and question routes preserve their page identity on reload',

@@ -29,6 +29,9 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
   }
   const bankId = String(to.params.bankId);
   const questionId = to.params.questionId ? String(to.params.questionId) : undefined;
+  // Close the drawer at navigation start. A user can reopen it while an
+  // iframe loads; finishing that load must not dismiss the newly opened menu.
+  ui.drawer = null;
   if (to.name === 'bank' || practice.overview?.bank.bankId !== bankId) {
     await practice.openBank('bank', bankId, questionId);
   } else if (to.name === 'practice' && questionId) {
@@ -42,7 +45,6 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
   } else if (to.name === 'summary' && practice.overview.completedAt) {
     ui.scoreView = true;
   }
-  ui.drawer = null;
 }
 
 class WorkspaceNavigation {
@@ -105,6 +107,14 @@ class WorkspaceNavigation {
   };
   private async load(to: RouteLocationNormalized) {
     if (this.disposed || this.ui.authRequired) {
+      return;
+    }
+    // Canonical replacements and failed-load rollbacks already display this
+    // state. Reapplying it could dismiss a menu opened during the first load.
+    if (
+      !this.practice.pageFaulted() &&
+      this.router.resolve(visibleLocation(this.practice, this.ui)).fullPath === to.fullPath
+    ) {
       return;
     }
     this.loading = true;

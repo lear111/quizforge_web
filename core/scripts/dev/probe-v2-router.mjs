@@ -1,4 +1,5 @@
 // Real-browser address/guard checks; disposable synthetic banks and loopback only.
+import { checkReload, checkSummary } from './v2-router-probe-views.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
@@ -197,36 +198,6 @@ async function checkLoadRollback(h) {
   await openBank('A');
   await question('1');
 }
-async function checkSummary(h) {
-  const { page, id, name, origin, idle } = h;
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: '完成练习', exact: true }).click();
-  await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
-  await page.waitForURL(`${origin}/#/banks/${id}/summary`);
-  await page.getByRole('button', { name: '查看题目', exact: true }).waitFor({ state: 'visible' });
-  await page.reload();
-  await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
-  await idle();
-  const originalFrame = await page.locator('.v2-question-frame iframe').elementHandle();
-  await page.getByRole('button', { name: '查看题目', exact: true }).click();
-  await page.waitForURL(/\/questions\//);
-  await page.locator('.v2-question-frame iframe').waitFor({ state: 'visible' });
-  assert.equal(
-    await originalFrame.evaluate(
-      (node) => node === document.querySelector('.v2-question-frame iframe'),
-    ),
-    true,
-  );
-  await page.getByRole('button', { name: '最终得分', exact: true }).click();
-  await page.waitForURL(`${origin}/#/banks/${id}/summary`);
-  assert.equal(
-    await originalFrame.evaluate(
-      (node) => node === document.querySelector('.v2-question-frame iframe'),
-    ),
-    true,
-  );
-  await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true });
-}
 async function exercise(page, origin, name, catalog) {
   const h = harness(page, origin, name, catalog);
   await page.addInitScript((id) => {
@@ -239,13 +210,12 @@ async function exercise(page, origin, name, catalog) {
   assert.equal(new URL(page.url()).hash, '#/');
   await page.goto(h.url('2'));
   await h.question('2');
-  await page.reload();
-  await h.question('2');
+  await checkReload(h);
   await checkPending(h);
   await checkFailedSave(h);
   await checkNativeHistory(h);
   await checkLoadRollback(h);
-  await checkSummary(h);
+  await checkSummary(h, output);
   rows.push({
     viewport: name,
     deepLink: true,
@@ -259,6 +229,7 @@ async function exercise(page, origin, name, catalog) {
     sameFrame: true,
   });
 }
+
 try {
   copyBrowserFixture(root);
   const fixture = JSON.parse(
