@@ -1,8 +1,8 @@
 import { toRaw } from 'vue';
-import { saveGrade, recoverGrades } from '../services/scoring';
-import { isSaveConflict } from '../services/save-policy';
-import type { Overview, Question } from '../types/practice-types';
-import type { PracticeSession } from '../types/practice-session';
+import { saveGrade, recoverGrades } from '../../services/scoring';
+import { isSaveConflict } from '../../services/save-policy';
+import type { Overview, Question } from '../../types/practice-types';
+import type { PracticeSession } from '../../types/practice-session';
 
 export async function score(ctx: PracticeSession, q: Question): Promise<Question> {
   const { current, api } = ctx;

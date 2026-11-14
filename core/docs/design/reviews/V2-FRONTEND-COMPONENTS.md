@@ -1,0 +1,28 @@
+# 任务 D⑤ · 组件事件、局部样式与单向导航
+
+**范围。** #139 已审查合并（`0800478`），本 PR 目标 `v2`，等待审查。无产品行为变化：启动空地址仍显示空白主页、题库分组默认收起；保留明确题号刷新、后退/前进、切库返回位置、切题前保存及失败留题。
+
+**改了什么。** 第一笔提交单独调整沿用的 `LibraryList` / `LibraryNode` / `OutlinePanel`：用属性与 `defineEmits` 通信，条目拆为 `LibraryItem`；V1 的 imperative renderer 继续用 Vue 的同名 `onOpen` 等事件监听，无适配或双重回调。V2 的侧栏、移动顶栏、操作栏各一个组件；组件及做题页使用 scoped 样式，只有变量、字体和通用控件留公共文件，动态 iframe 使用 `:deep`。九个 practice helper 搬入 `stores/practice/`；确认完成的弹窗移到操作栏，store 仅提供 `complete()`，page/runtime 补充 DOM 生命周期归属说明；诊断工具仅随搬家更新路径。
+
+**导航简化。** 按 #139 建议删除地址监听与反向 store 监听，守卫内 flush → 原 store 打开/切题 → 成功后确认地址，失败返回 false；题库地址补全及不可用的初始地址在守卫重定向。完成/刷新/继续评分由视图在动作后显式定位，无状态反推地址。原六个标志改为三个生命周期/点击门控标志与一个正在加载的 Promise。后者同时处理直接连续改 hash：后到的守卫等待同一加载，并对齐其可见地址，避免 Router 已取消首守卫但 store 已更新造成地址与题目不同。没有复制保存、评分协议或新增请求。
+
+**明确没改什么。** 未改后端、响应 JSON、状态码、规则输入、版本号、回执、持久化格式、solution 发送条件、锁定/重做、沙箱、SDK、示例与用户数据；不增加保护限制、自动打开、功能按钮、重试或超时。未开始 E/F/G、历史、安装包或部署，不重启日常服务。#138 的 store 对外动作收口、内部转发表/真循环、catalog API 注入与空参数，与保存/评分模块拆分一起留 F，不在此改其调用链。
+
+**文件行数（格式化后）。** `WorkspaceView` 96、`PracticePage` 86；Library/Mobile/Outline/Toolbar 四个组件 114/37/68/97，`FinalScore` 98；shared List/Node/Item/Outline 29/87/89/45；navigation 216。scoped 做题样式与 view 相邻，共用侧栏样式由两个组件 scoped 引入；公共 workspace CSS 35。其余 helper 只搬家（banks 另去掉确认弹窗），行数未扩大。最终以提交文件为准。
+
+**验证。** 新增真实守卫的连续直接导航用例，先复现地址停旧题再修复；原 13 项导航断言保留，仅抽屉加载用例改为先保存 pending promise，适应守卫内等待渲染。沿用组件的 11 项 V1 测试不变，验证刷新焦点、回调只触发一次、分组/文件、旧按钮隔离。V2 子集 173/0/0（114.34 s），组件 11/0/0（并入既有大纲宿主用例复跑为 25/0/0），性能检查 2/0/0；类型、构建、格式与 lint 已通过（0 错误、36 条既有大小警告）。旧 V1 本机环境失败文件未全量重跑，完整套件以 CI 为准。十个浏览器探针全部通过，原断言保留，桌面/手机尺寸均无页面错误；检查截图已查看。
+
+**检查中修正。** scoped 迁移初版把局部动态 class 写成 `:global`，编译后丢失后代选择器，导致草稿输入层超出题目区。已改为本组件的普通 scoped 选择器，保留原布局和白板实现，按原白板探针复验，不放宽断言。汇总标题显式保留原公共样式的 500 字重。首轮 CI 两系统均有 1 项既有 `practice/tabs-outline-host.test.mjs` 的 `outline shows consecutive type groups and numbered states with only the summary entry` 失败：静态按钮文本因换行由 `分值汇总` 变成 ` 分值汇总 `；改用 `v-text` 保持原文本，原测试不变，本机连同相关组件 25 项复跑通过。
+
+**环境与 CI。** Windows 11 10.0.26200、Node 24.13.0、Chrome 157.0.8103.39；测试仅临时合成数据、独立回环端口，完成后关闭；桌面/手机尺寸不等于真机验收。[PR #140](https://github.com/lear111/quizforge_web/pull/140) 未合并。首轮运行 43602941183：质量/性能/浏览器通过，Windows/Ubuntu 各仅上述 1 项失败；修正后的实现提交 `9794690` 在[运行 43603593226](https://github.com/lear111/quizforge_web/actions/runs/43603593226) 五项全绿，失败名单为空；下表记录该次运行（本次只补记录，随后核对最终提交）。Ubuntu 的 34 项跳过均为既有 Windows 专项。
+
+
+| Job | 通过 / 失败 / 跳过 | 总耗时 |
+|---|---|---|
+| Checks · Windows | 1434 / 0 / 0；类型与构建通过 | 277 s |
+| Checks · Ubuntu | 1400 / 0 / 34；类型与构建通过 | 77 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 12 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、36 大小警告 | 25 s |
+| V2 browser checks · Ubuntu | 十个既有探针全部通过 | 147 s |
+
+**后续。** 不开始 E/F，等待审查；#139 指出的 Vue Router 锁文件含 34 个构建期依赖，运行时未使用文件路由生成器，本 PR 不处理。

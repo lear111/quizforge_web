@@ -10,8 +10,8 @@ const bundle = await build({
       export { usePracticeStore } from './stores/practice';
       export { useCatalogStore } from './stores/catalog';
       export { useUiStore } from './stores/ui';
-      export { createRuntime } from './stores/runtime';
-      export { createActions } from './stores/actions';`,
+      export { createRuntime } from './stores/practice/runtime';
+      export { createActions } from './stores/practice/actions';`,
     resolveDir: fileURLToPath(new URL('../../frontend/src/v2', import.meta.url)),
     loader: 'ts',
   },

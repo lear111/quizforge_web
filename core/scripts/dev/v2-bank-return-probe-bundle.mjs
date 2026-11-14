@@ -24,7 +24,7 @@ export async function buildPhaseUi(core) {
           const file = id.replaceAll('\\', '/');
           const stamp =
             'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
-          if (file.endsWith('/v2/stores/banks.ts')) {
+          if (file.endsWith('/v2/stores/practice/banks.ts')) {
             const declaration =
               'export async function openBank(\n  ctx: PracticeSession,\n  _kind: string,\n  id?: string,\n  questionId?: string,\n)';
             const overview = 'const value: Overview = await api.banks.overview(id);';
@@ -35,7 +35,7 @@ export async function buildPhaseUi(core) {
               "phase('overview:start');" + overview + "phase('overview:end');",
             );
           }
-          if (file.endsWith('/v2/stores/page.ts')) {
+          if (file.endsWith('/v2/stores/practice/page.ts')) {
             const declaration =
               'export async function show(ctx: PracticeSession, q: Question, resume = true)';
             const sources =

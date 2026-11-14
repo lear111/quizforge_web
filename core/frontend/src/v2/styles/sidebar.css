@@ -1,0 +1,25 @@
+.v2-sidebar {
+  padding: 20px 16px;
+  background: #fcfbff;
+}
+h2 {
+  font-size: 13px;
+  font-weight: 500;
+  color: #827b96;
+  margin: 16px 0;
+}
+@media (max-width: 800px) {
+  .v2-sidebar {
+    display: none;
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    overflow: auto;
+    z-index: 4;
+    box-shadow: 0 6px 25px #29203922;
+    width: min(86vw, 300px);
+  }
+  .v2-sidebar.open {
+    display: block;
+  }
+}

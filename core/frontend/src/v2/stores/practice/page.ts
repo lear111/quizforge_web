@@ -1,9 +1,11 @@
+// DOM handles live with the practice session so saves and iframe callbacks
+// keep their lifetime across route changes; the view only supplies containers.
 import { nextTick, toRaw } from 'vue';
-import { reportOutlineStatus } from '../../../../shared/v2/answered.js';
-import { mountQuestionPage } from '../services/page';
-import type { Picture } from '../services/page';
-import type { Question } from '../types/practice-types';
-import type { PracticeSession } from '../types/practice-session';
+import { reportOutlineStatus } from '../../../../../shared/v2/answered.js';
+import { mountQuestionPage } from '../../services/page';
+import type { Picture } from '../../services/page';
+import type { Question } from '../../types/practice-types';
+import type { PracticeSession } from '../../types/practice-session';
 
 export async function pictures(
   ctx: PracticeSession,

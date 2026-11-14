@@ -6,7 +6,7 @@ import * as scoring from './scoring';
 import * as completion from './completion';
 import * as banks from './banks';
 import * as runtime from './runtime';
-import type { PracticeSession, PracticeActions } from '../types/practice-session';
+import type { PracticeSession, PracticeActions } from '../../types/practice-session';
 
 // All callbacks close over this one session; no mutable singleton or component
 // reference is needed to coordinate saving, navigation and scoring.
@@ -46,7 +46,6 @@ export function createActions(ctx: PracticeSession): PracticeActions {
     openBank: (kind, id, questionId) => banks.openBank(ctx, kind, id, questionId),
     navigate: (id) => banks.navigate(ctx, id),
     refreshBank: () => banks.refreshBank(ctx),
-    finishPractice: () => banks.finishPractice(ctx),
     initializeCatalog: () => banks.initializeCatalog(ctx),
   };
 }

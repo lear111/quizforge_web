@@ -1,6 +1,6 @@
-import { isSaveConflict, saveRecoveryMessage } from '../services/save-policy';
-import type { Overview, Question } from '../types/practice-types';
-import type { PracticeSession } from '../types/practice-session';
+import { isSaveConflict, saveRecoveryMessage } from '../../services/save-policy';
+import type { Overview, Question } from '../../types/practice-types';
+import type { PracticeSession } from '../../types/practice-session';
 
 export async function reloadAfterConflict(
   ctx: PracticeSession,

@@ -1,5 +1,9 @@
-import { watch } from 'vue';
-import type { Router, RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
+import type {
+  Router,
+  RouteLocationNormalized,
+  RouteLocationRaw,
+  NavigationGuardReturn,
+} from 'vue-router';
 import type { usePracticeStore } from '../stores/practice';
 import type { useUiStore } from '../stores/ui';
 
@@ -49,134 +53,119 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
 
 class WorkspaceNavigation {
   private started = false;
-  private loading = false;
+  private pending: Promise<NavigationGuardReturn> | null = null;
   private pushing = false;
-  private leaving = false;
-  private replacing = false;
   private disposed = false;
-  private cleanup: (() => void)[];
+  private stop: () => void;
 
   constructor(
     private router: Router,
     private practice: Practice,
     private ui: Ui,
   ) {
-    this.cleanup = [
-      router.beforeEach(this.canLeave),
-      watch(
-        router.currentRoute,
-        (to) => {
-          if (this.started) {
-            void this.load(to);
-          }
-        },
-        { flush: 'sync' },
-      ),
-      watch(
-        () => [
-          practice.overview?.bank.bankId,
-          practice.current?.questionId,
-          ui.scoreView,
-          ui.busy,
-          practice.recovering,
-        ],
-        this.synchronize,
-      ),
-    ];
+    this.stop = router.beforeEach(this.load);
   }
 
   private report = (error: unknown) => {
     this.ui.message = error instanceof Error ? error.message : '页面未能打开。';
   };
-  private synchronize = () => {
-    const { practice, ui, router } = this;
-    if (
-      !this.started ||
-      this.disposed ||
-      this.loading ||
-      this.leaving ||
-      this.replacing ||
-      ui.busy ||
-      ui.authRequired ||
-      practice.recovering
-    ) {
-      return;
-    }
-    const target = visibleLocation(practice, ui);
-    if (router.resolve(target).fullPath !== router.currentRoute.value.fullPath) {
-      // Failed loads keep the old page and restore its address; successful
-      // loads canonicalize bank-only URLs without adding a history entry.
-      this.replacing = true;
-      void router
-        .replace(target)
-        .catch(this.report)
-        .finally(() => {
-          this.replacing = false;
-        });
-    }
-  };
-  private async load(to: RouteLocationNormalized) {
-    if (this.disposed) {
-      return;
-    }
-    // Canonical replacements and failed-load rollbacks already display this
-    // state. Reapplying it could dismiss a menu opened during the first load.
-    if (
-      !this.practice.pageFaulted() &&
-      this.router.resolve(visibleLocation(this.practice, this.ui)).fullPath === to.fullPath
-    ) {
-      return;
-    }
-    this.loading = true;
-    try {
-      await loadLocation(to, this.practice, this.ui);
-    } catch (error) {
-      this.report(error);
-    } finally {
-      this.loading = false;
-      this.synchronize();
-    }
-  }
-  private canLeave = async () => {
-    if (this.loading || this.ui.busy || this.practice.recovering) {
-      return false;
-    }
-    // Existing store navigation makes the old pane inert before awaiting its
-    // saver. The async router guard must preserve that same interaction gate.
-    this.leaving = true;
+  private async flush() {
+    // Make the old pane inert throughout the asynchronous flush, just as the
+    // store's existing navigation does. The guard owns this first save barrier.
     this.ui.busy = true;
     this.ui.loading = '正在打开页面';
     try {
-      // This also covers browser back/forward and direct hash changes. On
-      // failure Vue Router restores the old address and keeps the old iframe.
       await this.practice.flush();
-      return true;
-    } catch (error) {
-      this.report(error);
-      return false;
     } finally {
-      this.leaving = false;
       this.ui.busy = false;
       this.ui.loading = '';
     }
+  }
+  private load = async (to: RouteLocationNormalized): Promise<NavigationGuardReturn> => {
+    if (!this.started) {
+      return true;
+    }
+    if (this.disposed) {
+      return false;
+    }
+    if (this.pending) {
+      // A direct hash change can supersede an awaited guard after its store
+      // action has already started. Join that action, then keep its visible
+      // location; do not let Router cancellation strand the URL on the old page.
+      await this.pending;
+      if (this.disposed) {
+        return false;
+      }
+      const target = this.router.resolve(visibleLocation(this.practice, this.ui));
+      return target.fullPath === to.fullPath ? true : { ...target, replace: true };
+    }
+    if (this.ui.busy || this.practice.recovering) {
+      return false;
+    }
+    this.pending = this.loadTarget(to);
+    try {
+      return await this.pending;
+    } finally {
+      this.pending = null;
+    }
   };
-  private async push(target: RouteLocationRaw) {
+  private async loadTarget(to: RouteLocationNormalized): Promise<NavigationGuardReturn> {
+    const { router, practice, ui } = this;
+    // Canonical redirects and store-driven view changes already display the
+    // target. Loading again would dismiss a drawer opened during iframe load.
+    if (
+      !practice.pageFaulted() &&
+      router.resolve(visibleLocation(practice, ui)).fullPath === to.fullPath
+    ) {
+      return true;
+    }
+    try {
+      await this.flush();
+      await loadLocation(to, practice, ui);
+      const target = visibleLocation(practice, ui);
+      if (router.resolve(target).fullPath === to.fullPath) {
+        return true;
+      }
+      // Bank-only URLs get their question/summary from the existing store.
+      // Unavailable initial links fall back to the blank library page. A failed
+      // navigation from an existing page is cancelled without changing its URL.
+      if (
+        (to.name === 'bank' || to.name === 'summary') &&
+        practice.overview?.bank.bankId === String(to.params.bankId)
+      ) {
+        return { ...router.resolve(target), replace: true };
+      }
+      if (router.currentRoute.value.name === undefined || !practice.overview) {
+        return { name: 'library', replace: true };
+      }
+      return false;
+    } catch (error) {
+      this.report(error);
+      return false;
+    }
+  }
+  private async push(target: RouteLocationRaw, replace = false) {
     const { practice, ui, router } = this;
-    if (this.loading || this.pushing || ui.busy || practice.recovering || this.disposed) {
+    if (this.pending || this.pushing || ui.busy || practice.recovering || this.disposed) {
       return;
     }
     this.pushing = true;
     try {
-      // Clicking the current outline item also reloads a faulted page, as the
-      // existing practice action does; duplicate healthy routes remain no-ops.
       const force =
         practice.pageFaulted() &&
         router.resolve(target).fullPath === router.currentRoute.value.fullPath;
-      await router.push({ ...router.resolve(target), force });
+      await router.push({ ...router.resolve(target), force, replace });
     } catch (error) {
       this.report(error);
     } finally {
       this.pushing = false;
+    }
+  }
+  private async restore() {
+    if (!this.ui.authRequired) {
+      // The initial address was accepted before the view's DOM containers were
+      // mounted. Re-enter it through the same guard after catalog login.
+      await this.router.replace({ ...this.router.currentRoute.value, force: true });
     }
   }
   start = async () => {
@@ -185,19 +174,14 @@ class WorkspaceNavigation {
     }
     await this.practice.initializeCatalog();
     this.started = true;
-    if (!this.ui.authRequired) {
-      await this.load(this.router.currentRoute.value);
-    }
+    await this.restore();
   };
   catalog = async () => {
     await this.practice.catalog();
-    if (!this.ui.authRequired) {
-      await this.load(this.router.currentRoute.value);
-    }
+    await this.restore();
   };
-  openBank = (_kind: string, bankId?: string) => {
-    return bankId ? this.push({ name: 'bank', params: { bankId } }) : Promise.resolve();
-  };
+  openBank = (_kind: string, bankId?: string) =>
+    bankId ? this.push({ name: 'bank', params: { bankId } }) : Promise.resolve();
   navigate = (questionId: string) => {
     const bankId = this.practice.overview?.bank.bankId;
     return bankId
@@ -215,16 +199,15 @@ class WorkspaceNavigation {
     return bankId
       ? this.push({
           name: 'practice',
-          params: {
-            bankId,
-            questionId: this.practice.current?.questionId,
-          },
+          params: { bankId, questionId: this.practice.current?.questionId },
         })
       : Promise.resolve();
   };
+  // Views call this after completion/refresh; there is no reverse state watcher.
+  showCurrent = () => this.push(visibleLocation(this.practice, this.ui), true);
   dispose = () => {
     this.disposed = true;
-    this.cleanup.forEach((stop) => stop());
+    this.stop();
   };
 }
 
