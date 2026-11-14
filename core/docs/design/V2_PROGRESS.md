@@ -151,3 +151,15 @@
   做完这两项、加上前端重组，之后的功能可以按"后端 / 前端页面 / 题型拓展 / 题库内容"分线并行，各线只通过三份接口与数据文档对接。
 - **D46 精简读题库的检查（负责人已定；并入近期顺序第 ⑤ 步里拆分 `bank-reader.js` 的那个 PR）**。按总体设计 2.5 节：`readBank` 只做解析、取 `outline`、遍历大纲建立题号与满分的索引，遍历中只检查题号不重复（大题全库、小题在大题内）和满分为正的有限数。删除对 `formatVersion`、`id`、`title`、`description`、`features`、分组标题、`label`、"有小题时不得再写大题 label/maxScore"的检查，以及打开题库时对听力引用的检查（听力到第 6 段在打开该题时处理；本地路径不越出题库目录的检查届时放在取文件处）。缺失的标题、编号等按空字符串或缺省值处理，不报错。目标是 `readBank` 从 155 行降到约 40 行。相应删除或改写针对这些检查的测试，PR 里列出清单。读题时 `question` / `solution` 必须是对象这一条保留（属于"切到某道题时"的检查）。
 - **这条原则同样用于第 ⑤ 步的其他拆分**：拆函数时如果发现某段检查或保护属于"不会发生或发生了也无妨"，不要直接删，在 PR 里列出来（它防什么、去掉会怎样），由审查者和负责人决定。
+- **D48 前后端目录结构（负责人已定，`V2_WORKFLOW.md` 第 8 节；融入近期顺序第 ⑤ 步，取代 #123 评论里第 1、2 项的做法）**。
+  - **后端**（先做，建议两个 PR）：
+    1. 搬家与改名，不改逻辑：`core/server/host/v2/` → `core/server/v2/`，按层放入 `routes/`、`middleware/`、`controllers/`、`services/`、`repositories/`、`utils/`。对应关系：`server.js` → `app.js`；`routes.js` → `routes/`（题库、题目、拓展分文件）；`http-middleware.js` → `middleware/`；`http-handlers.js` → `controllers/`；`snapshots.js` → `services/bank.service.js`；`state.js` → `services/practice.service.js` 与 `repositories/state.repository.js`；`ink.js` → `repositories/ink.repository.js`；`bank-reader.js` → `repositories/bank.repository.js`；`type-registry.js`、`shared-sdks.js` → `repositories/extension.repository.js`（可分两个文件）；`receipts.js`、`io.js`、`errors.js`、`timing.js`、`http-response.js` → `utils/`。`v2-main.mjs`、测试、脚本、规范检查的范围和 CI 路径同步更新。沿用的 `host/platform/` 工具暂时原地引用，不搬。
+    2. 拆分与精简：`bank.service.js` 的 `open`（161 行）按"定位、清点、读题库、解析题型、指纹、核对作答、组装"拆成具名函数；`state.js` 拆成"规则"（service）与"读写、校验文件"（repository）；`bank.repository.js` 按 D46 精简；补"为什么"的注释。需审查。
+    分层规则：只允许 `routes → controllers → services → repositories → utils` 方向的调用。请加一条依赖方向的自动检查（例如用规范检查的导入限制规则），放进 `lint`。
+  - **前端**（后做，取代此前"前端重组"的四步，仍分小 PR）：
+    1. 建立目录并搬家，不改逻辑：`services/`（`page.ts`、`grading.ts`、`save-policy.ts`、`write-queue.ts`、`source-cache.ts`、`whiteboard.ts`、`completion.ts`、`scoring.ts`）、`types/`、`components/`、`views/`。
+    2. `api/`：收拢全部请求。
+    3. `stores/`：引入 Pinia，迁移状态与跨组件流程；拆掉 `use-practice-page.ts`。需审查。
+    4. `router/`：引入 Vue Router（hash 模式，避免改后端路由）。地址表达题库、题目和页面；刷新回到原处，取代现在用浏览器存储记上次题库的做法；"本次运行内切回题库停在离开时的题"保持。需审查。
+    5. 组件解耦（事件代替回调与 `defineExpose`）、模板换行、样式随组件。
+    Pinia 与 Vue Router 进 `dependencies`。每个 PR 说明"无行为变化"并附格式化后的文件行数；浏览器脚本原样通过。
