@@ -94,6 +94,26 @@ try {
       const rect = await page.locator('.v2-viewport').boundingBox();
       const x = rect.x + rect.width * 0.35,
         y = rect.y + Math.min(270, rect.height * 0.5);
+      console.log(
+        'Stroke target',
+        JSON.stringify(
+          await page.evaluate(
+            ({ x, y }) => ({
+              x,
+              y,
+              hit: document.elementFromPoint(x, y)?.className,
+              viewport: document.querySelector('.v2-viewport')?.getBoundingClientRect().toJSON(),
+              mode: document.querySelector('.v2-viewport')?.className,
+              canvas: document
+                .querySelector('.qf-whiteboard-input')
+                ?.getBoundingClientRect()
+                .toJSON(),
+              status: document.querySelector('.v2-save-status')?.textContent,
+            }),
+            { x, y },
+          ),
+        ),
+      );
       await page.mouse.move(x, y);
       await page.mouse.down();
       await page.mouse.move(x + 65, y + 22, { steps: 8 });
