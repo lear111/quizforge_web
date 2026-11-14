@@ -94,58 +94,14 @@ try {
       const rect = await page.locator('.v2-viewport').boundingBox();
       const x = rect.x + rect.width * 0.35,
         y = rect.y + Math.min(270, rect.height * 0.5);
-      console.log(
-        'Stroke target',
-        JSON.stringify(
-          await page.evaluate(
-            ({ x, y }) => ({
-              x,
-              y,
-              hit: document.elementFromPoint(x, y)?.className,
-              inert: document.querySelector('.v2-viewport')?.inert,
-              busy: document.querySelector('.v2-card')?.getAttribute('aria-busy'),
-              viewport: document.querySelector('.v2-viewport')?.getBoundingClientRect().toJSON(),
-              mode: document.querySelector('.v2-viewport')?.className,
-              canvas: document
-                .querySelector('.qf-whiteboard-input')
-                ?.getBoundingClientRect()
-                .toJSON(),
-              status: document.querySelector('.v2-save-status')?.textContent,
-            }),
-            { x, y },
-          ),
-        ),
-      );
-      await page.evaluate(() => {
-        window.pointerDiagnostic = [];
-        for (const type of [
-          'pointerdown',
-          'pointerup',
-          'pointercancel',
-          'lostpointercapture',
-          'blur',
-          'focus',
-        ]) {
-          window.addEventListener(
-            type,
-            (event) =>
-              window.pointerDiagnostic.push({
-                type,
-                target: event.target.className,
-                trusted: event.isTrusted,
-              }),
-            { capture: true, once: true },
-          );
-        }
-      });
-      await page.mouse.move(x, y);
+      // Wait for the painted input layer to receive events after a mode/layout change.
+      // Raw mouse coordinates alone do not wait for browser hit-testing to catch up.
+      const input = page.locator('.qf-whiteboard-input');
+      const inputRect = await input.boundingBox();
+      await input.hover({ position: { x: x - inputRect.x, y: y - inputRect.y } });
       await page.mouse.down();
       await page.mouse.move(x + 65, y + 22, { steps: 8 });
       await page.mouse.up();
-      console.log(
-        'Stroke events',
-        JSON.stringify(await page.evaluate(() => window.pointerDiagnostic)),
-      );
     }
     await page.goto(origin);
     if (name === 'mobile') {
