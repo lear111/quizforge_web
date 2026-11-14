@@ -84,3 +84,35 @@ jobs:
           name: ci-logs-performance-${{ github.run_attempt }}
           path: ci-logs/*.log
           retention-days: 7
+
+  code-quality:
+    name: V2 code quality (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: core/package-lock.json
+      - name: Install dependencies
+        run: |
+          mkdir -p ci-logs
+          npm --prefix core ci --ignore-scripts 2>&1 | tee ci-logs/quality-install.log
+      - name: Check formatting and lint
+        run: |
+          # Run both checks and retain their real exit codes; neither failure is hidden.
+          set +e
+          npm --prefix core run format:check 2>&1 | tee ci-logs/format.log
+          format_status=${PIPESTATUS[0]}
+          npm --prefix core run lint 2>&1 | tee ci-logs/lint.log
+          lint_status=${PIPESTATUS[0]}
+          if [ "$format_status" -ne 0 ] || [ "$lint_status" -ne 0 ]; then exit 1; fi
+      - name: Upload quality failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-code-quality-${{ github.run_attempt }}
+          path: ci-logs/*.log
+          retention-days: 7
