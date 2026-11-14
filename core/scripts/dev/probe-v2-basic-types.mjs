@@ -1,5 +1,5 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
 // Real Chromium acceptance of the tracked public showcase, never user records.
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

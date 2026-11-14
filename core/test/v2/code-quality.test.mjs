@@ -98,3 +98,45 @@ test('V2 length policy exempts literals and reports size as warnings outside tes
   assert.equal(tests.rules['max-lines'][0], 0);
   assert.equal(tests.rules['max-lines-per-function'][0], 0);
 });
+
+test('D48 layer rule rejects reverse imports, controller disk access and bypasses', async () => {
+  const rejected = [
+    ['controllers', "import '../repositories/state.repository.js';"],
+    ['repositories', "export * from '../services/practice.service.js';"],
+    ['services', "export { createHandlers } from '../controllers/http.controller.js';"],
+    ['utils', "await import('../services/bank.service.js');"],
+    ['routes', "import '../services/bank.service.js';"],
+    ['middleware', "import '../controllers/http.controller.js';"],
+    ['services', "import '../app.js';"],
+    ['controllers', "import 'node:fs';"],
+    ['services', "await import('node:fs/promises');"],
+    ['controllers', "import '../../host/platform/files.js';"],
+    ['controllers', "require('../repositories/state.repository.js');"],
+  ];
+  for (const [layer, text] of rejected) {
+    assert.ok(
+      (await rules(text, `core/server/v2/${layer}/layer-probe.js`)).includes(
+        'architecture/backend-layers',
+      ),
+      `${layer}: ${text}`,
+    );
+  }
+});
+
+test('D48 layer rule accepts downward, same-layer and shared utility imports plus app wiring', async () => {
+  for (const [layer, text] of [
+    ['routes', "import '../controllers/http.controller.js';"],
+    ['controllers', "import '../services/bank.service.js';"],
+    ['services', "import '../repositories/state.repository.js';"],
+    ['services', "import './question.service.js';"],
+    ['repositories', "import '../utils/io.js';"],
+    ['repositories', "import '../../host/platform/files.js';"],
+    ['utils', "import './errors.js';"],
+  ]) {
+    assert.deepEqual(await rules(text, `core/server/v2/${layer}/layer-probe.js`), []);
+  }
+  assert.deepEqual(
+    await rules("import './repositories/state.repository.js';", 'core/server/v2/app.js'),
+    [],
+  );
+});

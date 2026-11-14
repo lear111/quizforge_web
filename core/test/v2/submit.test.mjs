@@ -372,5 +372,11 @@ test('D19 private records are excluded from fingerprints, file limits, question 
   assert.equal(denied.status, 404);
   fixture.bank.listening.local.src = '.qf-v2/state.json';
   writeFixtureFile(fixture.bankFile, fixture.bank);
-  assert.equal((await api(base + '/overview')).value.error.code, 'ASSET_PATH_INVALID');
+  const listeningSnapshot = (await api(base + '/overview')).value;
+  assert.equal(listeningSnapshot.initial.error, null);
+  assert.equal(
+    (await api(base + '/listening/local?snapshotId=' + listeningSnapshot.snapshotId)).value.error
+      .code,
+    'ASSET_PATH_INVALID',
+  );
 });

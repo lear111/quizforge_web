@@ -1,7 +1,7 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
-import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional Chromium acceptance, isolated synthetic roots/ports only. Supply an
 // ignored Playwright installation; no new project dependency or daily service.
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

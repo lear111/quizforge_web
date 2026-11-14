@@ -1,7 +1,7 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
-import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Real Chromium acceptance. Only copied examples/synthetic input, ephemeral
 // loopback server and an ignored Playwright installation; no user state.
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

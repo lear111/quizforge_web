@@ -1,5 +1,5 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
 // Real Chromium, curated demo copied into disposable banks; no author records.
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

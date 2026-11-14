@@ -229,12 +229,9 @@ test('bad questions are lazy and isolated; unreferenced questions are ignored; p
   assert.equal((await get(base + '/questions/2' + query)).response.status, 200);
 });
 
-test('outline validation rejects invalid groups, IDs, scores and listening while allowing an empty bank', async (t) => {
+test('D46 outline validation rejects missing outline, duplicate IDs and invalid scores while allowing an empty bank', async (t) => {
   const { fixture, open } = await running(t);
   const cases = [
-    (bank) => {
-      bank.formatVersion = 1;
-    },
     (bank) => {
       bank.outline = {};
     },
@@ -248,12 +245,6 @@ test('outline validation rejects invalid groups, IDs, scores and listening while
       bank.outline[0].items[1].parts = [];
     },
     (bank) => {
-      bank.outline[0].items[1].label = 'bad';
-    },
-    (bank) => {
-      delete bank.outline[0].items[0].label;
-    },
-    (bank) => {
       bank.outline[0].items[0].maxScore = 0;
     },
     (bank) => {
@@ -263,21 +254,9 @@ test('outline validation rejects invalid groups, IDs, scores and listening while
       bank.outline[0].items[0].maxScore = '2';
     },
     (bank) => {
-      bank.outline[0].items[0].listening = 'missing';
-    },
-    (bank) => {
       bank.outline[0].items[1].parts.forEach((part) => {
         part.maxScore = 1e308;
       });
-    },
-    (bank) => {
-      bank.listening.https.src = 'ftp://example.test/a';
-    },
-    (bank) => {
-      bank.listening.local.src = '../escape.wav';
-    },
-    (bank) => {
-      bank.features.exam = 'yes';
     },
   ];
   for (const mutate of cases) {
@@ -287,11 +266,7 @@ test('outline validation rejects invalid groups, IDs, scores and listening while
     const { body, response } = await open();
     assert.equal(response.status, 422);
     assert.match(body.error.message, /[\u4e00-\u9fff]/);
-    assert.ok(
-      ['BANK_FORMAT_UNSUPPORTED', 'BANK_STRUCTURE_INVALID', 'ASSET_PATH_INVALID'].includes(
-        body.error.code,
-      ),
-    );
+    assert.ok(body.error.code === 'BANK_STRUCTURE_INVALID');
     assert.ok(!JSON.stringify(body).includes(fixture.root));
   }
   writeFixtureFile(fixture.bankFile, {
@@ -549,4 +524,80 @@ test('read-only endpoints enforce Host, Origin and fresh-token boundaries withou
     200,
   );
   assert.throws(() => new V2Server({ ...fixture, host: '0.0.0.0' }), { code: 'AUTH_REQUIRED' });
+});
+
+// D46 deliberately removes authoring metadata checks, not score or path safety checks.
+test('D46 ignored metadata and listening references never prevent opening or reading valid questions', async (t) => {
+  const { fixture, open, get, base } = await running(t);
+  const cases = [
+    (bank) => {
+      bank.formatVersion = 1;
+    },
+    (bank) => {
+      bank.outline[0].items[1].label = 'bad';
+    },
+    (bank) => {
+      delete bank.outline[0].items[0].label;
+    },
+    (bank) => {
+      bank.outline[0].items[0].listening = 'missing';
+    },
+    (bank) => {
+      bank.listening.https.src = 'ftp://example.test/a';
+    },
+    (bank) => {
+      bank.listening.local.src = '../escape.wav';
+    },
+    (bank) => {
+      bank.features.exam = 'yes';
+    },
+    (bank) => {
+      bank.id = null;
+      delete bank.title;
+      delete bank.description;
+      delete bank.features;
+    },
+    (bank) => {
+      delete bank.outline[0].title;
+      delete bank.outline[0].items[1].parts[0].label;
+    },
+    (bank) => {
+      bank.listening = 'ignored';
+    },
+  ];
+  for (const mutate of cases) {
+    const bank = structuredClone(fixture.bank);
+    mutate(bank);
+    writeFixtureFile(fixture.bankFile, bank);
+    const { body, response } = await open();
+    assert.equal(response.status, 200);
+    assert.equal(body.initial.error, null);
+    assert.equal(body.initial.question.questionId, '1');
+    assert.deepEqual(
+      body.states.map((item) => item.questionId),
+      fixture.bank.outline.flatMap((group) => group.items.map((item) => item.id)),
+    );
+    const record = await get(base + '/questions/1?snapshotId=' + body.snapshotId);
+    assert.equal(record.response.status, 200);
+  }
+  const minimal = structuredClone(fixture.bank);
+  delete minimal.id;
+  delete minimal.title;
+  delete minimal.description;
+  delete minimal.features;
+  writeFixtureFile(fixture.bankFile, minimal);
+  const info = (await open()).body.bank;
+  assert.equal(info.sourceId, '');
+  assert.equal(info.title, '');
+  assert.equal(info.description, '');
+  assert.deepEqual(info.features, { history: true, exam: true });
+  const catalog = (await get('/api/v2/catalog')).body;
+  assert.equal(catalog.groups[0].items[0].availability, 'available');
+  // Missing question bodies are a per-question error, not an outline/open error.
+  delete minimal.questions;
+  writeFixtureFile(fixture.bankFile, minimal);
+  const missing = await open();
+  assert.equal(missing.response.status, 200);
+  assert.equal(missing.body.initial.error.code, 'QUESTION_NOT_FOUND');
+  assert.equal(missing.body.states.length, fixture.bank.outline.flatMap((g) => g.items).length);
 });

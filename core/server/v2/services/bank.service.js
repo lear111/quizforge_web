@@ -1,18 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { cloneJson, fingerprint, hash, projectJson, decimalSum } from '../../host/platform/json.js';
-import { checkPath } from '../../host/platform/files.js';
-import { readBank, questionRecord, validId } from '../repositories/bank.repository.js';
+import * as questions from './question.service.js';
+import { readSnapshot, overviewResponse, startingQuestion } from './bank-open.service.js';
+import { bankLocations, bankCatalog, bankRoot } from '../repositories/catalog.repository.js';
+import { decimalSum } from '../../host/platform/json.js';
+import { validId } from '../repositories/bank.repository.js';
 import { object, problem, publicError } from '../utils/errors.js';
-import {
-  directories,
-  newCache,
-  readJson,
-  relativePath,
-  treeIdentity,
-  READ_LIMITS,
-} from '../utils/io.js';
-import { relativeFile } from '../repositories/resource.repository.js';
+import { newCache } from '../utils/io.js';
 import { TypeRegistry } from '../repositories/extension.repository.js';
 import { SharedSdks } from '../repositories/shared-sdks.repository.js';
 import { measureOverview } from '../utils/timing.js';
@@ -22,8 +14,8 @@ export const OPEN_BANK_LIMIT = 8;
 
 export class LibrarySnapshots {
   constructor(root, codeRoot, { development = false, stateStore = null } = {}) {
-    this.root = checkPath(root, { directory: true });
-    this.codeRoot = checkPath(codeRoot, { directory: true });
+    this.root = bankRoot(root);
+    this.codeRoot = bankRoot(codeRoot);
     this.cache = newCache();
     this.types = new TypeRegistry(root, this.cache);
     this.sharedSdks = new SharedSdks(this.codeRoot, this.cache);
@@ -38,78 +30,13 @@ export class LibrarySnapshots {
     this.indexed = true;
   }
   locations() {
-    const base = path.join(this.root, 'question-banks'),
-      result = [];
-    const add = (directory, group) => {
-      const relative = path.relative(base, directory).replaceAll('\\', '/');
-      result.push({
-        directory,
-        group,
-        name: path.basename(directory),
-        bankId: 'b_' + hash(Buffer.from(relative)),
-      });
-    };
-    for (const group of directories(base)) {
-      const directory = path.join(base, group);
-      if (fs.existsSync(path.join(directory, 'bank.json'))) {
-        add(directory, '未分组');
-      } else {
-        for (const name of directories(directory)) {
-          const bank = path.join(directory, name);
-          if (fs.existsSync(path.join(bank, 'bank.json'))) {
-            add(bank, group);
-          }
-        }
-      }
-    }
-    return result;
+    return bankLocations(this.root);
   }
   catalog() {
     this.rebuildIndexes();
-    const groups = new Map();
-    for (const row of this.locations()) {
-      let item;
-      try {
-        const raw = readJson(
-          relativeFile(row.directory, 'bank.json'),
-          this.cache,
-          READ_LIMITS.bankBytes,
-          { bankId: row.bankId, field: 'bank.json' },
-        );
-        if (!object(raw) || raw.formatVersion !== 2) {
-          throw problem('BANK_FORMAT_UNSUPPORTED', '该题库尚未升级为 V2 题库文件。');
-        }
-        item = {
-          bankId: row.bankId,
-          sourceId: typeof raw.id === 'string' ? raw.id : null,
-          title: typeof raw.title === 'string' ? raw.title : row.name,
-          kind: 'bank',
-          availability: 'available',
-          error: null,
-        };
-      } catch (error) {
-        item = {
-          bankId: row.bankId,
-          sourceId: null,
-          title: row.name,
-          kind: 'bank',
-          availability: 'unavailable',
-          error: publicError(error),
-        };
-      }
-      if (!groups.has(row.group)) {
-        groups.set(row.group, {
-          id: 'g_' + hash(Buffer.from(row.group)),
-          name: row.group,
-          items: [],
-        });
-      }
-      groups.get(row.group).items.push(item);
-    }
-    return { groups: [...groups.values()] };
+    return bankCatalog(this.root, this.cache);
   }
   open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
-    // Direct library users (without an HTTP listener) initialize on first open.
     const rebuild = refresh || !this.indexed;
     if (rebuild) {
       this.rebuildIndexes();
@@ -121,91 +48,8 @@ export class LibrarySnapshots {
     if (!location) {
       throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
     }
-    const { digest: tree, hashes } = measureOverview('bank-tree', () =>
-      treeIdentity(location.directory, this.cache, { bankId, field: 'bank.files' }),
-    );
-    const bank = measureOverview('bank-json', () =>
-      readBank(location.directory, this.cache, bankId),
-    );
-    const types = measureOverview('extension-resolve', () => {
-      const ids = new Set();
-      for (const raw of Object.values(bank.raw.questions)) {
-        if (object(raw) && typeof raw.type === 'string') {
-          ids.add(raw.type);
-        }
-      }
-      return ids;
-    });
-    const resolutions = this.types.resolutions(types, { scanOnMiss: !rebuild }),
-      sdk = new Map();
-    for (const [type, resolution] of resolutions) {
-      if (resolution.artifact) {
-        try {
-          for (const [component, version] of Object.entries(resolution.artifact.sdkVersions)) {
-            const key = `${component}@${version}`;
-            if (!sdk.has(key)) {
-              sdk.set(key, this.sharedSdks.get(component, version));
-            }
-          }
-        } catch (error) {
-          resolutions.set(type, { error: publicError(error) });
-        }
-      }
-    }
-    const snapshotId = measureOverview('snapshot-id', () =>
-      fingerprint(
-        {
-          bankId,
-          tree,
-          types: [...resolutions].map(([id, value]) => [
-            id,
-            value.artifact?.descriptor ?? value.error,
-          ]),
-          sdk: [...sdk].map(([id, value]) => [id, value.digest]),
-        },
-        'quizforge-v2-snapshot',
-      ),
-    );
-    // Active-answer identity excludes storage paths, assets and shared SDKs.
-    // File bodies follow deterministic traversal order; physical directory names
-    // are absent. bank.json's exact bytes always participate.
-    const contentFingerprint = measureOverview('content-fingerprint', () =>
-      fingerprint(
-        {
-          bank: this.cache.hash(
-            relativeFile(location.directory, 'bank.json'),
-            READ_LIMITS.bankBytes,
-          ),
-          types: [...resolutions]
-            .map(([id, value]) => [id, value.artifact?.contentDigest ?? value.error?.code])
-            .sort(([a], [b]) => a.localeCompare(b)),
-        },
-        'quizforge-v2-content',
-      ),
-    );
-    const snapshot = {
-      ...bank,
-      ...location,
-      snapshotId,
-      contentFingerprint,
-      resolutions,
-      sdk,
-      hashes,
-    };
-    if (
-      requestedQuestionId !== undefined &&
-      (!validId(requestedQuestionId) || !bank.items.has(requestedQuestionId))
-    ) {
-      if (!refresh) {
-        throw problem(
-          'QUESTION_NOT_FOUND',
-          '指定的起始题不在题库大纲中。',
-          { bankId, questionId: requestedQuestionId },
-          404,
-        );
-      }
-      requestedQuestionId = undefined;
-    }
+    const snapshot = readSnapshot(this, location, bankId, rebuild);
+    requestedQuestionId = startingQuestion(snapshot, requestedQuestionId, refresh);
     let activeCleared;
     try {
       activeCleared = measureOverview(
@@ -223,59 +67,28 @@ export class LibrarySnapshots {
       'state-check',
       () => this.stateStore?.load(location.directory).lastQuestionId,
     );
-    const lastQuestionId = bank.items.has(savedPosition) ? savedPosition : null;
+    const lastQuestionId = snapshot.items.has(savedPosition) ? savedPosition : null;
+
     return measureOverview('assemble', () => {
-      this.opened.delete(bankId);
-      this.opened.set(bankId, snapshot);
-      while (this.opened.size > OPEN_BANK_LIMIT) {
-        const first = this.opened.keys().next().value,
-          old = this.opened.get(first);
-        this.opened.delete(first);
-        this.stateStore?.evict(old.directory);
-      }
-      const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
-      let initial = { question: null, error: null };
-      if (includeInitial && questionId !== undefined) {
-        try {
-          initial.question = this.question(bankId, questionId, snapshotId);
-        } catch (error) {
-          initial.error = publicError(error);
-        }
-      }
-      return {
-        bank: cloneJson(bank.info),
-        snapshotId,
-        outline: cloneJson(bank.raw.outline),
-        listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
-        questionTypes: [...bank.items.keys()].map((id) => ({
-          questionId: id,
-          type:
-            object(bank.raw.questions) &&
-            Object.hasOwn(bank.raw.questions, id) &&
-            typeof bank.raw.questions[id]?.type === 'string'
-              ? bank.raw.questions[id].type
-              : null,
-        })),
-        ...this.completion(snapshot),
+      this.rememberSnapshot(bankId, snapshot);
+      return overviewResponse(this, snapshot, {
+        requestedQuestionId,
         lastQuestionId,
-        initial,
-        activeCleared,
-        notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
-        pendingGrading: includeInitial ? this.pendingGrading(snapshot) : [],
-        ...(refresh
-          ? {
-              changes: {
-                activeCleared,
-                addedQuestionIds: [...bank.items.keys()].filter((id) => !previous?.items.has(id)),
-                removedQuestionIds: previous
-                  ? [...previous.items.keys()].filter((id) => !bank.items.has(id))
-                  : [],
-                activeRoundInterrupted: false,
-              },
-            }
-          : {}),
-      };
+        includeInitial,
+        refresh,
+        previous,
+      });
     });
+  }
+  rememberSnapshot(bankId, snapshot) {
+    this.opened.delete(bankId);
+    this.opened.set(bankId, snapshot);
+    while (this.opened.size > OPEN_BANK_LIMIT) {
+      const first = this.opened.keys().next().value,
+        old = this.opened.get(first);
+      this.opened.delete(first);
+      this.stateStore?.evict(old.directory);
+    }
   }
   refresh(bankId, input) {
     if (!object(input) || (Object.hasOwn(input, 'questionId') && !validId(input.questionId))) {
@@ -366,153 +179,26 @@ export class LibrarySnapshots {
       hasInk: false,
     };
   }
+
   resolution(snapshot, record) {
-    let value = snapshot.resolutions.get(record.type);
-    if (this.development && value?.artifact?.development) {
-      value = this.types.resolutions([record.type]).get(record.type);
-      snapshot.resolutions.set(record.type, value);
-    }
-    if (!value) {
-      throw problem(
-        'EXTENSION_NOT_FOUND',
-        '题型未安装或 type 不是 id@主版本号。',
-        { field: 'type' },
-        404,
-      );
-    }
-    if (value.error) {
-      throw problem(
-        value.error.code,
-        value.error.message,
-        { field: value.error.field, details: value.error.details },
-        value.error.code === 'EXTENSION_NOT_FOUND' ? 404 : 422,
-      );
-    }
-    return value.artifact;
+    return questions.resolution(this, snapshot, record);
   }
-  visibleAssets(
-    snapshot,
-    id,
-    record,
-    includeSolution = Boolean(this.stateStore?.get(snapshot, id).submissionId),
-  ) {
-    const assets = new Map();
-    const visit = (value) => {
-      if (typeof value === 'string' && value.startsWith('qf-asset:')) {
-        const relative = value.slice(9),
-          file = relativePath(snapshot.directory, relative),
-          assetId = hash(Buffer.from(id + '\0' + value));
-        if (relative.toLowerCase() === 'bank.json') {
-          throw problem('ASSET_PATH_INVALID', '题库数据文件不能作为提交前可见的资源。', {
-            field: 'question',
-          });
-        }
-        assets.set(assetId, { reference: value, file, relative });
-      } else if (Array.isArray(value)) {
-        for (const child of value) {
-          visit(child);
-        }
-      } else if (object(value)) {
-        for (const child of Object.values(value)) {
-          visit(child);
-        }
-      }
-    };
-    visit(record.question);
-    if (includeSolution) {
-      visit(record.solution);
-    }
-    return assets;
+  visibleAssets(...args) {
+    return questions.visibleAssets(this, ...args);
   }
-  question(bankId, id, snapshotId, { includeInk = true } = {}) {
-    const snapshot = this.snapshot(bankId, snapshotId);
-    try {
-      const record = questionRecord(snapshot, id),
-        artifact = this.resolution(snapshot, record),
-        assets = this.visibleAssets(snapshot, id, record);
-      const saved = this.stateStore?.get(snapshot, id);
-      const ink = includeInk
-        ? measureOverview(
-            'ink-body',
-            () => this.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 },
-          )
-        : null;
-      return {
-        bankId,
-        snapshotId,
-        questionId: id,
-        type: record.type,
-        extension: cloneJson(artifact.descriptor),
-        item: cloneJson(snapshot.items.get(id)),
-        question: cloneJson(record.question),
-        solution: saved?.submissionId ? cloneJson(record.solution) : null,
-        answer: cloneJson(saved?.answer ?? null),
-        ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}),
-        state: this.state(snapshot, id),
-        submissionId: saved?.submissionId ?? null,
-        result: cloneJson(saved?.result ?? null),
-        resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })),
-      };
-    } catch (error) {
-      if (error.context) {
-        error.context = { ...error.context, bankId, questionId: id };
-      }
-      throw error;
-    }
+  question(...args) {
+    return questions.question(this, ...args);
   }
-  write(bankId, id, op, input) {
-    const snapshot = this.snapshot(bankId, input?.snapshotId);
-    // Validate the question and installed type before touching persistence.
-    const record = questionRecord(snapshot, id);
-    this.resolution(snapshot, record);
-    this.visibleAssets(snapshot, id, record);
-    if (op === 'ink') {
-      const saved = this.stateStore.ink.apply(snapshot, id, input);
-      return { inkRevision: saved.inkRevision, state: this.state(snapshot, id) };
-    }
-    this.stateStore.apply(snapshot, id, op, input);
-    return this.question(bankId, id, snapshot.snapshotId, { includeInk: op === 'retry' });
+  write(...args) {
+    return questions.write(this, ...args);
   }
-  asset(bankId, id, snapshotId, assetId) {
-    const snapshot = this.snapshot(bankId, snapshotId),
-      record = questionRecord(snapshot, id);
-    this.resolution(snapshot, record);
-    const publicAssets = this.visibleAssets(snapshot, id, record, false);
-    const publicAsset = publicAssets.get(assetId);
-    const asset = publicAsset ?? this.visibleAssets(snapshot, id, record).get(assetId);
-    if (!asset) {
-      throw problem(
-        'RESOURCE_NOT_FOUND',
-        '该题的可见资源不存在。',
-        { bankId, questionId: id },
-        404,
-      );
-    }
-    // Solution-only assets must never bypass the lock check via browser cache
-    // after retry. Question assets remain public throughout this snapshot.
-    return {
-      file: relativeFile(snapshot.directory, asset.relative),
-      expectedHash: publicAsset ? snapshot.hashes.get(asset.relative) : undefined,
-    };
+  asset(...args) {
+    return questions.asset(this, ...args);
   }
-  listening(bankId, id, snapshotId) {
-    const snapshot = this.snapshot(bankId, snapshotId),
-      material = snapshot.listening.get(id);
-    if (!material) {
-      throw problem('RESOURCE_NOT_FOUND', '听力材料不存在或未被大纲引用。', { bankId }, 404);
-    }
-    return material.remote
-      ? { kind: 'remote', src: material.src, title: material.title }
-      : { file: relativeFile(snapshot.directory, material.src) };
+  listening(...args) {
+    return questions.listening(this, ...args);
   }
-  artifact(id) {
-    for (const snapshot of this.opened.values()) {
-      for (const value of snapshot.resolutions.values()) {
-        if (value.artifact?.descriptor.artifactId === id) {
-          return value.artifact;
-        }
-      }
-    }
-    throw problem('EXTENSION_NOT_FOUND', '拓展工件不存在，请重新打开题库。', {}, 404);
+  artifact(...args) {
+    return questions.artifact(this, ...args);
   }
 }

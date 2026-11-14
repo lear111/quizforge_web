@@ -1,7 +1,7 @@
-import { captureBrowserFailure } from './v2-browser-failure.mjs';
-import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // #73 follow-up: actual Chromium, synthetic banks, isolated loopback port.
 // No production instrumentation, user data, fixed sleeps or project dependency.
+import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
