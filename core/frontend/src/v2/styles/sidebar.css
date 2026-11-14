@@ -34,7 +34,7 @@
     bottom: 0;
     z-index: 20;
     width: min(280px, 100%);
-    box-shadow: 0 12px 32px #1416282e;
+    box-shadow: var(--qf-drawer-shadow);
   }
   .v2-sidebar.open {
     display: flex;

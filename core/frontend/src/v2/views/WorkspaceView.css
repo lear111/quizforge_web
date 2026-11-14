@@ -42,7 +42,7 @@
     z-index: 10;
     border: 0;
     border-radius: 0;
-    background: #14162847;
+    background: var(--qf-scrim);
   }
 }
 .v2-app.v2-fullscreen > .v2-library,
