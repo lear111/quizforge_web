@@ -10,4 +10,4 @@
 
 **浏览器。** Windows Chrome 跑通 9 个现有探针：`grading`、`page`、`page-contract`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`。仅更新探针的模块路径，未改验收断言；没有启动日常服务或使用真实题库。
 
-**CI。** Windows / Ubuntu Checks、Ubuntu Performance、Ubuntu V2 code quality 待运行；结果与失败名单完成后回填。不自行合并。
+**CI。** [代码提交 `979297a` 的四个 job 全通过](https://github.com/lear111/quizforge_web/actions/runs/43567195088)，没有失败用例：Windows Checks 1376 通过，4 分 37 秒；Ubuntu Checks 1342 通过、34 项既有平台跳过，1 分 28 秒；Ubuntu Performance 2 通过，18 秒；Ubuntu V2 code quality 格式 0 差异、lint 0 错误，16 秒。等待审查，下一步 B（浏览器检查进 CI）未开始。
