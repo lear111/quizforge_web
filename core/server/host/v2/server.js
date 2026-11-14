@@ -65,6 +65,7 @@ export class V2Server {
     this.server.headersTimeout = 15000;
   }
   async start() {
+    this.library.rebuildIndexes();
     await new Promise((resolve, reject) => {
       this.server.once('error', reject);
       this.server.listen(this.requestedPort, this.host, resolve);

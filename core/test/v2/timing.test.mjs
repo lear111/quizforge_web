@@ -118,14 +118,15 @@ test('V2 GET overview reports exclusive phases on the save timing switch without
       for (const key of [
         'bank-tree',
         'bank-json',
-        'extension-scan',
-        'sdk-digest',
+        'extension-resolve',
         'state-check',
         'ink-index',
         'serialize',
       ]) {
         assert.ok(values[key] > 0, key);
       }
+      assert.equal(values['extension-scan'], 0);
+      assert.equal(values['sdk-digest'], 0);
       // Each phase and total are independently rounded to 0.001 ms.
       assert.ok(Math.abs(phases.reduce((sum, key) => sum + values[key], 0) - values.total) < 0.008);
     } finally {

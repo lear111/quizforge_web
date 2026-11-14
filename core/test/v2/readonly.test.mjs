@@ -337,10 +337,11 @@ test('strict duplicate-key and invalid JSON diagnostics expose positions, not pr
 });
 
 test('extension matching uses id plus major, refuses ambiguous versions and does not pick a latest version', async (t) => {
-  const { fixture, open } = await running(t);
+  const { fixture, get, open } = await running(t);
   addFixtureExtension(fixture.root, { name: 'different-major', version: '3.0.0' });
   assert.equal((await open()).body.initial.question.extension.version, '2.1.0');
   const second = addFixtureExtension(fixture.root, { name: 'duplicate-major', version: '2.9.0' });
+  await get('/api/v2/catalog');
   const ambiguous = await open();
   assert.equal(ambiguous.response.status, 200);
   assert.equal(ambiguous.body.initial.error.code, 'EXTENSION_AMBIGUOUS');
