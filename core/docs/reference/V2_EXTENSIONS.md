@@ -88,6 +88,8 @@ QF.page.register({
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
 | `QFRichText.render(节点, 文档)` | 显示富文本。返回对象的 `ready` 在显示完成时结束 |
 
+> 已决定（D54，尚未实现）：富文本内容将改为受限的 HTML 字符串，`render` 的第二个参数届时传这段字符串，调用方式不变。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
+
 页面高度由宿主自动测量，不用上报。
 
 ### 3.4 `changed`：保存与作答状态

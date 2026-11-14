@@ -62,6 +62,40 @@
 | `type` 的 `@` 后是拓展的主版本号 | 题目数据是按某个版本的拓展写的。新旧主版本可以同时安装，各用各的（D18） |
 | 素材引用统一写成 `qf-asset:路径` | 程序扫一遍就能找出一道题用到的全部素材，不用理解题目结构 |
 
+### 1.1 富文本内容（D54，待实现）
+
+题干、选项、答案解析这类要排版的内容，在 `question` 和 `solution` 里存为一段 HTML 字符串。哪些字段是富文本由题型拓展自己定，程序不管；拓展拿到后交给富文本组件显示。
+
+```html
+<p>下列说法<b style="color:#c00">错误</b>的是</p>
+<p style="text-align:center"><img src="qf-asset:images/fig1.png" width="320"></p>
+<p>已知 $x^2 + y^2 = 1$，求 $x+y$ 的最大值。</p>
+```
+
+允许的内容：
+
+| 类别 | 白名单 |
+|---|---|
+| 段落与标题 | `p` `br` `h1`–`h4` `blockquote` `hr` `pre` |
+| 文字 | `b` `strong` `i` `em` `u` `s` `sub` `sup` `mark` `code` `span` |
+| 列表 | `ul` `ol` `li` |
+| 表格 | `table` `thead` `tbody` `tr` `th` `td`，可带 `colspan` `rowspan` |
+| 图片 | `img`，`src` 只能是 `qf-asset:…`，可带 `alt` `width` |
+| 链接 | `a`，`href` 只能是 `http:` `https:` `mailto:` |
+| 样式（`style` 属性里） | `color` `background-color` `font-size` `font-family` `text-align` `line-height` `text-indent` `margin-left` `vertical-align` `width` |
+| 公式 | `$…$` 行内，`$$…$$` 独占一行，内容是 LaTeX；要显示美元符号写 `\$` |
+
+其余标签、属性、样式在显示时去掉，不报错。
+
+| 设计 | 理由 |
+|---|---|
+| 用 HTML 而不是树形文档或 Markdown | 树形文档 agent 写起来又长又易错；Markdown 没有字号、颜色、对齐、合并单元格。HTML 两头都满足，浏览器还能直接显示 |
+| 只认一种格式 | 两种并存，显示、编辑、检查都要写两套 |
+| 白名单，而不是"去掉危险的" | 只放行认识的东西，漏掉的是功能而不是安全。题目页面本来就在不能联网的沙箱里，这是第二道保险 |
+| 清洗用成熟的现成库 | 安全相关的代码不自己写 |
+| 图片仍用 `qf-asset:` | 程序扫一遍字符串就能找出用到的素材，与原来的做法一致 |
+| 清洗在显示时做，不在打开题库时做 | 程序不理解题目内容，不知道哪个字段是富文本 |
+
 ## 2. 当前作答：`.qf-v2/practice/state.json`
 
 只保存"当前这一轮"里用户动过的题。没作答过的题库没有这个文件；没碰过的题不在文件里。
