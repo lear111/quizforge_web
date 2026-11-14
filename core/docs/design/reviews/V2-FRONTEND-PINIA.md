@@ -10,6 +10,18 @@
 
 **新增用例。** `frontend-stores.test.mjs` 五项：多应用隔离；保存响应保留较新的大纲状态与缺省笔迹；目录折叠及忙碌/错误清理；真实保存控制器与写队列完成前不读下一题；保存失败保留未保存内容并阻止切题。`frontend-layers.test.mjs` 三项覆盖依赖方向、允许路径、fetch 限制。既有测试与九个浏览器探针断言均未改。
 
-**本机验证。** Windows 11（10.0.26200）、Node 24.13.0。新增 8 项通过 / 0 失败；类型、构建与成品一致性、格式通过；lint 0 错误、35 条大小警告（长服务函数留 F）。全套测试与九个原有浏览器探针仍在运行，最终结果补齐；本机临时 Playwright 所需 Chromium 未安装，浏览器改用已有 Chrome 157.0.8103.39，CI 保持原 Chromium 配置。不使用真实数据，不启动/重启日常服务。
+**本机验证。** Windows 11（10.0.26200）、Node 24.13.0。新增 8 项通过 / 0 失败；类型、构建与成品一致性、格式通过；lint 0 错误、35 条大小警告（长服务函数留 F）。九个原有浏览器探针原断言全部通过，含桌面/手机尺寸；临时 Playwright 所需 Chromium 未安装，本机使用已有 Chrome 157.0.8103.39，CI 仍用 Chromium。这不是手机真机或发版验收；不使用真实数据，不启动/重启日常服务。
 
-**CI 与存疑。** 五个 job 待首次 CI，最终通过数、失败名单与耗时将原位补齐；本机旧 Hub/AI 设置失败与规则调度失败也如实记录。没有新增产品决定，等待审查后再合并。
+**本机完整测试的限制。** `npm test` 为 1409 通过 / 11 失败 / 0 跳过，938.45 s，未声称全绿。失败位于未改动的 `server/host/` 下 `ai/hub-connection.test.mjs`（68/88/96/114/133/160 行，AI 设置访问保护失败）、`ai/settings-provider.test.mjs`（32/54 行，同上）、`http/server.test.mjs`（290 行，503≠200）；另有 `extensions/rule-engine.test.mjs`（99 行，前台排队断言）与 `server/rules-runner.test.cjs`（281 行，spawnSync ETIMEDOUT）。后两文件以 `node --import ./core/scripts/test/test-environment.mjs --test --test-concurrency=1` 单独复核：42 通过 / 0 失败 / 0 跳过，79.24 s，表明负载敏感，不能据此把整套判为通过。没有修改这些生产文件或测试；两系统 CI 完整测试均无失败。
+
+**CI。** [PR #138](https://github.com/lear111/quizforge_web/pull/138)，目标 `v2`，待审查。[实现提交 b391c4e 的首次运行 43590832008](https://github.com/lear111/quizforge_web/actions/runs/43590832008) 五项全绿，CI 失败用例名单为空。Ubuntu 34 项跳过均为既有 Windows 专项，本次未新增跳过。下表是 job 总耗时；仅文档补交后再核对最终提交。
+
+| Job | 通过 / 失败 / 跳过 | 耗时 |
+|---|---|---|
+| Checks · Windows | 1420 / 0 / 0；类型与构建通过 | 270 s |
+| Checks · Ubuntu | 1386 / 0 / 34；类型与构建通过 | 153 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 65 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、35 大小警告 | 44 s |
+| V2 browser checks · Ubuntu | 九个原有探针全部通过 | 216 s |
+
+**存疑与后续。** 无新增产品决定；本机旧测试失败不在本次改动范围，未改变断言或超时。保留 PR 等审查，不自行合并或开始 D④。
