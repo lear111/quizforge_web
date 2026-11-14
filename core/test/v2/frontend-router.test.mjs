@@ -236,6 +236,7 @@ test(
     f.dirty();
     const navigation = f.navigation.navigate('2');
     await f.controls.sent.promise;
+    assert.equal(f.ui.busy, true, 'the old pane must be inert while the guard waits for saving');
     assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/1');
     assert.equal(f.practice.current.questionId, '1');
     assert.equal(f.requests.includes('get:a:2'), false);
@@ -386,6 +387,21 @@ test('unauthorized deep link stays available for retry after catalog login', opt
   await f.navigation.catalog();
   assert.equal(f.practice.current.questionId, '3');
 });
+
+test(
+  'a previous unauthorized response does not block navigation after a save retry succeeds',
+  options,
+  async (t) => {
+    const f = fixture(t);
+    await f.open('/banks/a/questions/1');
+    // The API keeps the connection form visible after a 401. That flag is not
+    // a route permission: subsequent requests still decide their own outcome.
+    f.ui.authRequired = true;
+    await f.navigation.navigate('2');
+    await until(() => f.practice.current.questionId === '2');
+    assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/2');
+  },
+);
 
 test(
   'empty hash ignores legacy last-bank storage, while routing clears the active pane on back to library',

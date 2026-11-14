@@ -51,6 +51,8 @@ class WorkspaceNavigation {
   private started = false;
   private loading = false;
   private pushing = false;
+  private leaving = false;
+  private replacing = false;
   private disposed = false;
   private cleanup: (() => void)[];
 
@@ -92,6 +94,8 @@ class WorkspaceNavigation {
       !this.started ||
       this.disposed ||
       this.loading ||
+      this.leaving ||
+      this.replacing ||
       ui.busy ||
       ui.authRequired ||
       practice.recovering
@@ -102,11 +106,17 @@ class WorkspaceNavigation {
     if (router.resolve(target).fullPath !== router.currentRoute.value.fullPath) {
       // Failed loads keep the old page and restore its address; successful
       // loads canonicalize bank-only URLs without adding a history entry.
-      void router.replace(target).catch(this.report);
+      this.replacing = true;
+      void router
+        .replace(target)
+        .catch(this.report)
+        .finally(() => {
+          this.replacing = false;
+        });
     }
   };
   private async load(to: RouteLocationNormalized) {
-    if (this.disposed || this.ui.authRequired) {
+    if (this.disposed) {
       return;
     }
     // Canonical replacements and failed-load rollbacks already display this
@@ -131,6 +141,11 @@ class WorkspaceNavigation {
     if (this.loading || this.ui.busy || this.practice.recovering) {
       return false;
     }
+    // Existing store navigation makes the old pane inert before awaiting its
+    // saver. The async router guard must preserve that same interaction gate.
+    this.leaving = true;
+    this.ui.busy = true;
+    this.ui.loading = '正在打开页面';
     try {
       // This also covers browser back/forward and direct hash changes. On
       // failure Vue Router restores the old address and keeps the old iframe.
@@ -139,6 +154,10 @@ class WorkspaceNavigation {
     } catch (error) {
       this.report(error);
       return false;
+    } finally {
+      this.leaving = false;
+      this.ui.busy = false;
+      this.ui.loading = '';
     }
   };
   private async push(target: RouteLocationRaw) {
@@ -166,11 +185,15 @@ class WorkspaceNavigation {
     }
     await this.practice.initializeCatalog();
     this.started = true;
-    await this.load(this.router.currentRoute.value);
+    if (!this.ui.authRequired) {
+      await this.load(this.router.currentRoute.value);
+    }
   };
   catalog = async () => {
     await this.practice.catalog();
-    await this.load(this.router.currentRoute.value);
+    if (!this.ui.authRequired) {
+      await this.load(this.router.currentRoute.value);
+    }
   };
   openBank = (_kind: string, bankId?: string) => {
     return bankId ? this.push({ name: 'bank', params: { bankId } }) : Promise.resolve();
