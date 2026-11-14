@@ -1,5 +1,5 @@
 import { decimalSum } from '../../host/platform/json.js';
-import { problem } from '../utils/errors.js';
+import { object, problem } from '../utils/errors.js';
 const positive = (value) => typeof value === 'number' && Number.isFinite(value) && value > 0;
 function fail(bankId, field, reason, questionId) {
   throw problem('BANK_STRUCTURE_INVALID', '题库的大纲或信息有误：' + field + '，' + reason, {
@@ -8,6 +8,16 @@ function fail(bankId, field, reason, questionId) {
     field,
   });
 }
+function requireObject(value, bankId, field, questionId) {
+  if (!object(value)) {
+    fail(bankId, field, '必须是对象', questionId);
+  }
+}
+function requireId(value, bankId, field, questionId) {
+  if (typeof value !== 'string' || value.length === 0) {
+    fail(bankId, field, '题号必须是非空字符串', questionId);
+  }
+}
 function itemScore(item, field, bankId) {
   if (!Object.hasOwn(item, 'parts')) {
     if (!positive(item.maxScore)) {
@@ -15,9 +25,14 @@ function itemScore(item, field, bankId) {
     }
     return item.maxScore;
   }
+  if (!Array.isArray(item.parts)) {
+    fail(bankId, field + '.parts', '必须是小题数组', item.id);
+  }
   const ids = new Set();
   for (const [index, part] of item.parts.entries()) {
     const path = field + '.parts[' + index + ']';
+    requireObject(part, bankId, path, item.id);
+    requireId(part.id, bankId, path + '.id', item.id);
     if (ids.has(part.id)) {
       fail(bankId, path + '.id', '小题题号须在该大题内唯一', item.id);
     }
@@ -45,8 +60,15 @@ export function outlineIndex(outline, bankId) {
   const items = new Map(),
     maxScores = new Map();
   for (const [groupIndex, group] of outline.entries()) {
-    for (const [itemIndex, item] of (group.items ?? []).entries()) {
-      const field = 'outline[' + groupIndex + '].items[' + itemIndex + ']';
+    const groupField = 'outline[' + groupIndex + ']';
+    requireObject(group, bankId, groupField);
+    if (!Array.isArray(group.items)) {
+      fail(bankId, groupField + '.items', '必须是大题数组');
+    }
+    for (const [itemIndex, item] of group.items.entries()) {
+      const field = groupField + '.items[' + itemIndex + ']';
+      requireObject(item, bankId, field);
+      requireId(item.id, bankId, field + '.id');
       if (items.has(item.id)) {
         fail(bankId, field + '.id', '大题题号在全库重复', item.id);
       }
