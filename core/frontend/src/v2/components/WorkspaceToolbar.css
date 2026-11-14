@@ -1,0 +1,62 @@
+.v2-toolbar {
+  height: 56px;
+  flex: none;
+  padding: 8px 16px;
+  background: var(--qf-surface);
+  border-bottom: 1px solid var(--qf-border);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.v2-bank-heading {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.v2-bank-heading span {
+  font-size: 12px;
+  color: var(--qf-text-muted);
+}
+h1 {
+  font-size: 16px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2-loading {
+  font-size: 12px;
+  color: var(--qf-text-muted);
+}
+.v2-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v2-draft-button {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+}
+.v2-draft-button.active {
+  color: var(--qf-surface);
+  background: var(--qf-accent);
+  border-color: var(--qf-accent);
+}
+@media (max-width: 900px) {
+  .v2-toolbar .desktop,
+  .v2-bank-heading,
+  .v2-toolbar.empty {
+    display: none;
+  }
+  .v2-toolbar {
+    height: 48px;
+    padding: 6px 12px;
+    justify-content: flex-end;
+  }
+  .v2-loading {
+    margin-right: auto;
+  }
+}

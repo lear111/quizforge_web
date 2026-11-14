@@ -42,7 +42,7 @@ export const usePracticeStore = defineStore('v2-practice', () => {
     buildV2Outline(
       state.overview.value?.outline ?? [],
       state.overview.value?.states ?? [],
-      state.current.value?.questionId,
+      ui.scoreView ? undefined : state.current.value?.questionId,
     ),
   );
   watch(
