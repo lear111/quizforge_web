@@ -120,6 +120,24 @@
 
 过期但未交卷时，概览里 `completedAt` 为空而 `exam.now` 已超过 `exam.endsAt`。页面据此直接调用 `B/finish`，再按现有流程补评分。后端不主动改文件（D51）。
 
+## 第 5 段接口：作答文件（已定稿，未实现）
+
+设计依据：D56、D57，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 2.5 节。评分相关接口另行设计。
+
+| 接口 | 请求 | 成功返回 | 说明 |
+|---|---|---|---|
+| PUT `Q/answer-files/{name}` | `snapshotId`；正文为文件内容 | `{ name, size }` | 保存一个作答文件（图片等）。文件只写一次：同名同内容视为成功，同名不同内容拒绝 |
+| GET `Q/answer-files/{name}` | — | 文件内容 | |
+| DELETE `Q/answer-files/{name}` | `snapshotId` | 空 | 用户删掉插入的图片时调用；文件不存在也算成功 |
+| PUT `Q/answer-ink/{areaId}` | 同 `PUT Q/ink` | 同 `PUT Q/ink` | 保存一个答题区的笔迹，有自己的版本号和回执，存为 `<areaId>.ink.json` |
+| GET `Q/answer-ink/{areaId}` | — | 同读取草稿笔迹 | |
+
+- 三个写接口在该题已提交（有提交编号）、本轮已完成、考试已过结束时刻时一律拒绝，错误与 `PUT Q/answer` 相同。
+- `name` 与 `areaId` 只允许字母、数字、点、横线、下划线，后端不解析文件内容。单个文件上限 4 MiB（沿用旧版图片上限）。
+- `POST Q/retry` 删除该题的作答文件夹；按 D27 清空作答时一并删除；`POST B/restart` 把整个 `assets/` 搬进该轮目录。
+- 历史里只读：`GET R/questions/{questionId}/answer-files/{name}` 与 `GET R/questions/{questionId}/answer-ink/{areaId}`。
+- 地址用 `answer-files` 而不是 `assets`，因为 `Q/assets/…` 已经用于题库素材。
+
 ## 后续接口（未实现，字段随各段审查）
 
 | 方法与路径 | 用途 |
