@@ -1,5 +1,5 @@
 // Real-browser address/guard checks; disposable synthetic banks and loopback only.
-import { checkReload, checkSummary } from './v2-router-probe-views.mjs';
+import { checkReload, checkSummary } from './probe-v2-router-views.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
