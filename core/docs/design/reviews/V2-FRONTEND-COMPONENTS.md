@@ -14,4 +14,15 @@
 
 **检查中修正。** scoped 迁移初版把局部动态 class 写成 `:global`，编译后丢失后代选择器，导致草稿输入层超出题目区。已改为本组件的普通 scoped 选择器，保留原布局和白板实现，按原白板探针复验，不放宽断言。汇总标题显式保留原公共样式的 500 字重。首轮 CI 两系统均有 1 项既有 `practice/tabs-outline-host.test.mjs` 的 `outline shows consecutive type groups and numbered states with only the summary entry` 失败：静态按钮文本因换行由 `分值汇总` 变成 ` 分值汇总 `；改用 `v-text` 保持原文本，原测试不变，本机连同相关组件 25 项复跑通过。
 
-**环境与 CI。** Windows 11 10.0.26200、Node 24.13.0、Chrome 157.0.8103.39；测试仅临时合成数据、独立回环端口，完成后关闭；桌面/手机尺寸不等于真机验收。[PR #140](https://github.com/lear111/quizforge_web/pull/140) 未合并。首轮运行 43602941183：质量/性能/浏览器通过，Windows/Ubuntu 各仅上述 1 项失败；修正后重跑中，最终结果待补。
+**环境与 CI。** Windows 11 10.0.26200、Node 24.13.0、Chrome 157.0.8103.39；测试仅临时合成数据、独立回环端口，完成后关闭；桌面/手机尺寸不等于真机验收。[PR #140](https://github.com/lear111/quizforge_web/pull/140) 未合并。首轮运行 43602941183：质量/性能/浏览器通过，Windows/Ubuntu 各仅上述 1 项失败；修正后的实现提交 `9794690` 在[运行 43603593226](https://github.com/lear111/quizforge_web/actions/runs/43603593226) 五项全绿，失败名单为空；下表记录该次运行（本次只补记录，随后核对最终提交）。Ubuntu 的 34 项跳过均为既有 Windows 专项。
+
+
+| Job | 通过 / 失败 / 跳过 | 总耗时 |
+|---|---|---|
+| Checks · Windows | 1434 / 0 / 0；类型与构建通过 | 277 s |
+| Checks · Ubuntu | 1400 / 0 / 34；类型与构建通过 | 77 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 12 s |
+| V2 code quality · Ubuntu | 格式通过；0 错误、36 大小警告 | 25 s |
+| V2 browser checks · Ubuntu | 十个既有探针全部通过 | 147 s |
+
+**后续。** 不开始 E/F，等待审查；#139 指出的 Vue Router 锁文件含 34 个构建期依赖，运行时未使用文件路由生成器，本 PR 不处理。
