@@ -1,4 +1,5 @@
 import { toRaw } from 'vue';
+import type { AnswerRequest, InkResponse, QuestionResponse } from '../../../../../shared/v2/api.js';
 import { answeredFromStatus } from '../../../../../shared/v2/answered.js';
 import { createSaveController, isSaveConflict } from '../../services/save-policy';
 import type { Question } from '../../types/practice-types';
@@ -46,10 +47,13 @@ export function createSaver(
             const active = current.value!;
             return kind === 'ink'
               ? api.questions.prepareInk(active, fields.ink)
-              : api.questions.prepareAnswer(active, fields);
+              : api.questions.prepareAnswer(
+                  active,
+                  fields as Pick<AnswerRequest, 'answer' | 'answered'>,
+                );
           },
           api.questions.sendSave,
-          (saved: Question) => {
+          (saved: QuestionResponse | InkResponse) => {
             if (mine === ctx.runtime.generation) {
               done();
               ctx.actions().update(
@@ -57,10 +61,10 @@ export function createSaver(
                   ? {
                       ...toRaw(current.value!),
                       ink: value.ink,
-                      inkRevision: saved.inkRevision,
+                      inkRevision: (saved as InkResponse).inkRevision,
                       state: saved.state,
                     }
-                  : saved,
+                  : (saved as QuestionResponse),
                 ctx.runtime.answerVersion > ctx.runtime.savedAnswer,
               );
             }

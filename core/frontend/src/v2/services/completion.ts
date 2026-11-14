@@ -1,4 +1,5 @@
-import type { GradingInput, GradingOutput, GradeResult } from './grading';
+import type { ResultEntry, ApiErrorCode } from '../../../../shared/v2/api.js';
+import type { GradingInput, GradingOutput } from './grading';
 import { ungradable } from './grading';
 import type { Overview, Question, Completion } from '../types/practice-types';
 import { createRequestId, writeBody } from '../api/requests';
@@ -13,12 +14,7 @@ export function createCompletionGrader(options: {
   let pending: {
     snapshotId: string;
     body: string;
-    rows: {
-      questionId: string;
-      submissionId: string | null;
-      expectedRevision: number;
-      result: GradeResult;
-    }[];
+    rows: ResultEntry[];
   } | null = null;
   return {
     clear() {
@@ -55,7 +51,7 @@ export function createCompletionGrader(options: {
           for (const q of questions) {
             rows.push({
               questionId: q.questionId,
-              submissionId: q.submissionId,
+              submissionId: q.submissionId!,
               expectedRevision: q.state.revision,
               result:
                 graded.find((row) => row.questionId === q.questionId)?.result ??
@@ -91,7 +87,7 @@ export function createCompletionGrader(options: {
           // ungradable. The server has saved none of the rejected batch.
           const row = batch.rows.find((row) => row.questionId === info.questionId);
           if (
-            info.code !== 'INVALID_RESULT' ||
+            info.code !== ('INVALID_RESULT' satisfies ApiErrorCode) ||
             !row ||
             (row.result.score === null && row.result.message)
           ) {

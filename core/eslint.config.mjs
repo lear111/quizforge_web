@@ -68,7 +68,7 @@ export default [
   },
   {
     basePath: root,
-    files: ['core/frontend/src/v2/**/*.ts', 'core/shared/v2/**/*.ts'],
+    files: ['core/frontend/src/v2/**/*.ts', 'core/shared/v2/**/*.ts', 'core/test/v2/**/*.ts'],
     languageOptions: { parser: ts.parser },
     plugins: { '@typescript-eslint': ts.plugin },
     rules: {

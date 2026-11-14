@@ -1,23 +1,11 @@
 import { OUTLINE_LABELS } from '../../../../shared/v2/answered.js';
-import type { OutlineStatus } from '../../../../shared/v2/answered.js';
+import type { OutlineGroup } from '../../../../shared/v2/bank.js';
+import type { StateSummary as State } from '../../../../shared/v2/state.js';
 import type { OutlineModel } from '../../outline/model';
-export interface Item {
-  id: string;
-  label?: string;
-  maxScore?: number;
-  parts?: { id: string; label: string; maxScore: number }[];
-}
-export interface State {
-  questionId: string;
-  revision: number;
-  status: OutlineStatus;
-  locked: boolean;
-  hasSavedAnswer: boolean;
-  score: number | null;
-  maxScore: number;
-}
+export type { OutlineItem as Item } from '../../../../shared/v2/bank.js';
+export type { StateSummary as State } from '../../../../shared/v2/state.js';
 export function buildV2Outline(
-  groups: { title: string; items: Item[] }[],
+  groups: OutlineGroup[],
   states: State[],
   currentId?: string,
 ): OutlineModel {

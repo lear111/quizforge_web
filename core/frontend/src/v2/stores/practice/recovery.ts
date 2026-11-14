@@ -1,3 +1,4 @@
+import type { ApiErrorCode } from '../../../../../shared/v2/api.js';
 import { isSaveConflict, saveRecoveryMessage } from '../../services/save-policy';
 import type { Overview, Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
@@ -16,7 +17,9 @@ export async function reloadAfterConflict(
     current.value?.bankId === previous.bankId && current.value.questionId === previous.questionId;
   recovering.value = true;
   try {
-    if ((error as { code?: string } | undefined)?.code === 'ROUND_COMPLETED') {
+    if (
+      (error as { code?: string } | undefined)?.code === ('ROUND_COMPLETED' satisfies ApiErrorCode)
+    ) {
       const value: Overview = await api.banks.overview(previous.bankId);
       if (mine !== ctx.runtime.generation) {
         return null;

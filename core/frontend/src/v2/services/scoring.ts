@@ -1,10 +1,12 @@
 import type { GradingInput, GradingOutput } from './grading';
 import { ungradable } from './grading';
+import type { GradeResult } from '../../../../shared/v2/state.js';
+import type { ApiErrorCode } from '../../../../shared/v2/api.js';
 
 export async function saveGrade<T>(
   input: GradingInput,
   grade: (items: GradingInput[]) => Promise<GradingOutput[]>,
-  save: (result: unknown) => Promise<T>,
+  save: (result: GradeResult) => Promise<T>,
 ): Promise<T> {
   const [output] = await grade([input]);
   try {
@@ -12,7 +14,11 @@ export async function saveGrade<T>(
   } catch (error) {
     // Only a server-rejected grading payload is converted. Connection/version
     // failures remain pending so the current locked answer can be retried.
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'INVALID_RESULT') {
+    if (
+      !(error instanceof Error) ||
+      !('code' in error) ||
+      error.code !== ('INVALID_RESULT' satisfies ApiErrorCode)
+    ) {
       throw error;
     }
     return save(ungradable('题型返回的评分格式或分数无效。'));
