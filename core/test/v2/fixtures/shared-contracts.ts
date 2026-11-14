@@ -10,7 +10,7 @@ import type {
 } from '../../../shared/v2/api.js';
 import type { StateFile, GradeResult } from '../../../shared/v2/state.js';
 import type { JsonValue } from '../../../shared/v2/json.js';
-import type { BankFile } from '../../../shared/v2/bank.js';
+import type { BankFile, BankInfo } from '../../../shared/v2/bank.js';
 import type { createApi } from '../../../frontend/src/v2/api/index.js';
 
 type Assert<T extends true> = T;
@@ -80,4 +80,13 @@ export const bank: BankFile = {
   ],
   questions: { q: { type: 'choice@2', question: { src: 'qf-asset:images/1.png' }, solution: {} } },
   listening: { local: { src: 'audio/1.mp3' }, remote: { src: 'https://example.test/1.mp3' } },
+};
+
+// D46 passes unchecked display metadata through; this is not a type assertion.
+export const uncheckedMetadata: BankInfo = {
+  bankId: 'b',
+  sourceId: 12,
+  title: { text: 'raw' },
+  description: [],
+  features: { history: 'raw', exam: null },
 };

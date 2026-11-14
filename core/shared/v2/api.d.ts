@@ -123,7 +123,7 @@ export interface OverviewResponse extends CompletionResponse {
   bank: BankInfo;
   snapshotId: string;
   outline: OutlineGroup[];
-  listening: { id: string; title: string }[];
+  listening: { id: unknown; title: unknown }[];
   questionTypes: { questionId: string; type: string | null }[];
   lastQuestionId: string | null;
   initial: QuestionCandidate<QuestionReadResponse>;
@@ -184,8 +184,8 @@ export interface OverviewQuery {
 /** Local listening/assets are binary; remote listening returns this JSON. */
 export interface RemoteListeningResponse {
   kind: 'remote';
-  src: string;
-  title: string;
+  src: unknown;
+  title: unknown;
 }
 export type SourceResponse = string;
 export type BinaryResponse = Uint8Array;
