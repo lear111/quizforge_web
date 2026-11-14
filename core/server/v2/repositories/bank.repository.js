@@ -28,7 +28,7 @@ export const validId = (value) =>
 function listeningMaterials(raw, items) {
   // Opening builds only the display list. Reading a local file still goes
   // through relativeFile; authoring checks belong to the later listening work.
-  const listening = /** @type {Map<unknown, ListeningEntry>} */ (new Map());
+  const /** @type {Map<unknown, ListeningEntry>} */ listening = new Map();
   for (const item of items.values()) {
     const id = item.listening;
     if (id !== undefined && !listening.has(id)) {

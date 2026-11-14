@@ -67,7 +67,7 @@ export function recordResults(store, snapshot, input) {
   }
   const root = /** @type {CurrentState} */ (store.load(snapshot.directory)),
     signature = fingerprint({ op: 'results', input }, 'quizforge-v2-receipt'),
-    seen = new Set(/** @type {string[]} */ ([])),
+    /** @type {Set<string>} */ seen = new Set(),
     entries = [];
   for (const entry of input.results) {
     const checked = checkResultEntry(store, snapshot, input, entry, seen, signature);

@@ -1,3 +1,4 @@
+/** @typedef {import('../types/data.js').OverviewResult} OverviewResult */
 /** @typedef {import('../types/data.js').OpenedSnapshot} OpenedSnapshot */
 /** @typedef {import('../types/data.js').QuestionType} QuestionType */
 /** @typedef {{type?: unknown}} QuestionTypeProbe */
@@ -8,7 +9,6 @@
 /** @typedef {import('../types/data.js').Resolution} Resolution */
 /** @typedef {import('../types/data.js').BankLocation} BankLocation */
 /** @typedef {import('../types/data.js').Snapshot} Snapshot */
-/** @typedef {import('../../../shared/v2/api.js').OverviewResponse} OverviewResponse */
 /** @import { QuestionCandidate } from '../../../shared/v2/api.js' */
 /** @typedef {import('../../../shared/v2/api.js').QuestionReadResponse} QuestionReadResponse */
 import { cloneJson, fingerprint } from '../../host/platform/json.js';
@@ -24,7 +24,7 @@ import { measureOverview } from '../utils/timing.js';
  */
 function resolveTypes(library, bank, rebuild) {
   const types = measureOverview('extension-resolve', () => {
-    const ids = new Set(/** @type {string[]} */ ([]));
+    const /** @type {Set<string>} */ ids = new Set();
     for (const raw of Object.values(bank.raw.questions ?? {})) {
       if (object(raw) && typeof raw.type === 'string') {
         ids.add(raw.type);
@@ -33,7 +33,7 @@ function resolveTypes(library, bank, rebuild) {
     return ids;
   });
   const resolutions = library.types.resolutions(types, { scanOnMiss: !rebuild }),
-    sdk = /** @type {Map<string, SdkEntry>} */ (new Map());
+    /** @type {Map<string, SdkEntry>} */ sdk = new Map();
   resolveSdks(library, resolutions, sdk);
   return { resolutions, sdk };
 }
@@ -123,7 +123,7 @@ export function readSnapshot(library, location, bankId, rebuild) {
  * @param {LibrarySnapshots} library
  * @param {Snapshot} snapshot
  * @param {OverviewOptions} options
- * @returns {OverviewResponse}
+ * @returns {OverviewResult}
  */
 export function overviewResponse(
   library,

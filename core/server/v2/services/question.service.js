@@ -1,3 +1,4 @@
+/** @typedef {import('../types/data.js').ListeningResource} ListeningResource */
 /** @typedef {import('./bank.service.js').LibrarySnapshots} LibrarySnapshots */
 /** @typedef {import('../types/data.js').Snapshot} Snapshot */
 /** @typedef {import('../types/data.js').Artifact} Artifact */
@@ -65,9 +66,8 @@ export function visibleAssets(
   record,
   includeSolution = Boolean(library.stateStore?.get(snapshot, id).submissionId),
 ) {
-  const assets = /** @type {Map<string, {reference: string, file: string, relative: string}>} */ (
-    new Map()
-  );
+  const /** @type {Map<string, {reference: string, file: string, relative: string}>} */ assets =
+      new Map();
   /**
    * @param {unknown} value
    */
@@ -217,6 +217,7 @@ export function asset(library, bankId, id, snapshotId, assetId) {
  * @param {string} bankId
  * @param {string} id
  * @param {unknown} snapshotId
+ * @returns {ListeningResource}
  */
 export function listening(library, bankId, id, snapshotId) {
   const snapshot = library.snapshot(bankId, snapshotId),

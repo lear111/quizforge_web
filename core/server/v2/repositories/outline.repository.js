@@ -94,8 +94,8 @@ export function outlineIndex(outline, bankId) {
   if (!Array.isArray(outline)) {
     fail(bankId, 'outline', '必须是分组数组');
   }
-  const items = /** @type {Map<string, OutlineItem>} */ (new Map()),
-    maxScores = /** @type {Map<string, number>} */ (new Map());
+  const /** @type {Map<string, OutlineItem>} */ items = new Map(),
+    /** @type {Map<string, number>} */ maxScores = new Map();
   for (const [groupIndex, group] of outline.entries()) {
     const groupField = 'outline[' + groupIndex + ']';
     requireObject(group, bankId, groupField);

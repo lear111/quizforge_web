@@ -18,7 +18,7 @@ export const bankRoot = (directory) => checkPath(directory, { directory: true })
  */
 export function bankLocations(root) {
   const base = path.join(root, 'question-banks'),
-    result = /** @type {BankLocation[]} */ ([]);
+    /** @type {BankLocation[]} */ result = [];
   /** @param {string} directory @param {string} group */
   const add = (directory, group) => {
     const relative = path.relative(base, directory).replaceAll('\\', '/');
@@ -50,7 +50,7 @@ export function bankLocations(root) {
  * @returns {Catalog}
  */
 export function bankCatalog(root, cache) {
-  const groups = /** @type {Map<string, Catalog['groups'][number]>} */ (new Map());
+  const /** @type {Map<string, Catalog['groups'][number]>} */ groups = new Map();
   for (const row of bankLocations(root)) {
     /** @type {Catalog['groups'][number]['items'][number]} */
     let item;

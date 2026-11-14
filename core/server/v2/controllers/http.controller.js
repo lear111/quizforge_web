@@ -1,12 +1,34 @@
+/** @typedef {import('../types/http.js').QuestionOperation} QuestionOperation */
+/** @typedef {import('../types/http.js').QuestionHandlers} QuestionHandlers */
+/** @typedef {import('../types/http.js').BankHandlers} BankHandlers */
+/** @typedef {import('../types/http.js').ServerContext} ServerContext */
+/** @typedef {import('../types/http.js').Handler} Handler */
+/** @typedef {import('../types/http.js').Handlers} Handlers */
+/** @typedef {import('../types/http.js').HttpResponse} HttpResponse */
+/** @typedef {import('../types/http.js').SdkHandler} SdkHandler */
+/** @typedef {import('../services/bank.service.js').LibrarySnapshots} LibrarySnapshots */
+/** @typedef {import('../../../shared/v2/api.js').HealthResponse} HealthResponse */
+/** @typedef {import('../../../shared/v2/api.js').ExtensionManifestResponse} ManifestResponse */
 import path from 'node:path';
 import { problem } from '../utils/errors.js';
 import { sdkResource, uiFile } from '../services/resource.service.js';
 import { json, rootPage } from '../utils/http-response.js';
 import { measureSave, withOverviewTiming } from '../utils/timing.js';
 
+/**
+ * @param {HttpResponse} response
+ */
 const snapshotId = (response) => response.locals.target.searchParams.get('snapshotId');
 
+/**
+ * @param {LibrarySnapshots} library
+ * @returns {QuestionHandlers}
+ */
 function questionWrites(library) {
+  /**
+   * @param {QuestionOperation} operation
+   * @returns {Handler}
+   */
   const write = (operation) => (request, response) => {
     const { bankId, questionId } = request.params;
     const value = measureSave('validate', () =>
@@ -23,7 +45,15 @@ function questionWrites(library) {
   };
 }
 
+/**
+ * @param {ServerContext} server
+ * @param {LibrarySnapshots} library
+ * @returns {BankHandlers}
+ */
 function bankHandlers(server, library) {
+  /**
+   * @param {'finish' | 'results'} operation @returns {Handler}
+   */
   const roundWrite = (operation) => (request, response) => {
     const value = measureSave('validate', () =>
       library[operation](request.params.bankId, response.locals.input),
@@ -50,6 +80,11 @@ function bankHandlers(server, library) {
   };
 }
 
+/**
+ * @param {ServerContext} server
+ * @param {LibrarySnapshots} library
+ * @returns {Pick<Handlers, 'asset' | 'listening'>}
+ */
 function bankResources(server, library) {
   return {
     asset(request, response) {
@@ -74,6 +109,11 @@ function bankResources(server, library) {
   };
 }
 
+/**
+ * @param {ServerContext} server
+ * @param {LibrarySnapshots} library
+ * @returns {Pick<Handlers, 'manifest' | 'extensionFile' | 'unknownExtensionRoute'>}
+ */
 function extensionHandlers(server, library) {
   return {
     manifest(request, response) {
@@ -81,15 +121,19 @@ function extensionHandlers(server, library) {
       if (!artifact.development) {
         server.immutable(response);
       }
-      json(response, 200, {
-        ...artifact.descriptor,
-        name: artifact.manifest.name,
-        entries: {
-          practice: { html: 'practice-html', js: 'practice-js', css: 'practice-css' },
-          grade: 'grade-js',
-        },
-        sdkVersions: artifact.sdkVersions,
-      });
+      json(
+        response,
+        200,
+        /** @satisfies {ManifestResponse} */ ({
+          ...artifact.descriptor,
+          name: artifact.manifest.name,
+          entries: {
+            practice: { html: 'practice-html', js: 'practice-js', css: 'practice-css' },
+            grade: 'grade-js',
+          },
+          sdkVersions: artifact.sdkVersions,
+        }),
+      );
     },
     extensionFile(request, response) {
       const { artifactId, entryId } = request.params;
@@ -111,6 +155,10 @@ function extensionHandlers(server, library) {
   };
 }
 
+/**
+ * @param {ServerContext} server
+ * @param {LibrarySnapshots} library @returns {SdkHandler}
+ */
 function sdkHandler(server, library) {
   return (request, response) => {
     const { file, expectedHash } = sdkResource(library, request.params, snapshotId(response));
@@ -118,16 +166,23 @@ function sdkHandler(server, library) {
   };
 }
 
+/**
+ * @param {ServerContext} server @returns {Handlers}
+ */
 export function createHandlers(server) {
   const { library } = server;
   return {
     rootPage,
     health(_request, response) {
-      json(response, 200, {
-        apiVersion: 2,
-        phase: 'segment-1',
-        availableFeatures: ['catalog', 'overview', 'question', 'resources', 'submit', 'result'],
-      });
+      json(
+        response,
+        200,
+        /** @satisfies {HealthResponse} */ ({
+          apiVersion: 2,
+          phase: 'segment-1',
+          availableFeatures: ['catalog', 'overview', 'question', 'resources', 'submit', 'result'],
+        }),
+      );
     },
     catalog(_request, response) {
       json(response, 200, library.catalog());

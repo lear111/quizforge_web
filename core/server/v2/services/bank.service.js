@@ -1,6 +1,7 @@
+/** @typedef {import('../types/data.js').OverviewResult} OverviewResult */
+/** @typedef {import('../../../shared/v2/api.js').RefreshResponse} RefreshResponse */
 /** @typedef {import('./practice.service.js').PracticeState} PracticeState */
 /** @typedef {import('../types/data.js').Snapshot} Snapshot */
-/** @typedef {import('../../../shared/v2/api.js').OverviewResponse} OverviewResponse */
 /** @import { QuestionCandidate } from '../../../shared/v2/api.js' */
 /** @typedef {import('../../../shared/v2/api.js').QuestionReadResponse} QuestionReadResponse */
 /** @typedef {import('../../../shared/v2/api.js').CompletionResponse} CompletionResponse */
@@ -53,11 +54,21 @@ export class LibrarySnapshots {
     this.rebuildIndexes();
     return bankCatalog(this.root, this.cache);
   }
+  /** @overload
+   * @param {string} bankId @param {unknown} requestedQuestionId
+   * @param {{refresh: true, includeInitial?: boolean}} options
+   * @returns {RefreshResponse}
+   */
+  /** @overload
+   * @param {string} bankId @param {unknown} [requestedQuestionId]
+   * @param {{refresh?: boolean, includeInitial?: boolean}} [options]
+   * @returns {OverviewResult}
+   */
   /**
    * @param {string} bankId
    * @param {unknown} [requestedQuestionId]
    * @param {{refresh?: boolean, includeInitial?: boolean}} [options]
-   * @returns {OverviewResponse}
+   * @returns {OverviewResult}
    */
   open(bankId, requestedQuestionId, { refresh = false, includeInitial = true } = {}) {
     const rebuild = refresh || !this.indexed;
@@ -122,6 +133,7 @@ export class LibrarySnapshots {
   /**
    * @param {string} bankId
    * @param {unknown} input
+   * @returns {RefreshResponse}
    */
   refresh(bankId, input) {
     if (!object(input) || (Object.hasOwn(input, 'questionId') && !validId(input.questionId))) {

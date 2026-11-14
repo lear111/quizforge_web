@@ -59,7 +59,7 @@ export class PracticeInk {
   /** @param {Snapshot} snapshot */
   clear(snapshot) {
     const root = this.directory(snapshot),
-      entries = /** @type {{file: string, directory: boolean}[]} */ ([]);
+      /** @type {{file: string, directory: boolean}[]} */ entries = [];
     /** @param {string} file */
     const walk = (file) => {
       if (!within(root, file)) {
@@ -105,7 +105,7 @@ export class PracticeInk {
       return true;
     }
     const directory = path.join(root, snapshot.contentFingerprint);
-    const index = new Set(/** @type {string[]} */ ([]));
+    const /** @type {Set<string>} */ index = new Set();
     if (names.length) {
       checkPath(directory, { directory: true });
       for (const name of fs.readdirSync(directory)) {

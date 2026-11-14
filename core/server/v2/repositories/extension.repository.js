@@ -96,8 +96,8 @@ export class TypeRegistry {
 
   rebuild() {
     this.manifests.clear();
-    const index = /** @type {Map<string, string[]>} */ (new Map());
-    let scanError = /** @type {unknown} */ (null);
+    const /** @type {Map<string, string[]>} */ index = new Map();
+    let /** @type {unknown} */ scanError = null;
     try {
       for (const candidate of measureOverview('extension-scan', () => this.scan())) {
         const { directory, type } = candidate;

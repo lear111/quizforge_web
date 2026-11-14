@@ -101,3 +101,9 @@ export interface OverviewOptions {
 
 export type OpenedSnapshot = Snapshot & { activeCleared: boolean };
 export type QuestionType = Pick<import('../../../shared/v2/bank.js').BankQuestion, 'type'>;
+
+export type OverviewResult = import('../../../shared/v2/api.js').OverviewResponse &
+  Partial<Pick<import('../../../shared/v2/api.js').RefreshResponse, 'changes'>>;
+export type ListeningResource =
+  | { file: string; kind?: never; src?: never; title?: never }
+  | (import('../../../shared/v2/api.js').RemoteListeningResponse & { file?: never });

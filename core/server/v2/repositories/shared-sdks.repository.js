@@ -20,7 +20,7 @@ export class SharedSdks {
 
   rebuild() {
     // Each boundary builds a fresh generation; removed versions never linger.
-    const versions = /** @type {Map<string, SdkEntry | Error>} */ (new Map());
+    const /** @type {Map<string, SdkEntry | Error>} */ versions = new Map();
     for (const component of components) {
       const directory = path.join(this.root, component);
       let names;
