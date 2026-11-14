@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional real-Chromium acceptance. Playwright is supplied from an ignored
 // directory and is not a project dependency. Only synthetic copied data is used.
@@ -109,6 +110,7 @@ async function probeNetwork(browser, baseline = false) {
           await page.goto(`http://127.0.0.1:${host.address().port}/?kind=${kind}&locked=${locked}`);
           await page.waitForFunction(() => document.body.dataset.complete === 'true');
         } catch (error) {
+          await captureBrowserFailure(browser);
           // The diagnostic intentionally includes the cause text in its existing message.
           // eslint-disable-next-line preserve-caught-error
           throw new Error(
@@ -434,6 +436,9 @@ try {
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
   }
+} catch (error) {
+  await captureBrowserFailure(browser);
+  throw error;
 } finally {
   await browser?.close();
   await server?.close();

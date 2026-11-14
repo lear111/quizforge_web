@@ -116,3 +116,54 @@ jobs:
           name: ci-logs-code-quality-${{ github.run_attempt }}
           path: ci-logs/*.log
           retention-days: 7
+
+  browser:
+    name: V2 browser checks (ubuntu-latest)
+    # V1 does not ship the V2 probes. Test PRs targeting V2 and pushes to V2.
+    if: github.base_ref == 'v2' || github.ref == 'refs/heads/v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: core/package-lock.json
+      - name: Install dependencies
+        run: |
+          mkdir -p .temp/ci-browser
+          npm --prefix core ci --ignore-scripts 2>&1 | tee .temp/ci-browser/dependencies.log
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/qf-playwright" --no-save --ignore-scripts playwright@1.65.0 \
+            2>&1 | tee .temp/ci-browser/playwright.log
+          node "$RUNNER_TEMP/qf-playwright/node_modules/playwright/cli.js" install --with-deps --no-shell chromium \
+            2>&1 | tee .temp/ci-browser/chromium.log
+      - name: Build UI
+        run: npm --prefix core run build:ui 2>&1 | tee .temp/ci-browser/build.log
+      - name: Run all nine browser probes once
+        run: |
+          failed=0
+          for probe in page page-contract grading page-review practice save-recovery whiteboard basic-types completion; do
+            echo "::group::$probe"
+            if ! QF_BROWSER_FAILURE_DIR="$PWD/.temp/ci-browser/$probe" \
+                node "core/scripts/dev/probe-v2-$probe.mjs" \
+                "$RUNNER_TEMP/qf-playwright/node_modules/playwright/index.mjs" chromium \
+                2>&1 | tee ".temp/ci-browser/$probe.log"; then
+              echo "::error title=Browser probe failed::$probe"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
+      - name: Upload browser failure logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-browser-${{ github.run_attempt }}
+          path: |
+            .temp/ci-browser/
+            .temp/v2-*/**/*.png
+          include-hidden-files: true
+          retention-days: 7

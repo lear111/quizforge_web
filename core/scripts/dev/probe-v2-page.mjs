@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional Chromium acceptance, isolated synthetic roots/ports only. Supply an
 // ignored Playwright installation; no new project dependency or daily service.
@@ -333,7 +334,7 @@ try {
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
 } catch (error) {
-  console.error(error);
+  await captureBrowserFailure(browser);
   throw error;
 } finally {
   await browser?.close();

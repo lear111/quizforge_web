@@ -1,3 +1,4 @@
+import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 // Optional actual-Chromium acceptance; ignored Playwright, copied examples,
 // synthetic banks, ephemeral ports. No daily service or user data touched.
@@ -47,7 +48,7 @@ try {
   };
   const id = (await api('/catalog')).groups[0].items.find((row) => row.title === bank.title).bankId,
     base = `/banks/${id}`;
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = await chromium.launch({ channel: process.argv[3] ?? 'chrome', headless: true });
   const results = [],
     errors = [];
   for (const [name, size] of [
@@ -273,7 +274,7 @@ try {
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ browser: browser.version(), results, errors }, null, 2));
 } catch (error) {
-  console.error(error);
+  await captureBrowserFailure(browser);
   throw error;
 } finally {
   await browser?.close();

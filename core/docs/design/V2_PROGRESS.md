@@ -170,7 +170,7 @@
 
 | 序 | 任务 | 要点 | 审查 |
 |---|---|---|---|
-| A | 后端搬家 | 按 D48 把 `core/server/host/v2/` 搬到 `core/server/v2/` 的分层目录并改名，不改逻辑 | 核对"仅移动" |
+| A | 后端搬家 | 按 D48 搬到 `core/server/v2/`；[#126](https://github.com/lear111/quizforge_web/pull/126) 已审查合并 | 核对"仅移动" |
 | B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告 | 需审查 |
 | C | 后端拆分与精简 | 拆长函数（`open`、`load` 等），`state` 拆成 service 与 repository，按 D46 精简读题库，补"为什么"的注释，加层间依赖方向的自动检查 | 需审查 |
 | D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式 | 第 3、4 步需审查 |
