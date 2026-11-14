@@ -16,7 +16,24 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
 .app{display:flex;height:100vh;min-height:620px;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;color:#1F2330;background:#F6F7FB;position:relative;overflow:hidden}
 .lib{width:256px;flex:none;display:flex;flex-direction:column;background:#FFFFFF;border-right:1px solid #E6E8EF}
 .outline{width:244px;flex:none;display:flex;flex-direction:column;background:#FFFFFF;border-left:1px solid #E6E8EF}
-.lib.closed,.outline.closed{display:none}
+.lib.closed,.outline.closed,.app.full .lib,.app.full .outline{display:none}
+.grip{position:absolute;top:0;bottom:0;width:8px;z-index:5;cursor:col-resize;touch-action:none;outline:none}
+.grip::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;background:transparent;transition:background .15s}
+.grip:hover::after,.grip:focus-visible::after,.grip.on::after{background:#5B4BC4}
+.lib,.outline{position:relative}
+.wb{position:absolute;z-index:6;display:flex;align-items:center;gap:2px;padding:6px;border:1px solid #EBE7F1;border-radius:23px;background:#FFFFFF;box-shadow:0 10px 28px -6px rgba(43,32,64,.15),0 2px 6px rgba(43,32,64,.10);user-select:none;-webkit-user-select:none;touch-action:none;color:#4B4458}
+.wb.v{flex-direction:column}
+.wb.h{flex-direction:row}
+.wb.anim{transition:left .22s cubic-bezier(.2,.8,.2,1),top .22s cubic-bezier(.2,.8,.2,1)}
+.wb button{width:34px;height:34px;min-width:34px;padding:0;border:0;border-radius:10px;background:transparent;color:inherit;display:inline-flex;align-items:center;justify-content:center;position:relative}
+.wb button:hover{background:#F3F0F8}
+.wb button[aria-pressed="true"]{background:#EDE7FA;color:#6A4FC0}
+.wb button:disabled{opacity:.32;cursor:default;background:transparent}
+.wb .sep{flex:none;background:#ECE8F2}
+.wb.v .sep{width:60%;height:1px;margin:3px 0}
+.wb.h .sep{width:1px;height:60%;margin:0 3px}
+.wb .dot{position:absolute;right:5px;bottom:5px;width:7px;height:7px;border-radius:4px;border:1.5px solid #FFFFFF}
+.wbpop{position:absolute;z-index:7;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid #EBE7F1;border-radius:14px;background:#FFFFFF;box-shadow:0 10px 28px -6px rgba(43,32,64,.18);font-size:13px;color:#4B4458;width:180px}
 .mobilebar{display:none}
 .scrim{display:none}
 @media (max-width: 900px){
@@ -24,6 +41,8 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
 .mobilebar{display:flex}
 .lib,.outline{display:none;position:absolute;top:56px;bottom:0;z-index:20;box-shadow:0 12px 32px rgba(20,22,40,.18)}
 .lib{left:0}
+.lib,.outline{width:280px !important}
+.grip{display:none}
 .outline{right:0}
 .lib.mopen,.outline.mopen{display:flex}
 .scrim.on{display:block;position:absolute;inset:56px 0 0 0;background:rgba(20,22,40,.28);z-index:10}
@@ -36,7 +55,7 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
 }
 </style>
 </helmet>
-<div class="app">
+<div class="app {{appClass}}">
 
 <header class="mobilebar" style="height: 56px; flex: none; align-items: center; gap: 8px; padding: 0 12px; background: #FFFFFF; border-bottom: 1px solid #E6E8EF; box-sizing: border-box">
   <button onClick="{{toggleLibMobile}}" style="height: 40px; padding: 0 12px; border: 1px solid #E1E3EC; border-radius: 8px; background: #FFFFFF; color: #3A3F52; font-size: 14px">题库</button>
@@ -45,7 +64,8 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
 </header>
 <div class="scrim {{scrimClass}}" onClick="{{closeDrawer}}"></div>
 
-<aside class="lib {{libClass}}" aria-label="题库">
+<aside class="lib {{libClass}}" aria-label="题库" style="{{libWidthStyle}}">
+  <div class="grip {{libGripClass}}" role="separator" aria-orientation="vertical" aria-label="拖动调整题库栏宽度，双击恢复默认" aria-valuenow="{{libW}}" aria-valuemin="200" aria-valuemax="420" tabindex="0" style="right: -4px" onPointerDown="{{libGrip}}" onDoubleClick="{{libReset}}" onKeyDown="{{libKey}}"></div>
   <div style="display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 18px; border-bottom: 1px solid #E6E8EF; box-sizing: border-box; flex: none">
     <div style="width: 30px; height: 30px; border-radius: 8px; background: #5B4BC4; display: flex; align-items: center; justify-content: center">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M8 11l2 2 4-4"></path><path d="M16.5 16.5L20 20"></path></svg>
@@ -120,23 +140,12 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
     <button class="desk" onClick="{{toggleOutline}}" aria-label="收起或展开大纲栏" style="width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: #6B7084; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
   </header>
 
-  <sc-if value="{{drafting}}" hint-placeholder-val="{{false}}">
-    <div role="toolbar" aria-label="草稿工具" style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 16px; background: #F1EFFC; border-bottom: 1px solid #DCD7F5">
-      <sc-for list="{{tools}}" as="t" hint-placeholder-count="4">
-        <button onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
-      </sc-for>
-      <span style="width: 1px; height: 22px; background: #D3CEF0; margin: 0 4px"></span>
-      <sc-for list="{{inks}}" as="c" hint-placeholder-count="4">
-        <button onClick="{{c.pick}}" aria-label="{{c.name}}" style="{{c.style}}"></button>
-      </sc-for>
-      <span style="flex: 1"></span>
-      <button style="height: 34px; padding: 0 12px; border: 1px solid #D3CEF0; border-radius: 8px; background: #FFFFFF; color: #3A3F52; font-size: 13px">撤销</button>
-      <button style="height: 34px; padding: 0 12px; border: 1px solid #D3CEF0; border-radius: 8px; background: #FFFFFF; color: #3A3F52; font-size: 13px">清空本题草稿</button>
-    </div>
-  </sc-if>
 
-  <div style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column">
-  <div class="scroller" style="flex: 1; min-height: 0; overflow-y: auto; padding: 24px 84px 32px; box-sizing: border-box">
+  <div ref="{{wrapRef}}" style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column">
+  <div class="scroller" style="flex: 1; min-height: 0; overflow-y: auto; padding: 24px 84px 32px; box-sizing: border-box; display: flex; flex-direction: column; position: relative">
+    <sc-if value="{{drafting}}" hint-placeholder-val="{{false}}">
+      <canvas ref="{{canvasRef}}" aria-label="草稿画布" style="{{canvasStyle}}" onPointerDown="{{penDown}}" onPointerMove="{{penMove}}" onPointerUp="{{penUp}}" onPointerCancel="{{penUp}}"></canvas>
+    </sc-if>
     <sc-if value="{{showQuestion}}" hint-placeholder-val="{{true}}">
       <article class="card" style="{{cardStyle}}">
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
@@ -175,7 +184,8 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
     </sc-if>
 
     <sc-if value="{{showSummary}}" hint-placeholder-val="{{false}}">
-      <section class="card" style="max-width: 760px; margin: 0 auto; padding: 40px 32px; background: #FFFFFF; border: 1px solid #E6E8EF; border-radius: 14px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 100%">
+      <section class="card" style="width: 100%; max-width: 520px; margin: 0; padding: 40px 32px; background: #FFFFFF; border: 1px solid #E6E8EF; border-radius: 14px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
         <span style="font-size: 14px; color: #6B7084">{{summaryKicker}}</span>
         <div style="display: flex; align-items: baseline; gap: 6px">
           <strong style="font-size: 64px; line-height: 1; color: #1F2330; font-weight: 700">{{scoreText}}</strong>
@@ -187,6 +197,7 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
           <button onClick="{{summaryAction}}" style="height: 44px; padding: 0 22px; border: 0; border-radius: 10px; background: #5B4BC4; color: #FFFFFF; font-size: 15px; font-weight: 600">{{summaryActionLabel}}</button>
         </div>
       </section>
+      </div>
     </sc-if>
   </div>
   <button class="sidenav l" onClick="{{prev}}" aria-label="上一题" title="上一题" style="{{prevStyle}}">
@@ -195,12 +206,60 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
   <button class="sidenav r" onClick="{{next}}" aria-label="{{nextLabel}}" title="{{nextLabel}}" style="{{nextStyle}}">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
   </button>
+  <sc-if value="{{drafting}}" hint-placeholder-val="{{false}}">
+    <sc-if value="{{wbCollapsed}}" hint-placeholder-val="{{false}}">
+      <div class="wb v" role="toolbar" aria-label="白板工具，按住拖动，拖到角落收起" style="{{wbStyle}}" onPointerDown="{{wbDown}}">
+        <button onClick="{{wbExpand}}" aria-label="展开白板工具" title="点按展开，按住拖动">
+          <sc-if value="{{isHand}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V11"></path><path d="M11 10V4.5a1.5 1.5 0 0 1 3 0V10"></path><path d="M14 10.5V6a1.5 1.5 0 0 1 3 0v7"></path><path d="M8 11a1.5 1.5 0 0 0-3 0v2a7 7 0 0 0 7 7h1a5 5 0 0 0 5-5v-2"></path></svg></sc-if>
+          <sc-if value="{{isPen}}" hint-placeholder-val="{{true}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"></path><path d="M14 7l3 3"></path></svg><span class="dot" style="{{penDotStyle}}"></span></sc-if>
+          <sc-if value="{{isEraser}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 20h12"></path><path d="M5 14l8-8a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-7 7H9l-4-4a1 1 0 0 1 0-1z"></path><path d="M9 10l5 5"></path></svg></sc-if>
+          <sc-if value="{{isLasso}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 3" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg></sc-if>
+        </button>
+      </div>
+    </sc-if>
+    <sc-if value="{{wbOpen}}" hint-placeholder-val="{{true}}">
+      <div class="wb {{wbDir}}" role="toolbar" aria-label="白板工具，按住空白处拖动，拖到角落收起" style="{{wbStyle}}" onPointerDown="{{wbDown}}">
+        <button onClick="{{pickHand}}" aria-pressed="{{handPressed}}" aria-label="移动" title="操作／移动：点题目选项可作答，拖动其他位置移动白板"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V11"></path><path d="M11 10V4.5a1.5 1.5 0 0 1 3 0V10"></path><path d="M14 10.5V6a1.5 1.5 0 0 1 3 0v7"></path><path d="M8 11a1.5 1.5 0 0 0-3 0v2a7 7 0 0 0 7 7h1a5 5 0 0 0 5-5v-2"></path></svg></button>
+        <button onClick="{{pickPen}}" aria-pressed="{{penPressed}}" aria-label="画笔，选中后再次点击选择颜色" title="画笔，选中后再点一次选择颜色"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"></path><path d="M14 7l3 3"></path></svg><span class="dot" style="{{penDotStyle}}"></span></button>
+        <button onClick="{{pickEraser}}" aria-pressed="{{eraserPressed}}" aria-label="整笔擦除" title="整笔擦除"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 20h12"></path><path d="M5 14l8-8a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-7 7H9l-4-4a1 1 0 0 1 0-1z"></path><path d="M9 10l5 5"></path></svg></button>
+        <button onClick="{{pickLasso}}" aria-pressed="{{lassoPressed}}" aria-label="框选笔迹" title="框选笔迹"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 3" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg></button>
+        <span class="sep"></span>
+        <button onClick="{{undo}}" disabled="{{undoDisabled}}" aria-label="撤销" title="撤销"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+        <button onClick="{{redo}}" disabled="{{redoDisabled}}" aria-label="重做" title="重做"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path></svg></button>
+        <span class="sep"></span>
+        <button onClick="{{toggleSettings}}" aria-pressed="{{settingsPressed}}" aria-label="白板设置" title="白板设置"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10"></path><path d="M18 6h2"></path><circle cx="16" cy="6" r="2"></circle><path d="M4 12h4"></path><path d="M12 12h8"></path><circle cx="10" cy="12" r="2"></circle><path d="M4 18h12"></path><path d="M20 18h0"></path><circle cx="18" cy="18" r="2"></circle></svg></button>
+        <button onClick="{{toggleFull}}" aria-pressed="{{fullPressed}}" aria-label="全屏" title="全屏"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"></path></svg></button>
+      </div>
+    </sc-if>
+    <sc-if value="{{showPalette}}" hint-placeholder-val="{{false}}">
+      <div class="wbpop" role="group" aria-label="{{popTitle}}" style="{{popStyle}}">
+        <strong style="font-size: 13px">{{popTitle}}</strong>
+        <div style="display: flex; gap: 8px">
+          <sc-for list="{{inks}}" as="c" hint-placeholder-count="4">
+            <button onClick="{{c.pick}}" aria-label="{{c.name}}" style="{{c.style}}"></button>
+          </sc-for>
+        </div>
+        <sc-if value="{{settingsOpen}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span>粗细</span>
+            <div style="display: flex; gap: 6px">
+              <sc-for list="{{widths}}" as="w" hint-placeholder-count="3">
+                <button onClick="{{w.pick}}" aria-label="{{w.name}}" style="{{w.style}}"><span style="{{w.bar}}"></span></button>
+              </sc-for>
+            </div>
+            <button onClick="{{clearInk}}" style="margin-top: 4px; height: 32px; border: 1px solid #EBE7F1; border-radius: 8px; background: #FFFFFF; color: #A4421A; font-size: 13px">清空本题笔迹</button>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </sc-if>
 </div>
 
   
 </main>
 
-<aside class="outline {{outlineClass}}" aria-label="题目大纲">
+<aside class="outline {{outlineClass}}" aria-label="题目大纲" style="{{outlineWidthStyle}}">
+  <div class="grip {{outlineGripClass}}" role="separator" aria-orientation="vertical" aria-label="拖动调整大纲栏宽度，双击恢复默认" aria-valuenow="{{outlineW}}" aria-valuemin="200" aria-valuemax="380" tabindex="0" style="left: -4px" onPointerDown="{{outlineGrip}}" onDoubleClick="{{outlineReset}}" onKeyDown="{{outlineKey}}"></div>
   <div style="display: flex; align-items: center; height: 56px; padding: 0 16px; border-bottom: 1px solid #E6E8EF; box-sizing: border-box">
     <strong style="flex: 1; font-size: 14px">题目大纲</strong>
     <span style="font-size: 12px; color: #6B7084">{{progressText}}</span>
@@ -209,7 +268,7 @@ button:focus-visible{outline:2px solid #5B4BC4;outline-offset:2px}
     <sc-for list="{{outline}}" as="sec" hint-placeholder-count="4">
       <section style="display: flex; flex-direction: column; gap: 8px">
         <span style="font-size: 12px; color: #5B6170; font-weight: 600">{{sec.title}}</span>
-        <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 6px">
           <sc-for list="{{sec.items}}" as="it" hint-placeholder-count="6">
             <button onClick="{{it.go}}" aria-label="{{it.aria}}" style="{{it.style}}">{{it.n}}</button>
           </sc-for>
@@ -254,10 +313,13 @@ class Component extends DCLogic {
     }
     st[28] = 'unanswered';
     this.plan = plan;
+    var self = this;
+    this.wrapRef = function (el) { self.wrap = el; if (el) setTimeout(function () { self.fit(); }, 0); };
+    this.canvasRef = function (el) { self.cv = el; if (el) { el._w = 0; setTimeout(function () { self.fit(); }, 0); } };
     this.state = {
       status: st, current: 28, view: 'question', selected: null, submitted: false,
-      drafting: false, tool: 'pen', ink: 'navy', libOpen: true, outlineOpen: true,
-      drawer: null, exam: false, completed: false,
+      drafting: false, tool: 'pen', ink: 'navy', penW: 2.4, palette: false, settings: false, full: false, dock: 'right', wbOpenCorner: false, dragXY: null, area: { w: 0, h: 0 }, libOpen: true, outlineOpen: true,
+      drawer: null, exam: false, completed: false, libW: 256, outlineW: 244, dragging: null,
       open: { cet4: false, basic: false, math: false, kaoyan: true }
     };
   }
@@ -353,13 +415,9 @@ class Component extends DCLogic {
     });
     var right = s.selected === correctKey;
 
-    var tools = [['pen', '钢笔'], ['marker', '荧光笔'], ['eraser', '橡皮'], ['move', '移动']].map(function (t) {
-      var on = s.tool === t[0];
-      return { label: t[1], pick: set({ tool: t[0] }), style: 'height: 34px; padding: 0 12px; border: 1px solid ' + (on ? accent : '#D3CEF0') + '; border-radius: 8px; background: ' + (on ? accent : '#FFFFFF') + '; color: ' + (on ? '#FFFFFF' : '#3A3F52') + '; font-size: 13px' };
-    });
     var inks = [['navy', '#1F3A8A', '深蓝'], ['red', '#C62828', '红色'], ['green', '#1B7F4B', '绿色'], ['black', '#1F2330', '黑色']].map(function (c) {
       var on = s.ink === c[0];
-      return { name: c[2], pick: set({ ink: c[0] }), style: 'width: 26px; height: 26px; border-radius: 13px; padding: 0; border: 2px solid ' + (on ? '#FFFFFF' : 'transparent') + '; background: ' + c[1] + '; box-shadow: ' + (on ? '0 0 0 2px ' + accent : 'none') };
+      return { name: c[2], pick: set({ ink: c[0], palette: s.settings }), style: 'width: 26px; height: 26px; border-radius: 13px; padding: 0; border: 2px solid ' + (on ? '#FFFFFF' : 'transparent') + '; background: ' + c[1] + '; box-shadow: ' + (on ? '0 0 0 2px ' + accent : 'none') };
     });
 
     var atFirst = s.view === 'question' && s.current === 1;
@@ -368,6 +426,62 @@ class Component extends DCLogic {
       return 'position: absolute; top: 50%; ' + side + ': 20px; transform: translateY(-50%); width: 44px; height: 112px; padding: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #E4E6EE; border-radius: 22px; background: rgba(255,255,255,0.92); box-shadow: 0 2px 8px rgba(30,34,60,0.06); z-index: 2; color: ' + (disabled ? '#C6C9D3' : '#5B6170') + '; cursor: ' + (disabled ? 'default' : 'pointer') + '; opacity: ' + (disabled ? '0.6' : '1');
     };
 
+    var clamp = function (v, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(v))); };
+    var grip = function (key, dir, lo, hi) {
+      return function (e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        var startX = e.clientX, startW = self.state[key];
+        self.setState({ dragging: key });
+        var move = function (ev) { var p = {}; p[key] = clamp(startW + dir * (ev.clientX - startX), lo, hi); self.setState(p); };
+        var up = function () { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); self.setState({ dragging: null }); };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      };
+    };
+    var keyStep = function (key, dir, lo, hi) {
+      return function (e) {
+        var d = e.key === 'ArrowRight' ? 16 : (e.key === 'ArrowLeft' ? -16 : 0);
+        if (!d) return;
+        e.preventDefault();
+        var p = {}; p[key] = clamp(self.state[key] + dir * d, lo, hi); self.setState(p);
+      };
+    };
+    var inkColor = { navy: '#1F3A8A', red: '#C62828', green: '#1B7F4B', black: '#1F2330' }[s.ink];
+    var A = { 'top-left': [0, 0], top: [1, 0], 'top-right': [2, 0], left: [0, 1], right: [2, 1], 'bottom-left': [0, 2], bottom: [1, 2], 'bottom-right': [2, 2] };
+    var corner = s.dock.indexOf('-') > 0;
+    var collapsed = corner && !s.wbOpenCorner;
+    var cr = A[s.dock];
+    var vertical = corner || s.dock === 'left' || s.dock === 'right';
+    var tbW = collapsed ? 48 : (vertical ? 48 : 330), tbH = collapsed ? 48 : (vertical ? 330 : 48);
+    var aw = s.area.w, ah = s.area.h, m = 12;
+    var place = function (i, ext, len) { return i === 0 ? m : (i === 2 ? ext - len - m : ext / 2 - len / 2); };
+    var x = place(cr[0], aw, tbW), y = place(cr[1], ah, tbH);
+    if (!collapsed && vertical) {
+      var navTop = ah / 2 - 56, navBot = ah / 2 + 56;
+      if (y < navBot + 6 && y + tbH > navTop - 6) { if (cr[0] === 0) x = 70; else x = aw - 70 - tbW; }
+    }
+    if (s.dragXY) { x = s.dragXY[0]; y = s.dragXY[1]; }
+    x = Math.max(0, Math.min(aw - tbW, x)); y = Math.max(0, Math.min(ah - tbH, y));
+    var side = vertical ? (cr[0] === 2 ? 'right' : 'left') : (cr[1] === 2 ? 'bottom' : 'top');
+    var popX, popY;
+    if (side === 'left') { popX = x + tbW + 10; popY = y; }
+    else if (side === 'right') { popX = x - 10 - 180; popY = y; }
+    else if (side === 'top') { popX = x + tbW / 2 - 90; popY = y + tbH + 10; }
+    else { popX = x + tbW / 2 - 90; popY = y - 10 - 200; }
+    popX = Math.max(8, Math.min(aw - 188, popX)); popY = Math.max(8, Math.min(ah - 210, popY));
+    var pick = function (t) {
+      return function () {
+        if (self.justDragged) return;
+        if (t === 'pen' && s.tool === 'pen') { self.setState({ palette: !s.palette, settings: false }); return; }
+        if (corner && s.tool === t) { self.setState({ wbOpenCorner: false, palette: false, settings: false }); return; }
+        self.setState({ tool: t, palette: false, settings: false });
+      };
+    };
+    var widths = [[1.6, '细'], [2.4, '中'], [4, '粗']].map(function (w) {
+      var on = s.penW === w[0];
+      return { name: w[1], pick: set({ penW: w[0] }), style: 'width: 44px; height: 32px; border-radius: 8px; border: 1px solid ' + (on ? accent : '#EBE7F1') + '; background: ' + (on ? '#EDE7FA' : '#FFFFFF') + '; display: flex; align-items: center; justify-content: center; padding: 0', bar: 'display: block; width: 22px; height: ' + w[0] + 'px; border-radius: 2px; background: ' + inkColor };
+    });
     var drawer = s.drawer;
     return {
       bankTitle: '2004年考研英语真题',
@@ -380,6 +494,12 @@ class Component extends DCLogic {
       toggleOutlineMobile: set({ drawer: drawer === 'outline' ? null : 'outline' }),
       closeDrawer: set({ drawer: null }),
       libGroups: libGroups,
+      libW: String(s.libW), outlineW: String(s.outlineW),
+      libWidthStyle: 'width: ' + s.libW + 'px', outlineWidthStyle: 'width: ' + s.outlineW + 'px',
+      libGripClass: s.dragging === 'libW' ? 'on' : '', outlineGripClass: s.dragging === 'outlineW' ? 'on' : '',
+      libGrip: grip('libW', 1, 200, 420), outlineGrip: grip('outlineW', -1, 200, 380),
+      libKey: keyStep('libW', 1, 200, 420), outlineKey: keyStep('outlineW', -1, 200, 380),
+      libReset: set({ libW: 256 }), outlineReset: set({ outlineW: 244 }),
 
       exam: s.exam, notExam: !s.exam,
       startExam: function () {
@@ -388,13 +508,82 @@ class Component extends DCLogic {
       },
       drafting: s.drafting,
       draftLabel: s.drafting ? '返回作答' : '草稿',
-      toggleDraft: set({ drafting: !s.drafting }),
+      toggleDraft: set({ drafting: !s.drafting, palette: false, settings: false, full: false }),
       draftBtnStyle: 'display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid ' + (s.drafting ? accent : '#E1E3EC') + '; border-radius: 8px; background: ' + (s.drafting ? accent : '#FFFFFF') + '; color: ' + (s.drafting ? '#FFFFFF' : '#3A3F52') + '; font-size: 14px',
-      tools: tools, inks: inks,
+      inks: inks,
+      appClass: s.full ? 'full' : '',
+      wrapRef: this.wrapRef,
+      canvasRef: this.canvasRef,
+      wbCollapsed: collapsed, wbOpen: !collapsed,
+      wbDir: vertical ? 'v' : 'h',
+      wbStyle: 'left: ' + x + 'px; top: ' + y + 'px' + (s.dragXY ? '; cursor: grabbing' : ''),
+      wbDown: function (e) {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        var sx = e.clientX, sy = e.clientY, ox = x, oy = y, moved = false;
+        self.justDragged = false;
+        var move = function (ev) {
+          var dx = ev.clientX - sx, dy = ev.clientY - sy;
+          if (!moved && Math.hypot(dx, dy) < 6) return;
+          moved = true;
+          self.setState({ dragXY: [ox + dx, oy + dy], palette: false, settings: false });
+        };
+        var up = function (ev) {
+          window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+          if (!moved) return;
+          self.justDragged = true; setTimeout(function () { self.justDragged = false; }, 0);
+          var cx = ox + (ev.clientX - sx) + tbW / 2, cy = oy + (ev.clientY - sy) + tbH / 2, best = 'right', bd = 1e9;
+          Object.keys(A).forEach(function (k) {
+            var px = A[k][0] / 2 * aw, py = A[k][1] / 2 * ah, d = Math.hypot((px - cx) / (aw || 1), (py - cy) / (ah || 1));
+            if (d < bd) { bd = d; best = k; }
+          });
+          self.setState({ dragXY: null, dock: best, wbOpenCorner: false });
+        };
+        window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+      },
+      wbExpand: function () { if (!self.justDragged) self.setState({ wbOpenCorner: true }); },
+      isHand: s.tool === 'hand', isPen: s.tool === 'pen', isEraser: s.tool === 'eraser', isLasso: s.tool === 'lasso',
+      handPressed: s.tool === 'hand' ? 'true' : 'false', penPressed: s.tool === 'pen' ? 'true' : 'false',
+      eraserPressed: s.tool === 'eraser' ? 'true' : 'false', lassoPressed: s.tool === 'lasso' ? 'true' : 'false',
+      pickHand: pick('hand'), pickPen: pick('pen'), pickEraser: pick('eraser'), pickLasso: pick('lasso'),
+      penDotStyle: 'background: ' + inkColor,
+      undoDisabled: !(this.strokes && this.strokes[s.current] && this.strokes[s.current].length),
+      redoDisabled: !(this.redoStack && this.redoStack.length),
+      settingsPressed: s.settings ? 'true' : 'false',
+      toggleSettings: function () { if (!self.justDragged) self.setState({ settings: !s.settings, palette: !s.settings }); },
+      fullPressed: s.full ? 'true' : 'false',
+      toggleFull: function () { if (!self.justDragged) self.setState({ full: !s.full }); },
+      showPalette: s.palette && !collapsed,
+      settingsOpen: s.settings,
+      popTitle: s.settings ? '白板设置' : '笔迹颜色',
+      popStyle: 'left: ' + popX + 'px; top: ' + popY + 'px',
+      widths: widths,
+      canvasStyle: 'position: absolute; left: 0; top: 0; z-index: 3; touch-action: none; pointer-events: ' + (s.tool === 'hand' ? 'none' : 'auto') + '; cursor: ' + (s.tool === 'eraser' ? 'cell' : 'crosshair'),
+      penDown: function (e) {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        var pt = self.point(e);
+        if (s.tool === 'eraser') { self.erasing = true; self.erase(pt); return; }
+        if (s.tool !== 'pen') return;
+        self.live = { color: inkColor, width: s.penW, alpha: 1, pts: [pt] };
+        self.redoStack = [];
+        self.list().push(self.live);
+        self.redraw();
+      },
+      penMove: function (e) {
+        if (self.erasing) { self.erase(self.point(e)); return; }
+        if (!self.live) return;
+        self.live.pts.push(self.point(e));
+        self.redraw();
+      },
+      penUp: function () { var drew = !!self.live; self.live = null; self.erasing = false; if (drew) self.forceUpdate(); },
+      undo: function () { var st = self.list().pop(); if (st) { self.redoStack = (self.redoStack || []).concat([st]); } self.redraw(); self.forceUpdate(); },
+      redo: function () { var r = self.redoStack || []; if (!r.length) return; self.list().push(r.pop()); self.redraw(); self.forceUpdate(); },
+      clearInk: function () { self.strokes[self.state.current] = []; self.redraw(); },
 
       showQuestion: s.view === 'question', showSummary: s.view === 'summary',
       currentLabel: String(s.current),
-      cardStyle: 'max-width: 760px; margin: 0 auto; padding: 28px 32px; background: #FFFFFF; border: 1px solid ' + (s.drafting ? '#BFB6EE' : '#E6E8EF') + '; border-radius: 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px' + (s.drafting ? '; outline: 2px dashed #BFB6EE; outline-offset: 6px; cursor: crosshair' : ''),
+      cardStyle: 'width: 100%; max-width: 760px; margin: 0 auto; padding: 28px 32px; background: #FFFFFF; border: 1px solid ' + (s.drafting ? '#BFB6EE' : '#E6E8EF') + '; border-radius: 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px' + (s.drafting ? '; outline: 2px dashed #BFB6EE; outline-offset: 6px' : ''),
       options: options,
       submitted: s.submitted && !s.exam,
       resultTitle: right ? '回答正确 · 得 2 分' : '回答错误 · 得 0 分',
@@ -412,11 +601,9 @@ class Component extends DCLogic {
         self.setState({ submitted: false, selected: null, status: stt });
       },
 
-      summaryKicker: s.completed ? (s.exam ? '考试已交卷 · 用时 1:17:42' : '练习已完成') : (s.exam ? '交卷前确认' : '当前得分'),
+      summaryKicker: s.completed ? (s.exam ? '已交卷' : '练习已完成') : (s.exam ? '考试中' : '当前得分'),
       scoreText: s.completed || !s.exam ? '58.5' : '—',
-      summaryNote: s.completed
-        ? '答案已锁定。主观题可以在题目里修改分数；归档后这一轮进入历史记录。'
-        : (s.exam ? '还有 ' + (52 - done) + ' 道题未作答。交卷后统一评分，答案不能再改。' : '还有 ' + (52 - done) + ' 道题未作答，完成后按 0 分计。完成后答案锁定，未评分的题会自动评分。'),
+      summaryNote: s.completed ? (s.exam ? '用时 1:17:42 · 答案已锁定' : '答案已锁定') : ('还有 ' + (52 - done) + ' 题未作答'),
       summaryActionLabel: s.completed ? (s.exam ? '归档并返回练习' : '再练一次') : (s.exam ? '交卷' : '完成练习'),
       summaryAction: function () {
         if (!s.completed) { self.setState({ completed: true, submitted: true }); return; }
@@ -440,9 +627,80 @@ class Component extends DCLogic {
     };
   }
 
+  componentDidUpdate(prevProps, prevState) {
+    this.fit();
+    if (prevState && prevState.current !== this.state.current) this.redraw();
+  }
+
+  list() {
+    if (!this.strokes) this.strokes = {};
+    var k = this.state.current;
+    if (!this.strokes[k]) this.strokes[k] = [];
+    return this.strokes[k];
+  }
+
+  point(e) {
+    var r = this.cv.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+
+  fit() {
+    var wr = this.wrap;
+    if (wr) {
+      var aw = wr.clientWidth, ah = wr.clientHeight, a = this.state.area;
+      if (a.w !== aw || a.h !== ah) { this.setState({ area: { w: aw, h: ah } }); }
+    }
+    var cv = this.cv;
+    if (!cv || !cv.parentElement) return;
+    var box = cv.parentElement;
+    var w = box.clientWidth, h = box.scrollHeight;
+    if (cv._w === w && cv._h === h) return;
+    var dpr = window.devicePixelRatio || 1;
+    cv._w = w; cv._h = h;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    this.redraw();
+  }
+
+  redraw() {
+    var cv = this.cv;
+    if (!cv) return;
+    var ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    this.list().forEach(function (st) {
+      var p = st.pts;
+      ctx.globalAlpha = st.alpha;
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = st.width;
+      ctx.beginPath();
+      ctx.moveTo(p[0][0], p[0][1]);
+      if (p.length === 1) { ctx.lineTo(p[0][0] + 0.1, p[0][1]); }
+      for (var i = 1; i < p.length - 1; i++) {
+        var mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(p[i][0], p[i][1], mx, my);
+      }
+      if (p.length > 1) ctx.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  erase(pt) {
+    var k = this.state.current, before = this.list().length;
+    this.strokes[k] = this.list().filter(function (st) {
+      return !st.pts.some(function (q) { var dx = q[0] - pt[0], dy = q[1] - pt[1]; return dx * dx + dy * dy < 144; });
+    });
+    if (this.strokes[k].length !== before) this.redraw();
+  }
+
   go(n) {
     if (n < 1 || n > 52) return;
     var sub = n === 28 && (this.state.status[28] === 'correct' || this.state.status[28] === 'wrong');
+    this.redoStack = [];
     this.setState({ current: n, view: 'question', drawer: null, submitted: n === 28 ? sub : false });
   }
 }
