@@ -102,6 +102,8 @@ try {
               x,
               y,
               hit: document.elementFromPoint(x, y)?.className,
+              inert: document.querySelector('.v2-viewport')?.inert,
+              busy: document.querySelector('.v2-card')?.getAttribute('aria-busy'),
               viewport: document.querySelector('.v2-viewport')?.getBoundingClientRect().toJSON(),
               mode: document.querySelector('.v2-viewport')?.className,
               canvas: document
@@ -114,10 +116,36 @@ try {
           ),
         ),
       );
+      await page.evaluate(() => {
+        window.pointerDiagnostic = [];
+        for (const type of [
+          'pointerdown',
+          'pointerup',
+          'pointercancel',
+          'lostpointercapture',
+          'blur',
+          'focus',
+        ]) {
+          window.addEventListener(
+            type,
+            (event) =>
+              window.pointerDiagnostic.push({
+                type,
+                target: event.target.className,
+                trusted: event.isTrusted,
+              }),
+            { capture: true, once: true },
+          );
+        }
+      });
       await page.mouse.move(x, y);
       await page.mouse.down();
       await page.mouse.move(x + 65, y + 22, { steps: 8 });
       await page.mouse.up();
+      console.log(
+        'Stroke events',
+        JSON.stringify(await page.evaluate(() => window.pointerDiagnostic)),
+      );
     }
     await page.goto(origin);
     if (name === 'mobile') {
