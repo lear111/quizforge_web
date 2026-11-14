@@ -1,6 +1,6 @@
 # E②：后端 JS 严格类型检查
 
-**状态：实现待审查，未合并。** #143 已审查合并；基于 `d0d5e6a`，目标分支 `v2`。文件读写层、业务层、请求层分别提交为 `da90642`、`5434420`、`e0c573f`，不开始 F。
+**状态：[#149](https://github.com/lear111/quizforge_web/pull/149) 实现待审查，未合并。** #143 已审查合并；基于 `d0d5e6a`，目标分支 `v2`。文件读写层、业务层、请求层分别提交为 `da90642`、`5434420`、`e0c573f`，不开始 F。已并入 `c2276c7` 的文档更新，保留新原型及 E→I→F 顺序；不在本 PR 实现 I。
 
 **改了什么 / 文件清单。** `tsconfig.server-v2.json` 开启 `allowJs/checkJs/strict/noEmit`、NodeNext、`skipLibCheck:false`；`package.json` 新增 `typecheck:server`，两系统 Checks 执行并保留失败日志。新增开发类型包 `@types/node@24.19.2`、`@types/express@5.0.6` 及锁文件。实际检查 `controllers` 1、`services` 8、`repositories` 9 个 JS 模块：请求和解析结果先为 unknown，既有检查标注成守卫/断言函数，方法出口引用共享 DTO。`types/{data,http}.d.ts` 只放快照、缓存、Express 上下文等后端内部定义，不复制共享字段。六个 utils 声明与三个旧 `host/platform` 声明只描述实际调用边界，不检查其 JS 实现、不遮蔽上述 18 个真实模块。eslint 支持声明中的合法重载并仍拒绝重复变量；分层规则只允许到中立 types 目录的纯类型引用，运行时/反向越层仍拒绝。
 

@@ -166,7 +166,9 @@
 
 ## 任务顺序（2026-11-13 负责人确认，取代此前各处的"近期顺序"）
 
-依次进行，每项一个或几个小 PR，等审查后再做下一项。A–H 都不改变对用户可见的行为。各项的具体要求见上文对应条目和 `V2_WORKFLOW.md` 第 8、9 节。
+2026-11-14 负责人确认：I 提到 E 之后、F 之前做，表中按实际顺序排列，字母不改。
+
+依次进行，每项一个或几个小 PR，等审查后再做下一项。A–H 都不改变对用户可见的行为（I 改界面）。各项的具体要求见上文对应条目和 `V2_WORKFLOW.md` 第 8、9 节。
 
 | 序 | 任务 | 要点 | 审查 |
 |---|---|---|---|
@@ -174,11 +176,11 @@
 | B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告。[#127](https://github.com/lear111/quizforge_web/pull/127) 已审查合并；见[检查记录](reviews/V2-BROWSER-CI.md) | 需审查 |
 | C | 后端拆分与精简 | [#129](https://github.com/lear111/quizforge_web/pull/129) 与补充 [#133](https://github.com/lear111/quizforge_web/pull/133) 均已审查合并；见[拆分记录](reviews/V2-BACKEND-SPLIT.md)与[大纲诊断记录](reviews/V2-OUTLINE-DIAGNOSTICS.md) | 已完成 |
 | D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式；① [#136](https://github.com/lear111/quizforge_web/pull/136)、② [#137](https://github.com/lear111/quizforge_web/pull/137)、③ [#138](https://github.com/lear111/quizforge_web/pull/138) 均已审查合并；④ [#139](https://github.com/lear111/quizforge_web/pull/139) Vue Router 已审查合并；⑤ [#140](https://github.com/lear111/quizforge_web/pull/140) 组件事件、scoped 样式与单向导航已审查合并，见[记录](reviews/V2-FRONTEND-COMPONENTS.md)；任务 D 已完成，界面待负责人试用。启动空地址不自动打开题库，负责人已确认；#138 的 helper 子目录、确认归视图、DOM 说明已处理，对外动作/转发表/catalog API 注入与空参数留 F | 每个小 PR 等审查 |
-| E | 前后端共用一份数据定义，后端加类型检查 | 接口的请求和答复、`state.json` 等结构只定义一次，放在 `core/shared/v2/`，前端的 `api/` 与后端的 controller / service 都引用它；后端保持 JavaScript，用 JSDoc 注解加 `tsc --checkJs` 做类型检查并接入 CI。先覆盖 `controllers`、`services`、`repositories`，`utils` 和沿用的 V1 工具可以后补。[#142](https://github.com/lear111/quizforge_web/pull/142) 开工方案已审查合并；①[#143](https://github.com/lear111/quizforge_web/pull/143) 共享声明、前端引用与契约测试已审查合并；②真实后端三层 JS 的严格类型检查、声明边界与 CI 已实现，见[记录](reviews/V2-SERVER-TYPES.md)，待审查 | 需审查 |
+| E | 前后端共用一份数据定义，后端加类型检查 | 接口的请求和答复、`state.json` 等结构只定义一次，放在 `core/shared/v2/`，前端的 `api/` 与后端的 controller / service 都引用它；后端保持 JavaScript，用 JSDoc 注解加 `tsc --checkJs` 做类型检查并接入 CI。先覆盖 `controllers`、`services`、`repositories`，`utils` 和沿用的 V1 工具可以后补。[#142](https://github.com/lear111/quizforge_web/pull/142) 开工方案已审查合并；①[#143](https://github.com/lear111/quizforge_web/pull/143) 共享声明、前端引用与契约测试已审查合并；②[#149](https://github.com/lear111/quizforge_web/pull/149) 真实后端三层 JS 的严格类型检查、声明边界与 CI 已实现，见[记录](reviews/V2-SERVER-TYPES.md)，待审查 | 需审查 |
+| I | 界面原型第 1 版（含切题按钮与汇总页入口，D45） | 按 [界面原型说明](V2_UI_PROTOTYPE.md) 实现做题页：先把第 4 节颜色整理成 CSS 变量，再逐个组件按元素表调整；状态为"本次接入"的做，"隐藏"的不出现，"参考"的不在宿主实现。底部导航栏去掉，翻页按钮放到题目区两侧；完成练习从顶栏移到汇总页。做完把元素表的状态改为"已实现"。浏览器检查里依赖旧按钮位置的断言，改选择器不改断言含义，在 PR 里列出 | 需审查，负责人试用 |
 | F | 沙箱与保存相关的长函数 | `services/` 下的题目页面装载、评分环境、保存时机、拓展文件缓存、完成评分，逐个文件拆分；一并收口 store 动作、精简转发表/catalog API 注入与空参数，并整理 #140 评论指出的 completedAt watch 与地址同步；按 #143 审查意见用 kind 可辨识联合关联保存请求/答复，去掉 saving.ts 三处断言 | 需审查 |
 | G | 并行准备与测试整理 | 构建成品不进仓库；进度页拆分为"总表 + 每任务一个记录文件"；过长的测试文件按功能拆开（不改断言） | 核对 |
 | H | 长度规则改为强制 | `max-lines`、`max-lines-per-function` 从警告改为报错；探针脚本的上限如需放宽，在 PR 里说明 | 核对 |
-| I | 切题按钮与汇总页入口（D45） | 第 3 段功能 | 负责人试用 |
 | J | 归档与历史 | 第 3 段功能。先按 D50 把练习的作答文件搬到 `.qf-v2/practice/`（旧位置的开发记录不迁移，直接删除），再做归档。开工先测轮次文件的写入耗时；若 JSON 编码明显拖慢归档（此前测得比原生慢约 7 倍），提出处理方案后再定 | 需审查，负责人试用 |
 | K | 考试（D49–D52） | 第 4 段功能。后端：`POST B/exam`、按结束时刻拒绝改答案、现有接口作用在当前一轮上。页面：开始考试入口与时长、倒计时、到点交卷、打开时补交过期的考试、历史列表的考试标记与用时。题型拓展不改 | 需审查，负责人试用 |
 | L | 富文本改为受限 HTML（D54） | 富文本组件的显示改为接收 HTML 字符串：用成熟的清洗库按白名单过滤，`$…$` 交给公式库，`qf-asset:` 图片走素材接口。示例题库的 7 道题转成 HTML，三个题型不用改调用方式。编辑器不在本任务内（第 6 段）。开工前先写半页说明（选哪个清洗库、体积变化）等审查 | 需审查，负责人试用 |
