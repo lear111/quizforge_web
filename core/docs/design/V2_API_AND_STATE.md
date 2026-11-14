@@ -134,9 +134,9 @@
 
 - 三个写接口在该题已提交（有提交编号）、本轮已完成、考试已过结束时刻时一律拒绝，错误与 `PUT Q/answer` 相同。
 - `name` 与 `areaId` 只允许字母、数字、点、横线、下划线，后端不解析文件内容。单个文件上限 4 MiB（沿用旧版图片上限）。
-- `POST Q/retry` 删除该题的作答文件夹；按 D27 清空作答时一并删除；`POST B/restart` 把整个 `assets/` 搬进该轮目录。
+- `POST Q/retry` 删除该题的作答文件夹；按 D27 清空作答时一并删除；`POST B/restart` 把整个 `answer-files/` 搬进该轮目录。
 - 历史里只读：`GET R/questions/{questionId}/answer-files/{name}` 与 `GET R/questions/{questionId}/answer-ink/{areaId}`。
-- 地址用 `answer-files` 而不是 `assets`，因为 `Q/assets/…` 已经用于题库素材。
+- 磁盘文件夹与接口地址都叫 `answer-files`，与题库素材的 `assets` 区分开。
 
 ## 后续接口（未实现，字段随各段审查）
 
