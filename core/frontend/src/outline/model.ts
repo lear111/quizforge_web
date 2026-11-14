@@ -10,8 +10,8 @@ export interface OutlineInput {
   groups: { key: string; name: string; questions: OutlineQuestion[] }[];
   questionId?: string | null; itemId?: string | null; summaryShown: boolean; summaryAvailable: boolean;
 }
-export interface OutlineButton { key: string; questionId: string; itemId: string | null; label: string; status: string; active: boolean; title: string; ariaLabel: string }
-export interface OutlineModel { groups: { key: string; name: string; buttons: OutlineButton[] }[]; summaryShown: boolean; summaryAvailable: boolean }
+export interface OutlineButton { key: string; questionId: string; itemId: string | null; label: string | undefined; status: string; active: boolean; title: string; ariaLabel: string }
+export interface OutlineModel { groups: { key: string; name: string | undefined; buttons: OutlineButton[] }[]; summaryShown: boolean; summaryAvailable: boolean }
 const labels: Record<string, string> = { unanswered: '未作答', draft: '已作答，待提交', pending: '已提交，待评分', correct: '正确', incorrect: '错误' };
 
 // Input contains display fields only. Answers, ink, live panes and iframe
