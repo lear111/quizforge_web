@@ -16,11 +16,13 @@
 
 20 题交错复测：同一夹具，每对分别启动两个版本（先后顺序轮换、预热两对后 30 对），无超时。启动中位 762.11 → 1727.24 ms，逐对差的中位 +1023.21 ms（远超 +100 ms）。首次/暖概览服务端逐对中位差分别 +16.78 / −0.11 ms，读题回环 +0.42 ms；概览尾部明显波动。启动退化可复现，请先审查；未实施额外优化或声称达到 +2 ms 请求门槛。
 
-本地：现有 V2 测试 111/111（含依赖图），类型、构建一致、格式均通过；规范 0 错误，47 条既有长度警告。浏览器复核进行中；不访问真实数据或重启日常服务。
+本地：现有 V2 测试 111/111（含依赖图），类型、构建一致、格式均通过；规范 0 错误，47 条既有长度警告。原八组浏览器脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`）和 `completion` 均通过（Chromium 157 桌面/手机视口，非真机）。未访问真实数据或重启日常服务。
+
+[CI 运行 43558507800](https://github.com/lear111/quizforge_web/actions/runs/43558507800)，实现提交 `0cc21f0`；后续只回填文档。
 
 | CI job | 结果/总耗时 | 失败用例 |
 |---|---|---|
-| Checks / Windows | 待运行 | 待确认 |
-| Checks / Ubuntu | 待运行 | 待确认 |
-| Performance / Ubuntu | 待运行 | 待确认 |
-| V2 code quality / Ubuntu | 待运行 | 待确认 |
+| Checks / Windows | 1372 通过、0 跳过；3 分 38 秒 | 无 |
+| Checks / Ubuntu | 1338 通过、34 项既有平台跳过；2 分 34 秒 | 无 |
+| Performance / Ubuntu | 2/2；52 秒 | 无 |
+| V2 code quality / Ubuntu | 通过；1 分 2 秒 | 无 |
