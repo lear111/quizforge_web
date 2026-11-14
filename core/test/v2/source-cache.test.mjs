@@ -3,21 +3,37 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 const compiled = await build({
-  entryPoints: [
-    fileURLToPath(new URL('../../frontend/src/v2/services/source-cache.ts', import.meta.url)),
-  ],
+  stdin: {
+    contents: `export { createPageSourceCache } from './services/source-cache';
+      export { createApi } from './api';`,
+    resolveDir: fileURLToPath(new URL('../../frontend/src/v2', import.meta.url)),
+    loader: 'ts',
+  },
   bundle: true,
   write: false,
   format: 'esm',
   platform: 'node',
 });
-const { createPageSourceCache } = await import(
+const { createPageSourceCache, createApi } = await import(
   'data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64')
 );
+function cacheFor(loaders) {
+  const api = createApi({
+    token: () => '',
+    unauthorized() {},
+    async fetch(route, options) {
+      const body = route.endsWith('/manifest')
+        ? JSON.stringify(await loaders.json(route, options.signal))
+        : await loaders.text(route, options.signal);
+      return new Response(body);
+    },
+  });
+  return createPageSourceCache(api);
+}
 test('one snapshot shares source Promises and SDKs across types; a failed load can be retried', async () => {
   const calls = [];
   let fail = false;
-  const cache = createPageSourceCache({
+  const cache = cacheFor({
     json: async (route) => {
       calls.push(route);
       return {
@@ -57,7 +73,7 @@ test('one snapshot shares source Promises and SDKs across types; a failed load c
 test('bank, snapshot and credentials isolate entries and abort pending loads; late completion is never adopted', async () => {
   let resolve;
   const signals = [],
-    cache = createPageSourceCache({
+    cache = cacheFor({
       json: (route, signal) => {
         signals.push(signal);
         return new Promise((r) => {

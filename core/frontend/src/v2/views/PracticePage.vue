@@ -4,12 +4,11 @@ import { usePracticePage } from './use-practice-page';
 
 const props = defineProps<{
   nonce: string;
-  requestPrefix: (bankId: string) => string;
   workspace: PracticeWorkspace;
   busy: boolean;
   visible: boolean;
 }>();
-const page = usePracticePage(props.workspace, (bankId) => props.requestPrefix(bankId), props.nonce);
+const page = usePracticePage(props.workspace, props.nonce);
 const {
   current,
   container,

@@ -1,13 +1,14 @@
 import type { GradingInput, GradingOutput, GradeResult } from './grading';
 import { ungradable } from './grading';
 import type { Overview, Question, Completion } from '../types/practice-types';
+import { createRequestId, writeBody } from '../api/requests';
 
 // The same batch/body/request id is retained after an uncertain transport
 // failure. Author code only runs in the existing browser grading service.
 export function createCompletionGrader(options: {
   grade(artifact: string, items: GradingInput[]): Promise<GradingOutput[]>;
   send(body: string): Promise<Completion>;
-  requestId(): string;
+  requestId?(): string;
 }) {
   let pending: {
     snapshotId: string;
@@ -68,11 +69,11 @@ export function createCompletionGrader(options: {
         pending = {
           snapshotId: value.snapshotId,
           rows,
-          body: JSON.stringify({
-            requestId: options.requestId(),
-            snapshotId: value.snapshotId,
-            results: rows,
-          }),
+          body: writeBody(
+            value.snapshotId,
+            { results: rows },
+            (options.requestId ?? createRequestId)(),
+          ),
         };
       }
       const batch = pending;
@@ -97,11 +98,11 @@ export function createCompletionGrader(options: {
             throw error;
           }
           row.result = ungradable('题型返回的评分格式或分数无效。');
-          batch.body = JSON.stringify({
-            requestId: options.requestId(),
-            snapshotId: batch.snapshotId,
-            results: batch.rows,
-          });
+          batch.body = writeBody(
+            batch.snapshotId,
+            { results: batch.rows },
+            (options.requestId ?? createRequestId)(),
+          );
         }
       }
     },
