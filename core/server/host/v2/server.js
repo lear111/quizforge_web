@@ -115,6 +115,10 @@ export class V2Server {
       this.authenticate(request);
       if (parts[1] !== 'v2') throw problem('V1_API_REMOVED', 'V2 不提供旧作答接口，请使用 V2 页面或 v1-final。', {}, 410);
       if (!['GET', 'HEAD'].includes(request.method)) {
+        if (parts[2] === 'banks' && parts.length === 5 && (parts[4] === 'finish' && request.method === 'POST' || parts[4] === 'results' && request.method === 'PUT')) {
+          const input = await this.body(request);
+          return this.json(response, 200, measureSave('validate', () => this.library[parts[4]](parts[3], input)));
+        }
         if (parts[2] === 'banks' && parts[4] === 'questions' && parts.length === 7 && (['submit', 'retry'].includes(parts[6]) && request.method === 'POST' || ['result', 'answer', 'ink'].includes(parts[6]) && request.method === 'PUT')) {
           const input = await this.body(request);
           return this.json(response, 200, measureSave('validate', () => this.library.write(parts[3], parts[5], parts[6], input)));

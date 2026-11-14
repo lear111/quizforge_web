@@ -8,7 +8,8 @@ import { createPageSourceCache } from './source-cache';
 import { createWriteQueue } from './write-queue';
 import { mountScratch } from './whiteboard';
 import type { Picture } from './page';
-import type { Overview, PracticeWorkspace, Question } from './practice-types';
+import type { Completion, Overview, PracticeWorkspace, Question } from './practice-types';
+import { createCompletionGrader } from './completion';
 
 export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (bankId: string) => string, nonce: string) {
   const { overview, busy, message, token, response, json, run, remember } = workspace;
@@ -26,6 +27,10 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
   const grader = createGradingService({ loadSource: (id, signal) => text(`/api/v2/extensions/${id}/files/grade-js`, signal), scriptNonce: nonce });
   const base = (q: Question) => `${requestPrefix(q.bankId)}/questions/${encodeURIComponent(q.questionId)}`;
   const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
+  const completionGrader = createCompletionGrader({
+    grade: (id, items) => grader.grade(id, items), requestId,
+    send: body => enqueue(() => json(`${requestPrefix(overview.value!.bank.bankId)}/results`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }))
+  });
   function update(q: Question, preserveStatus = false) {
     if (current.value?.bankId === q.bankId && current.value.questionId === q.questionId) {
       if (!Object.hasOwn(q, 'ink')) q = { ...q, ink: current.value.ink, inkRevision: current.value.inkRevision };
@@ -33,7 +38,7 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
     }
     current.value = q; if (overview.value) overview.value.states = overview.value.states.map(s => s.questionId === q.questionId ? q.state : s);
   }
-  const context = (question: Question) => { const q = toRaw(question); return { mode: 'practice' as const, question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked, retry: q.state.hasSavedAnswer }, appearance: { theme: 'light' as const } }; };
+  const context = (question: Question) => { const q = toRaw(question); return { question: q.question, answer: q.answer, solution: q.solution, result: q.result, item: q.item, locked: q.state.locked, can: { submit: !q.state.locked && !overview.value?.completedAt, retry: q.state.hasSavedAnswer && !overview.value?.completedAt }, appearance: { theme: 'light' as const } }; };
   async function pictures(q: Question, has: (id: string) => boolean = () => false): Promise<Picture[]> {
     const references = new Set<string>();
     const visit = (value: unknown) => {
@@ -65,6 +70,11 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
     const isCurrent = () => current.value?.bankId === previous.bankId && current.value.questionId === previous.questionId;
     recovering.value = true;
     try {
+      if ((error as { code?: string } | undefined)?.code === 'ROUND_COMPLETED') {
+        const value: Overview = await json(`${requestPrefix(previous.bankId)}/overview`);
+        if (mine !== generation) return null;
+        overview.value = value;
+      }
       let latest: Question;
       try { latest = await json(base(previous) + `?snapshotId=${encodeURIComponent(previous.snapshotId)}`); }
       catch (error) {
@@ -115,8 +125,8 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
         }
         answerVersion++; saver?.changed(kind);
       },
-      async onSubmit() { if (mine !== generation || busy.value || recovering.value || current.value?.state.locked) throw Error('当前不允许提交。'); await submit(); },
-      async onRetry() { if (mine !== generation || busy.value || recovering.value || !current.value?.state.hasSavedAnswer) throw Error('当前不允许重做。'); await retry(); }
+      async onSubmit() { if (mine !== generation || busy.value || recovering.value || overview.value?.completedAt || current.value?.state.locked) throw Error('当前不允许提交。'); await submit(); },
+      async onRetry() { if (mine !== generation || busy.value || recovering.value || overview.value?.completedAt || !current.value?.state.hasSavedAnswer) throw Error('当前不允许重做。'); await retry(); }
     });
     page = instance;
     scratch?.load(q.ink);
@@ -158,7 +168,7 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
     });
     await instance.ready;
     remember(q);
-    if (resume && q.submissionId !== null && q.result === null) await grade(q);
+    if (resume && !overview.value?.completedAt && q.submissionId !== null && q.result === null) await grade(q);
   }
   async function score(q: Question): Promise<Question> {
     // Browser postMessage cannot clone Vue proxies from the current-question ref.
@@ -181,7 +191,7 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
       if (current.value?.bankId === q.bankId && current.value.questionId === q.questionId) await applyContext(current.value);
     }
   }
-  async function submit() { if (!current.value || !page || current.value.state.locked) return; await run('正在提交并评分', async () => {
+  async function submit() { if (!current.value || !page || current.value.state.locked || overview.value?.completedAt) return; await run('正在提交并评分', async () => {
     await flush(); const q = current.value; if (!q || q.state.locked) return;
     const answer = await page!.answer();
     let saved: Question;
@@ -196,9 +206,9 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
       error(error) { message.value = error.message; }
     });
   });
-  onBeforeUnmount(() => { detach(); disposePage(); scratch?.destroy(); sources.dispose(); grader.dispose(); });
+  onBeforeUnmount(() => { detach(); disposePage(); scratch?.destroy(); sources.dispose(); grader.dispose(); completionGrader.clear(); });
   async function toggleDraft() { scratch?.flush(); drafting.value = !drafting.value; scratch?.setMode(drafting.value); }
-  async function retry() { if (!current.value) return; await run('正在重做', async () => {
+  async function retry() { if (!current.value || overview.value?.completedAt) return; await run('正在重做', async () => {
     await flush(); const q = current.value!;
     try {
       const saved = await enqueue(() => json(base(q) + '/retry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: q.snapshotId, expectedRevision: q.state.revision }) }));
@@ -210,14 +220,69 @@ export function usePracticePage(workspace: PracticeWorkspace, requestPrefix: (ba
   function resetSources() { sources.dispose(); }
   function clearQuestion(clearInk = false) { disposePage(); current.value = null; if (clearInk) scratch?.load(null); }
   async function recoverPending(value: Overview) {
+    if (value.completedAt) {
+      try { await gradeCompleted(value); } catch (error) { message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。'; }
+      return;
+    }
     await recoverGrades(value.pendingGrading.flatMap(pending => pending.question ? [pending.question] : []), score, async saved => {
       overview.value!.states = overview.value!.states.map(s => s.questionId === saved.questionId ? saved.state : s);
       if (saved.questionId === current.value?.questionId) { await flush(); if (current.value) await applyContext(current.value); }
     }, error => { message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。'; });
   }
-  function continueGrading() { if (current.value) return run('正在评分', () => grade(current.value!)); }
+  function continueGrading() { if (overview.value?.completedAt) return resumeCompletion(); if (current.value) return run('正在评分', () => grade(current.value!)); }
+  function applyCompletion(value: Completion) {
+    if (!overview.value) return;
+    Object.assign(overview.value, value);
+    if (!value.pendingGrading) overview.value.pendingGrading = overview.value.pendingGrading.filter(row => !row.question);
+    if (current.value) {
+      const state = value.states.find(state => state.questionId === current.value!.questionId);
+      if (state) update({ ...toRaw(current.value), state });
+    }
+  }
+  async function reloadCompletedQuestion() {
+    if (!current.value) return;
+    try { await applyContext(await json(base(current.value) + `?snapshotId=${encodeURIComponent(current.value.snapshotId)}`)); }
+    catch (error) {
+      // The bulk response already confirms the lock. Even if the follow-up
+      // read fails, never leave an editable old frame behind the score screen.
+      if (current.value && page) { try { await page.update(context(current.value)); } catch { /* Faulted pages keep their existing error screen. */ } }
+      message.value = error instanceof Error ? error.message : '题目暂时无法显示，已保存的分数不受影响。';
+    }
+  }
+  async function gradeCompleted(value: Overview) {
+    try {
+      const saved = await completionGrader.run(toRaw(value));
+      if (saved) { applyCompletion(saved); await reloadCompletedQuestion(); }
+      if (value.pendingGrading.some(row => row.error)) message.value = '部分题型暂不可用，仍可查看已保存的得分。';
+    } catch (error) { if (isSaveConflict(error)) completionGrader.clear(); throw error; }
+  }
+  async function complete() { if (!overview.value || overview.value.completedAt) return; await run('正在完成练习并评分', async () => {
+    await flush(); const bank = overview.value!;
+    let saved: Completion;
+    try { saved = await enqueue(() => json(`${requestPrefix(bank.bank.bankId)}/finish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: requestId(), snapshotId: bank.snapshotId }) })); }
+    catch (error) {
+      // A lost response may follow a successful lock. Read its actual state;
+      // offline failures still surface and may be retried without relocking.
+      if (!isSaveConflict(error)) {
+        try { const latest: Overview = await json(`${requestPrefix(bank.bank.bankId)}/overview`); if (latest.completedAt) { applyCompletion(latest); await reloadCompletedQuestion(); } } catch { /* Keep the original completion error. */ }
+      }
+      throw error;
+    }
+    applyCompletion(saved); await reloadCompletedQuestion(); await gradeCompleted(overview.value!);
+  }); }
+  async function resumeCompletion() { if (!overview.value?.completedAt) return; await run('正在评分', async () => {
+    await flush(); const bank = overview.value!;
+    const latest: Overview = await json(`${requestPrefix(bank.bank.bankId)}/overview`);
+    overview.value = latest;
+    if (!latest.completedAt) {
+      completionGrader.clear(); message.value = latest.notice ?? '';
+      if (latest.initial.question) await show(latest.initial.question, false); else clearQuestion(true);
+      return;
+    }
+    await gradeCompleted(latest);
+  }); }
   function retrySave() { return run('正在保存', flush); }
   return { current, container, typeName, saveStatus, recovering, drafting, viewport, stage, world,
-    flush, show, clearQuestion, resetSources, scopeSources, recoverPending, continueGrading, retrySave, toggleDraft,
+    flush, show, clearQuestion, resetSources, scopeSources, recoverPending, continueGrading, retrySave, toggleDraft, complete, resumeCompletion,
     pageFaulted: () => page?.faulted };
 }

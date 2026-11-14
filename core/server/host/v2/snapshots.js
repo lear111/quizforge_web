@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cloneJson, fingerprint, hash, projectJson } from '../platform/json.js';
+import { cloneJson, fingerprint, hash, projectJson, decimalSum } from '../platform/json.js';
 import { checkPath } from '../platform/files.js';
 import { readBank, questionRecord, validId } from './bank-reader.js';
 import { object, problem, publicError } from './errors.js';
@@ -94,12 +94,9 @@ export class LibrarySnapshots {
       }
       return { bank: cloneJson(bank.info), snapshotId, outline: cloneJson(bank.raw.outline), listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
         questionTypes: [...bank.items.keys()].map(id => ({ questionId: id, type: object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id) && typeof bank.raw.questions[id]?.type === 'string' ? bank.raw.questions[id].type : null })),
-        states: [...bank.items.keys()].map(id => this.state(snapshot, id)), lastQuestionId, initial, activeCleared,
+        ...this.completion(snapshot), lastQuestionId, initial, activeCleared,
         notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
-        pendingGrading: (includeInitial ? [...bank.items.keys()] : []).filter(id => this.stateStore && this.needsGrading(snapshot, id)).map(id => {
-          try { return { question: this.question(bankId, id, snapshotId), error: null }; }
-          catch (error) { return { question: null, error: publicError(error) }; }
-        }), ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
+        pendingGrading: includeInitial ? this.pendingGrading(snapshot) : [], ...(refresh ? { changes: { activeCleared, addedQuestionIds: [...bank.items.keys()].filter(id => !previous?.items.has(id)), removedQuestionIds: previous ? [...previous.items.keys()].filter(id => !bank.items.has(id)) : [], activeRoundInterrupted: false } } : {}) };
     });
   }
   refresh(bankId, input) {
@@ -119,6 +116,29 @@ export class LibrarySnapshots {
   needsGrading(snapshot, id) {
     const state = this.stateStore.get(snapshot, id);
     return state.submissionId !== null && state.result === null;
+  }
+  pendingGrading(snapshot, { includeInk = true } = {}) {
+    return [...snapshot.items.keys()].filter(id => this.stateStore && this.needsGrading(snapshot, id)).map(id => {
+      try { return { question: this.question(snapshot.bankId, id, snapshot.snapshotId, { includeInk }), error: null }; }
+      catch (error) { return { question: null, error: publicError(error) }; }
+    });
+  }
+  completion(snapshot) {
+    return { completedAt: this.stateStore?.load(snapshot.directory).completedAt ?? null,
+      total: this.stateStore ? this.stateStore.total(snapshot) : { score: 0, maxScore: decimalSum([...snapshot.maxScores.values()]) },
+      states: [...snapshot.items.keys()].map(id => this.state(snapshot, id)) };
+  }
+  finish(bankId, input) {
+    const snapshot = this.snapshot(bankId, input?.snapshotId);
+    this.stateStore.finish(snapshot, input);
+    // Neither answer nor solution is built until the entire lock transaction
+    // has committed. Individual unavailable pages stay recoverable entries.
+    return { ...this.completion(snapshot), pendingGrading: this.pendingGrading(snapshot, { includeInk: false }) };
+  }
+  results(bankId, input) {
+    const snapshot = this.snapshot(bankId, input?.snapshotId);
+    this.stateStore.results(snapshot, input);
+    return this.completion(snapshot);
   }
   state(snapshot, id) {
     if (this.stateStore) return this.stateStore.summary(snapshot, id);
