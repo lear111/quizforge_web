@@ -40,7 +40,6 @@ function summary(event: Event) {
     class="outline-score-summary"
     :class="{ active: model.summaryShown }"
     @click="summary"
-  >
-    分值汇总
-  </button>
+    v-text="'分值汇总'"
+  ></button>
 </template>
