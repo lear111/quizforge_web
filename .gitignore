@@ -10,6 +10,10 @@ node_modules/
 /runtime/
 /dist/
 
+# Vue runtime output is generated before source startup/tests; keep license notices tracked.
+/core/web/ui/quizforge-ui.js
+/core/web/ui/quizforge-web-local.css
+
 # 公开源码只附带基础题库及基础拓展；其他内容保留本地。
 /question-banks/*
 !/question-banks/基础题型/

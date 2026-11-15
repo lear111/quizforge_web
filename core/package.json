@@ -9,12 +9,15 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "prestart": "node scripts/build/ensure-ui.mjs",
     "start": "node server/v2-main.mjs --root ..",
     "build:richtext": "node scripts/build/build-richtext.mjs",
     "build:richtext-advanced": "node scripts/build/build-richtext-advanced.mjs",
     "build:short-answer-advanced": "node scripts/build/build-short-answer-advanced.mjs",
     "build:short-answer-ai": "node scripts/build/build-short-answer-ai.mjs",
+    "pretest": "node scripts/build/ensure-ui.mjs",
     "test": "node scripts/test/run.mjs",
+    "pretest:host": "node scripts/build/ensure-ui.mjs",
     "test:host": "node scripts/test/run.mjs host",
     "test:perf": "node scripts/test/run.mjs perf",
     "build:ui": "node scripts/build/build-ui.mjs",

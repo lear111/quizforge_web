@@ -49,6 +49,8 @@ function Get-RunningQuizForgeRefreshReason($running) {
 }
 
 function Open-ExistingQuizForge($running) {
+  & node (Join-Path $coreRoot 'scripts/build/ensure-ui.mjs')
+  if ($LASTEXITCODE -ne 0) { throw '前端构建失败，请检查依赖和上方错误。' }
   $existingUrl = "http://127.0.0.1:$($running.Port)/"
   Write-Host "QuizForge 已在运行，复用当前服务：$existingUrl" -ForegroundColor Green
   if ($running.Port -ne $Port) { Write-Host '如需更换端口，请先关闭原来的启动窗口。' }
@@ -110,6 +112,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Node 依赖安装失败，请检查网络和上方错误后重新双击启动。' }
   }
 
+  & $nodeCommand.Source (Join-Path $coreRoot 'scripts/build/ensure-ui.mjs')
+  if ($LASTEXITCODE -ne 0) { throw '前端构建失败，请检查依赖和上方错误。' }
   if ($SkipBuild -or $Rebuild) { Write-Host 'Node 后端直接运行源码；旧构建参数保留兼容，无需 Java 构建。' }
   $entryPoint = Join-Path $coreRoot 'server/main.mjs'
   if (-not (Test-Path -LiteralPath $entryPoint -PathType Leaf)) { throw 'Node 后端入口缺失，请检查应用文件。' }

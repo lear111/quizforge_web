@@ -1,6 +1,6 @@
 # 第 2.5 段：开工说明
 
-在 [进度页](../V2_PROGRESS.md#第-25-段开工说明) 记录两项已审查的任务：
+在 [进度页](../archive/V2_PROGRESS_BEFORE_G.md#第-25-段开工说明) 记录两项已审查的任务：
 
 - 清点 v1 文件、依赖和测试，按「正在用 / 后续复用 / 可删除」分类；单列共用、可瘦身的模块。先审清单再清理，清理后比较 quizforge-ui.js 的体积。
 - 按 [#91 的审查要求](https://github.com/lear111/quizforge_web/pull/91#issuecomment-6855901587)拆测切回题库的各段耗时，沿用隔离的模拟数据和真实 Chromium；只报告，不优化。

@@ -1,203 +1,42 @@
 # V2 进度
 
-一页。每合并一个功能后由 Codex 更新。功能清单见 [V2_WORKFLOW.md](V2_WORKFLOW.md) 第 6 节。
+功能顺序与协作按 [工作流程](V2_WORKFLOW.md)。本页只保留状态和索引；历史说明、实测数据与决定见各任务记录；[G 前完整快照](archive/V2_PROGRESS_BEFORE_G.md)保留全部旧文。
 
-## 现在做到哪
+## 功能总表
 
-| 段 | 做完后能做什么 | 状态 |
-|---|---|---|
-| 1 | 打开题库，看到大纲，做一道单选题，提交并看到分数 | 已完成：已审查、合并，浏览器检查与三项 CI 通过，负责人试用确认 |
-| 2 | 多选、判断；草稿自动保存、白板、重做；切换题库并回到上次位置；刷新 | #68、①后端 #69、②页面 #73、③白板/刷新 #76、③b #83 与题型接口 #85 已审查合并；④ #91 已审查合并。**已完成**：负责人于 2026-11-13 试用确认 |
-| 2.5 | 清点 v1 代码；测清切回题库耗时 | 题型接口已定稿（D35–D39）；清单 #101、测量 #102 已审查合并；后续计时 #108、第一批退役 #109 已审查合并；其余删除等 V2 桌面入口和制作脚本脱离旧规则链 |
-| 3 | 完成练习、汇总、历史 | 设计与开工说明 #107 已审查合并；主页面拆分 #110 已合并。完成练习与最终得分 #112 已审查合并，负责人已试用确认；归档与历史暂不实施 |
-| 4 | 考试模式 | 设计已定稿（D49–D52，接口见接口速查"第 4 段接口"）；未实现，排在任务 K |
-| 5 | 简答题、AI 评分、人工改分；设置 | 答题区与作答文件按 D55–D59；评分职责按 D60–D62 已补充文档：独立 `grade.js` 自动/批量评分、`practice.js` 人工评分（待实现），纯人工题型暂用 `{ score: null }`。人工评分复用 `/result` + `source: 'manual'` 为待实施方案；AI 接口设置、批量调度、评分截图、答题区组件调用与设置页面均待第 5 段完善。未排任务 |
-| 6 | 导入导出、Hub、题库编辑器、拓展开发模式 | 未开始 |
-| 7 | 删除旧代码、打包发布、整体性能复测 | 未开始 |
-
-**评分方案文档记录（2026-11-15，未实施）**：详见 [架构 3.2 节](V2_ARCHITECTURE.md#32-自动评分与人工评分的边界d60) 与 [拓展接口 4.3 节](../reference/V2_EXTENSIONS.md#43-人工评分d60待实现)。保持当前拓展必需的 `manifest.json`、`practice.html`、`practice.css`、`practice.js`、`grade.js`；人工评分由题型页面通知宿主，再由宿主与后端校验、保存和回显，不自行联网或执行评分 Worker。`QF.page.grade`、`source: 'manual'`、评分备注尚未接通；AI 评分的完整方案推迟到 AI 接口设置阶段。当前文档调整**不改变任何功能、API 或 F 任务顺序**。
-
-## 第 1 段
-
-**说明**：做完后，负责人启动 v2，能看到题库列表，打开一个题库看到大纲，做一道单选题，提交后看到分数。不包含：多选和判断、草稿自动保存、白板、重做、历史、考试。
-
-**已完成**
-- 后端只读部分（#60）：题库列表、大纲、单题读取、素材与听力、题型文件。提交前的响应不含答案。
-
-**已审查并合并的实现**
-- 后端：提交时原子保存并锁定，之后返回答案；接收并检查评分结果，失败保留原记录。
-- 前端：Vue 入口、共用题库列表/大纲、隔离的题型页面；评分组件 #63 和完整流程 #64 均已审查并合并到 `v2`。
-- 独立示例在 `examples/v2/`，不覆盖原基础题型或真实题库。根目录“启动 V2 单选题演示.cmd”可启动本分支预览。
-- 完整流程 #64 已复审通过并合并；负责人于 2026-11-12 试用确认“可以，加载很快”，第 1 段验收完成。重开会逐题补评中断的题目，一题失败不阻止其余题；无效评分记为无法评分，锁定答案始终不可修改。
-
-**实测速度**：Chrome 合成 20 题另加 1 题中断恢复，真实桌面/手机尺寸（非真机）。本轮审查修订后点击题库到可作答分别约 0.44 / 0.38 秒（各一次）；提交到分数及锁定页面可见的中位数约 0.29 / 0.37 秒、P95 0.48 / 0.53 秒（各 10 次）。以下保留 #60 的后端回环读数，不能与界面耗时混用。
-
-| 操作 | 耗时 |
-|---|---|
-| 启动到可用 | 0.43–0.46 秒 |
-| 首次打开题库（20 题 / 200 题） | 0.11 / 0.16 秒 |
-| 再次打开题库（20 题 / 200 题） | 0.05 / 0.10 秒 |
-| 读取一道题 | 约 4 毫秒 |
-
-**作答位置（D19）**：每本题库内部的 `.qf-v2/state.json`；改名、移动带着进度，复制时带上当时进度，之后各自保存。不用题库 id 或路径匹配作答文件。内部记录不计入题库内容指纹、遍历限额，也不能由素材/听力接口读到。32 MiB 暂按审查意见保留，写入失败保留原记录。
-
-## 第 2 段（开工说明，已按审查修订）
-
-做完后能用原基础题型展示库中的单选、多选、判断练习：选择立即保存，文字停顿 1 秒、白板停笔 1.5 秒保存，连续输入最长 10 秒保存一次，四个值集中定义。转后台立即保存，尚有未存输入时离开/刷新显示浏览器确认；切题或切库前保存，失败留在本题并可重试。提交后仍可写草稿，重做清空本题活跃内容。宿主白板全部为 ink，不进入答案；每题最多保留 4 条回执。沿用样式与工具，接图片、修复作答缓存外部变更、源码重复加载、评分重建及写死标题。不包含简答/AI、答题区契约、历史、考试、听力或安装包，不用其他成型题库和真实作答。详见 [审定设计](reviews/V2-SEG2-DESIGN.md)；听力在第 6 段实现（D26），坏记录报错保留（D25）。按①状态②页面③白板/位置④原基础题型的顺序实施，保存、锁定、重做及沙箱 PR 等审查，不自行合并。
-
-## 遗留事项
-
-③说明：先补提交/评分的冲突恢复及除 401 外 4xx 的明确放弃，413 提示达到作答上限；用合成 50 题×200 笔及小状态拆测保存的解析、校验、序列化、写盘。之后直接挂载 v1 白板与样式，画笔/橡皮/选区/缩放/停靠不改，答题区通道不启用。笔迹与答案共用串行队列，首次发送时取 revision，失败重试仍用同一正文；停笔 1.5 秒、连续最长 10 秒保存，切题/切库/提交/刷新先保存，锁后可写草稿。接上题库内独立位置文件、切库/浏览器刷新恢复、显式刷新与单题重做（不显示未作答重做）。不做④基础库迁移、听力、历史或新存储拆分；PR 等审查，不自行合并。
-
-- 文档已归档；当前接口与状态边界见 [速查](V2_API_AND_STATE.md)。
-- 已核对 H5P 题型约定，职责对照与本段接口见 [本次记录](reviews/V2-SEG1-PRACTICE.md)；无需引入 H5P 框架。
-- 第 1 段已完成负责人试用；第 2 段按 #68 审查意见开工，尚未完成。
-- #64 的作答缓存外部变更问题随①后端 #69 已审查合并，见 [实现记录](reviews/V2-SEG2-STATE.md)。②接通页面自动保存、失败留题/重试、同题更新、图片及源码缓存，见 [记录](reviews/V2-SEG2-PAGE.md)；③白板、位置、刷新与重做见 [记录](reviews/V2-SEG2-WHITEBOARD.md)，#76 已审查合并；③b 存储调整 #83 已审查合并；④见下文，整段尚未完成试用验收。
-- 第 2 段审定每题保留最近 4 条成功写入回执；坏作答文件报错并保留，题库无法打开（D25，已定）。
-- 第 2 段接通图片（可转移 ArrayBuffer）、题型文件缓存、评分后更新页面、动态标题；答题区契约推迟第 5 段，听力在第 6 段实现（D26）。
-- 演示应使用原基础题型展示库的 11 题和素材，随对应题型迁移，不另造简化题替代；不使用其他成型题库。④已迁入 7 道单选、多选和判断题；其余随对应题型迁移。
-- ③开工时按 #69 审查先测合成 50 题×每题约 200 笔：保存一道选择题的后端耗时/写入量；超过 30 ms 或 1 MB 才考虑笔迹分文件，不预拆。笔迹与答案草稿共用一个串行写队列，首次实际发送时取当时 revision，避免两通道相互冲突；失败原请求重试仍保持原样。未作答不显示重做；Windows 的 `.qf-v2` 隐藏属性以后补，失败不影响保存。
-
-- ③已复用 v1 白板，首次发送取最新 revision；锁后草稿、重做、切库的前端位置记忆与浏览器恢复、显式刷新已通过桌面/手机尺寸浏览器检查（不是真机）。合成 50×200 笔、3.18 MB 状态一次选项保存后端中位 472.65 ms，其中序列化 310.81 ms；已超过评估门槛，存储是否拆分留待审查，本 PR 不擅自更改。
-- **D29 缓存退出（③b 已合并）**：`LibrarySnapshots.opened` 此前无上限。现与 `PracticeState.loaded` / `identities` / 笔迹索引一起按最近使用保留 8 个题库，超出的连同其作答缓存一起踢出。要求：正在使用的题库因访问而保持最近，不会被踢；被踢出的题库收到带 `snapshotId` 的请求时，后端先按磁盘现状重新打开，重算出的 `snapshotId` 与请求一致就照常处理（用户无感），不一致才返回过期。请顺带清点 v2 后端和前端其余常驻内存的表（题型解析结果、评分环境的题型槽、前端题型文件缓存等），逐个写明上限或释放时机。用例：依次打开 9 个题库后第 1 个已不在内存、再访问可正常读写且作答不丢；踢出后外部改了 `bank.json` 再访问按 D27 处理。
-- **D32 上次位置（③里实现）**：不做"切题时通知后端"的轻量写入。`state.json` 顶层加 `lastQuestionId`，在 draft / submit / retry 写入时顺带设为该题题号，result / ink 不更新；概览返回的起始题按设计 4.1.1 取值。本次运行内切库回位用前端内存。用例：只切题不作答不产生作答文件；在第 5 题作答后切到第 9 题只看不做，重启后打开停在第 5 题；该题被删后回到第一题。
-
-③b 说明：按 #76 审查决定拆出每题笔迹文件与独立版本；保存选项不再读取或重写笔迹，浏览不产生作答文件，上次位置只随作答更新。整体内容变化时清空本轮，保留历史索引；最近 8 个题库缓存可透明重开。已诊断小状态路径检查与 JSON 序列化，复测拆分效果及真实浏览器切回题库（仅测量，不增加浏览器缓存）。不做④迁移、历史、考试、安装包；暂无待负责人决定项，完成后等审查。
-- **第 2.5 段范围已调整**：题型接口已定稿；不做旧题库转换工具。后续以本页末尾的开工说明为准。
-- **题型页面接口已定稿（D35）**，全文见 [题型拓展开发说明](../reference/V2_EXTENSIONS.md)，实现以它为准。④迁移多选、判断前先按它调整已有实现：① 宿主页脚的"提交答案"按钮、得分和反馈显示移入题型页面，宿主提供 `QF.page.submit()` / `QF.page.retry()` 并在 `context.can` 中给出是否允许，不允许时拒绝调用；② `QF.page.changed` 增加 `answered`，宿主收到后立即更新大纲（不等保存返回），并随 draft 一起持久化，概览直接返回各小题的已作答状态；`answered` 需限定形状（布尔值，或键数有上限的布尔映射），大纲里查不到的 id 忽略；③ `context` 增加 `mode`、`can`、`appearance`；④ 页面高度由运行时自动测量。单选示例同步改写。涉及保存和沙箱通信，需审查。
-- **两份接口文档分开维护（负责人要求）**：拓展与宿主之间的接口以 [V2_EXTENSIONS.md](../reference/V2_EXTENSIONS.md) 为准（给拓展作者）；前端与后端之间的接口写在 [V2_API_AND_STATE.md](V2_API_AND_STATE.md)（内部）。③b #83 已同步位置、笔迹独立文件/版本、整体内容指纹与锁凭证，明确删除练习 position 接口/文件；题型接口定稿的实现仍留后续审查。
-
-
-③b #83 复测：合成50×200笔时选项保存后端中位9.89ms、写887字节（纯后端，非界面速度）；真实浏览器切回已打开的小题库中位桌面0.158秒/手机尺寸0.142秒。74项V2及浏览器流程通过，CI三项全绿（43387337654），已审查合并；详见 [③b记录](reviews/V2-SEG2-STORAGE.md)。
-
-## 题型接口调整（开工说明）
-
-按题型拓展开发说明调整已有单选示例：提交、重做、得分与反馈在题型里显示；宿主继续保存、锁定和调度评分。点选后大纲立即显示已作答，清空时恢复，精确到小题并随作答保存；刷新后可恢复。页面自动适应内容高度，仍不能联网。笔迹保存只回传版本与状态，不重复发送笔迹正文。本 PR 不迁移多选/判断、不加浏览器资源缓存、不做历史/考试/安装包；保存与沙箱通信等审查，无待负责人决定项。
-
-[#85](https://github.com/lear111/quizforge_web/pull/85) 已审查合并；实现提交 CI 三项全绿，桌面/手机尺寸的同页面提交评分、重做、逐小题大纲与刷新、笔迹和冲突恢复流程通过。未做新的界面速度测量；本地旧路径完整测试的失败与 CI 数量见 [记录](reviews/V2-PAGE-CONTRACT.md)。④及第 2 段整体试用仍未完成。
-
-## ④ 原基础题型（开工说明）
-
-按 #85 的下一步，迁移原展示库中的 3 道单选、2 道多选、2 道判断，保留题号、文字、表格、公式、图片、满分与原评分规则；以它替换给负责人试用的简化单选题库。多选/判断按已定稿接口显示提交、重做及得分，报告已作答状态。按 D36–D39 去掉题型非答案笔记，保存答案改为 /answer，白板独立；大纲按小题显示五种状态，作答、评分与回执采用定稿结构。可识别的旧开发记录按内容变化清空，不迁移。接入题型/SDK/带快照素材的浏览器缓存，概览、单题和写入仍不缓存，锁前解析素材仍不可读；复测切回已打开题库。旧自动化用的简化题移为测试夹具，不改变断言。不做简答、答题区、历史、考试、听力、转换工具、旧代码清理或安装包；无待决定事项，保存/评分及可见性相关改动等审查。
-
-- #83 后续：④为内容寻址的题型/SDK及带snapshotId素材开启浏览器缓存，保留锁前solution素材不可见的用例，并重测切回耗时。
-- 第3段开工先测完成练习/归档的字节数与编码耗时，再决定是否处理jsonBytes；现在不改编码器。
-- 第6段D28应用内编辑保留其他题记录时，需要同步更换笔迹目录的内容指纹层。
-- **D36 去掉题型自带笔记（④已实现，待审查）**：删除 `draft` 字段和 `getDraft()`。涉及：`state.json` 每题的 `draft`、概览里的 `hasDraft`、单题响应和 `context` 里的 `draft`、前端取草稿的调用、锁定后"只带 draft 的保存"这条分支及其用例。保存答案的接口已改为 `Q/answer`，与白板草稿分开。《题型拓展开发说明》已同步。标准向量相应更新；开发版不迁移旧文件，读到带 `draft` 的旧条目时忽略该字段即可。
-- **D37 / D38 状态重新设计（④已实现，待审查）**：以 [数据结构说明书](V2_DATA_STRUCTURES.md) 第 2.2 节为准。① 每道题的 `status` 改为大纲显示状态，精确到小题：无小题为一个值，有小题为"小题 id → 值"的映射；取值 `unanswered` / `answered` / `correct` / `wrong` / `ungradable`。② 删除 `answered` 字段：拓展通过 `changed` 报告的作答状态直接写入 `status`（真 → `answered`，假 → `unanswered`），大纲查不到的小题 id 忽略。③ 提交后等待评分期间 `status` 不变；评分后按各小题得分与满分比较写入 `correct` / `wrong`，无法评分时各小题为 `ungradable`，待人工或 AI 时保持不变；重做后回到未作答。④ 原先的流程状态不再存储：是否锁定看提交凭证，是否已评分和是否等人工或 AI 看 `result`；自动补评的条件是"已锁定且 `result` 为 `null`"。⑤ 概览直接返回各题的 `status`，前端按值上色，五种颜色，`ungradable` 用醒目的警示色，悬停给文字说明。说明书第 5 节的各项现已全部确定，见下一条 D39。同步更新 `V2_API_AND_STATE.md` 和标准向量。
-- **D39 作答文件定稿（④已实现，待审查）**：以 [数据结构说明书](V2_DATA_STRUCTURES.md) 第 2 节和第 5 节的差异表为准。① 每题只留 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。② 删除 `answerVersion`、`resultRevision`：评分上报改为带 `expectedRevision` 和 `submissionId`；迟到的评分仍必须被拒绝（重做后 `submissionId` 为空或已换新）。③ `submission` 对象改为 `submissionId` 字符串。④ `receipts` 与 `receiptOrder` 合并为一个有序列表，仍为最近 4 条，幂等行为不变；笔迹文件同样处理。⑤ `result` 改为 `{ score, parts, message }`：评分函数返回 `{ score }` 或 `{ score, parts }`，`score` 为 `null` 表示需要人工或 AI；评分函数抛错、超时、结果不合格时宿主上报"无法评分"并把原因写入 `message`。后端校验规则不变（范围、合计）。题型页面的 `context.result` 同形。《题型拓展开发说明》第 4 节已更新，示例和 `grading.ts` 的结果规整相应修改。⑥ 顶层删除 `historyIndex`。⑦ 更新 `V2_API_AND_STATE.md` 与标准向量；开发版不迁移旧文件，旧格式按内容变化处理（清空）。
-- **接口设计规则（④已核对，待审查）**：六条规则及各写接口的请求字段、成功返回与错误见 [接口速查](V2_API_AND_STATE.md)。不再列出位置接口；保留已审查的刷新与 D27 行为，和通用规则的两处差异已单独标明。
-
-④见 [#91](https://github.com/lear111/quizforge_web/pull/91) 与 [基础题型记录](reviews/V2-SEG2-BASIC.md)。原 7 题、资源缓存与 D36–D39 已实现；本地 V2 89 项、Chrome 桌面/手机尺寸流程和实现提交三项 CI 通过。切回已打开的合成小库，开启缓存后中位桌面 0.231 秒、手机尺寸 0.233 秒；同代码对照及尾部波动见记录。已合并，负责人已试用确认。
-- **D41（小改动，随下一个前端 PR 做）**：删除 `context.mode` 字段；宿主判断是否允许提交、重做时不再检查 `mode`，只看 `can`。
-
-## 第 2.5 段开工说明
-
-各项独立提交 PR。开工说明已审查，#98 合并后开始。开发与测量继续用模拟题库；不做转换工具，不读取负责人的题库、作答或设置。
-
-1. **清点 v1 代码。** 交付一份按文件或模块列出的清单，分为「v2 正在用」「后续仍要复用」「可以删除」；逐项列出引用入口、对应测试和依据。白板等现用组件，以及后续要用的听力、AI、Hub、设置、历史、考试、汇总、托盘和打包，分别核对后归类。规则引擎、ajv、旧作答接口及测试先列为候选，查清启动、构建和打包是否仍引用。清单先审，确认后才删；只移除已失效的 v1 专属测试，共用与 v2 用例保留。另列当前共用、删除 v1 后可瘦身的模块（如 JSON 工具），本次不瘦身。清理后跑本机与两种 CI 系统的完整测试，验证演示，并报告 quizforge-ui.js 体积变化。
-2. **拆测切回题库。** 按 [#91 审查要求](https://github.com/lear111/quizforge_web/pull/91#issuecomment-6855901587) 用真实 Chromium、独立端口和两本模拟题库，复用现有切回脚本：打开 A、切到 B、再回 A。测点击到题目可见且可作答的总耗时，拆出概览请求、iframe 创建、富文本 SDK 获取和执行、题型加载、首次渲染；并行阶段单列，不重复计入。桌面和手机尺寸预热后各至少 30 次，报中位数、P95、资源缓存命中与未归类差额。#83 的 158 ms 只作历史参考；旧 SDK 不等价，不能把差值全算给 SDK。只测量和报告，不改生产代码、不实现页面复用。
-
-- [#101 清单](https://github.com/lear111/quizforge_web/pull/101)已审查合并；批准的第一批退役 #109 已合并。托盘与打包仍调用旧后端/规则链，按审查要求停止这部分删除并报告，不改受保护调用方。
-- [#102 测量](https://github.com/lear111/quizforge_web/pull/102)已审查合并；按评论补做服务端概览分段 #108 已合并，未实施优化。原测量三个 CI 检查通过。合成小题库未插桩对照的桌面/手机视口中位数约 216/207 ms；最大单段是题库概览，其次是创建题页和加载富文本脚本。是否优化等审查。
-- [#98 第三条评论](https://github.com/lear111/quizforge_web/pull/98#issuecomment-6859564317)已取消静态页面验证；历史按 #104/#105 使用只读题库副本。
-
-## 第 3 段开工说明
-
-依据[总体设计 4.9 节](V2_ARCHITECTURE.md#49-历史)、[数据结构第 2.1、4 节](V2_DATA_STRUCTURES.md)和[第 3 段接口](V2_API_AND_STATE.md#第-3-段接口完成练习归档历史)。**开工说明 #107 已审查合并，按以下顺序实施。**
-
-1. **先拆主页面（#106，独立重构 PR）。** 将 `App.vue` 拆成外壳（题库、大纲、顶栏、页面切换）和做题页（题目区、白板、保存状态）；做题页接收请求前缀，供历史复用。保留 `page.ts`、`grading.ts`、`save-policy.ts` 等现有逻辑与行为。现有浏览器脚本须原样通过，各 `.vue` 文件约 150 行以内；最终得分和历史列表后续各自作为独立组件。
-2. **完成练习与最终得分。** 用户每次点「完成练习」都先确认，不列未作答题。宿主先保存再发 `finish`；后端一次写入锁定全部答案、未作答记 0 分和 `completedAt`，写成功后才发待评分题的完整内容和参考答案（`solution`）。宿主按题型分批评分，一次上报 `results`；任一结果的凭证、版本或分数不合格则整批不写。关闭页面后用现有待补评流程恢复；重新打开已完成题库先显示最终得分，可返回看题和记笔记。总分即时相加，不落盘；未归档前仍可走现有评分与笔迹接口，不可改答案或单题重做。本 PR 同步完成 D41：删除 `context.mode`，提交与重做只看 `can`，不改拓展。
-3. **再练一次与历史。** 「再练一次」不确认；`restart` 只处理已完成轮次，未得分按 0 分归档。后端复制当时的题库、作答和所用拓展，移入笔迹；成功后才清空当前轮，失败保持当前轮可重试。历史列表只显示完成时间和得分，删除一轮前确认。回看沿用现有题页和同一套后端读题逻辑；轮次只允许写白板。素材仍到原题库取，缺失时显示「素材已不存在」；旧拓展不可用时仍显示大纲和得分。轮次的只读检查集中在一处，轮次拓展与当前题库的解析隔离。
-4. **验证与审查。** 纯重构先独立验收；「完成练习与汇总」「归档与历史回看」两个功能 PR 各自审查后再合并。用合成 200 题测 `finish` 后端耗时、`restart` 后端耗时与归档字节；记录编码耗时和写入字节，不先改编码器。验证写盘失败、重放、迟到评分、重开补评、历史笔迹可写、答案和分数不可写、素材缺失、旧拓展隔离，以及 D27/D42：题库或拓展变化清空已完成但未归档的一轮，已归档历史不受影响。桌面与手机视口跑完流程，三个 CI 检查通过后等审查。
-
-范围限本地练习，不做静态页面、考试、AI/人工评分入口或数据迁移。若实现中发现数据或接口约定有冲突，先提审，不自行改设计。
-- **代码规范（负责人要求，`V2_WORKFLOW.md` 第 8 节）**。现状：v2 源码里有大量超长行（`App.vue` 最长一行 4470 字符，`server.js` 533，`page.ts` 555），多条语句挤在一行，注释很少，仓库没有任何格式化或规范检查工具。分三个 PR，都不改变行为：
-  1. **工具**：给 v2 的 JS / TS / Vue 配置自动格式化和规范检查，行宽 100；加 `format:check` 和 `lint` 脚本并接入 CI（三个 job 之外新增或并入均可）。范围先限定在 `core/server/host/v2/`、`core/frontend/src/v2/`、`core/shared/v2/`、`core/test/v2/`、`examples/v2/` 和 v2 的开发脚本；沿用的 V1 模块和构建产物排除在外。依赖只进 devDependencies，不进入打包。
-  2. **一次性整理现有 v2 代码**：只运行格式化工具并修掉规范检查报出的问题，不做任何手工重构、不改名、不改逻辑。验收：全部测试和浏览器检查原样通过；PR 说明里写明"本 PR 无行为变化"。
-  3. **可读性**：整理之后，对仍然过长的函数和文件、含义不明的短名字、缺少"为什么"注释的关键位置（锁定与提交编号、D27 清空、写盘顺序与失败回退、沙箱消息校验、缓存的不可变判断）逐个处理。这个 PR 需要审查。
-  时机：等 #110（拆分主页面）、#109、#108 合并之后立即做 1 和 2，再继续第 3 段的功能 PR，避免大面积冲突。从此之后的新代码一律按规范写，审查时会把可读性作为检查项。
-
-完成练习与最终得分 [#112](https://github.com/lear111/quizforge_web/pull/112) 见 [实现记录](reviews/V2-SEG3-FINISH.md)，已审查通过，106项本地 V2 测试与三项 CI 通过；已合并，等待负责人试用。负责人补充确认：清空后未作答的题记 0 分；完成请求重发返回最新汇总；锁定服务器最新保存答案。桌面/手机尺寸 Chromium 验证完成、分批评分失败重试、重开汇总、锁后白板；不是手机真机验收。合成 200 题完成动作纯后端中位约 57 ms，不能等同用户端耗时。归档、再练一次及历史按负责人要求暂不实施。
-
-- #108 审查的后续概览优化：先完成上文代码规范的工具与格式整理，再单独减少拓展全扫描、复用 SDK 摘要；保持 snapshotId、D27 外部变更检查及 D29 上限，目标同机暖概览后端中位小于 40 ms，读取路径 PR 需审查。这里只登记，不实现。
-- **后端改用 Express（负责人已定，`V2_WORKFLOW.md` 第 8 节"后端的写法"）**。范围：`core/server/host/v2/server.js` 的路由、鉴权、请求体读取和错误答复；`snapshots.js`、`state.js`、`ink.js` 等业务模块不动。要求：
-  1. 路由集中在一个文件，一行一个接口；鉴权、Host / 来源检查、请求体上限（现为 32 MiB）、`Content-Type` 检查、统一错误格式、`Server-Timing` 各自是中间件。
-  2. 请求体用原始字节接收，继续用现有的 `parseJson`；不要启用 `express.json()`。
-  3. 对外行为逐字节不变：状态码、响应头（含 `Cache-Control`、CSP、`Server-Timing`）、错误代码与正文、对未知路径和旧 V1 路径的答复、根页面的 nonce 与 CSP。现有 HTTP 层测试和浏览器脚本原样通过，不改断言。关闭 `x-powered-by`，不引入额外的默认响应头。
-  4. Express 进 `dependencies`。安装包如何携带它留到第 7 段，现在不处理打包脚本；`Start-QuizForge-V2.cmd` 和 CI 能正常启动即可。
-  5. 用 `measure-v2-readonly.mjs`、`measure-v2-overview.mjs` 和 `test:perf` 在同一台机器上前后各测一次，报告启动到可用、打开题库、读题、保存的中位数。任何一项后端耗时增加超过 2 ms 或启动增加超过 100 ms 时先报告，不合并。
-  6. 属于鉴权和可见性相关改动，需审查。
-- **近期顺序（取代此前分散的说明）**：① 合并 #108、#109、#110 → ② 代码规范第 1、2 项（配工具、一次性格式整理）→ ③ 后端改用 Express → ④ #108 评论里的"减少打开题库时的重复遍历"→ ⑤ 代码规范第 3 项（可读性：拆过长的文件和函数、补注释；前端按"前端的写法"重组；并做"为并行开发做准备"的两项，见后文）→ ⑥ 第 3 段功能（完成练习与最终得分；归档与历史）。①–⑤ 都不改变对用户可见的行为。
-- **本轮执行**：①、② 已完成，工具 #115、一次性整理 [#119](https://github.com/lear111/quizforge_web/pull/119) 均已审查合并。③ Express [#121](https://github.com/lear111/quizforge_web/pull/121) 已审查合并；负责人接受约 1.7 秒的新启动基线，详见 [改造记录](reviews/V2-EXPRESS.md)。④ 减少重复遍历 [#123](https://github.com/lear111/quizforge_web/pull/123) 已审查合并，[测量与缓存清点](reviews/V2-OVERVIEW-TRAVERSAL.md)。切回题库端到端约 224 → 213 ms，变化有限；页面创建约 48 ms、富文本 SDK 执行约 40 ms，待第 3 段完成后再评估同题型页面复用。`extension-resolve` 约 8–15 ms，保留现有逐文件检查。⑤ 先做 [D48 后端目录迁移](reviews/V2-BACKEND-LAYOUT.md)；归档与历史暂不实施。
-- **前端重组（负责人已定，用 Pinia；`V2_WORKFLOW.md` 第 8 节"前端的写法"）**。属于近期顺序的第 ⑤ 步，不改变对用户可见的行为，现有浏览器脚本原样通过、不改断言。现状的问题：`PracticePage` 用 `defineExpose` 暴露 11 个内部成员，`App.vue` 通过组件引用直接调用它的 `flush` / `show` / `clearQuestion` 等；请求、令牌和错误处理写在 `App.vue` 里；状态分散在两个组件和模块级变量（如 `lastQuestions`）中；题库列表和大纲靠传入回调函数通知外层；模板和样式压在长行里。请分成几个小 PR，建议顺序：
-  1. 接口模块：把所有请求收拢成"一个接口一个函数"，组件改为调用它。
-  2. 引入 Pinia 并迁移状态：题库目录、当前题库概览、当前题目与保存状态、忙碌与提示。打开题库、切题、刷新、冲突恢复这些跨组件的流程成为 store 的动作。
-  3. 组件解耦：去掉 `defineExpose` 和通过引用调用子组件；题库列表、大纲改用事件；做题页只依赖"请求前缀"和 store。
-  4. 模板换行缩进、样式改为随组件的 scoped 样式。
-  每个 PR 说明里写清"无行为变化"以及格式化后的各文件行数。第 2、3 项涉及保存和切题的先后顺序（切题前先保存完成、失败留在本题），需审查。Pinia 进 `dependencies`，打包留到第 7 段。
-
-## 完成练习试用
-
-在 `C:\dev\quizforge-web-v2` 双击“启动 V2 基础题型演示.cmd”，打开 `http://127.0.0.1:8794/`。选基础题型展示库，作答部分题、保留部分未作答，再点“完成练习”并确认；应显示本轮最终得分，未作答计 0 分。点“查看题目”仍可写白板，但不能改答案或单题重做；刷新/重开该库仍显示最终得分。不包含再练一次、归档或历史。按已审查顺序继续规范工具与整理、Express、概览重复遍历、可读性和前端重组，每步提审。
-- **D45 切题按钮与汇总页入口（负责人已定；排在"归档与历史"之前，作为前端重组之后的第一个功能 PR）**。全部由宿主实现，拓展不改，不需要新的数据和后端接口。
-  1. 做题页内、题型页面下方由宿主画"上一题""下一题"。按大纲顺序跨分组移动，以大题为单位；第一题的"上一题"不可用；切题前照常先保存，失败留在本题。
-  2. 汇总页是大纲顺序里最后一题之后的一页：大纲末尾加一项跳转到它，最后一题的"下一题"进入它，汇总页的"上一题"回到最后一题。
-  3. "完成练习"按钮移到汇总页上（现在的位置去掉）。完成前汇总页只有这个按钮；点击后的确认、锁定、评分流程不变。完成后同一页显示最终得分（即 #112 的 `FinalScore`），以后"再练一次"也放在这里。
-  4. 重新打开已完成的题库仍直接进入汇总页；从汇总页可以回到各题查看。
-  5. 浏览器检查：从第一题连续点"下一题"走到汇总页；大纲跳转到汇总页；有未保存内容时切题先保存；保存失败不切题；完成后切题按钮仍可用于查看。
-- **"完成练习与最终得分"（#112）负责人已于 2026-11-13 试用确认**。试用中提出的两点缺失已记为 D45（切题按钮、汇总页入口）。第 3 段剩余：D45、归档与历史，按近期顺序在代码规范各步之后进行。
-- **为并行开发做准备（负责人已定；属于近期顺序第 ⑤ 步，各一个 PR）**。目的是让多个开发者或 agent 可以同时工作而不在合并时互相冲突。
-  1. **构建成品不再提交进仓库。** 现在 `core/web/ui/quizforge-ui.js`（及同目录生成的样式）被 Git 跟踪，每个前端 PR 都会重建它，两个前端 PR 并行必然冲突且无法手工合并。改为：这些生成文件加入 `.gitignore` 并从版本库移除；`Start-QuizForge-V2.cmd` 和开发启动脚本在启动前检查成品是否存在且不旧于源码，不满足就先构建；CI 在测试前构建一次；`build:ui -- --check` 这类"成品与源码一致"的检查相应去掉或改为"能成功构建"。`THIRD_PARTY_NOTICES.txt` 若是手写的许可说明则继续跟踪。Windows 安装包如何带上成品留到第 7 段，不在本次处理；沿用成品的 V1 页面若因此受影响，先报告。
-  2. **进度页拆分。** `V2_PROGRESS.md` 目前 147 行，所有任务说明和记录都往这一个文件里追加，已经造成过合并冲突（#98）。改为：进度页只保留两张表——七段总表、当前任务表（每行：任务、负责方、状态、对应记录的链接）；每个任务的开工说明、要求和结果写在 `reviews/` 下它自己的文件里（一个任务一个文件，不超过一页）。把现有内容按任务拆过去，已完成且不再需要的说明移入 `archive/`。此后新增任务只在进度页加一行。`V2_WORKFLOW.md` 第 2 节"文档"相应更新，由审查者修改。
-  做完这两项、加上前端重组，之后的功能可以按"后端 / 前端页面 / 题型拓展 / 题库内容"分线并行，各线只通过三份接口与数据文档对接。
-- **D46 精简读题库的检查（负责人已定；并入近期顺序第 ⑤ 步里拆分 `bank-reader.js` 的那个 PR）**。按总体设计 2.5 节：`readBank` 只做解析、取 `outline`、遍历大纲建立题号与满分的索引，遍历中只检查题号不重复（大题全库、小题在大题内）和满分为正的有限数。删除对 `formatVersion`、`id`、`title`、`description`、`features`、分组标题、`label`、"有小题时不得再写大题 label/maxScore"的检查，以及打开题库时对听力引用的检查（听力到第 6 段在打开该题时处理；本地路径不越出题库目录的检查届时放在取文件处）。缺失的标题、编号等按空字符串或缺省值处理，不报错。目标是 `readBank` 从 155 行降到约 40 行。相应删除或改写针对这些检查的测试，PR 里列出清单。读题时 `question` / `solution` 必须是对象这一条保留（属于"切到某道题时"的检查）。
-- **这条原则同样用于第 ⑤ 步的其他拆分**：拆函数时如果发现某段检查或保护属于"不会发生或发生了也无妨"，不要直接删，在 PR 里列出来（它防什么、去掉会怎样），由审查者和负责人决定。
-- **D48 前后端目录结构（负责人已定，`V2_WORKFLOW.md` 第 8 节；融入近期顺序第 ⑤ 步，取代 #123 评论里第 1、2 项的做法）**。
-  - **后端**（先做，建议两个 PR）：
-    1. 搬家与改名，不改逻辑：`core/server/host/v2/` → `core/server/v2/`，按层放入 `routes/`、`middleware/`、`controllers/`、`services/`、`repositories/`、`utils/`。对应关系：`server.js` → `app.js`；`routes.js` → `routes/`（题库、题目、拓展分文件）；`http-middleware.js` → `middleware/`；`http-handlers.js` → `controllers/`；`snapshots.js` → `services/bank.service.js`；`state.js` → `services/practice.service.js` 与 `repositories/state.repository.js`；`ink.js` → `repositories/ink.repository.js`；`bank-reader.js` → `repositories/bank.repository.js`；`type-registry.js`、`shared-sdks.js` → `repositories/extension.repository.js`（可分两个文件）；`receipts.js`、`io.js`、`errors.js`、`timing.js`、`http-response.js` → `utils/`。`v2-main.mjs`、测试、脚本、规范检查的范围和 CI 路径同步更新。沿用的 `host/platform/` 工具暂时原地引用，不搬。
-    2. 拆分与精简：`bank.service.js` 的 `open`（161 行）按"定位、清点、读题库、解析题型、指纹、核对作答、组装"拆成具名函数；`state.js` 拆成"规则"（service）与"读写、校验文件"（repository）；`bank.repository.js` 按 D46 精简；补"为什么"的注释。需审查。
-    分层规则：只允许 `routes → controllers → services → repositories → utils` 方向的调用。请加一条依赖方向的自动检查（例如用规范检查的导入限制规则），放进 `lint`。
-  - **前端**（后做，取代此前"前端重组"的四步，仍分小 PR）：
-    1. 建立目录并搬家，不改逻辑：`services/`（`page.ts`、`grading.ts`、`save-policy.ts`、`write-queue.ts`、`source-cache.ts`、`whiteboard.ts`、`completion.ts`、`scoring.ts`）、`types/`、`components/`、`views/`。
-    2. `api/`：收拢全部请求。
-    3. `stores/`：引入 Pinia，迁移状态与跨组件流程；拆掉 `use-practice-page.ts`。需审查。
-    4. `router/`：引入 Vue Router（hash 模式，避免改后端路由）。地址表达题库、题目和页面；刷新回到原处，取代现在用浏览器存储记上次题库的做法；"本次运行内切回题库停在离开时的题"保持。需审查。
-    5. 组件解耦（事件代替回调与 `defineExpose`）、模板换行、样式随组件。
-    Pinia 与 Vue Router 进 `dependencies`。每个 PR 说明"无行为变化"并附格式化后的文件行数；浏览器脚本原样通过。
-
-## 任务顺序（2026-11-13 负责人确认，取代此前各处的"近期顺序"）
-
-2026-11-14 负责人确认：I 提到 E 之后、F 之前做，表中按实际顺序排列，字母不改。
-
-2026-11-15 负责人确认：**I②** 为第 3 版前端界面改动（D64），安排在 **F 全部子任务完成并合并后、G 之前**；原任务 I 仅为第 1 版历史实施记录。F③ [#154](https://github.com/lear111/quizforge_web/pull/154) 已完成审查、通过 CI，并经负责人授权合并到 `v2`（合并提交 `851e9e8`）；其余 F 项继续按原顺序进行。
-
-依次进行，每项一个或几个小 PR，等审查后再做下一项。A–H 都不改变对用户可见的行为（I 改界面）。各项的具体要求见上文对应条目和 `V2_WORKFLOW.md` 第 8、9 节。
-
-| 序 | 任务 | 要点 | 审查 |
+| 段与名称 | 当前状态 | 对应 PR | 独立记录 |
 |---|---|---|---|
-| A | 后端搬家 | 按 D48 搬到 `core/server/v2/`；[#126](https://github.com/lear111/quizforge_web/pull/126) 已审查合并 | 核对"仅移动" |
-| B | 浏览器检查进 CI | 把现有的浏览器检查脚本（`page`、`page-contract`、`grading`、`page-review`、`practice`、`save-recovery`、`whiteboard`、`basic-types`、`completion`）作为一个新的 CI job 运行：安装浏览器、构建前端、启动 V2、逐个执行，任何一个失败则 job 失败并上传日志与截图。先在 Ubuntu 上跑；不稳定的脚本先查明原因再纳入，不用重试掩盖。放在前端重组之前，使之后的重组由 CI 验证，而不只靠本机报告。[#127](https://github.com/lear111/quizforge_web/pull/127) 已审查合并；见[检查记录](reviews/V2-BROWSER-CI.md) | 需审查 |
-| C | 后端拆分与精简 | [#129](https://github.com/lear111/quizforge_web/pull/129) 与补充 [#133](https://github.com/lear111/quizforge_web/pull/133) 均已审查合并；见[拆分记录](reviews/V2-BACKEND-SPLIT.md)与[大纲诊断记录](reviews/V2-OUTLINE-DIAGNOSTICS.md) | 已完成 |
-| D | 前端重组 | 按 D48：搬家 → `api/` → Pinia → Vue Router → 组件解耦与样式；① [#136](https://github.com/lear111/quizforge_web/pull/136)、② [#137](https://github.com/lear111/quizforge_web/pull/137)、③ [#138](https://github.com/lear111/quizforge_web/pull/138) 均已审查合并；④ [#139](https://github.com/lear111/quizforge_web/pull/139) Vue Router 已审查合并；⑤ [#140](https://github.com/lear111/quizforge_web/pull/140) 组件事件、scoped 样式与单向导航已审查合并，见[记录](reviews/V2-FRONTEND-COMPONENTS.md)；任务 D 已完成，界面待负责人试用。启动空地址不自动打开题库，负责人已确认；#138 的 helper 子目录、确认归视图、DOM 说明已处理，对外动作/转发表/catalog API 注入与空参数留 F | 每个小 PR 等审查 |
-| E | 前后端共用一份数据定义，后端加类型检查 | 接口的请求和答复、`state.json` 等结构只定义一次，放在 `core/shared/v2/`，前端的 `api/` 与后端的 controller / service 都引用它；后端保持 JavaScript，用 JSDoc 注解加 `tsc --checkJs` 做类型检查并接入 CI。先覆盖 `controllers`、`services`、`repositories`，`utils` 和沿用的 V1 工具可以后补。[#142](https://github.com/lear111/quizforge_web/pull/142) 开工方案已审查合并；①[#143](https://github.com/lear111/quizforge_web/pull/143) 共享声明、前端引用与契约测试已审查合并；②[#149](https://github.com/lear111/quizforge_web/pull/149) 后端严格检查已审查合并，见[记录](reviews/V2-SERVER-TYPES.md)；任务 E 已完成 | 需审查 |
-| I | 界面原型第 1 版（含切题按钮与汇总页入口，D45） | 按 [界面原型说明](V2_UI_PROTOTYPE.md) 实现做题页：先把第 4 节颜色整理成 CSS 变量，再逐个组件按元素表调整；状态为"本次接入"的做，"隐藏"的不出现，"参考"的不在宿主实现。底部导航栏去掉，翻页按钮放到题目区两侧；完成练习从顶栏移到汇总页。做完把元素表的状态改为"已实现"。浏览器检查里依赖旧按钮位置的断言，改选择器不改断言含义，在 PR 里列出。[#150](https://github.com/lear111/quizforge_web/pull/150) 已审查合并；按评论去掉当前题库题数，保留负责人确认的题卡阴影，见[记录](reviews/V2-WORKSPACE-UI.md) | 需审查，负责人试用 |
-| F | 沙箱与保存相关的长函数 | `services/` 下的题目页面装载、评分环境、保存时机、拓展文件缓存、完成评分，逐个文件拆分；一并收口 store 动作、精简转发表/catalog API 注入与空参数，并整理 #140 评论指出的 completedAt watch 与地址同步；按 #143 审查意见用 kind 可辨识联合关联保存请求/答复，去掉 saving.ts 三处断言；按 #149 审查意见收口后绑定 stateStore、Map/输入探测等断言，报告总数，目标从 80 降到 30 以下，并删除 health 的 phase 字段。①[#151](https://github.com/lear111/quizforge_web/pull/151) 题目页装载/消息/生命周期已审查合并，见[记录](reviews/V2-F-PAGE.md)；②[#152](https://github.com/lear111/quizforge_web/pull/152) 评分环境已审查合并，见[记录](reviews/V2-F-GRADING.md)；③[#154](https://github.com/lear111/quizforge_web/pull/154) 保存机制拆分已审查、CI 通过并合并，见[记录](reviews/V2-F-SAVING.md)；④[#158](https://github.com/lear111/quizforge_web/pull/158) 拓展文件缓存已审查、CI 通过并合并，见[记录](reviews/V2-F-SOURCE-CACHE.md)；⑤[#160](https://github.com/lear111/quizforge_web/pull/160) 完成练习与批量评分已审查、CI 通过并合并，见[记录](reviews/V2-F-COMPLETION.md)；⑥[#162](https://github.com/lear111/quizforge_web/pull/162) Store 动作与目录依赖整理已合并，CI 通过、合并后代码复核无阻塞问题，见[记录](reviews/V2-F-STORE-ACTIONS.md)；⑦[#165](https://github.com/lear111/quizforge_web/pull/165) 完成状态与路由同步已审查、CI 通过并合并，见[记录](reviews/V2-F-COMPLETION-ROUTING.md)；⑧[#167](https://github.com/lear111/quizforge_web/pull/167) 后端类型断言（80→29）与 health.phase 清理已审查、CI 通过并合并，见[记录](reviews/V2-F-SERVER-ASSERTIONS.md)；任务 F 已完成 | 已完成 |
-| I② | 前端原型第 3 版适配（D64） | **[#170](https://github.com/lear111/quizforge_web/pull/170) 已审查，CI 五项通过并 squash 合并到 `v2`（`73a4051`）；等待负责人试用。** 以 [已确认的独立 HTML](prototype/quizforge-v2-mobile-overlay-bottom-nav-animated.html) 和 [界面原型说明](V2_UI_PROTOTYPE.md) 为准，在现有 Vue 宿主实现：题库分组文件列表约 300ms 平滑展开/收起、桌面两侧栏约 320ms 收放、≤900px 左右全屏抽屉约 340ms 滑入/滑出及遮罩淡入/淡出、≤600px 底部独立上一题/下一题导航栏；保留 D45 切题与汇总语义。遵循减少动态效果设置，更新对应桌面/窄屏浏览器检查；不得修改后端、保存/评分/拓展协议。实现已接入 Vue，已同步更新[元素表](V2_UI_PROTOTYPE.md)；业务边界不变。 | 已审查合并，待负责人试用 |
-| G | 并行准备与测试整理 | 构建成品不进仓库；进度页拆分为"总表 + 每任务一个记录文件"；过长的测试文件按功能拆开（不改断言） | 核对 |
-| H | 长度规则改为强制 | `max-lines`、`max-lines-per-function` 从警告改为报错；探针脚本的上限如需放宽，在 PR 里说明 | 核对 |
-| J | 归档与历史 | 第 3 段功能。先按 D50 把练习的作答文件搬到 `.qf-v2/practice/`（旧位置的开发记录不迁移，直接删除），再做归档。开工先测轮次文件的写入耗时；若 JSON 编码明显拖慢归档（此前测得比原生慢约 7 倍），提出处理方案后再定 | 需审查，负责人试用 |
-| K | 考试（D49–D52） | 第 4 段功能。后端：`POST B/exam`、按结束时刻拒绝改答案、现有接口作用在当前一轮上。页面：开始考试入口与时长、倒计时、到点交卷、打开时补交过期的考试、历史列表的考试标记与用时。题型拓展不改 | 需审查，负责人试用 |
-| L | 富文本改为受限 HTML（D54） | 富文本组件的显示改为接收 HTML 字符串：用成熟的清洗库按白名单过滤，`$…$` 交给公式库，`qf-asset:` 图片走素材接口。示例题库的 7 道题转成 HTML，三个题型不用改调用方式。编辑器不在本任务内（第 6 段）。开工前先写半页说明（选哪个清洗库、体积变化）等审查 | 需审查，负责人试用 |
+| 1 · 打开题库与单选评分 | 已审查合并，负责人试用确认 | [#60](https://github.com/lear111/quizforge_web/pull/60)、[#63](https://github.com/lear111/quizforge_web/pull/63)、[#64](https://github.com/lear111/quizforge_web/pull/64) | [记录](reviews/V2-P1-1.md)、[记录](reviews/V2-SEG1-PRACTICE.md) |
+| 2 · 多题型、自动保存、白板与刷新 | 已完成，负责人 2026-11-13 试用确认 | [#69](https://github.com/lear111/quizforge_web/pull/69)、[#73](https://github.com/lear111/quizforge_web/pull/73)、[#76](https://github.com/lear111/quizforge_web/pull/76)、[#83](https://github.com/lear111/quizforge_web/pull/83)、[#85](https://github.com/lear111/quizforge_web/pull/85)、[#91](https://github.com/lear111/quizforge_web/pull/91) | [记录](reviews/V2-SEG2-DESIGN.md)、[记录](reviews/V2-SEG2-BASIC.md) |
+| 2.5 · V1 清点与切库测量 | 已审查合并；后续旧链清理留第 7 段 | [#98](https://github.com/lear111/quizforge_web/pull/98)、[#101](https://github.com/lear111/quizforge_web/pull/101)、[#102](https://github.com/lear111/quizforge_web/pull/102)、[#108](https://github.com/lear111/quizforge_web/pull/108)、[#109](https://github.com/lear111/quizforge_web/pull/109) | [记录](reviews/V2-SEG2-5-V1-INVENTORY.md)、[记录](reviews/V2-SEG2-5-BANK-RETURN.md)、[记录](reviews/V2-SEG2-5-V1-RETIREMENT.md) |
+| 3 · 完成练习、汇总、历史 | 完成与汇总已试用确认；归档/历史待 J | [#107](https://github.com/lear111/quizforge_web/pull/107)、[#110](https://github.com/lear111/quizforge_web/pull/110)、[#112](https://github.com/lear111/quizforge_web/pull/112) | [记录](reviews/V2-SEG3-KICKOFF.md)、[记录](reviews/V2-SEG3-WORKSPACE.md)、[记录](reviews/V2-SEG3-FINISH.md) |
+| 4 · 考试 | 设计定稿，尚未实现（K） | — | [记录](reviews/V2-K-EXAM.md) |
+| 5 · 简答、AI/人工评分与设置 | 尚未开始；已确认边界保留，复杂答题区后续单独设计 | [#153](https://github.com/lear111/quizforge_web/pull/153)（仅文档） | [记录](reviews/V2-SEG5-REQUIREMENTS.md) |
+| 6 · 导入导出、Hub、编辑器与开发模式 | 尚未开始 | — | [记录](reviews/V2-SEG6-REQUIREMENTS.md) |
+| 7 · 删除旧代码、打包与性能复测 | 尚未开始 | — | [记录](reviews/V2-SEG7-REQUIREMENTS.md) |
 
-**已排入后面各段、现在不做的：**
+## 任务表（保持既定顺序）
 
-| 事项 | 何时 |
-|---|---|
-| V2 题型放到正式的拓展目录、与示例和 V1 拓展的位置理顺 | 第 6 段开工前 |
-| 后端运行日志（记录每个请求的结果和耗时、写盘失败、清空作答等关键事件） | 第 7 段，或更早出现难以排查的问题时 |
-| 同题型复用题目页面以缩短切库耗时 | 第 3 段完成后评估 |
-| agent 辅导功能（做题时与 AI 讨论题目） | 负责人以后单独设计；与评分用的 `QF.ai.ask` 无关 |
-| 富文本组件只保留一个版本，去掉"基础档 / 高级档"配置 | 第 7 段 |
-| 富文本编辑器的手感（公式输入、从 Word 粘贴） | 第 6 段，负责人试用后针对性改 |
-| 旧规则链与 AJV 的移除 | 第 7 段（V2 桌面入口之后） |
+| 任务编号与名称 | 当前状态 | 对应 PR | 独立记录 |
+|---|---|---|---|
+| A · 后端搬家 | 已审查合并 | [#126](https://github.com/lear111/quizforge_web/pull/126) | [记录](reviews/V2-BACKEND-LAYOUT.md) |
+| B · 浏览器检查进入 CI | 已审查合并 | [#127](https://github.com/lear111/quizforge_web/pull/127) | [记录](reviews/V2-BROWSER-CI.md) |
+| C · 后端拆分与精简 | 已审查合并 | [#129](https://github.com/lear111/quizforge_web/pull/129)、[#133](https://github.com/lear111/quizforge_web/pull/133) | [记录](reviews/V2-BACKEND-SPLIT.md)、[记录](reviews/V2-OUTLINE-DIAGNOSTICS.md) |
+| D · Vue / Pinia / Router 重组 | 已审查合并；启动不自动打开题库（D63） | [#136](https://github.com/lear111/quizforge_web/pull/136)、[#137](https://github.com/lear111/quizforge_web/pull/137)、[#138](https://github.com/lear111/quizforge_web/pull/138)、[#139](https://github.com/lear111/quizforge_web/pull/139)、[#140](https://github.com/lear111/quizforge_web/pull/140) | [记录](reviews/V2-FRONTEND-LAYOUT.md)、[记录](reviews/V2-FRONTEND-API.md)、[记录](reviews/V2-FRONTEND-PINIA.md)、[记录](reviews/V2-FRONTEND-ROUTER.md)、[记录](reviews/V2-FRONTEND-COMPONENTS.md) |
+| E · 共享类型与后端严格检查 | 已完成、已审查合并 | [#142](https://github.com/lear111/quizforge_web/pull/142)、[#143](https://github.com/lear111/quizforge_web/pull/143)、[#149](https://github.com/lear111/quizforge_web/pull/149) | [记录](reviews/V2-SHARED-TYPES.md)、[记录](reviews/V2-SHARED-CONTRACTS.md)、[记录](reviews/V2-SERVER-TYPES.md) |
+| I · 界面原型第 1 版 | 已审查合并；保留题卡阴影、去掉当前题库题数 | [#150](https://github.com/lear111/quizforge_web/pull/150) | [记录](reviews/V2-WORKSPACE-UI.md) |
+| F · 沙箱、保存与类型安全整理 | F①–F⑧ 全部已完成并合并；无额外 F 子任务 | 见以下各行 | 见以下各行 |
+| F① · 题页装载 | 已审查合并，CI 通过 | [#151](https://github.com/lear111/quizforge_web/pull/151) | [记录](reviews/V2-F-PAGE.md) |
+| F② · 评分环境 | 已审查合并，CI 通过 | [#152](https://github.com/lear111/quizforge_web/pull/152) | [记录](reviews/V2-F-GRADING.md) |
+| F③ · 保存机制 | 已审查合并，CI 通过 | [#154](https://github.com/lear111/quizforge_web/pull/154) | [记录](reviews/V2-F-SAVING.md) |
+| F④ · 拓展文件缓存 | 已审查合并，CI 通过 | [#158](https://github.com/lear111/quizforge_web/pull/158) | [记录](reviews/V2-F-SOURCE-CACHE.md) |
+| F⑤ · 完成与批量评分 | 已审查合并，CI 通过 | [#160](https://github.com/lear111/quizforge_web/pull/160) | [记录](reviews/V2-F-COMPLETION.md) |
+| F⑥ · Store 动作与依赖 | 已审查合并，CI 通过 | [#162](https://github.com/lear111/quizforge_web/pull/162) | [记录](reviews/V2-F-STORE-ACTIONS.md) |
+| F⑦ · 完成状态与路由 | 已审查合并，CI 通过 | [#165](https://github.com/lear111/quizforge_web/pull/165) | [记录](reviews/V2-F-COMPLETION-ROUTING.md) |
+| F⑧ · 后端断言及 health 清理 | 已审查合并，CI 通过 | [#167](https://github.com/lear111/quizforge_web/pull/167) | [记录](reviews/V2-F-SERVER-ASSERTIONS.md) |
+| I② · 第三版界面（D64） | **代码已合并，待负责人试用**；不视为试用通过 | [#170](https://github.com/lear111/quizforge_web/pull/170)、[#171](https://github.com/lear111/quizforge_web/pull/171) | [记录](reviews/V2-I2-UI-PROTOTYPE.md) |
+| G · 测试与文档整理 | 本次实现，待审查；不自行合并 | 本 PR | [记录](reviews/V2-G-ENGINEERING.md) |
+| H · 长度规则强制 | 尚未开始 | — | [记录](reviews/V2-H-LENGTH-POLICY.md) |
+| J · 归档与历史 | 尚未开始 | — | [记录](reviews/V2-J-HISTORY.md) |
+| K · 考试（D49–D52） | 尚未开始 | — | [记录](reviews/V2-K-EXAM.md) |
+| L · 受限 HTML 富文本（D54） | 尚未开始，先提交设计说明 | — | [记录](reviews/V2-L-RICHTEXT.md) |

@@ -6,6 +6,7 @@
 
 ```powershell
 npm --prefix core ci
+npm --prefix core run build:ui
 node core/server/main.mjs --root . --port 8787
 ```
 
