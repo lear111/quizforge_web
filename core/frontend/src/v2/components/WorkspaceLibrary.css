@@ -110,7 +110,6 @@ input {
   color: var(--qf-text-muted);
   font-weight: 400;
 }
-:deep(.library-item.active .item-meta),
 :deep(.item-meta.item-error) {
   display: block;
 }
