@@ -23,18 +23,45 @@ Windows 11 / Node 24.13.0 / 本机 Chrome（真实浏览器，隔离合成数据
 | lint / 格式 / 构建及 --check | 0 错误、19 条既有警告；212 文件无格式差异；通过 |
 | 十个既有浏览器探针 | page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion、router 全部通过 |
 | HTML / Vue 对照截图 | 桌面 1440×900、手机 390×844；截图脚本无页面错误 |
-| 本机默认完整测试 / CI 五项 | 正在收集，提交后补结果；不把局部通过等同全仓通过 |
+| 本机默认完整测试 | 1474 通过 / 11 失败 / 0 跳过；750.01s，退出码 1，失败清单见下 |
 
 本轮最初的浏览器失败来自旧脚本点击已被全屏抽屉遮住的顶栏；改为 Esc 后原保存/失败恢复断言通过。新增测试开发时修正了 V1 fixture 的折叠键前缀及实际事件归属，生产 V1 逻辑未改。
+
+本机默认测试未全绿，失败均在未改动的 V1 路径；没有为此修改代码/配置、重试策略或断言。前 9 项与归档 `archive/reviews/V2-P1-1.md` 的本机凭据访问保护问题一致，本次没有逐项在干净基线复跑，不将其说成本次重新证明的基线结果。另 2 项在测试负载结束后以 `--test-concurrency=1` 单独运行原文件一次，2 文件共 9/0/0，保留初次失败事实，不用于代替完整结果：
+
+| 测试文件（相对 core） | 失败用例 / 首条错误 |
+|---|---|
+| server/host/ai/hub-connection.test.mjs:68 | completing login saves only the device token, reads quota, and logout revokes it；AI_SETTINGS_SAVE_FAILED，无法完成 AI 设置文件的访问保护 |
+| 同文件 :88 | a token the Hub rejects logs this computer out；同上 |
+| 同文件 :96 | the free quota grades through the Hub gateway with the device token and keeps custom settings；同上 |
+| 同文件 :114 | gateway errors become clear, non-retried messages and a rejected token logs out；同上 |
+| 同文件 :133 | with both sources on, the free quota grades first and the custom model takes over when it cannot；同上 |
+| 同文件 :160 | settings saved with one source before this version keep working；同上 |
+| server/host/ai/settings-provider.test.mjs:32 | AI settings preserve masked-key editing and owner-protected saved credentials；同上 |
+| 同文件 :54 | disabled AI remains disabled across persisted settings reload without losing automatic preference；同上 |
+| server/host/http/server.test.mjs:290 | Hub login starts on the host only and the loopback callback finishes it without exposing the token；503 !== 200 |
+| server/host/library/library-archive.test.mjs:30 | format 3 round-trip preserves code and repeated imports always create independent copies；rename EPERM；单独复查通过 |
+| test/extensions/short-answer-rules.test.mjs:22 | manual review accepts half points and never invents a score before confirmation；规则子进程 spawnSync ETIMEDOUT；单独复查通过 |
+
+**CI 证据。** [PR #170](https://github.com/lear111/quizforge_web/pull/170) 实施提交 `6d68e3c` 的[运行 43732458896](https://github.com/lear111/quizforge_web/actions/runs/43732458896) 五项全绿，CI 失败用例名单为空。Ubuntu 34 项是既有 Windows 专项跳过，未增加跳过。PR 正文与本文同步，此后仅补本文并核对最终提交五项 CI，不自行合并。
+
+| CI job | 结果 | Job 总耗时 |
+|---|---|---|
+| Checks · Windows | 1485 通过 / 0 失败 / 0 跳过，UI/后端类型及构建通过 | 243s |
+| Checks · Ubuntu | 1451 / 0 / 34，类型及构建通过 | 98s |
+| V2 code quality · Ubuntu | 212 文件无格式差异，203 文件 lint 0 错误/19 既有警告 | 18s |
+| V2 browser checks · Ubuntu | 原十项探针全部通过，含新增动效与断点断言 | 191s |
+| Performance · Ubuntu | 2 / 0 / 0 | 25s |
+
 
 **视觉证据。** 以下是当前确认 HTML 和真实 Vue 页面；题目/题数不同是原型假数据与公开基础展示库的区别。只比较宿主布局，不在本任务复制原型的考试、设置、导入等占位功能。图片位于 `reviews/screenshots/v2-ui-prototype-3/`：
 
 | 场景 | 第三版 HTML | 当前 Vue |
 |---|---|---|
-| 桌面 1440×900 | [原型](screenshots/v2-ui-prototype-3/desktop-prototype.png) | [宿主](screenshots/v2-ui-prototype-3/desktop-vue.png) |
-| 手机 390×844 | [原型](screenshots/v2-ui-prototype-3/mobile-prototype.png) | [宿主](screenshots/v2-ui-prototype-3/mobile-vue.png) |
-| 手机题库抽屉 | [原型](screenshots/v2-ui-prototype-3/mobile-prototype-library.png) | [宿主](screenshots/v2-ui-prototype-3/mobile-vue-library.png) |
-| 手机大纲 / 草稿 | — | [大纲](screenshots/v2-ui-prototype-3/mobile-vue-outline.png)、[草稿](screenshots/v2-ui-prototype-3/mobile-vue-draft.png)、[草稿上打开抽屉](screenshots/v2-ui-prototype-3/mobile-vue-draft-drawer.png) |
+| 桌面 1440×900 | [原型](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/desktop-prototype.png) | [宿主](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/desktop-vue.png) |
+| 手机 390×844 | [原型](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-prototype.png) | [宿主](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-vue.png) |
+| 手机题库抽屉 | [原型](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-prototype-library.png) | [宿主](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-vue-library.png) |
+| 手机大纲 / 草稿 | — | [大纲](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-vue-outline.png)、[草稿](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-vue-draft.png)、[草稿上打开抽屉](https://github.com/lear111/quizforge_web/blob/6d68e3c940ab7e2c075a83b188baf6dc3b506589/core/docs/design/reviews/screenshots/v2-ui-prototype-3/mobile-vue-draft-drawer.png) |
 
 复现：先构建，运行 `node core/scripts/dev/probe-v2-ui-prototype.mjs <外置 playwright/index.mjs> chrome`；只复制公开示例到系统临时目录，完成后关闭浏览器、服务并清理合成数据，截图输出 `.temp/v2-ui-prototype/`。真实浏览器探针沿用 CI 原十项入口，新增动效检查已包含在 router 内。
 
