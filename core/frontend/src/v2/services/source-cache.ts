@@ -1,88 +1,52 @@
-import type { PracticeApi } from '../api';
-type Loaders = Pick<PracticeApi, 'extensions' | 'sdk'>;
-export function createPageSourceCache(loaders: Loaders) {
-  let key = '',
-    snapshot = '',
-    epoch = 0,
-    abort = new AbortController();
-  const pages = new Map<
-      string,
-      Promise<{ name: string; html: string; js: string; css: string; sdks: string[] }>
-    >(),
-    sdks = new Map<string, Promise<{ js: string; css: string }>>();
-  const invalid = () => new Error('题型文件加载已失效，请重新打开本题。');
-  function clear() {
-    epoch++;
-    abort.abort();
-    abort = new AbortController();
-    pages.clear();
-    sdks.clear();
+import { loadSources } from './source-cache/sources';
+import type { CacheState, Loaders } from './source-cache/types';
+
+function clear(state: CacheState): void {
+  state.epoch++;
+  state.abort.abort();
+  state.abort = new AbortController();
+  state.pages.clear();
+  state.sdks.clear();
+}
+
+function load(state: CacheState, loaders: Loaders, artifactId: string) {
+  const cached = state.pages.get(artifactId);
+  if (cached) {
+    return cached;
   }
+  const scope = { epoch: state.epoch, signal: state.abort.signal, snapshotId: state.snapshot };
+  const promise = loadSources(state, loaders, artifactId, scope);
+  state.pages.set(artifactId, promise);
+  void promise.catch(() => {
+    if (state.pages.get(artifactId) === promise) {
+      state.pages.delete(artifactId);
+    }
+  });
+  return promise;
+}
+
+export function createPageSourceCache(loaders: Loaders) {
+  const state: CacheState = {
+    key: '',
+    snapshot: '',
+    epoch: 0,
+    abort: new AbortController(),
+    pages: new Map(),
+    sdks: new Map(),
+  };
   return {
     scope(bankId: string, snapshotId: string, authorization: string) {
       const next = JSON.stringify([bankId, snapshotId, authorization]);
-      if (next !== key) {
-        clear();
-        key = next;
-        snapshot = snapshotId;
+      if (next !== state.key) {
+        clear(state);
+        state.key = next;
+        state.snapshot = snapshotId;
       }
     },
-    load(artifactId: string) {
-      const cached = pages.get(artifactId);
-      if (cached) {
-        return cached;
-      }
-      const mine = epoch,
-        signal = abort.signal,
-        snapshotId = snapshot;
-      const promise = (async () => {
-        const manifest = await loaders.extensions.manifest(artifactId, signal);
-        if (mine !== epoch) {
-          throw invalid();
-        }
-        const sdkSources = Object.entries(manifest.sdkVersions ?? {})
-          .filter(([id]) => id === 'richtext')
-          .map(([id, version]) => {
-            const sdk = `${id}@${version}`;
-            if (!sdks.has(sdk)) {
-              const pending = loaders.sdk.richtext(version, snapshotId, signal).catch((error) => {
-                if (sdks.get(sdk) === pending) {
-                  sdks.delete(sdk);
-                }
-                throw error;
-              });
-              sdks.set(sdk, pending);
-            }
-            return sdks.get(sdk)!;
-          });
-        const [html, js, css, sources] = await Promise.all([
-          loaders.extensions.file(artifactId, 'practice-html', signal),
-          loaders.extensions.file(artifactId, 'practice-js', signal),
-          loaders.extensions.file(artifactId, 'practice-css', signal),
-          Promise.all(sdkSources),
-        ]);
-        if (mine !== epoch) {
-          throw invalid();
-        }
-        return {
-          name: manifest.name,
-          html,
-          js,
-          css: [...sources.map((source) => source.css), css].join('\n'),
-          sdks: sources.map((source) => source.js),
-        };
-      })();
-      pages.set(artifactId, promise);
-      void promise.catch(() => {
-        if (pages.get(artifactId) === promise) {
-          pages.delete(artifactId);
-        }
-      });
-      return promise;
-    },
+    load: (artifactId: string) => load(state, loaders, artifactId),
     dispose() {
-      clear();
-      key = '';
+      clear(state);
+      state.key = '';
     },
   };
 }
