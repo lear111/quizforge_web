@@ -1,6 +1,6 @@
 # G：构建成品、进度索引与测试整理
 
-**状态：实现完成，待审查；不自行合并，不开始 H。** 基线 `v2` / `8401d63`，分支 `chore/v2-test-docs-cleanup`。依据 G 的三项范围及 `V2_WORKFLOW.md` 第 2/8/9 节；没有新增产品功能或变更 D 编号决定。
+**状态：[#172](https://github.com/lear111/quizforge_web/pull/172) 已审查（Review #5911910073），最新 CI 五项全绿，2026-11-15 squash 合并到 `v2`（`b32e4bf`）。H 未开工。** 基线 `v2` / `8401d63`，分支 `chore/v2-test-docs-cleanup`。依据 G 的三项范围及 `V2_WORKFLOW.md` 第 2/8/9 节；没有新增产品功能或变更 D 编号决定。
 
 **构建与运行。** 仅取消 Git 追踪 `core/web/ui/quizforge-ui.js`、`quizforge-web-local.css`，加入精确忽略项；用 `git rm --cached` 保留本机文件，未删除运行资源。V1 和 V2 都使用此 bundle，HTTP 路径不变；`THIRD_PARTY_NOTICES.txt` 继续跟踪且内容不变，版本化 SDK/手写资源保留。新增 `scripts/build/ensure-ui.mjs`：成品缺失、全部前端源码/配置/构建脚本/package/lock/npm 安装时间比成品新时构建，否则不加载 Vite。三个 V2 CMD、V1 PowerShell（含复用现有服务）、npm start/test/test:host 接入；编译失败不继续启动。直接 node 运行后端、单文件测试或探针须先 build，文档已说明。现有 Windows 暂存流程本来先 build 再复制，无需改动。CI 仍先 build、再 `--check` 比较本机成品与当前源码，新增核对“JS/CSS 未追踪、已生成、许可仍追踪”。没有让运行时使用 Git 中的成品。
 
