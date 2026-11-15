@@ -52,16 +52,18 @@ export async function buildPhaseUi(core) {
               "await instance.ready;phase('host:ready');",
             );
           }
-          if (id.replaceAll('\\', '/').endsWith('/v2/services/page.ts')) {
-            code = replaceOnce(
+          if (file.endsWith('/v2/services/page.ts')) {
+            return replaceOnce(
               code,
               'const frame = document.createElement',
               "(globalThis as any).__qfBankReturnPhases?.push(['frame:start', performance.timeOrigin + performance.now()]);\n  const frame = document.createElement",
             );
+          }
+          if (file.endsWith('/v2/services/page/document.ts')) {
             code = replaceOnce(
               code,
-              'const runtime = `(()=>{',
-              "const runtime = `(()=>{\n    const phase=(name)=>parent.postMessage({qfBankReturnPhase:name,at:performance.timeOrigin+performance.now()},'*');phase('frame:runtime');",
+              'return `\n    // The nonce is a host capability,',
+              "return `\n    const phase=(name)=>parent.postMessage({qfBankReturnPhase:name,at:performance.timeOrigin+performance.now()},'*');phase('frame:runtime');\n    // The nonce is a host capability,",
             );
             code = replaceOnce(
               code,
