@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>QuizForge V2 · 做题页原型（离线预览）</title>
+<style>
+:root{--qf-accent:#5B4BC4;--qf-accent-strong:#43369A;--qf-accent-soft:#ECE9FB;--qf-bg:#F6F7FB;--qf-surface:#fff;--qf-border:#E6E8EF;--qf-border-control:#E1E3EC;--qf-text:#1F2330;--qf-text-secondary:#3A3F52;--qf-muted:#6B7084}
+[hidden]{display:none!important}*{box-sizing:border-box}html,body{height:100%;margin:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',Arial,sans-serif;color:var(--qf-text);background:var(--qf-bg)}button{font:inherit;cursor:pointer;color:inherit}button:disabled{cursor:default}button:focus-visible,a:focus-visible{outline:2px solid var(--qf-accent);outline-offset:2px}button:hover:not(:disabled){filter:brightness(.98)}svg{display:block;flex:none}.icon{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.app{height:100dvh;min-height:560px;display:flex;overflow:hidden;position:relative}.sidebar{flex:none;display:flex;flex-direction:column;min-height:0;background:#fff;position:relative;z-index:4}.library{width:256px;border-right:1px solid var(--qf-border)}.outline{width:244px;border-left:1px solid var(--qf-border)}.sidebar.closed{display:none}.brand{display:flex;align-items:center;gap:10px;height:56px;flex:none;padding:0 18px;border-bottom:1px solid var(--qf-border)}.brand-mark{display:grid;place-items:center;width:30px;height:30px;background:var(--qf-accent);border-radius:8px;color:white}.brand-title{font-size:15px;letter-spacing:.2px;font-weight:700}.brand-sub{font-size:11px;color:var(--qf-muted)}.library-subhead{display:flex;align-items:center;gap:4px;padding:12px 12px 6px 18px}.small-heading{flex:1;font-size:12px;font-weight:600;color:var(--qf-muted)}.icon-btn{width:32px;height:32px;background:transparent;border:0;border-radius:8px;display:grid;place-items:center;color:#687087}.icon-btn:hover{background:#f5f5fa}.library-nav{padding:4px 10px 12px;overflow:auto;flex:1}.group{display:flex;flex-direction:column}.group-btn{width:100%;display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;border:0;border-radius:8px;background:transparent;text-align:left;font-size:14px;color:var(--qf-text-secondary)}.group-btn .chevron{width:12px;height:12px;color:#8A8FA3;transition:transform .15s}.group-title{flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.group-count{font-size:12px;color:#8A8FA3}.bank-items{display:flex;flex-direction:column;gap:2px;margin:2px 0 6px 13px;padding-left:10px;border-left:1px solid var(--qf-border)}.bank-item{display:flex;align-items:center;gap:8px;min-height:48px;width:100%;padding:6px 10px;border:0;border-radius:8px;background:transparent;text-align:left;color:var(--qf-text-secondary)}.bank-item.active{background:var(--qf-accent-soft);font-weight:600;color:var(--qf-text)}.bank-text{min-width:0;display:flex;flex:1;flex-direction:column;gap:2px}.bank-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bank-meta{font-size:12px;color:var(--qf-muted);font-weight:400}.running-dot{background:var(--qf-accent);width:7px;height:7px;flex:none;border-radius:50%}.library-foot{flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--qf-border)}.foot-btn{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--qf-border-control);border-radius:8px;background:#fff;color:#5B6170}.library-foot a{margin-left:auto;text-decoration:none;font-size:13px;color:var(--qf-accent)}
+.grip{position:absolute;top:0;bottom:0;width:8px;z-index:6;cursor:col-resize;touch-action:none}.grip:after{content:"";position:absolute;inset:0 auto 0 3px;width:2px;background:transparent}.grip:hover:after,.grip:focus-visible:after{background:var(--qf-accent)}.library .grip{right:-4px}.outline .grip{left:-4px}
+.main{min-width:0;min-height:0;flex:1;display:flex;flex-direction:column}.topbar{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--qf-border)}.desktop-btn{width:36px;height:36px;border:0;border-radius:8px;background:transparent;display:grid;place-items:center;color:var(--qf-muted)}.top-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}.top-title small{font-size:12px;color:var(--qf-muted)}.top-title strong{font-size:16px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.top-action{height:36px;padding:0 14px;display:flex;align-items:center;gap:6px;border:1px solid var(--qf-border-control);border-radius:8px;background:#fff;color:var(--qf-text-secondary);white-space:nowrap;font-size:14px}.top-action.active{color:white;background:var(--qf-accent);border-color:var(--qf-accent)}.exam-pill{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:20px;background:#FFF3E8;color:#9A3F0F;font-weight:600;font-size:13px;white-space:nowrap}.mobilebar{display:none}.scrim{display:none}
+.workspace{flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-direction:column}.scroller{flex:1;min-height:0;overflow:auto;padding:24px 84px 32px;display:flex;flex-direction:column;position:relative;scrollbar-gutter:stable}.question-card{width:100%;max-width:760px;margin:0 auto;flex:none;background:#fff;border:1px solid var(--qf-border);border-radius:14px;padding:28px 32px;display:flex;flex-direction:column;gap:18px;box-shadow:0 3px 14px rgba(30,34,60,.035)}.question-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}.question-chapter{color:var(--qf-accent);font-weight:600;flex:1}.question-num{color:var(--qf-muted)}.reading{padding:18px 20px;border-radius:10px;background:#F8F8FB;border:1px solid #ECEDF3;font-size:15px;line-height:1.8;color:#2B3040;font-family:Georgia,'Times New Roman',serif}.reading p{margin:0}.reading p+p{margin-top:10px}.question-prompt{font-size:16px;line-height:1.7;font-weight:600;margin:0}.option-list{display:flex;flex-direction:column;gap:10px}.option{display:flex;align-items:flex-start;gap:12px;width:100%;min-height:52px;padding:12px 14px;border:1.5px solid #E1E3EC;border-radius:10px;background:#fff;text-align:left;color:var(--qf-text);font-size:15px}.option .letter{width:26px;height:26px;display:grid;place-items:center;background:#F1F2F6;color:#3A3F52;border-radius:50%;font-size:13px;font-weight:700;flex:none}.option .option-content{flex:1;line-height:1.6}.option.selected{border-color:var(--qf-accent);background:#F5F3FE}.option.selected .letter{background:var(--qf-accent);color:#fff}.option.correct{border-color:#7CC4A2;background:#EFF8F3}.option.correct .letter{background:#2E8F67;color:#fff}.option.wrong{border-color:#E6A386;background:#FDF2ED}.option.wrong .letter{background:#B9572C;color:#fff}.feedback{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:10px;background:#EFF8F3;color:#17704F;line-height:1.7;font-size:14px}.feedback.wrong{background:#FDF2ED;color:#A4421A}.feedback span{color:#3A3F52}.question-actions{display:flex;justify-content:flex-end;gap:10px}.btn{height:40px;padding:0 18px;border:1px solid var(--qf-border-control);border-radius:8px;background:#fff;color:var(--qf-text-secondary);font-size:14px}.btn.primary{background:var(--qf-accent);border-color:var(--qf-accent);color:#fff;font-weight:600}.btn.primary:disabled{background:#B9B3E3;border-color:#B9B3E3}.btn.lg{height:44px;padding:0 22px;border-radius:10px;font-size:15px}
+.sidenav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:112px;z-index:2;display:grid;place-items:center;border:1px solid #E4E6EE;border-radius:22px;background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(30,34,60,.06);color:#5B6170}.sidenav.left{left:20px}.sidenav.right{right:20px}.sidenav:disabled{opacity:.6;color:#C6C9D3}.summary-wrap{display:flex;flex:1;align-items:center;justify-content:center;min-height:100%}.summary-card{width:100%;max-width:520px;padding:40px 32px;background:#fff;border:1px solid var(--qf-border);border-radius:14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:18px;box-shadow:0 3px 14px rgba(30,34,60,.035)}.summary-kicker{font-size:14px;color:var(--qf-muted)}.summary-score{display:flex;align-items:baseline;gap:6px}.summary-score strong{font-size:64px;line-height:1;font-weight:700}.summary-score span{font-size:20px;color:var(--qf-muted)}.summary-note{font-size:14px;color:#5B6170;line-height:1.7}.summary-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.outline-head{height:56px;flex:none;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--qf-border)}.outline-head strong{flex:1;font-size:14px}.outline-count{font-size:12px;color:var(--qf-muted)}.outline-content{min-height:0;flex:1;overflow:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:16px}.outline-section{display:flex;flex-direction:column;gap:8px}.outline-section-label{font-size:12px;color:#5B6170;font-weight:600}.outline-cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:6px}.outline-cell{height:30px;min-width:0;padding:0;border-radius:6px;font-size:12px;font-weight:600}.outline-cell.unanswered{background:#fff;border:1px solid #E3E5EC;color:#6B7084}.outline-cell.answered{background:#EAE7FB;border:1px solid #D5CFF5;color:#4A3DB0}.outline-cell.correct{background:#E1F3EA;border:1px solid #C2E6D4;color:#17704F}.outline-cell.wrong{background:#FBE7DF;border:1px solid #F1CBBB;color:#A4421A}.outline-cell.ungradable{background:#FDEBEB;border:1.5px dashed #C93A3A;color:#A82828}.outline-cell.current{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--qf-accent)}.outline-summary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--qf-border-control);border-radius:8px;background:#fff;color:#3A3F52;font-size:14px;font-weight:600}.outline-summary.active{background:var(--qf-accent-soft);border-color:var(--qf-accent);color:var(--qf-accent-strong)}.outline-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:12px 16px;border-top:1px solid var(--qf-border);font-size:12px;color:#5B6170}.legend-item{display:flex;align-items:center;gap:5px}.legend-swatch{width:10px;height:10px;border-radius:3px}.legend-swatch.answered{background:#EAE7FB;border:1px solid #D5CFF5}.legend-swatch.correct{background:#E1F3EA;border:1px solid #C2E6D4}.legend-swatch.wrong{background:#FBE7DF;border:1px solid #F1CBBB}
+.ink-layer{position:absolute;inset:0;z-index:3;touch-action:none;pointer-events:none;width:100%;height:100%}.workspace.drafting .ink-layer{pointer-events:auto;cursor:crosshair}.workspace.drafting.hand .ink-layer{pointer-events:none}.workspace.drafting .question-card{outline:2px dashed #BFB6EE;outline-offset:6px}.whiteboard-toolbar{position:absolute;z-index:8;display:flex;align-items:center;gap:2px;padding:6px;border:1px solid #EBE7F1;border-radius:23px;background:#fff;box-shadow:0 10px 28px -6px rgba(43,32,64,.15),0 2px 6px rgba(43,32,64,.10);user-select:none;touch-action:none;color:#4B4458}.whiteboard-toolbar.vertical{flex-direction:column}.whiteboard-toolbar.horizontal{flex-direction:row}.whiteboard-toolbar button{display:grid;place-items:center;position:relative;width:34px;height:34px;border:0;background:transparent;border-radius:10px;padding:0;color:inherit}.whiteboard-toolbar button.active{background:#EDE7FA;color:#6A4FC0}.whiteboard-toolbar button:disabled{opacity:.32}.whiteboard-toolbar .sep{background:#ECE8F2;flex:none}.whiteboard-toolbar.vertical .sep{width:60%;height:1px;margin:3px 0}.whiteboard-toolbar.horizontal .sep{height:60%;width:1px;margin:0 3px}.whiteboard-toolbar .dot{position:absolute;right:5px;bottom:5px;width:7px;height:7px;border-radius:50%;border:1.5px solid #fff}.whiteboard-pop{position:absolute;z-index:9;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid #EBE7F1;border-radius:14px;background:#fff;box-shadow:0 10px 28px -6px rgba(43,32,64,.18);font-size:13px;color:#4B4458;width:180px}.color-row{display:flex;gap:8px}.color-swatch{width:26px;height:26px;border-radius:50%;padding:0;border:2px solid transparent}.color-swatch.active{box-shadow:0 0 0 2px var(--qf-accent);border-color:white}.width-row{display:flex;gap:6px}.width-option{width:44px;height:32px;border:1px solid #EBE7F1;border-radius:8px;background:white;display:grid;place-items:center}.width-option.active{border-color:var(--qf-accent);background:#EDE7FA}.toast{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:20;background:#25293a;color:white;padding:9px 15px;border-radius:8px;box-shadow:0 6px 20px #0002;font-size:13px;pointer-events:none;white-space:nowrap}.toast:empty{display:none}.app.full .sidebar{display:none}
+@media(max-width:900px){.app{min-height:460px;flex-direction:column}.mobilebar{display:none}.topbar{height:56px;min-height:56px;flex:none;padding:0 8px;gap:6px;justify-content:space-between;overflow:hidden;flex-wrap:nowrap}.topbar .desktop-btn{display:grid;width:32px;height:36px;flex:0 0 32px}.topbar .top-title{display:flex;flex:1 1 60px;min-width:0;gap:1px}.topbar .top-title small{font-size:10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.topbar .top-title strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.topbar .top-action{height:36px;flex:none;gap:4px;padding:0 8px;font-size:12px}.topbar .top-action .icon{width:15px;height:15px}.topbar .exam-pill{flex:none;height:31px;padding:0 6px;gap:3px;font-size:10px}.sidebar{display:none!important;position:absolute;z-index:20;top:56px;bottom:0;width:280px!important;box-shadow:0 12px 32px rgba(20,22,40,.18)}.sidebar.library{left:0}.sidebar.outline{right:0}.sidebar.mobile-open{display:flex!important}.scrim.visible{display:block;position:absolute;inset:56px 0 0;background:rgba(20,22,40,.28);z-index:10}.grip{display:none}.scroller{padding:16px 44px 24px;scrollbar-gutter:auto}.question-card{padding:20px 18px}.sidenav{width:32px;height:72px;border-radius:16px}.sidenav.left{left:6px}.sidenav.right{right:6px}.summary-card{padding:28px 20px}.summary-score strong{font-size:54px}.question-prompt{font-size:15px}.reading{font-size:14px;padding:14px}.whiteboard-toolbar{z-index:8}.exam-pill{font-size:11px;padding:0 8px}}
+@media(max-width:420px){.topbar{gap:4px;padding:0 6px}.topbar .desktop-btn{width:30px;flex-basis:30px}.topbar .top-action{padding:0 5px;font-size:11px}.topbar .top-title strong{font-size:11px}.top-action{padding:0 9px;font-size:12px}.question-card{padding:16px 12px;gap:13px}.reading{font-size:13px;line-height:1.65}.question-prompt{font-size:14px}.option{font-size:13px;gap:8px;padding:10px}.summary-card{padding:24px 12px}}
+
+/* Mobile overlay: cover the entire screen, including the top toolbar. */
+@media (max-width:900px) {
+  .sidebar {
+    top:0;
+    bottom:0;
+    z-index:30;
+    height:100%;
+    box-shadow:0 12px 32px rgba(20,22,40,.18);
+  }
+  .scrim.visible {
+    inset:0;
+    z-index:25;
+    touch-action:none;
+  }
+}
+/* At phone widths, reserve an independent bottom navigation strip. */
+@media (max-width:600px) {
+  .workspace::after {
+    content:'';
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+    height:calc(76px + env(safe-area-inset-bottom, 0px));
+    z-index:4;
+    background:#fff;
+    border-top:1px solid var(--qf-border);
+    pointer-events:none;
+  }
+  .workspace .scroller {
+    padding:16px 16px calc(104px + env(safe-area-inset-bottom, 0px));
+  }
+  .workspace .sidenav {
+    top:auto;
+    bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+    transform:none;
+    width:48px;
+    height:52px;
+    border-radius:14px;
+    z-index:5;
+  }
+  .workspace .sidenav.left {left:16px;}
+  .workspace .sidenav.right {right:16px;}
+}
+
+/* Drawer motion: preserve the original layout and move only the opening panels. */
+:root { --qf-drawer-ease:cubic-bezier(.22,1,.36,1); }
+.bank-viewport { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows 300ms var(--qf-drawer-ease),opacity 220ms ease; }
+.bank-viewport.open { grid-template-rows:1fr; opacity:1; }
+.bank-clip { min-height:0; overflow:hidden; }
+.bank-viewport .bank-items { padding-top:2px; margin-top:0; }
+@media (min-width:901px) {
+  .sidebar { min-width:0; transition:width 320ms var(--qf-drawer-ease),opacity 240ms ease; }
+  .sidebar.closed { display:flex; width:0!important; overflow:hidden; border-color:transparent; opacity:0; pointer-events:none; }
+}
+@media (max-width:900px) {
+  .app .sidebar { display:flex!important; visibility:hidden; pointer-events:none; transform:translate3d(-104%,0,0); transition:transform 340ms var(--qf-drawer-ease),visibility 0s linear 340ms; }
+  .app .sidebar.outline { transform:translate3d(104%,0,0); }
+  .app .sidebar.mobile-open { transform:translate3d(0,0,0); visibility:visible; pointer-events:auto; transition:transform 340ms var(--qf-drawer-ease),visibility 0s linear 0s; }
+  .app.full .sidebar { display:none!important; }
+  .app .scrim { display:block; position:absolute; inset:0; z-index:25; opacity:0; visibility:hidden; pointer-events:none; transition:opacity 280ms ease,visibility 0s linear 280ms; }
+  .app .scrim.visible { display:block; opacity:1; visibility:visible; pointer-events:auto; transition:opacity 280ms ease,visibility 0s linear 0s; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sidebar,.scrim,.bank-viewport,.group-btn .chevron { transition:none!important; }
+}
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="scrim" id="scrim" data-action="close-drawer"></div>
+  <aside class="sidebar library" id="library"><div class="grip" id="lib-grip" tabindex="0" role="separator" aria-label="拖动改变题库栏宽度，双击恢复默认" aria-orientation="vertical"></div>
+    <div class="brand"><div class="brand-mark" id="brand-mark"></div><div><div class="brand-title">QuizForge</div><div class="brand-sub">你的练习空间</div></div></div>
+    <div class="library-subhead"><span class="small-heading">我的题库</span><button class="icon-btn" aria-label="导入题库（原型）" data-action="placeholder" data-placeholder="导入题库功能将在第 6 阶段实现" id="import-btn"></button><button class="icon-btn" aria-label="新建题库（原型）" data-action="placeholder" data-placeholder="新建题库功能将在第 6 阶段实现" id="add-btn"></button><button class="icon-btn" aria-label="刷新题库列表（演示）" data-action="refresh-library" id="refresh-btn"></button></div>
+    <nav class="library-nav" id="library-nav"></nav>
+    <div class="library-foot"><button class="foot-btn" aria-label="设置（原型）" data-action="placeholder" data-placeholder="设置页面将在第 5 阶段实现" id="settings-btn"></button><a href="#" data-action="placeholder" data-placeholder="获取题库是预留入口">获取题库</a></div>
+  </aside>
+  <main class="main"><header class="topbar"><button class="desktop-btn" aria-label="收起或展开题库栏" data-action="toggle-lib" id="toggle-lib"></button><div class="top-title"><small id="group-name">考研英语</small><strong id="top-title">2004年考研英语真题</strong></div><span class="exam-pill" id="exam-pill" hidden></span><button class="top-action" id="draft-btn" data-action="draft"></button><button class="top-action" id="exam-btn" data-action="exam"></button><button class="desktop-btn" aria-label="收起或展开大纲栏" data-action="toggle-outline" id="toggle-outline"></button></header>
+    <div class="workspace" id="workspace"><div class="scroller" id="scroller"><div id="page" style="display:flex;flex:1;flex-direction:column"></div></div><canvas class="ink-layer" id="ink"></canvas><button class="sidenav left" id="prev-btn" data-action="prev" aria-label="上一题" title="上一题"></button><button class="sidenav right" id="next-btn" data-action="next" aria-label="下一题" title="下一题"></button><div id="whiteboard-container"></div><div class="toast" id="toast"></div></div>
+  </main>
+  <aside class="sidebar outline" id="outline"><div class="grip" id="outline-grip" tabindex="0" role="separator" aria-label="拖动改变大纲栏宽度，双击恢复默认" aria-orientation="vertical"></div><div class="outline-head"><strong>题目大纲</strong><span class="outline-count" id="outline-count"></span></div><div class="outline-content" id="outline-content"></div><div class="outline-legend" id="outline-legend"></div></aside>
+</div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const ico={
+  logo:'<circle cx="11" cy="11" r="7"/><path d="M8 11l2 2 4-4M16.5 16.5L20 20"/>',
+  down:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',plus:'<path d="M12 5v14M5 12h14"/>',refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-4l-.4 3a7 7 0 0 0-1.7 1L6 6l-2 3.4 2 1.6a7 7 0 0 0 0 2L4 14.6 6 18l2.4-1a7 7 0 0 0 1.7 1l.4 3h4l.4-3a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 0-2Z"/>',
+  left:'<path d="M15 6l-6 6 6 6"/>',right:'<path d="M9 6l6 6-6 6"/>',chevron:'<path d="M9 6l6 6-6 6"/>',panelLeft:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',panelRight:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
+  pen:'<path d="M4 20l4-1L19 8l-3-3L5 16zM14 6l3 3"/>',clock:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>',chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  hand:'<path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V10M14 10.5V6a1.5 1.5 0 0 1 3 0v7M8 11a1.5 1.5 0 0 0-3 0v2a7 7 0 0 0 7 7h1a5 5 0 0 0 5-5v-2"/>',eraser:'<path d="M8 20h12M5 14l8-8a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-7 7H9l-4-4a1 1 0 0 1 0-1zM9 10l5 5"/>',lasso:'<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/>',undo:'<path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/>',redo:'<path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/>',sliders:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',expand:'<path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/>'};
+function icon(name,size=18){return `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${ico[name]||''}</svg>`}
+const plans=[['Section I 英语知识运用',1,20],['Section II 阅读理解 · Part A',21,40],['Part B 新题型',41,45],['Part C 翻译',46,50],['Section III 写作',51,52]];
+const groups=[
+{id:'cet4',name:'大学英语四级 · 联网听力版',banks:[['2023年6月 第一套','57 题'],['2023年12月 第一套','57 题'],['2024年6月 第一套','57 题']]},
+{id:'basic',name:'基础题型示例',banks:[['单选、多选、判断','7 题']]},
+{id:'math',name:'考研数学',banks:[['2023年 数学一','22 题'],['2024年 数学一','22 题']]},
+{id:'kaoyan',name:'考研英语',banks:[['2001年考研英语真题','52 题'],['2002年考研英语真题','52 题'],['2003年考研英语真题','52 题'],['2004年考研英语真题','52 题'],['2005年考研英语真题','52 题'],['2006年考研英语真题','52 题']]}];
+const initial={};for(let i=1;i<=52;i++){initial[i]='unanswered';if(i<=14)initial[i]=(i%4===0||i===7)?'wrong':'correct';else if(i>=21&&i<=27)initial[i]=i===24?'wrong':'correct';else if(i===46||i===47)initial[i]='answered';else if(i===48)initial[i]='ungradable'}
+const s={status:{...initial},current:28,view:'question',selected:null,submitted:false,drafting:false,tool:'pen',ink:'#1F3A8A',penWidth:2.4,palette:null,full:false,dock:'right',cornerOpen:false,libOpen:true,outlineOpen:true,drawer:null,exam:false,completed:false,libW:256,outlineW:244,groupOpen:{cet4:false,basic:false,math:false,kaoyan:true},bank:'2004年考研英语真题',bankGroup:'考研英语',strokes:{},redo:{},demoWarning:false};
+const names={unanswered:'未作答',answered:'已作答',correct:'正确',wrong:'错误',ungradable:'无法评分'};
+const options=[['A','should spend less effort on lending books and more on community events.'],['B','still serve their original purpose in a different form.'],['C','are no longer able to compete with online sources.'],['D','ought to be measured by the size of their collections.']];
+const clamp=(n,min,max)=>Math.max(min,Math.min(max,Math.round(n)));
+function currentInk(){return (s.strokes[s.current]??=[])}
+function toast(message){const el=$('toast');el.textContent=message;clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.textContent='',2200)}
+function renderLibrary(){
+ const panel=$('library');
+ panel.style.width=s.libW+'px';
+ panel.className='sidebar library'+(s.libOpen?'':' closed')+(s.drawer==='lib'?' mobile-open':'');
+ panel.inert=matchMedia('(max-width:900px)').matches?s.drawer!=='lib':!s.libOpen;
+ $('library-nav').innerHTML=groups.map(g=>{
+  const open=!!s.groupOpen[g.id];
+  const items=g.banks.map(([name,meta])=>`<button class="bank-item ${s.bank===name?'active':''}" data-action="bank" data-group="${g.name}" data-name="${name}"><span class="bank-text"><span class="bank-name">${name}</span><span class="bank-meta">${meta} · ${s.bank===name?'进行中':'未开始'}</span></span>${s.bank===name?'<span class="running-dot" aria-label="正在练习"></span>':''}</button>`).join('');
+  return `<div class="group"><button class="group-btn" data-action="group" data-id="${g.id}" aria-expanded="${open}">${icon('chevron',12).replace('class="icon"',`class="chevron" style="transform:rotate(${open?90:0}deg)"`)}<span class="group-title">${g.name}</span><span class="group-count">${g.banks.length}</span></button><div class="bank-viewport ${open?'open':''}" aria-hidden="${!open}"><div class="bank-clip" ${open?'':'inert'}><div class="bank-items">${items}</div></div></div></div>`;
+ }).join('');
+}
+function effectiveStatus(n){const v=s.status[n];return s.exam&&v!=='unanswered'?'answered':v}
+function doneCount(){return Object.values(s.status).filter(x=>x!=='unanswered').length}
+function renderOutline(){
+ $('outline').style.width=s.outlineW+'px';$('outline').className='sidebar outline'+(s.outlineOpen?'':' closed')+(s.drawer==='outline'?' mobile-open':'');
+ $('outline').inert=matchMedia('(max-width:900px)').matches?s.drawer!=='outline':!s.outlineOpen;
+ $('outline-count').textContent=doneCount()+' / 52';
+ $('outline-content').innerHTML=plans.map(([title,start,end])=>`<section class="outline-section"><span class="outline-section-label">${title}</span><div class="outline-cells">${Array.from({length:end-start+1},(_,i)=>{const n=start+i,st=effectiveStatus(n);return `<button class="outline-cell ${st} ${s.view==='question'&&s.current===n?'current':''}" data-action="go" data-n="${n}" aria-label="第 ${n} 题，${names[st]}">${n}</button>`}).join('')}</div></section>`).join('')+`<button class="outline-summary ${s.view==='summary'?'active':''}" data-action="summary">${icon('chart',16)}<span>${s.exam?'交卷':'分数汇总'}</span></button>`;
+ const statuses=s.exam?['answered']:['answered','correct','wrong'];$('outline-legend').innerHTML=statuses.map(k=>`<span class="legend-item"><span class="legend-swatch ${k}"></span>${names[k]}</span>`).join('');
+}
+function renderTop(){
+ $('top-title').textContent=s.bank;$('group-name').textContent=s.bankGroup;
+ $('exam-pill').hidden=!s.exam;$('exam-pill').innerHTML=icon('clock',15)+'考试中 · 剩余 1:42:18';
+ $('draft-btn').className='top-action'+(s.drafting?' active':'');$('draft-btn').innerHTML=icon('pen',16)+(s.drafting?'返回作答':'草稿');
+ $('exam-btn').hidden=s.exam;$('exam-btn').innerHTML=icon('clock',16)+'开始考试';
+ $('toggle-lib').setAttribute('aria-label',matchMedia('(max-width:900px)').matches?'打开或关闭题库抽屉':'收起或展开题库栏');$('toggle-outline').setAttribute('aria-label',matchMedia('(max-width:900px)').matches?'打开或关闭大纲抽屉':'收起或展开大纲栏');
+ $('toggle-lib').setAttribute('aria-expanded',String(matchMedia('(max-width:900px)').matches?s.drawer==='lib':s.libOpen));$('toggle-outline').setAttribute('aria-expanded',String(matchMedia('(max-width:900px)').matches?s.drawer==='outline':s.outlineOpen));
+ $('scrim').className='scrim'+(s.drawer?' visible':'');
+ $('app').classList.toggle('full',s.full);
+ $('workspace').className='workspace'+(s.drafting?' drafting':'')+(s.tool==='hand'?' hand':'');
+}
+function renderPage(){
+ const root=$('page');
+ if(s.view==='summary'){
+  const num=52-doneCount();const kicker=s.completed?(s.exam?'已交卷':'练习已完成'):(s.exam?'考试中':'当前得分');
+  const note=s.completed?(s.exam?'用时 1:17:42 · 答案已锁定':'答案已锁定'):`还有 ${num} 题未作答`;
+  const action=s.completed?(s.exam?'归档并返回练习':'再练一次'):(s.exam?'交卷':'完成练习');
+  root.innerHTML=`<div class="summary-wrap"><section class="summary-card"><span class="summary-kicker">${kicker}</span><div class="summary-score"><strong>${s.completed||!s.exam?'58.5':'—'}</strong><span>/ 100</span></div><span class="summary-note">${note}</span><div class="summary-actions"><button class="btn lg" data-action="back-to-questions">返回题目</button><button class="btn primary lg" data-action="summary-action">${action}</button></div></section></div>`;
+ }else{
+  const showAns=s.submitted&&!s.exam;const right=s.selected==='B';
+  root.innerHTML=`<article class="question-card"><div class="question-head"><span class="question-chapter">Section II · 阅读理解 · Text 2</span><span class="question-num">第 ${s.current} 题 · 2 分</span></div><div class="reading"><p>Public libraries were once judged by the size of their collections. Today many of them are judged by how they are used. A branch that lends fewer books but runs language classes, job clinics and homework clubs may serve more people than one with twice the shelves.</p><p>Critics argue that this shift turns libraries into community centres and leaves reading behind. Supporters reply that the mission has not changed at all: libraries have always existed to give people access to knowledge, and the form that access takes has simply followed what people need.</p></div><p class="question-prompt">According to the passage, supporters of the change believe that libraries ______.</p><div class="option-list">${options.map(([key,label])=>{const isSelected=s.selected===key;let cls=isSelected?'selected':'';if(showAns){if(key==='B')cls='correct';else if(isSelected)cls='wrong'}return `<button class="option ${cls}" data-action="choose" data-key="${key}" aria-pressed="${isSelected}" ${s.submitted?'disabled':''}><span class="letter">${key}</span><span class="option-content">${label}</span></button>`}).join('')}</div>${showAns?`<div class="feedback ${right?'':'wrong'}"><strong>${right?'回答正确 · 得 2 分':'回答错误 · 得 0 分'}</strong><span>答案 B。第二段末句说图书馆的使命没有变，只是提供知识的形式随需求而变。A 是批评者的看法；C、D 文中没有依据。</span></div>`:''}<div class="question-actions">${s.submitted&&!s.exam&&!s.completed?'<button class="btn" data-action="retry">重做</button>':''}${!s.submitted&&!s.exam&&!s.completed?`<button class="btn primary" data-action="submit" ${!s.selected?'disabled':''}>提交</button>`:''}</div></article>`;
+ }
+ $('prev-btn').innerHTML=icon('left',20);$('next-btn').innerHTML=icon('right',20);$('prev-btn').disabled=s.view==='question'&&s.current===1;$('next-btn').disabled=s.view==='summary';$('next-btn').title=s.view==='question'&&s.current===52?(s.exam?'去交卷':'去分数汇总'):'下一题';
+}
+function toolbarPosition(){
+ const w=$('workspace').clientWidth,h=$('workspace').clientHeight,d=s.dock;
+ const corner=d.includes('-');const collapsed=corner&&!s.cornerOpen;
+ const vertical=corner||d==='left'||d==='right';const tw=collapsed?48:(vertical?48:330),th=collapsed?48:(vertical?330:48);
+ let x=d.includes('left')?12:d.includes('right')?w-tw-12:(w-tw)/2;
+ let y=d.startsWith('top')?12:d.startsWith('bottom')?h-th-12:(h-th)/2;
+ if(!collapsed&&vertical&&y<h/2+62&&y+th>h/2-62){x=d.includes('left')?70:w-70-tw}
+ return {x:clamp(x,0,Math.max(0,w-tw)),y:clamp(y,0,Math.max(0,h-th)),vertical,collapsed,tw,th};
+}
+function renderWhiteboard(){
+ const host=$('whiteboard-container');if(!s.drafting){host.innerHTML='';return}
+ const p=toolbarPosition();const button=(name,label,action,active=false,disabled=false)=>`<button data-action="${action}" aria-label="${label}" title="${label}" class="${active?'active':''}" ${disabled?'disabled':''}>${icon(name)}${action==='pen-tool'?`<span class="dot" style="background:${s.ink}"></span>`:''}</button>`;
+ const isCollapsed=p.collapsed;const actionIcon=s.tool==='pen'?'pen':s.tool==='hand'?'hand':s.tool==='eraser'?'eraser':'lasso';
+ host.innerHTML=`<div class="whiteboard-toolbar ${p.vertical?'vertical':'horizontal'}" id="wb-toolbar" style="left:${p.x}px;top:${p.y}px" aria-label="拖动工具条可停靠">${isCollapsed?button(actionIcon,'展开白板工具','toolbar-expand'): [button('hand','移动','hand-tool',s.tool==='hand'),button('pen','画笔，再点一次选颜色','pen-tool',s.tool==='pen'),button('eraser','整笔擦除','eraser-tool',s.tool==='eraser'),button('lasso','框选笔迹（演示）','lasso-tool',s.tool==='lasso'),'<span class="sep"></span>',button('undo','撤销','undo',currentInk().length===-1,currentInk().length===0),button('redo','重做','redo',false,(s.redo[s.current]||[]).length===0),'<span class="sep"></span>',button('sliders','白板设置','toolbar-settings',s.palette==='settings'),button('expand','全屏','fullscreen',s.full)].join('')}</div>`;
+ if(s.palette&&!isCollapsed){const x=clamp(p.x+(p.x>$('workspace').clientWidth/2?-190:p.tw+10),8,Math.max(8,$('workspace').clientWidth-190));const y=clamp(p.y,8,Math.max(8,$('workspace').clientHeight-214));host.innerHTML+=`<div class="whiteboard-pop" style="left:${x}px;top:${y}px"><strong>${s.palette==='settings'?'白板设置':'笔迹颜色'}</strong><div class="color-row">${[['#1F3A8A','深蓝'],['#C62828','红色'],['#1B7F4B','绿色'],['#1F2330','黑色']].map(([v,n])=>`<button class="color-swatch ${s.ink===v?'active':''}" style="background:${v}" data-action="color" data-color="${v}" title="${n}"></button>`).join('')}</div>${s.palette==='settings'?`<div>粗细</div><div class="width-row">${[1.6,2.4,4].map(v=>`<button class="width-option ${s.penWidth===v?'active':''}" data-action="width" data-width="${v}"><span style="width:22px;height:${v}px;background:${s.ink};border-radius:3px"></span></button>`).join('')}</div><button class="btn" data-action="clear-ink" style="color:#A4421A">清空本题笔迹</button>`:''}</div>`}
+}
+function drawInk(){const canvas=$('ink'),ctx=canvas.getContext('2d');if(!ctx)return;const box=canvas.getBoundingClientRect(),dpr=devicePixelRatio||1;const W=Math.round(box.width*dpr),H=Math.round(box.height*dpr);if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H};ctx.clearRect(0,0,W,H);ctx.setTransform(dpr,0,0,dpr,0,0);for(const stroke of currentInk()){if(!stroke.points?.length)continue;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=stroke.width;ctx.strokeStyle=stroke.color;ctx.beginPath();ctx.moveTo(stroke.points[0].x,stroke.points[0].y);for(let i=1;i<stroke.points.length;i++)ctx.lineTo(stroke.points[i].x,stroke.points[i].y);if(stroke.points.length===1)ctx.lineTo(stroke.points[0].x+.1,stroke.points[0].y+.1);ctx.stroke()}}
+function render(){renderLibrary();renderOutline();renderTop();renderPage();renderWhiteboard();drawInk()}
+function go(n){if(n<1||n>52)return;s.current=n;s.view='question';s.selected=null;s.submitted=false;s.drawer=null;s.palette=null;render();$('scroller').scrollTop=0}
+function prev(){if(s.view==='summary'){go(52);return}go(Math.max(1,s.current-1))}
+function next(){if(s.view==='summary')return;if(s.current===52){s.view='summary';render();$('scroller').scrollTop=0}else go(s.current+1)}
+function action(a,d){switch(a){
+ case 'group':{
+  const open=!s.groupOpen[d.id];
+  s.groupOpen[d.id]=open;
+  const button=$('library-nav').querySelector(`.group-btn[data-id="${d.id}"]`);
+  if(button){
+    button.setAttribute('aria-expanded',String(open));
+    button.querySelector('.chevron').style.transform=`rotate(${open?90:0}deg)`;
+    const viewport=button.nextElementSibling;
+    viewport.classList.toggle('open',open);
+    viewport.setAttribute('aria-hidden',String(!open));
+    viewport.firstElementChild.inert=!open;
+  }
+  return;
+ }
+ case 'bank':s.bank=d.name;s.bankGroup=d.group;s.drawer=null;render();toast('原型演示：已切换题库名称，题目内容仍使用示例');return;
+ case 'toggle-lib':if(matchMedia('(max-width:900px)').matches){s.drawer=s.drawer==='lib'?null:'lib'}else{s.libOpen=!s.libOpen}break;case 'toggle-outline':if(matchMedia('(max-width:900px)').matches){s.drawer=s.drawer==='outline'?null:'outline'}else{s.outlineOpen=!s.outlineOpen}break;
+ case 'drawer-lib':s.drawer=s.drawer==='lib'?null:'lib';break;case 'drawer-outline':s.drawer=s.drawer==='outline'?null:'outline';break;case 'close-drawer':s.drawer=null;break;
+ case 'draft':s.drafting=!s.drafting;s.palette=null;s.full=false;break;
+ case 'exam':if(s.completed){toast('当前练习已完成（原型演示）');return}s.exam=true;s.submitted=false;s.view='question';break;
+ case 'refresh-library':toast('题库列表已刷新（原型演示）');return;
+ case 'placeholder':toast(d.placeholder||'此功能尚未实现');return;
+ case 'go':go(Number(d.n));return;case 'prev':prev();return;case 'next':next();return;
+ case 'summary':s.view='summary';s.drawer=null;break;case 'back-to-questions':s.view='question';break;
+ case 'choose':if(s.submitted||s.drafting)return;s.selected=d.key;s.status[s.current]='answered';break;
+ case 'submit':if(!s.selected)return;s.submitted=true;s.status[s.current]=s.selected==='B'?'correct':'wrong';break;
+ case 'retry':s.submitted=false;s.selected=null;s.status[s.current]='unanswered';break;
+ case 'summary-action':if(!s.completed){if(!window.confirm(s.exam?'确认交卷？交卷后答案将锁定。':'确定完成本轮练习？未作答题记 0 分，提交后答案锁定。'))return;s.completed=true;s.submitted=true;toast('已完成（模拟操作，无真实数据保存）')}else{if(!window.confirm('原型演示：模拟归档并开始新一轮？实际历史归档功能尚未实现。'))return;s.completed=false;s.exam=false;s.submitted=false;s.selected=null;s.current=1;s.view='question';s.status={...initial};toast('已模拟开始新一轮，未生成历史记录')}break;
+ case 'toolbar-expand':s.cornerOpen=true;break;
+ case 'hand-tool':s.tool='hand';s.palette=null;break;
+ case 'pen-tool':if(s.tool==='pen')s.palette=s.palette==='colors'?null:'colors';else{s.tool='pen';s.palette=null}break;
+ case 'eraser-tool':s.tool='eraser';s.palette=null;break;
+ case 'lasso-tool':s.tool='lasso';s.palette=null;toast('框选工具仅呈现样式，尚未模拟笔迹选择');break;
+ case 'undo':{const list=currentInk();if(list.length)(s.redo[s.current]??=[]).push(list.pop());break}
+ case 'redo':{const arr=s.redo[s.current]||[];if(arr.length)currentInk().push(arr.pop());break}
+ case 'toolbar-settings':s.palette=s.palette==='settings'?null:'settings';break;
+ case 'fullscreen':s.full=!s.full;break;
+ case 'color':s.ink=d.color;if(s.palette!=='settings')s.palette=null;break;
+ case 'width':s.penWidth=Number(d.width);break;
+ case 'clear-ink':if(window.confirm('清空本题笔迹？')){s.strokes[s.current]=[];s.redo[s.current]=[]}break;
+ default:return}render()}
+document.addEventListener('click',e=>{const target=e.target.closest('[data-action]');if(!target)return;e.preventDefault();if(e.pointerId&&draggingToolbar?.moved)return;action(target.dataset.action,target.dataset)});
+// Two draggable separators: pointer coordinates change only their corresponding sidebar.
+function setupGrip(id,key,direction,min,max,def){const el=$(id);el.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();let startX=e.clientX,startW=s[key];el.setPointerCapture(e.pointerId);const onMove=ev=>{s[key]=clamp(startW+direction*(ev.clientX-startX),min,max);renderLibrary();renderOutline()};const onUp=()=>{el.removeEventListener('pointermove',onMove);el.removeEventListener('pointerup',onUp)};el.addEventListener('pointermove',onMove);el.addEventListener('pointerup',onUp)});el.addEventListener('dblclick',()=>{s[key]=def;render()});el.addEventListener('keydown',e=>{const delta=e.key==='ArrowRight'?16:e.key==='ArrowLeft'?-16:0;if(!delta)return;e.preventDefault();s[key]=clamp(s[key]+direction*delta,min,max);render()})}
+setupGrip('lib-grip','libW',1,200,420,256);setupGrip('outline-grip','outlineW',-1,200,380,244);
+// Whiteboard strokes exist in memory only, never written to the user's files.
+let drawing=null;let erasing=false;const ink=$('ink');function point(e){const r=ink.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
+function distanceToLine(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,mag=dx*dx+dy*dy;if(!mag)return Math.hypot(p.x-a.x,p.y-a.y);const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/mag));return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy))}
+function eraseAt(p){const strokes=currentInk();for(let i=strokes.length-1;i>=0;i--){const st=strokes[i];if(st.points.some((pt,j)=>j>0&&distanceToLine(p,st.points[j-1],pt)<11)){strokes.splice(i,1);drawInk();return}}}
+ink.addEventListener('pointerdown',e=>{if(!s.drafting||s.tool==='hand'||s.tool==='lasso')return;if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault();ink.setPointerCapture(e.pointerId);const p=point(e);if(s.tool==='eraser'){erasing=true;eraseAt(p);return}drawing={color:s.ink,width:s.penWidth,points:[p]};currentInk().push(drawing);s.redo[s.current]=[];drawInk()});ink.addEventListener('pointermove',e=>{if(drawing){drawing.points.push(point(e));drawInk()}else if(erasing)eraseAt(point(e))});function endInk(){const wasDrawing=!!drawing;drawing=null;erasing=false;if(wasDrawing)renderWhiteboard()}ink.addEventListener('pointerup',endInk);ink.addEventListener('pointercancel',endInk);
+let draggingToolbar=null;
+document.addEventListener('pointerdown',e=>{const tb=e.target.closest('#wb-toolbar');if(!tb||!s.drafting||e.button!==0)return;const rect=tb.getBoundingClientRect();draggingToolbar={x:e.clientX,y:e.clientY,origX:parseFloat(tb.style.left),origY:parseFloat(tb.style.top),moved:false,el:tb}});
+document.addEventListener('pointermove',e=>{if(!draggingToolbar)return;const dt=draggingToolbar;const dx=e.clientX-dt.x,dy=e.clientY-dt.y;if(!dt.moved&&Math.hypot(dx,dy)<6)return;dt.moved=true;dt.el.style.left=dt.origX+dx+'px';dt.el.style.top=dt.origY+dy+'px'});
+document.addEventListener('pointerup',e=>{if(!draggingToolbar)return;const dt=draggingToolbar;if(dt.moved){const w=$('workspace').clientWidth,h=$('workspace').clientHeight;const centerX=dt.origX+(e.clientX-dt.x)+dt.el.offsetWidth/2,centerY=dt.origY+(e.clientY-dt.y)+dt.el.offsetHeight/2;const anchors={ 'top-left':[0,0],top:[.5,0],'top-right':[1,0],left:[0,.5],right:[1,.5],'bottom-left':[0,1],bottom:[.5,1],'bottom-right':[1,1]};s.dock=Object.entries(anchors).sort((a,b)=>Math.hypot(a[1][0]-centerX/w,a[1][1]-centerY/h)-Math.hypot(b[1][0]-centerX/w,b[1][1]-centerY/h))[0][0];s.cornerOpen=false;s.palette=null;renderWhiteboard()}draggingToolbar=null});
+window.addEventListener('resize',()=>{if(!matchMedia('(max-width:900px)').matches&&s.drawer){s.drawer=null;render()}else{renderTop();renderWhiteboard();drawInk()}});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&s.drawer){s.drawer=null;render();return}if(e.target.matches('input,textarea'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();action(e.shiftKey?'redo':'undo',{});return}if(!s.drafting)return;const keys={p:'pen-tool',v:'hand-tool',h:'hand-tool',e:'eraser-tool',s:'lasso-tool'};if(keys[e.key.toLowerCase()]&&!e.ctrlKey&&!e.altKey){action(keys[e.key.toLowerCase()],{});return}if(e.key==='Escape'&&s.palette){s.palette=null;renderWhiteboard()}});
+$('brand-mark').innerHTML=icon('logo',18);$('import-btn').innerHTML=icon('down',16);$('add-btn').innerHTML=icon('plus',16);$('refresh-btn').innerHTML=icon('refresh',16);$('settings-btn').innerHTML=icon('gear',17);$('toggle-lib').innerHTML=icon('panelLeft');$('toggle-outline').innerHTML=icon('panelRight');
+render();
+</script>
+</body>
+</html>
