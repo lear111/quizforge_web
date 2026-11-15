@@ -1,6 +1,6 @@
 # F⑧：后端类型断言与 health 字段清理
 
-**状态：实施完成，待审查，不自行合并。** 基于最新 `v2` 的 `ffd9e9d`，分支 `refactor/v2-server-assertions`；依据 [#149 审查](https://github.com/lear111/quizforge_web/pull/149#issuecomment-6882626969)、工作流程分层、接口速查的 unknown 输入/锁定边界、数据结构当前作答与只读约定。只做本任务；不改 `V2_PROGRESS.md`，不开始 F⑨/I②。
+**状态：[#167](https://github.com/lear111/quizforge_web/pull/167) 已完成代码审查（Review #5911430977），最新 CI 五项全绿，经负责人既定授权于 2026-11-15 合并到 `v2`（squash `4fb5a9b`）；F⑨/I② 尚未开工。** 基于最新 `v2` 的 `ffd9e9d`，分支 `refactor/v2-server-assertions`；依据 [#149 审查](https://github.com/lear111/quizforge_web/pull/149#issuecomment-6882626969)、工作流程分层、接口速查的 unknown 输入/锁定边界、数据结构当前作答与只读约定。只做本任务；不改 `V2_PROGRESS.md`，不开始 F⑨/I②。
 
 **统计口径与结果：80 → 29（达到 <30）。** 开工前按 E② 的 controllers/services/repositories 共 18 个 JS 模块实测 80。TypeScript AST 只计带 JSDoc `@type` 的括号表达式，不计变量注解、`@typedef`、参数/返回类型、类型守卫或 `@satisfies`。原 18 模块现为 27；新属性读取工具另有 2，**纳入总数而非移出统计**，合计 19 个严格检查模块、29 处。可运行 `node core/scripts/dev/count-v2-type-assertions.mjs` 重现总数、逐文件位置、类型与表达式；计数器用例检查嵌套断言及声明排除，并约束总数 <30。无 any、双重断言、忽略标记或降级配置；strict/checkJs/skipLibCheck:false 原样，配置仅把新工具纳入检查。
 
