@@ -8,6 +8,7 @@ import { hash } from '../../host/platform/json.js';
 import { publicError } from '../utils/errors.js';
 import { directories, readJson, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from './resource.repository.js';
+import { optionalProperty } from '../utils/properties.js';
 /**
  * @param {string} directory
  */
@@ -55,16 +56,16 @@ export function bankCatalog(root, cache) {
     /** @type {Catalog['groups'][number]['items'][number]} */
     let item;
     try {
-      const raw = /** @type {Record<string, unknown> | null} */ (
-        readJson(relativeFile(row.directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
-          bankId: row.bankId,
-          field: 'bank.json',
-        })
-      );
+      const raw = readJson(relativeFile(row.directory, 'bank.json'), cache, READ_LIMITS.bankBytes, {
+        bankId: row.bankId,
+        field: 'bank.json',
+      });
+      const sourceId = optionalProperty(raw, 'id'),
+        title = optionalProperty(raw, 'title');
       item = {
         bankId: row.bankId,
-        sourceId: typeof raw?.id === 'string' ? raw.id : null,
-        title: typeof raw?.title === 'string' ? raw.title : row.name,
+        sourceId: typeof sourceId === 'string' ? sourceId : null,
+        title: typeof title === 'string' ? title : row.name,
         kind: 'bank',
         availability: 'available',
         error: null,
@@ -79,14 +80,16 @@ export function bankCatalog(root, cache) {
         error: publicError(error),
       };
     }
-    if (!groups.has(row.group)) {
-      groups.set(row.group, {
+    let group = groups.get(row.group);
+    if (group === undefined) {
+      group = {
         id: 'g_' + hash(Buffer.from(row.group)),
         name: row.group,
         items: [],
-      });
+      };
+      groups.set(row.group, group);
     }
-    /** @type {Catalog['groups'][number]} */ (groups.get(row.group)).items.push(item);
+    group.items.push(item);
   }
   return { groups: [...groups.values()] };
 }

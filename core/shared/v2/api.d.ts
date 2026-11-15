@@ -51,7 +51,6 @@ export interface ErrorResponse {
 }
 export interface HealthResponse {
   apiVersion: 2;
-  phase: 'segment-1';
   availableFeatures: string[];
 }
 export interface CatalogResponse {

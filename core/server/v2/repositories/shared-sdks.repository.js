@@ -36,8 +36,9 @@ export class SharedSdks {
           const { digest, hashes } = treeIdentity(location, this.cache, { field: 'sdk' });
           versions.set(key, { directory: location, digest, hashes });
         } catch (error) {
-          if (/** @type {Error & {code?: string}} */ (error).code === 'FILE_COUNT_LIMIT') {
-            versions.set(key, /** @type {Error} */ (error));
+          const failure = /** @type {Error & {code?: string}} */ (error);
+          if (failure.code === 'FILE_COUNT_LIMIT') {
+            versions.set(key, failure);
           }
         }
       }

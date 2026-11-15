@@ -19,6 +19,7 @@
     "server/v2/controllers/**/*.js",
     "server/v2/repositories/**/*.js",
     "server/v2/services/**/*.js",
+    "server/v2/utils/properties.js",
     "server/v2/types/**/*.d.ts"
   ]
 }

@@ -9,6 +9,7 @@ import { object, problem } from '../utils/errors.js';
 import { readJson, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from './resource.repository.js';
 import { outlineIndex } from './outline.repository.js';
+import { optionalProperty } from '../utils/properties.js';
 /**
  * @param {unknown} value
  * @returns {value is string}
@@ -32,16 +33,12 @@ function listeningMaterials(raw, items) {
   for (const item of items.values()) {
     const id = item.listening;
     if (id !== undefined && !listening.has(id)) {
-      const value = /** @type {{title?: unknown, src?: unknown} | null | undefined} */ (
-        /** @type {Record<PropertyKey, unknown> | null | undefined} */ (raw.listening)?.[
-          /** @type {PropertyKey} */ (id)
-        ]
-      );
+      const value = optionalProperty(raw.listening, id);
       listening.set(id, {
         id,
-        title: value?.title ?? '',
-        src: value?.src ?? '',
-        remote: /^https?:\/\//i.test(/** @type {string} */ (value?.src ?? '')),
+        title: optionalProperty(value, 'title') ?? '',
+        src: optionalProperty(value, 'src') ?? '',
+        remote: /^https?:\/\//i.test(/** @type {string} */ (optionalProperty(value, 'src') ?? '')),
       });
     }
   }
@@ -73,8 +70,8 @@ export function readBank(directory, cache, bankId) {
       title: raw.title ?? '',
       description: raw.description ?? '',
       features: {
-        history: /** @type {{history?: unknown} | null} */ (raw.features)?.history ?? true,
-        exam: /** @type {{exam?: unknown} | null} */ (raw.features)?.exam ?? true,
+        history: optionalProperty(raw.features, 'history') ?? true,
+        exam: optionalProperty(raw.features, 'exam') ?? true,
       },
     },
   };
@@ -105,6 +102,17 @@ export function questionRecord(bank, id) {
       field: `questions.${id}`,
     });
   }
+  validateQuestionFields(record, id, context);
+  return record;
+}
+
+/**
+ * @param {Record<string, unknown>} record
+ * @param {string} id
+ * @param {{bankId: string, questionId: string}} context
+ * @returns {asserts record is CheckedQuestion}
+ */
+function validateQuestionFields(record, id, context) {
   for (const field of ['question', 'solution']) {
     if (!object(record[field])) {
       throw problem('QUESTION_INVALID', `这道题的 ${field} 必须是对象，不能是数组或 null。`, {
@@ -113,5 +121,4 @@ export function questionRecord(bank, id) {
       });
     }
   }
-  return /** @type {CheckedQuestion} */ (record);
 }

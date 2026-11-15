@@ -76,6 +76,10 @@ export interface CurrentState extends Omit<StateFile, 'contentFingerprint' | 'la
 }
 export type LoadedState = CurrentState | LegacyState;
 
+export type PracticeLibrary = import('../services/bank.service.js').LibrarySnapshots & {
+  stateStore: import('../services/practice.service.js').PracticeState;
+};
+
 export interface CheckedQuestion extends Record<string, unknown> {
   question: Record<string, unknown>;
   solution: Record<string, unknown>;

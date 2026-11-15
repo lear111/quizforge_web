@@ -117,18 +117,17 @@ function answerValue(item, input, old) {
   if (old.submissionId !== null) {
     throw problem('ANSWER_LOCKED', '答案已经提交，不能修改。', {}, 409);
   }
-  const fields =
-    /** @type {Pick<QuestionState, 'answer'> & Partial<Pick<QuestionState, 'status'>>} */ (
-      cloneJson(projectJson(input, ['answer']))
-    );
+  const fields = cloneJson(projectJson(input, ['answer']));
   if (own(input, 'answered')) {
+    let status;
     try {
-      fields.status = reportOutlineStatus(input.answered, item, old.status);
+      status = reportOutlineStatus(input.answered, item, old.status);
     } catch (error) {
       throw problem('INVALID_REQUEST', /** @type {Error} */ (error).message, {}, 400);
     }
+    return patchJson(old, patchJson(fields, { status }));
   }
-  return /** @type {QuestionState} */ (patchJson(old, fields));
+  return patchJson(old, fields);
 }
 
 /**

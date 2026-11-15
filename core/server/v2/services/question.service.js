@@ -9,13 +9,14 @@
 /** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
 /** @typedef {import('../utils/errors.js').V2Error} V2Error */
 /** @typedef {import('../../../shared/v2/api.js').InkResponse} InkResponse */
-/** @typedef {import('./practice.service.js').PracticeState} PracticeState */
+/** @typedef {import('../types/data.js').PracticeLibrary} PracticeLibrary */
 import { cloneJson, hash, projectJson } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
 import { questionRecord } from '../repositories/bank.repository.js';
 import { relativePath } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { measureOverview } from '../utils/timing.js';
+import { optionalProperty } from '../utils/properties.js';
 /**
  * @param {LibrarySnapshots} library
  * @param {Snapshot} snapshot
@@ -23,15 +24,11 @@ import { measureOverview } from '../utils/timing.js';
  * @returns {Artifact}
  */
 export function resolution(library, snapshot, record) {
-  let value = snapshot.resolutions.get(/** @type {string} */ (record.type));
+  const type = /** @type {string} */ (record.type);
+  let value = snapshot.resolutions.get(type);
   if (library.development && value?.artifact?.development) {
-    value = library.types
-      .resolutions([/** @type {string} */ (record.type)])
-      .get(/** @type {string} */ (record.type));
-    snapshot.resolutions.set(
-      /** @type {string} */ (record.type),
-      /** @type {Resolution} */ (value),
-    );
+    value = library.types.resolutions([type]).get(type);
+    snapshot.resolutions.set(type, /** @type {Resolution} */ (value));
   }
   if (!value) {
     throw problem(
@@ -139,7 +136,7 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
       : null;
     return {
       bankId,
-      snapshotId: /** @type {string} */ (snapshotId),
+      snapshotId: snapshot.snapshotId,
       questionId: id,
       type: /** @type {string} */ (record.type),
       extension: cloneJson(artifact.descriptor),
@@ -154,9 +151,10 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
       resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })),
     };
   } catch (error) {
-    if (/** @type {V2Error} */ (error).context) {
-      /** @type {V2Error} */ (error).context = {
-        .../** @type {V2Error} */ (error).context,
+    const failure = /** @type {V2Error} */ (error);
+    if (failure.context) {
+      failure.context = {
+        ...failure.context,
         bankId,
         questionId: id,
       };
@@ -165,7 +163,7 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
   }
 }
 /**
- * @param {LibrarySnapshots} library
+ * @param {PracticeLibrary} library
  * @param {string} bankId
  * @param {string} id
  * @param {string} op
@@ -173,19 +171,16 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
  * @returns {QuestionResponse | InkResponse}
  */
 export function write(library, bankId, id, op, input) {
-  const snapshot = library.snapshot(
-    bankId,
-    /** @type {{snapshotId?: unknown} | null} */ (input)?.snapshotId,
-  );
+  const snapshot = library.snapshot(bankId, optionalProperty(input, 'snapshotId'));
   // Validate the question and installed type before touching persistence.
   const record = questionRecord(snapshot, id);
   library.resolution(snapshot, record);
   library.visibleAssets(snapshot, id, record);
   if (op === 'ink') {
-    const saved = /** @type {PracticeState} */ (library.stateStore).ink.apply(snapshot, id, input);
+    const saved = library.stateStore.ink.apply(snapshot, id, input);
     return { inkRevision: saved.inkRevision, state: library.state(snapshot, id) };
   }
-  /** @type {PracticeState} */ (library.stateStore).apply(snapshot, id, op, input);
+  library.stateStore.apply(snapshot, id, op, input);
   return library.question(bankId, id, snapshot.snapshotId, { includeInk: op === 'retry' });
 }
 /**

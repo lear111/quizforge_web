@@ -1,6 +1,7 @@
 /** @typedef {import('../types/data.js').OverviewResult} OverviewResult */
 /** @typedef {import('../../../shared/v2/api.js').RefreshResponse} RefreshResponse */
 /** @typedef {import('./practice.service.js').PracticeState} PracticeState */
+/** @typedef {import('../types/data.js').PracticeLibrary} PracticeLibrary */
 /** @typedef {import('../types/data.js').Snapshot} Snapshot */
 /** @import { QuestionCandidate } from '../../../shared/v2/api.js' */
 /** @typedef {import('../../../shared/v2/api.js').QuestionReadResponse} QuestionReadResponse */
@@ -21,8 +22,21 @@ import { TypeRegistry } from '../repositories/extension.repository.js';
 import { SharedSdks } from '../repositories/shared-sdks.repository.js';
 import { measureOverview } from '../utils/timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
+import { optionalProperty } from '../utils/properties.js';
 
 export const OPEN_BANK_LIMIT = 8;
+
+/**
+ * Read-only construction remains available through LibrarySnapshots itself.
+ * @param {string} root
+ * @param {string} codeRoot
+ * @param {{development?: boolean, stateStore: PracticeState}} options
+ * @returns {PracticeLibrary}
+ */
+export function createPracticeLibrary(root, codeRoot, { development = false, stateStore }) {
+  const library = new LibrarySnapshots(root, codeRoot, { development, stateStore });
+  return Object.assign(library, { stateStore });
+}
 
 export class LibrarySnapshots {
   /**
@@ -83,7 +97,7 @@ export class LibrarySnapshots {
       throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
     }
     const snapshot = readSnapshot(this, location, bankId, rebuild);
-    requestedQuestionId = startingQuestion(snapshot, requestedQuestionId, refresh);
+    const initialQuestionId = startingQuestion(snapshot, requestedQuestionId, refresh);
     let activeCleared;
     try {
       activeCleared = measureOverview(
@@ -96,19 +110,18 @@ export class LibrarySnapshots {
       }
       throw error;
     }
-    snapshot.activeCleared = activeCleared;
+    const activeSnapshot = Object.assign(snapshot, { activeCleared });
     const savedPosition = measureOverview(
       'state-check',
       () => this.stateStore?.load(location.directory).lastQuestionId,
     );
-    const lastQuestionId = snapshot.items.has(/** @type {string} */ (savedPosition))
-      ? /** @type {string} */ (savedPosition)
-      : null;
+    const lastQuestionId =
+      typeof savedPosition === 'string' && snapshot.items.has(savedPosition) ? savedPosition : null;
 
     return measureOverview('assemble', () => {
       this.rememberSnapshot(bankId, snapshot);
-      return overviewResponse(this, snapshot, {
-        requestedQuestionId: /** @type {string | undefined} */ (requestedQuestionId),
+      return overviewResponse(this, activeSnapshot, {
+        requestedQuestionId: initialQuestionId,
         lastQuestionId,
         includeInitial,
         refresh,
@@ -124,10 +137,11 @@ export class LibrarySnapshots {
     this.opened.delete(bankId);
     this.opened.set(bankId, snapshot);
     while (this.opened.size > OPEN_BANK_LIMIT) {
-      const first = /** @type {string} */ (this.opened.keys().next().value),
-        old = /** @type {Snapshot} */ (this.opened.get(first));
-      this.opened.delete(first);
-      this.stateStore?.evict(old.directory);
+      for (const [first, old] of this.opened) {
+        this.opened.delete(first);
+        this.stateStore?.evict(old.directory);
+        break;
+      }
     }
   }
   /**
@@ -172,14 +186,6 @@ export class LibrarySnapshots {
     return value;
   }
   /**
-   * @param {Snapshot} snapshot
-   * @param {string} id
-   */
-  needsGrading(snapshot, id) {
-    const state = /** @type {PracticeState} */ (this.stateStore).get(snapshot, id);
-    return state.submissionId !== null && state.result === null;
-  }
-  /**
    * @overload
    * @param {Snapshot} snapshot
    * @param {{includeInk?: true}} [options]
@@ -198,7 +204,14 @@ export class LibrarySnapshots {
    */
   pendingGrading(snapshot, { includeInk = true } = {}) {
     return [...snapshot.items.keys()]
-      .filter((id) => this.stateStore && this.needsGrading(snapshot, id))
+      .filter((id) => {
+        const store = this.stateStore;
+        if (!store) {
+          return false;
+        }
+        const state = store.get(snapshot, id);
+        return state.submissionId !== null && state.result === null;
+      })
       .map((id) => {
         try {
           return {
@@ -223,15 +236,13 @@ export class LibrarySnapshots {
     };
   }
   /**
+   * @this {PracticeLibrary}
    * @param {string} bankId
    * @param {unknown} input @returns {FinishResponse}
    */
   finish(bankId, input) {
-    const snapshot = this.snapshot(
-      bankId,
-      /** @type {{snapshotId?: unknown} | null} */ (input)?.snapshotId,
-    );
-    /** @type {PracticeState} */ (this.stateStore).finish(snapshot, input);
+    const snapshot = this.snapshot(bankId, optionalProperty(input, 'snapshotId'));
+    this.stateStore.finish(snapshot, input);
     // Neither answer nor solution is built until the entire lock transaction
     // has committed. Individual unavailable pages stay recoverable entries.
     return {
@@ -240,15 +251,13 @@ export class LibrarySnapshots {
     };
   }
   /**
+   * @this {PracticeLibrary}
    * @param {string} bankId
    * @param {unknown} input
    */
   results(bankId, input) {
-    const snapshot = this.snapshot(
-      bankId,
-      /** @type {{snapshotId?: unknown} | null} */ (input)?.snapshotId,
-    );
-    /** @type {PracticeState} */ (this.stateStore).results(snapshot, input);
+    const snapshot = this.snapshot(bankId, optionalProperty(input, 'snapshotId'));
+    this.stateStore.results(snapshot, input);
     return this.completion(snapshot);
   }
   /**
@@ -307,6 +316,7 @@ export class LibrarySnapshots {
     return questions.question(this, ...args);
   }
   /**
+   * @this {PracticeLibrary}
    * @param {TailArgs<Parameters<typeof questions.write>>} args
    */
   write(...args) {

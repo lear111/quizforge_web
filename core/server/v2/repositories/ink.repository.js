@@ -22,17 +22,13 @@ import { object, problem } from '../utils/errors.js';
 import { measureSave } from '../utils/timing.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
 import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
+import { integer } from '../utils/state.js';
 
 const LIMIT = 32 * 1024 * 1024;
 /**
  * @returns {InkFile}
  */
 const empty = () => ({ ink: null, inkRevision: 0, receipts: [] });
-/**
- * @param {unknown} n
- * @returns {n is number}
- */
-const integer = (n) => Number.isSafeInteger(n) && /** @type {number} */ (n) >= 0;
 // No ink bodies are cached. The bank LRU owns only a directory-name index.
 export class PracticeInk {
   /** @param {{write?: typeof replaceFile}} [options] */
