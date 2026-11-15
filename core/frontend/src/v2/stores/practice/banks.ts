@@ -14,17 +14,12 @@ export function remember(ctx: PracticeSession, q: Question) {
 export async function catalog(ctx: PracticeSession) {
   const { authRequired, api } = ctx;
   await ctx.run('正在读取题库', async () => {
-    await ctx.catalogStore.read(api);
+    await ctx.catalogStore.read(api.catalog);
     authRequired.value = false;
   });
 }
 
-export async function openBank(
-  ctx: PracticeSession,
-  _kind: string,
-  id?: string,
-  questionId?: string,
-) {
+export async function openBank(ctx: PracticeSession, id?: string, questionId?: string) {
   const { overview, current, message, scoreView, drawer, lastQuestions, api } = ctx;
   if (!id) {
     return;
@@ -124,8 +119,4 @@ export async function refreshBank(ctx: PracticeSession) {
       ctx.actions().clearQuestion(true);
     }
   });
-}
-
-export async function initializeCatalog(ctx: PracticeSession) {
-  await ctx.actions().catalog();
 }

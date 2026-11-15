@@ -5,8 +5,8 @@ import type { LibraryTree } from '../../library/types';
 
 export const useCatalogStore = defineStore('v2-catalog', () => {
   const groups = ref<LibraryTree[]>([]);
-  async function read(api: PracticeApi) {
-    const value = await api.catalog.get();
+  async function read(catalog: PracticeApi['catalog']) {
+    const value = await catalog.get();
     groups.value = value.groups.map((group) => ({
       kind: 'group',
       path: group.id,

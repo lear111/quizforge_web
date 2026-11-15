@@ -6,7 +6,11 @@ import * as scoring from './scoring';
 import * as completion from './completion';
 import * as banks from './banks';
 import * as runtime from './runtime';
-import type { PracticeSession, PracticeActions } from '../../types/practice-session';
+import type {
+  PracticeSession,
+  PracticeActions,
+  PracticeViewActions,
+} from '../../types/practice-session';
 
 // All callbacks close over this one session; no mutable singleton or component
 // reference is needed to coordinate saving, navigation and scoring.
@@ -43,9 +47,29 @@ export function createActions(ctx: PracticeSession): PracticeActions {
     pageFaulted: () => ctx.runtime.page?.faulted,
     remember: (q) => banks.remember(ctx, q),
     catalog: () => banks.catalog(ctx),
-    openBank: (kind, id, questionId) => banks.openBank(ctx, kind, id, questionId),
+    openBank: (id, questionId) => banks.openBank(ctx, id, questionId),
     navigate: (id) => banks.navigate(ctx, id),
     refreshBank: () => banks.refreshBank(ctx),
-    initializeCatalog: () => banks.initializeCatalog(ctx),
+  };
+}
+
+// Publish existing bound functions, not another set of forwarding callbacks.
+export function viewActions(actions: PracticeActions): PracticeViewActions {
+  return {
+    catalog: actions.catalog,
+    openBank: actions.openBank,
+    navigate: actions.navigate,
+    refreshBank: actions.refreshBank,
+    flush: actions.flush,
+    retrySave: actions.retrySave,
+    continueGrading: actions.continueGrading,
+    complete: actions.complete,
+    resumeCompletion: actions.resumeCompletion,
+    clearQuestion: actions.clearQuestion,
+    resetSources: actions.resetSources,
+    pageFaulted: actions.pageFaulted,
+    attachView: actions.attachView,
+    detachView: actions.detachView,
+    toggleDraft: actions.toggleDraft,
   };
 }

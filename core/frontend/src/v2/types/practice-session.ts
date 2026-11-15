@@ -8,7 +8,6 @@ import type { createGradingService } from '../services/grading';
 import type { createCompletionGrader } from '../services/completion';
 import type { mountScratch } from '../services/whiteboard';
 import type { PracticeApi } from '../api';
-import type { LibraryTree } from '../../library/types';
 
 export type QuestionPage = ReturnType<typeof mountQuestionPage>;
 export type Saver = ReturnType<typeof createSaveController>;
@@ -35,7 +34,26 @@ export interface PracticeRuntime {
   container: HTMLElement | undefined;
   detach: (() => void) | null;
 }
-export interface PracticeActions {
+// The Pinia surface used by views and Router; runtime helpers stay in the session.
+export interface PracticeViewActions {
+  flush(): Promise<void>;
+  retrySave(): Promise<void>;
+  continueGrading(): Promise<void> | undefined;
+  complete(): Promise<void>;
+  resumeCompletion(): Promise<void>;
+  resetSources(): void;
+  clearQuestion(clearInk?: boolean): void;
+  attachView(nonce: string, elements: ViewElements): void;
+  detachView(): void;
+  toggleDraft(): Promise<void>;
+  pageFaulted(): boolean | undefined;
+  catalog(): Promise<void>;
+  openBank(id?: string, questionId?: string): Promise<void>;
+  navigate(id: string): Promise<void>;
+  refreshBank(): Promise<void>;
+}
+
+export interface PracticeActions extends PracticeViewActions {
   update(q: Question, preserveStatus?: boolean): void;
   context(q: Question): PageContext;
   applyCompletion(value: Completion): void;
@@ -44,33 +62,17 @@ export interface PracticeActions {
   applyContext(q: Question): Promise<void>;
   show(q: Question, resume?: boolean): Promise<void>;
   createSaver(q: Question, mine: number, instance: QuestionPage): Saver;
-  flush(): Promise<void>;
-  retrySave(): Promise<void>;
   reloadAfterConflict(q: Question, mine: number, error?: unknown): Promise<Question | null>;
   score(q: Question): Promise<Question>;
   grade(q: Question): Promise<void>;
   submit(): Promise<void>;
   retry(): Promise<void>;
   recoverPending(value: Overview): Promise<void>;
-  continueGrading(): Promise<void> | undefined;
   reloadCompletedQuestion(): Promise<void>;
   gradeCompleted(value: Overview): Promise<void>;
-  complete(): Promise<void>;
-  resumeCompletion(): Promise<void>;
   scopeSources(bankId: string, snapshotId: string): void;
-  resetSources(): void;
-  clearQuestion(clearInk?: boolean): void;
   initializeRuntime(nonce: string): void;
-  attachView(nonce: string, elements: ViewElements): void;
-  detachView(): void;
-  toggleDraft(): Promise<void>;
-  pageFaulted(): boolean | undefined;
   remember(q: Question): void;
-  catalog(): Promise<void>;
-  openBank(kind: string, id?: string, questionId?: string): Promise<void>;
-  navigate(id: string): Promise<void>;
-  refreshBank(): Promise<void>;
-  initializeCatalog(): Promise<void>;
 }
 export interface PracticeSession extends PracticeWorkspace {
   current: Ref<Question | null>;
@@ -82,7 +84,7 @@ export interface PracticeSession extends PracticeWorkspace {
   drawer: Ref<'library' | 'outline' | null>;
   authRequired: Ref<boolean>;
   lastQuestions: Ref<Map<string, string>>;
-  catalogStore: { groups: LibraryTree[]; read(api: PracticeApi): Promise<void> };
+  catalogStore: { read(catalog: PracticeApi['catalog']): Promise<void> };
   runtime: PracticeRuntime;
   actions(): PracticeActions;
 }
