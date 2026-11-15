@@ -35,7 +35,7 @@
 | F⑦ · 完成状态与路由 | 已审查合并，CI 通过 | [#165](https://github.com/lear111/quizforge_web/pull/165) | [记录](reviews/V2-F-COMPLETION-ROUTING.md) |
 | F⑧ · 后端断言及 health 清理 | 已审查合并，CI 通过 | [#167](https://github.com/lear111/quizforge_web/pull/167) | [记录](reviews/V2-F-SERVER-ASSERTIONS.md) |
 | I② · 第三版界面（D64） | **代码已合并，待负责人试用**；不视为试用通过 | [#170](https://github.com/lear111/quizforge_web/pull/170)、[#171](https://github.com/lear111/quizforge_web/pull/171) | [记录](reviews/V2-I2-UI-PROTOTYPE.md) |
-| G · 测试与文档整理 | 本次实现，待审查；不自行合并 | [#172](https://github.com/lear111/quizforge_web/pull/172) | [记录](reviews/V2-G-ENGINEERING.md) |
+| G · 测试与文档整理 | 已审查合并（CI 五项通过，`b32e4bf`） | [#172](https://github.com/lear111/quizforge_web/pull/172) | [记录](reviews/V2-G-ENGINEERING.md) |
 | H · 长度规则强制 | 尚未开始 | — | [记录](reviews/V2-H-LENGTH-POLICY.md) |
 | J · 归档与历史 | 尚未开始 | — | [记录](reviews/V2-J-HISTORY.md) |
 | K · 考试（D49–D52） | 尚未开始 | — | [记录](reviews/V2-K-EXAM.md) |
