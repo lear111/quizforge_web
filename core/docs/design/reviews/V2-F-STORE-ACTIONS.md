@@ -1,6 +1,6 @@
 # F⑥：Store 动作与依赖关系整理
 
-**状态：实施完成，待代码审查，不自行合并。** 从最新 `v2` 的 `c1dcd48` 建立 `refactor/v2-store-actions`；F①–⑤ 已合并。依据工作流程第 8 节、进度页 F 的动作收口范围、D48 的分层，以及接口速查中目录/概览/单题、保存、完成练习约定。只整理已接通的 Store 调用关系，不实施待开发功能；按本次指令不修改 `V2_PROGRESS.md`，F⑦/I② 不开始。
+**状态：[#162](https://github.com/lear111/quizforge_web/pull/162) 已于 2026-11-15 合并进 `v2`（`712dfdc`），最新 head 五项 CI 全绿；该 PR 在代码审查前由 `lear111` 账号合并，随后补做代码复核（Review #5910686843），未发现阻塞问题。F⑦/I② 未开始。** 从最新 `v2` 的 `c1dcd48` 建立 `refactor/v2-store-actions`；F①–⑤ 已合并。依据工作流程第 8 节、进度页 F 的动作收口范围、D48 的分层，以及接口速查中目录/概览/单题、保存、完成练习约定。只整理已接通的 Store 调用关系，不实施待开发功能；按本次指令不修改 `V2_PROGRESS.md`，F⑦/I② 不开始。
 
 **调用关系与职责。** 原 Pinia 将 `createActions(session)` 的 35 个方法全部公开，内部辅助动作与视图动作没有区分。现由 `PracticeViewActions` 声明 15 个视图/Router 动作，`PracticeActions` 继承并增加 19 个内部动作；`actions.ts` 中的 `viewActions` 只选取已有函数引用，不再包装、绑定或创建异步转发。Session 继续持有完整动作表，Store 只发布选出的 15 项：
 
