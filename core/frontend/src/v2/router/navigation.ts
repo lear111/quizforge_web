@@ -201,7 +201,8 @@ class WorkspaceNavigation {
         })
       : Promise.resolve();
   };
-  // Views call this after completion/refresh; there is no reverse state watcher.
+  // Callers explicitly publish the selected view/current question after refresh
+  // or grading; no reverse completion watcher drives navigation.
   showCurrent = () => this.push(visibleLocation(this.practice, this.ui), true);
   dispose = () => {
     this.disposed = true;
