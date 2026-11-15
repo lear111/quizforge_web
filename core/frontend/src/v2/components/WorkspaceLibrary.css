@@ -74,6 +74,9 @@ input {
   padding-left: 10px;
   border-left: 1px solid var(--qf-border);
 }
+:deep(.library-group-transition) {
+  margin-block: 0;
+}
 :deep(.library-row) {
   display: flex;
 }

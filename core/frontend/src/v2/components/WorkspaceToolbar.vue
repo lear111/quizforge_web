@@ -9,10 +9,17 @@ import { useWorkspaceNavigation } from '../router/injection';
 import WorkspaceIcon from './WorkspaceIcon.vue';
 const practice = usePracticeStore();
 const { overview, current, recovering, drafting } = storeToRefs(practice);
-const { busy, loading, scoreView } = storeToRefs(useUiStore());
+const { busy, loading, scoreView, drawer } = storeToRefs(useUiStore());
 const catalog = useCatalogStore();
 const layout = useLayoutStore();
 const navigation = useWorkspaceNavigation();
+function toggle(side: 'library' | 'outline') {
+  if (layout.mobile) {
+    drawer.value = drawer.value === side ? null : side;
+  } else {
+    layout.toggle(side);
+  }
+}
 const groupName = computed(() => {
   const group = catalog.groups.find(
     (g) =>
@@ -34,11 +41,11 @@ async function refreshBank() {
     :class="{ empty: !overview }"
   >
     <button
-      class="v2-icon-button desktop"
-      aria-label="收起或展开题库栏"
-      :aria-expanded="!layout.collapsed.library"
+      class="v2-icon-button"
+      :aria-label="layout.mobile ? '题库' : '收起或展开题库栏'"
+      :aria-expanded="layout.mobile ? drawer === 'library' : !layout.collapsed.library"
       aria-controls="v2-library"
-      @click="layout.toggle('library')"
+      @click="toggle('library')"
     >
       <WorkspaceIcon name="library" />
     </button>
@@ -74,11 +81,11 @@ async function refreshBank() {
       </button>
     </div>
     <button
-      class="v2-icon-button desktop"
-      aria-label="收起或展开大纲栏"
-      :aria-expanded="!layout.collapsed.outline"
+      class="v2-icon-button"
+      :aria-label="layout.mobile ? '大纲' : '收起或展开大纲栏'"
+      :aria-expanded="layout.mobile ? drawer === 'outline' : !layout.collapsed.outline"
       aria-controls="v2-outline"
-      @click="layout.toggle('outline')"
+      @click="toggle('outline')"
     >
       <WorkspaceIcon name="outline" />
     </button>

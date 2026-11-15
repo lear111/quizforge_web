@@ -12,6 +12,9 @@ const { outlineModel, overview, recovering } = storeToRefs(usePracticeStore());
 const { drawer, scoreView, busy } = storeToRefs(useUiStore());
 const layout = useLayoutStore();
 const navigation = useWorkspaceNavigation();
+const visible = computed(() =>
+  layout.mobile ? drawer.value === 'outline' : !layout.collapsed.outline,
+);
 const buttons = computed(() => outlineModel.value.groups.flatMap((group) => group.buttons));
 const answered = computed(
   () => buttons.value.filter((button) => button.status !== 'unanswered').length,
@@ -26,7 +29,13 @@ const legend = [
   <aside
     id="v2-outline"
     class="v2-outline v2-sidebar"
-    :class="{ open: drawer === 'outline', closed: layout.collapsed.outline }"
+    :class="{
+      open: drawer === 'outline',
+      closed: layout.collapsed.outline,
+      resizing: layout.resizing === 'outline',
+    }"
+    :inert="!visible"
+    :aria-hidden="!visible"
     aria-label="题目大纲"
   >
     <SidebarResize side="outline" />

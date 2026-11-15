@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import LibraryItemView from './LibraryItem.vue';
+import LibraryGroupTransition from './LibraryGroupTransition.vue';
 import type { LibraryTree, LibraryProps, LibraryEvents } from './types';
 import { itemKind } from './types';
 defineProps<LibraryProps & { node: LibraryTree }>();
@@ -51,10 +52,12 @@ const groupRow = (path: string, name: string) => ({
           </svg></button
       ></span>
     </div>
-    <div
+    <component
+      :is="animateGroups ? LibraryGroupTransition : 'div'"
       :id="`extension-group-${encodeURIComponent(node.path)}`"
       class="extension-group-body"
-      :hidden="!node.expanded"
+      :expanded="animateGroups ? node.expanded : undefined"
+      :hidden="!animateGroups && !node.expanded"
     >
       <LibraryNode
         v-for="child in node.children"
@@ -67,12 +70,13 @@ const groupRow = (path: string, name: string) => ({
         :mode="mode"
         :active-key="activeKey"
         :can-manage="canManage"
+        :animate-groups="animateGroups"
         @toggle-group="emit('toggleGroup', $event)"
         @notice="emit('notice', $event)"
         @open="(kind, id) => emit('open', kind, id)"
         @manage="(target, row, action) => emit('manage', target, row, action)"
       />
-    </div>
+    </component>
   </section>
   <LibraryItemView
     v-else

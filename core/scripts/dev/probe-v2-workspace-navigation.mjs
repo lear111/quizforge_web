@@ -29,6 +29,7 @@ export async function checkSideNavigation(h, output) {
   page.on('request', record);
   await page.locator('.v2-side-nav.next').click();
   await page.waitForURL(`${origin}/#/banks/${id}/summary`);
+  assert.equal(await page.locator('.v2-question-navigation').count(), 0);
   await page.getByRole('heading', { name: '当前得分', exact: true }).waitFor();
   await centered(page);
   assert.equal(await page.locator('.outline-item.active').count(), 0);

@@ -35,14 +35,32 @@
   .v2-main {
     min-height: 0;
   }
-  .v2-scrim {
+  .v2-app .v2-scrim {
     display: block;
-    position: absolute;
-    inset: 56px 0 0;
-    z-index: 10;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
     border: 0;
     border-radius: 0;
     background: var(--qf-scrim);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    touch-action: none;
+    transition:
+      opacity 280ms ease,
+      visibility 0s linear 280ms;
+  }
+  .v2-app .v2-scrim.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-app .v2-scrim {
+    transition: none;
   }
 }
 .v2-app.v2-fullscreen > .v2-library,
