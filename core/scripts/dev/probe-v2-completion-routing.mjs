@@ -11,7 +11,7 @@ export async function checkCompletionRouting(h, resetRecords) {
   await idle();
   await frame().locator('input[value="B"]').check();
   await h.saved();
-  const before = await (await page.request.get(origin + base + '/overview')).json();
+  const before = await (await page.request.get(origin + base + '/overview?questionId=2')).json();
   const finished = await page.request.post(origin + base + '/finish', {
     data: { requestId: `f7-${name}`, snapshotId: before.snapshotId },
   });
@@ -26,10 +26,8 @@ export async function checkCompletionRouting(h, resetRecords) {
   await idle();
 
   await checkChangedCompletion(h, base, questionUrl);
-  if (name === 'mobile') {
-    await page.getByRole('button', { name: '大纲', exact: true }).click();
-  }
-  await page.locator('.v2-summary-entry').click();
+  await checkQuestionReset(h, base, before);
+  await page.getByRole('button', { name: '刷新题库', exact: true }).click();
   await page.waitForURL(summaryUrl);
   resetRecords();
   // Actual filesystem reset of this synthetic bank; the real backend reloads
@@ -44,6 +42,20 @@ export async function checkCompletionRouting(h, resetRecords) {
   await frame().getByText('下列哪一个是偶数？', { exact: true }).waitFor();
   await idle();
   await checkReopen(h);
+}
+
+async function checkQuestionReset(h, base, activeOverview) {
+  const { page, origin, other, frame, idle } = h;
+  // Replay a valid active overview captured before completion, with question 2
+  // selected. No grading/saving implementation is replaced by this fixture.
+  assert.equal(activeOverview.initial.question.questionId, '2');
+  await page.route(`**${base}/overview`, (route) => route.fulfill({ json: activeOverview }));
+  await page.getByRole('button', { name: '继续评分', exact: true }).click();
+  await frame().getByText('下列哪项属于计算机的输入设备？', { exact: true }).waitFor();
+  await idle();
+  assert.equal(page.url(), `${origin}/#/banks/${other}/questions/2`);
+  assert.equal(await page.locator('.v2-card').isVisible(), true);
+  await page.unroute(`**${base}/overview`);
 }
 
 async function checkExternalCompletion(h, base, questionUrl) {

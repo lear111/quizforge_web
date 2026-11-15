@@ -3,12 +3,18 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
+import { useWorkspaceNavigation } from '../router/injection';
 
 const props = defineProps<{ nonce: string; visible: boolean }>();
 const practice = usePracticeStore();
 const { current, typeName, saveStatus, recovering } = storeToRefs(practice);
 const { busy } = storeToRefs(useUiStore());
-const { continueGrading, retrySave } = practice;
+const { retrySave } = practice;
+const navigation = useWorkspaceNavigation();
+async function continueGrading() {
+  await practice.continueGrading();
+  await navigation.showCurrent();
+}
 const container = ref<HTMLElement>(),
   viewport = ref<HTMLElement>(),
   stage = ref<HTMLElement>(),

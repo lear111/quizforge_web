@@ -201,8 +201,8 @@ class WorkspaceNavigation {
         })
       : Promise.resolve();
   };
-  // Refresh publishes its preferred view explicitly; no completion watcher
-  // changes the view behind the Router's back.
+  // Callers explicitly publish the selected view/current question after refresh
+  // or grading; no reverse completion watcher drives navigation.
   showCurrent = () => this.push(visibleLocation(this.practice, this.ui), true);
   dispose = () => {
     this.disposed = true;
