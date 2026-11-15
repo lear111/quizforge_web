@@ -24,4 +24,5 @@ export function fingerprint(value: unknown, namespace: string): string;
 export function hash(bytes: import('node:crypto').BinaryLike): string;
 export function jsonEqual(left: unknown, right: unknown): boolean;
 export function integralField(parent: unknown, key: PropertyKey): boolean;
-export function decimalSum(values: Iterable<number>): number;
+/** The implementation validates every value and rejects non-finite/non-numeric input. */
+export function decimalSum(values: Iterable<unknown>): number;

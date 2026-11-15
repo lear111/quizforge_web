@@ -1,6 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
 import type { IncomingMessage } from 'node:http';
-import type { LibrarySnapshots } from '../services/bank.service.js';
+import type { PracticeLibrary } from './data.js';
 
 export interface Locals {
   target: URL;
@@ -35,7 +35,7 @@ export interface BinaryOptions {
   expectedHash?: string;
 }
 export interface ServerContext {
-  library: LibrarySnapshots;
+  library: PracticeLibrary;
   codeRoot: string;
   timings: boolean;
   binary(

@@ -53,6 +53,12 @@ test('server project strictly checks real JS in all three layers without shadow 
       assert.doesNotMatch(source.text, /@ts-(?:ignore|expect-error|nocheck)/);
     }
   }
+  const properties = path.join(core, 'server/v2/utils/properties.js');
+  assert.ok(project.fileNames.some((file) => path.normalize(file) === path.normalize(properties)));
+  const boundary = compiled.getSourceFile(properties);
+  assert.ok(boundary && !boundary.isDeclarationFile);
+  assert.ok(!fs.existsSync(properties.replace(/\.js$/, '.d.ts')));
+  assert.doesNotMatch(boundary.text, /@ts-(?:ignore|expect-error|nocheck)/);
   const errors = ts.getPreEmitDiagnostics(compiled);
   assert.equal(errors.length, 0, formatErrors(errors));
 });
@@ -108,7 +114,28 @@ test('actual JS guards and outputs reject invalid field use in strict mode', () 
     [
       'precise write union',
       2339,
-      '/** @param {LibrarySnapshots} lib */ function bad(lib) { return lib.write("b","q","ink", null).question; }',
+      '/** @param {PracticeLibrary} lib */ function bad(lib) { return lib.write("b","q","ink", null).question; }',
+    ],
+    [
+      'read-only library cannot write',
+      2684,
+      '/** @param {LibrarySnapshots} lib */ function bad(lib) { return lib.finish("b", null); }',
+    ],
+    ['missing injected store', 2322, 'createPracticeLibrary("root", "code", {stateStore:null});'],
+    [
+      'cache values cannot be undefined',
+      2345,
+      'new StateRepository().loaded.set("file", undefined);',
+    ],
+    [
+      'property probes stay unknown',
+      2571,
+      '/** @param {unknown} value */ function bad(value) { return optionalProperty(value,"snapshotId").trim(); }',
+    ],
+    [
+      'removed health phase',
+      2339,
+      '/** @param {HealthResponse} value */ function bad(value) { return value.phase; }',
     ],
   ];
   const positive = fs.readFileSync(fixture, 'utf8');

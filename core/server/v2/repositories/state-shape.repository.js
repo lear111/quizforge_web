@@ -46,17 +46,20 @@ export function validOldQuestion(state, contentFingerprint) {
   ) {
     return false;
   }
+  /** @type {readonly unknown[]} */
+  const statuses = [
+    'unanswered',
+    'drafting',
+    'submitted-pending',
+    'graded',
+    'pending-review',
+    'ungradable',
+  ];
+  /** @type {readonly unknown[]} */
+  const unsubmitted = ['unanswered', 'drafting'];
   return (
-    [
-      'unanswered',
-      'drafting',
-      'submitted-pending',
-      'graded',
-      'pending-review',
-      'ungradable',
-    ].includes(/** @type {string} */ (state.status)) &&
-    Boolean(state.submission) !==
-      ['unanswered', 'drafting'].includes(/** @type {string} */ (state.status))
+    statuses.includes(state.status) &&
+    Boolean(state.submission) !== unsubmitted.includes(state.status)
   );
 }
 /**

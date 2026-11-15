@@ -11,6 +11,7 @@ import { object, problem, publicError } from '../utils/errors.js';
 import { directories, readJson, treeIdentity, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from './resource.repository.js';
 import { measureOverview } from '../utils/timing.js';
+import { optionalProperty } from '../utils/properties.js';
 
 const versionPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -33,15 +34,25 @@ function validType(type) {
  */
 function manifestType(input) {
   // Only an optional-property probe: values remain unknown until the checks below.
-  const manifest = /** @type {Record<string, unknown> | null} */ (input);
-  if (typeof manifest?.id !== 'string' || typeof manifest.version !== 'string') {
+  const id = optionalProperty(input, 'id');
+  if (typeof id !== 'string') {
     return null;
   }
-  if (!versionPattern.test(manifest.version)) {
+  const version = optionalProperty(input, 'version');
+  if (typeof version !== 'string') {
     return null;
   }
-  const type = `${manifest.id}@${manifest.version.split('.')[0]}`;
+  if (!versionPattern.test(version)) {
+    return null;
+  }
+  const type = `${id}@${version.split('.')[0]}`;
   return validType(type) ? type : null;
+}
+
+/** @param {unknown} input @param {string} type
+ * @returns {input is IdentifiedManifest} */
+function hasManifestType(input, type) {
+  return manifestType(input) === type;
 }
 
 export class TypeRegistry {
@@ -74,7 +85,10 @@ export class TypeRegistry {
           );
     this.manifests.set(directory, { identity, manifest });
     if (this.manifests.size > MANIFEST_CACHE_LIMIT) {
-      this.manifests.delete(/** @type {string} */ (this.manifests.keys().next().value));
+      for (const key of this.manifests.keys()) {
+        this.manifests.delete(key);
+        break;
+      }
     }
     return manifest;
   }
@@ -102,10 +116,12 @@ export class TypeRegistry {
       for (const candidate of measureOverview('extension-scan', () => this.scan())) {
         const { directory, type } = candidate;
         if (type !== null) {
-          if (!index.has(type)) {
-            index.set(type, []);
+          let entries = index.get(type);
+          if (entries === undefined) {
+            entries = [];
+            index.set(type, entries);
           }
-          /** @type {string[]} */ (index.get(type)).push(directory);
+          entries.push(directory);
         }
       }
     } catch (error) {
@@ -122,10 +138,10 @@ export class TypeRegistry {
     for (const directory of this.index.get(type) ?? []) {
       try {
         const manifest = this.manifest(directory);
-        if (manifestType(manifest) === type) {
+        if (hasManifestType(manifest, type)) {
           matches.push({
             directory,
-            manifest: /** @type {IdentifiedManifest} */ (manifest),
+            manifest,
           });
         }
       } catch {
@@ -249,20 +265,24 @@ function artifactFiles(directory, m) {
   return { files, sdkVersions };
 }
 /**
- * @param {IdentifiedManifest} m
- * @returns {SdkVersions}
+ * @param {unknown} sdkVersions
+ * @returns {sdkVersions is SdkVersions}
  */
-function manifestSdks(m) {
-  const sdkVersions = m.sdkVersions ?? {};
-  if (
-    !object(sdkVersions) ||
-    Object.entries(sdkVersions).some(
+function validSdkVersions(sdkVersions) {
+  return (
+    object(sdkVersions) &&
+    !Object.entries(sdkVersions).some(
       ([id, value]) =>
         !['richtext', 'answer-area', 'ink'].includes(id) ||
         typeof value !== 'string' ||
         !sdkVersionPattern.test(value),
     )
-  ) {
+  );
+}
+/** @param {IdentifiedManifest} m @returns {SdkVersions} */
+function manifestSdks(m) {
+  const sdkVersions = m.sdkVersions ?? {};
+  if (!validSdkVersions(sdkVersions)) {
     throw problem('EXTENSION_INVALID', 'sdkVersions 须使用已支持组件名和三段数字版本。', {
       field: 'manifest.sdkVersions',
     });
@@ -272,5 +292,5 @@ function manifestSdks(m) {
       field: 'manifest.development',
     });
   }
-  return /** @type {SdkVersions} */ (sdkVersions);
+  return sdkVersions;
 }

@@ -47,22 +47,24 @@ export class StateRepository {
     // A warm immutable graph needs no repeated filesystem resolution. Explicit
     // open/refresh checks identity; every commit still checks the destination.
     const key = path.join(directory, '.qf-v2', 'state.json');
-    if (!refresh && this.loaded.has(key)) {
-      return /** @type {LoadedState} */ (this.loaded.get(key));
+    const byKey = this.loaded.get(key);
+    if (!refresh && byKey !== undefined) {
+      return byKey;
     }
     const file = this.file(directory);
-    if (!refresh && this.loaded.has(file)) {
-      return /** @type {LoadedState} */ (this.loaded.get(file));
+    const cached = this.loaded.get(file);
+    if (!refresh && cached !== undefined) {
+      return cached;
     }
     let value, observed;
     try {
       observed = identity(file);
       if (
-        this.loaded.has(file) &&
+        cached !== undefined &&
         this.identities.has(file) &&
         this.identities.get(file) === observed
       ) {
-        return /** @type {LoadedState} */ (this.loaded.get(file));
+        return cached;
       }
       value = this.readState(file, observed);
       validateState(value);

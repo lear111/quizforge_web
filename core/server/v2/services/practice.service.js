@@ -5,7 +5,6 @@
 /** @typedef {import('../../../shared/v2/state.js').QuestionState} QuestionState */
 /** @typedef {import('../../../shared/v2/bank.js').OutlineItem} OutlineItem */
 /** @typedef {import('../../../shared/v2/state.js').StateSummary} StateSummary */
-/** @typedef {import('../types/data.js').CurrentState} CurrentState */
 import { randomUUID } from 'node:crypto';
 import { finishRound, recordResults } from './practice-completion.service.js';
 import { applyAction } from './practice-actions.service.js';
@@ -16,6 +15,7 @@ import { measureOverview } from '../utils/timing.js';
 import { PracticeInk } from '../repositories/ink.repository.js';
 import { StateRepository } from '../repositories/state.repository.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
+import { optionalProperty } from '../utils/properties.js';
 export { validateResult } from './practice-result.service.js';
 export { STATE_BYTES } from '../utils/limits.js';
 export { RECEIPT_LIMIT } from '../utils/receipts.js';
@@ -136,13 +136,15 @@ export class PracticeState {
   }
   /**
    * @param {Snapshot} snapshot
-   * @param {CurrentState} [root]
+   * @param {LoadedState} [root]
    */
-  total(snapshot, root = /** @type {CurrentState} */ (this.load(snapshot.directory))) {
+  total(snapshot, root = this.load(snapshot.directory)) {
     try {
       return {
         score: decimalSum(
-          [...snapshot.items.keys()].map((id) => root.questions[id]?.result?.score ?? 0),
+          [...snapshot.items.keys()].map(
+            (id) => optionalProperty(optionalProperty(root.questions[id], 'result'), 'score') ?? 0,
+          ),
         ),
         maxScore: decimalSum([...snapshot.maxScores.values()]),
       };

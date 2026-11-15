@@ -7,6 +7,7 @@
 /** @typedef {import('../types/http.js').HttpResponse} HttpResponse */
 /** @typedef {import('../types/http.js').SdkHandler} SdkHandler */
 /** @typedef {import('../services/bank.service.js').LibrarySnapshots} LibrarySnapshots */
+/** @typedef {import('../types/data.js').PracticeLibrary} PracticeLibrary */
 /** @typedef {import('../../../shared/v2/api.js').HealthResponse} HealthResponse */
 /** @typedef {import('../../../shared/v2/api.js').ExtensionManifestResponse} ManifestResponse */
 import path from 'node:path';
@@ -21,7 +22,7 @@ import { measureSave, withOverviewTiming } from '../utils/timing.js';
 const snapshotId = (response) => response.locals.target.searchParams.get('snapshotId');
 
 /**
- * @param {LibrarySnapshots} library
+ * @param {PracticeLibrary} library
  * @returns {QuestionHandlers}
  */
 function questionWrites(library) {
@@ -47,7 +48,7 @@ function questionWrites(library) {
 
 /**
  * @param {ServerContext} server
- * @param {LibrarySnapshots} library
+ * @param {PracticeLibrary} library
  * @returns {BankHandlers}
  */
 function bankHandlers(server, library) {
@@ -179,7 +180,6 @@ export function createHandlers(server) {
         200,
         /** @satisfies {HealthResponse} */ ({
           apiVersion: 2,
-          phase: 'segment-1',
           availableFeatures: ['catalog', 'overview', 'question', 'resources', 'submit', 'result'],
         }),
       );

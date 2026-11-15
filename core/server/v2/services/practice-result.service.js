@@ -48,13 +48,14 @@ export function validateResult(item, result) {
   }
   /**
    * @param {unknown} value
-   * @param {unknown} max @returns {value is number}
+   * @param {number | undefined} max @returns {value is number}
    */
   const finiteScore = (value, max) =>
     typeof value === 'number' &&
     Number.isFinite(value) &&
     value >= 0 &&
-    value <= /** @type {number} */ (max);
+    max !== undefined &&
+    value <= max;
   const max = item.parts ? decimalSum(item.parts.map((part) => part.maxScore)) : item.maxScore;
   if (!finiteScore(result.score, max)) {
     fail();

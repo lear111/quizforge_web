@@ -1,5 +1,10 @@
 import { PracticeState } from '../../../server/v2/services/practice.service.js';
 /** @import { LibrarySnapshots } from '../../../server/v2/services/bank.service.js' */
+/** @import { PracticeLibrary } from '../../../server/v2/types/data.js' */
+import { createPracticeLibrary } from '../../../server/v2/services/bank.service.js';
+import { optionalProperty } from '../../../server/v2/utils/properties.js';
+import { StateRepository } from '../../../server/v2/repositories/state.repository.js';
+/** @import { HealthResponse } from '../../../shared/v2/api.js' */
 import {
   validQuestion,
   validResultShape,
@@ -37,4 +42,10 @@ export function stateView(snapshot) {
   return state.get(snapshot, 'q').result?.score;
 }
 
-export { problem };
+export { problem, optionalProperty, StateRepository };
+
+/** @param {string} root @param {string} codeRoot */
+export function configuredWrites(root, codeRoot) {
+  const library = createPracticeLibrary(root, codeRoot, { stateStore: new PracticeState() });
+  return library.finish('b', { snapshotId: 's', requestId: 'r' });
+}

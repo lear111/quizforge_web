@@ -23,7 +23,7 @@ import {
   registerQuestionWriteRoutes,
 } from './routes/question.routes.js';
 import { registerSystemRoutes } from './routes/system.routes.js';
-import { LibrarySnapshots } from './services/bank.service.js';
+import { createPracticeLibrary } from './services/bank.service.js';
 import { PracticeState } from './services/practice.service.js';
 import { readResource } from './services/resource.service.js';
 import { problem } from './utils/errors.js';
@@ -89,7 +89,7 @@ export class V2Server {
     this.token = token;
     this.timings = timings;
     this.codeRoot = codeRoot;
-    this.library = new LibrarySnapshots(root, codeRoot, {
+    this.library = createPracticeLibrary(root, codeRoot, {
       development,
       stateStore: new PracticeState(),
     });

@@ -1,7 +1,5 @@
 /** @typedef {import('../types/data.js').OverviewResult} OverviewResult */
 /** @typedef {import('../types/data.js').OpenedSnapshot} OpenedSnapshot */
-/** @typedef {import('../types/data.js').QuestionType} QuestionType */
-/** @typedef {{type?: unknown}} QuestionTypeProbe */
 /** @typedef {import('../types/data.js').OverviewOptions} OverviewOptions */
 /** @typedef {import('./bank.service.js').LibrarySnapshots} LibrarySnapshots */
 /** @typedef {import('../types/data.js').ReadBank} ReadBank */
@@ -17,6 +15,7 @@ import { treeIdentity, READ_LIMITS } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { readBank, validId } from '../repositories/bank.repository.js';
 import { measureOverview } from '../utils/timing.js';
+import { optionalProperty } from '../utils/properties.js';
 /**
  * @param {LibrarySnapshots} library
  * @param {ReadBank} bank
@@ -121,7 +120,7 @@ export function readSnapshot(library, location, bankId, rebuild) {
 }
 /**
  * @param {LibrarySnapshots} library
- * @param {Snapshot} snapshot
+ * @param {OpenedSnapshot} snapshot
  * @param {OverviewOptions} options
  * @returns {OverviewResult}
  */
@@ -130,7 +129,7 @@ export function overviewResponse(
   snapshot,
   { requestedQuestionId, lastQuestionId, includeInitial, refresh, previous },
 ) {
-  const { bankId, snapshotId, activeCleared } = /** @type {OpenedSnapshot} */ (snapshot);
+  const { bankId, snapshotId, activeCleared } = snapshot;
   const bank = snapshot;
   const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
   /** @type {QuestionCandidate<QuestionReadResponse>} */
@@ -147,15 +146,13 @@ export function overviewResponse(
     snapshotId,
     outline: cloneJson(bank.raw.outline),
     listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
-    questionTypes: [...bank.items.keys()].map((id) => ({
-      questionId: id,
-      type:
-        object(bank.raw.questions) &&
-        Object.hasOwn(bank.raw.questions, id) &&
-        typeof (/** @type {QuestionTypeProbe | null} */ (bank.raw.questions[id])?.type) === 'string'
-          ? /** @type {QuestionType} */ (bank.raw.questions[id]).type
-          : null,
-    })),
+    questionTypes: [...bank.items.keys()].map((id) => {
+      const type =
+        object(bank.raw.questions) && Object.hasOwn(bank.raw.questions, id)
+          ? optionalProperty(bank.raw.questions[id], 'type')
+          : undefined;
+      return { questionId: id, type: typeof type === 'string' ? type : null };
+    }),
     ...library.completion(snapshot),
     lastQuestionId,
     initial,
@@ -207,10 +204,10 @@ function resolveSdks(library, resolutions, sdk) {
  */
 export function startingQuestion(snapshot, requestedQuestionId, refresh) {
   const bankId = snapshot.bankId;
-  if (
-    requestedQuestionId !== undefined &&
-    (!validId(requestedQuestionId) || !snapshot.items.has(requestedQuestionId))
-  ) {
+  if (requestedQuestionId === undefined) {
+    return undefined;
+  }
+  if (!validId(requestedQuestionId) || !snapshot.items.has(requestedQuestionId)) {
     if (!refresh) {
       throw problem(
         'QUESTION_NOT_FOUND',
@@ -219,8 +216,8 @@ export function startingQuestion(snapshot, requestedQuestionId, refresh) {
         404,
       );
     }
-    requestedQuestionId = undefined;
+    return undefined;
   }
 
-  return /** @type {string | undefined} */ (requestedQuestionId);
+  return requestedQuestionId;
 }
