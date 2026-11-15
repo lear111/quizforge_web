@@ -37,6 +37,6 @@
 | I② · 第三版界面（D64） | **代码已合并，待负责人试用**；不视为试用通过 | [#170](https://github.com/lear111/quizforge_web/pull/170)、[#171](https://github.com/lear111/quizforge_web/pull/171) | [记录](reviews/V2-I2-UI-PROTOTYPE.md) |
 | G · 测试与文档整理 | 已审查合并（CI 五项通过，`b32e4bf`） | [#172](https://github.com/lear111/quizforge_web/pull/172) | [记录](reviews/V2-G-ENGINEERING.md) |
 | H · 长度规则强制 | 已审查合并，CI 五项通过；两处精确浏览器闭包例外已批准（`b3f7c16`） | [#174](https://github.com/lear111/quizforge_web/pull/174) | [记录](reviews/V2-H-LENGTH-POLICY.md) |
-| J · 归档与历史 | 尚未开始 | — | [记录](reviews/V2-J-HISTORY.md) |
+| J · 归档与历史 | 前置性能测量 CI 五项通过，待审查；迁移、归档与历史尚未实现 | [#176](https://github.com/lear111/quizforge_web/pull/176) | [记录](reviews/V2-J-HISTORY.md) |
 | K · 考试（D49–D52） | 尚未开始 | — | [记录](reviews/V2-K-EXAM.md) |
 | L · 受限 HTML 富文本（D54） | 尚未开始，先提交设计说明 | — | [记录](reviews/V2-L-RICHTEXT.md) |
