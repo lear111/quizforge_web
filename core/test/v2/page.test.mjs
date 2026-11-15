@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import srcdocInput from './fixtures/page-srcdoc.mjs';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
@@ -294,4 +296,70 @@ test('answer replies require current frame, channel and request; destroying reje
   await next.ready;
   next.destroy();
   assert.equal(dom.window.document.querySelectorAll('iframe').length, 0);
+});
+
+test('page document stays byte-identical to the pre-refactor synthetic snapshot', (t) => {
+  const { dom } = setup(t);
+  dom.window.crypto.getRandomValues = (values) => {
+    values.forEach((_, index) => {
+      values[index] = index;
+    });
+    return values;
+  };
+  const page = dom.window.TestPages.mountQuestionPage(
+    dom.window.document.getElementById('app'),
+    srcdocInput.sources,
+    srcdocInput.context,
+    srcdocInput.nonce,
+  );
+  const expected = fs.readFileSync(new URL('./fixtures/page-srcdoc.txt', import.meta.url));
+  assert.ok(Buffer.from(page.frame.srcdoc).equals(expected));
+  page.destroy();
+});
+
+test('an initial page error rejects readiness and answer reads; disposal remains idempotent', async (t) => {
+  const { mount, send } = setup(t),
+    page = mount(),
+    posts = [];
+  page.frame.contentWindow.postMessage = (value) => posts.push(value);
+  const refused = assert.rejects(page.ready, /题型页面未能加载/);
+  send(page, { kind: 'error' });
+  await refused;
+  assert.equal(page.faulted, true);
+  await assert.rejects(page.answer(), /题型页面未能加载/);
+  page.destroy();
+  page.destroy();
+  assert.deepEqual(
+    posts.map((row) => row.kind),
+    ['dispose'],
+  );
+});
+
+test('a failed context update rejects queued work and returned permissions are detached copies', async (t) => {
+  const { mount, send } = setup(t),
+    page = mount(),
+    posts = [];
+  page.frame.contentWindow.postMessage = (value) => posts.push(value);
+  send(page, { kind: 'ready' });
+  await page.ready;
+  const permissions = page.can;
+  permissions.submit = false;
+  assert.equal(page.can.submit, true);
+  const next = { ...srcdocInput.context, locked: true, can: { submit: false, retry: true } };
+  const update = page.update(next),
+    queued = page.update(next);
+  const failures = [assert.rejects(update, /页面更新失败/), assert.rejects(queued, /页面更新失败/)];
+  for (let index = 0; index < 6; index++) {
+    await Promise.resolve();
+  }
+  const request = posts.at(-1);
+  send(page, { kind: 'updated', request: request.request, version: request.version, error: true });
+  await Promise.all(failures);
+  assert.equal(page.faulted, true);
+  await assert.rejects(page.answer(), /页面更新失败/);
+  assert.deepEqual(
+    posts.map((row) => row.kind),
+    ['context'],
+  );
+  page.destroy();
 });
