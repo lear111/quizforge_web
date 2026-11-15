@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-export async function probeRecovery({ bank, root, server, browser, errors, url }) {
+function prepareRecovery(bank, root, server) {
   // Four locked pending questions exercise the real App, Worker and HTTP path:
   // first/current save fails, then invalid score, forged non-array, healthy.
   const reviewBank = structuredClone(bank);
@@ -34,6 +34,11 @@ export async function probeRecovery({ bank, root, server, browser, errors, url }
       requestId: 'review-' + item.id,
     });
   }
+  return reviewId;
+}
+
+export async function probeRecovery({ bank, root, server, browser, errors, url }) {
+  const reviewId = prepareRecovery(bank, root, server);
   const recoveryContext = await browser.newContext(),
     recovery = await recoveryContext.newPage();
   recovery.on('pageerror', (error) =>

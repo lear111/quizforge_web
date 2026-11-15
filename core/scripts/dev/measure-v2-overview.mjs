@@ -29,13 +29,32 @@ const timings = (header) =>
     }),
   );
 
+function observeManifestReads(cache, counts, isManifest) {
+  const entry = cache.entry,
+    open = fs.openSync;
+  cache.entry = function (file, ...args) {
+    if (isManifest(file)) {
+      counts.manifestRequests++;
+    }
+    return entry.call(this, file, ...args);
+  };
+  fs.openSync = function (file, ...args) {
+    if (isManifest(file)) {
+      counts.manifestBodyOpens++;
+    }
+    return open.call(this, file, ...args);
+  };
+  return () => {
+    cache.entry = entry;
+    fs.openSync = open;
+  };
+}
+
 async function countFiles(server, endpoint) {
   const { library } = server,
     { cache, types } = library;
   const scan = types.scan,
-    resolve = types.resolve,
-    entry = cache.entry,
-    open = fs.openSync;
+    resolve = types.resolve;
   const sdkOwner = library.sharedSdks ?? library;
   const sdkMethod = library.sharedSdks ? 'rebuild' : 'sdk';
   const sdk = sdkOwner[sdkMethod];
@@ -58,18 +77,7 @@ async function countFiles(server, endpoint) {
     counts.resolvedTypes++;
     return resolve.apply(this, args);
   };
-  cache.entry = function (file, ...args) {
-    if (isManifest(file)) {
-      counts.manifestRequests++;
-    }
-    return entry.call(this, file, ...args);
-  };
-  fs.openSync = function (file, ...args) {
-    if (isManifest(file)) {
-      counts.manifestBodyOpens++;
-    }
-    return open.call(this, file, ...args);
-  };
+  const restoreReads = observeManifestReads(cache, counts, isManifest);
   sdkOwner[sdkMethod] = function (...args) {
     counts.sdkDigests++;
     return sdk.apply(this, args);
@@ -84,8 +92,7 @@ async function countFiles(server, endpoint) {
   } finally {
     types.scan = scan;
     types.resolve = resolve;
-    cache.entry = entry;
-    fs.openSync = open;
+    restoreReads();
     sdkOwner[sdkMethod] = sdk;
   }
 }

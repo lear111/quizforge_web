@@ -3,42 +3,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 const percentile = (values, p) =>
   [...values].sort((a, b) => a - b)[Math.ceil(values.length * p) - 1];
-export async function exerciseViewport({
-  browser,
-  name,
-  viewport,
-  offset,
-  errors,
-  url,
-  output,
-  rows,
-}) {
-  const context = await browser.newContext({ viewport });
-  const page = await context.newPage();
-  page.on('pageerror', (error) => errors.push({ name, message: error.message }));
-  const leaked = [];
-  page.on('response', async (response) => {
-    if (response.url().includes('/questions/') && response.request().method() === 'GET') {
-      const body = await response.json().catch(() => null);
-      if (body?.state?.locked === false && body.solution !== null) {
-        leaked.push(response.url());
-      }
-    }
-  });
-  const frame = () => page.frameLocator('iframe[title="单选题作答"]');
-  async function open() {
-    if (name === 'mobile') {
-      await page.getByRole('button', { name: '题库', exact: true }).click();
-    }
-    await page.getByRole('button', { name: '展开 g_', exact: false }).click();
-    const start = performance.now();
-    await page.locator('[data-item-id]').click();
-    await frame().getByRole('radio', { name: 'B', exact: true }).waitFor({ state: 'visible' });
-    return performance.now() - start;
-  }
-  await page.goto(url);
-  await page.locator('.extension-group-toggle').waitFor({ state: 'attached' });
-  const openMs = await open();
+async function failedSubmit({ name, frame, page }) {
   // Negative path: failed submit leaves the selected option intact and hides solution.
   let failed = false;
   if (name === 'desktop') {
@@ -63,6 +28,9 @@ export async function exerciseViewport({
     await page.unroute('**/questions/1/submit');
     assert.ok(failed);
   }
+}
+
+async function submitQuestions({ offset, name, page, frame }) {
   const timings = [];
   for (let n = 1; n <= 10; n++) {
     const qid = String(offset + n);
@@ -94,6 +62,10 @@ export async function exerciseViewport({
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
     timings.push(performance.now() - start);
   }
+  return timings;
+}
+
+async function failedGrading({ name, page, frame }) {
   if (name === 'desktop') {
     await page.locator('[data-question-id="21"]').click();
     await frame().getByRole('radio', { name: 'B', exact: true }).check();
@@ -112,8 +84,9 @@ export async function exerciseViewport({
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isDisabled(), true);
     await page.unroute('**/questions/21/result');
   }
-  await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+}
+
+async function restoredAnswers({ page, open, name, offset, frame }) {
   await page.reload();
   await page.locator('.extension-group-toggle').waitFor({ state: 'attached' });
   await open();
@@ -148,6 +121,54 @@ export async function exerciseViewport({
     assert.equal(recovered.state.status, 'correct');
     assert.equal(recovered.state.score, 2);
   }
+}
+
+function observeSolutions(page, leaked) {
+  page.on('response', async (response) => {
+    if (response.url().includes('/questions/') && response.request().method() === 'GET') {
+      const body = await response.json().catch(() => null);
+      if (body?.state?.locked === false && body.solution !== null) {
+        leaked.push(response.url());
+      }
+    }
+  });
+}
+
+export async function exerciseViewport({
+  browser,
+  name,
+  viewport,
+  offset,
+  errors,
+  url,
+  output,
+  rows,
+}) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  page.on('pageerror', (error) => errors.push({ name, message: error.message }));
+  const leaked = [];
+  observeSolutions(page, leaked);
+  const frame = () => page.frameLocator('iframe[title="单选题作答"]');
+  async function open() {
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '题库', exact: true }).click();
+    }
+    await page.getByRole('button', { name: '展开 g_', exact: false }).click();
+    const start = performance.now();
+    await page.locator('[data-item-id]').click();
+    await frame().getByRole('radio', { name: 'B', exact: true }).waitFor({ state: 'visible' });
+    return performance.now() - start;
+  }
+  await page.goto(url);
+  await page.locator('.extension-group-toggle').waitFor({ state: 'attached' });
+  const openMs = await open();
+  await failedSubmit({ name, frame, page });
+  const timings = await submitQuestions({ offset, name, page, frame });
+  await failedGrading({ name, page, frame });
+  await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await restoredAnswers({ page, open, name, offset, frame });
   assert.deepEqual(leaked, []);
   rows.push({
     viewport: name,
