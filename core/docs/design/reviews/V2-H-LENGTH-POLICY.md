@@ -1,6 +1,6 @@
 # H：代码长度规则强制化
 
-**状态：[#174](https://github.com/lear111/quizforge_web/pull/174) 实现完成，实施提交五项 CI 全绿，待代码审查；不自行合并。** 基线 `v2` / `90b8d57`，分支 `chore/v2-enforce-length`。仅执行 H，不启动 J/K/L 或 AI Agent。PR 正文与本记录同步。
+**状态：[#174](https://github.com/lear111/quizforge_web/pull/174) 已审查通过（Review #5912186309），两处精确浏览器闭包例外获批准；最终 CI 五项全绿，2026-11-15 squash 合并到 `v2`（`b3f7c16`）。J 尚未开工。** 基线 `v2` / `90b8d57`，分支 `chore/v2-enforce-length`。仅执行 H，不启动 J/K/L 或 AI Agent。PR 正文与本记录同步。
 
 ## 规则与基线
 
