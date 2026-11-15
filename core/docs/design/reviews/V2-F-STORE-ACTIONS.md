@@ -29,8 +29,16 @@
 
 **回归与本机结果。** 新增 6 项：① 对外 15 动作与内部辅助不再暴露；② 启动只读目录、空地址不开库、换令牌后复用原 catalog 对象；③ 401/断网保留旧列表，成功后才清鉴权状态；④ 多 Pinia 隔离 transport/令牌/列表；⑤ busy 时不重复读取且不提前清鉴权；⑥ 缺 bankId 不请求、去掉 kind 后打开指定题库。原 Router 16 项覆盖指定题/返回位置、前进后退、保存与排队、失败留题留地址、快速切换、故障页重开、登录后恢复和汇总；原浏览器探针覆盖实际切题/切库/刷新、完成与继续评分。
 
-Windows 11 / Node 24.13.0：UI/后端 TypeScript、构建及 `--check` 通过；格式 204 文件无差异，lint 195 文件、0 错误/19 项既有警告。完整 V2 213 通过 / 0 失败 / 0 跳过（84.16 s，不作性能对比），十个既有 Chrome 探针最终结果与 CI 表将在验证完成后补入。本机不重复旧版全仓测试，由 CI 两平台运行完整套件。仅使用合成数据、受控 Promise 和独立回环服务，浏览器视口检查不代表真实手机验收。
+Windows 11 / Node 24.13.0：UI/后端 TypeScript、构建及 `--check` 通过；格式 204 文件无差异，lint 195 文件、0 错误/19 项既有警告。完整 V2 213 通过 / 0 失败 / 0 跳过（84.16 s，不作性能对比）；最新构建的十个既有 Chrome 探针全部通过：page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion、router。本机不重复旧版全仓测试，由 CI 两平台运行完整套件。仅使用合成数据、受控 Promise 和独立回环服务，浏览器视口检查不代表真实手机验收。
 
 **风险与保留边界。** 主要风险是遗漏 Store 调用方和缩窄 catalog 参数时改变鉴权引用，分别由全仓引用核对、Vue 类型检查、真实 API/Router 的回归及浏览器测试覆盖。对外 Store 动作的收口会让未列入仓库的开发调试脚本无法再调用内部方法；内部模块继续经 Session 使用。启动只删除无状态别名的异步转发，不调整导航守卫或新增并发策略；本次不声称性能收益。
 
-**CI：等待运行。** PR 正文与本文保持一致，最终五项 job 结果和失败名单将在此补全；提交后不合并。
+**CI。** [PR #162](https://github.com/lear111/quizforge_web/pull/162) 实施提交 `5fa2914` 的[运行 43711551737](https://github.com/lear111/quizforge_web/actions/runs/43711551737) 五项全绿，失败名单为空。Ubuntu 的 34 项跳过是既有 Windows 专项，未新增跳过、重试或放宽断言。以下总耗时来自 GitHub job 起止时间；PR 正文与本文一致，补本文后再次核对最终提交，代码和进度页不再变动。
+
+| CI job | 通过 / 失败 / 跳过与结果 | Job 总耗时 |
+|---|---|---|
+| Checks · Windows | 1474 / 0 / 0；UI/后端类型、构建及一致性通过 | 239 s |
+| Checks · Ubuntu | 1440 / 0 / 34；同上 | 104 s |
+| Performance · Ubuntu | 2 / 0 / 0 | 15 s |
+| V2 code quality · Ubuntu | 格式 204 文件无差异；lint 195 文件，0 错误/19 项既有警告 | 16 s |
+| V2 browser checks · Ubuntu | 十个既有探针全部通过 | 175 s |
