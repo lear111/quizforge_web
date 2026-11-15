@@ -10,16 +10,16 @@ export function createWriteQueue() {
   return {
     enqueue,
     drain: () => tail.then(() => {}),
-    prepare<T>(
-      capture: () => { route: string; body: string },
-      send: (route: string, body: string) => Promise<T>,
+    prepare<Request extends { route: string; body: string }, T>(
+      capture: () => Request,
+      send: (request: Request) => Promise<T>,
       saved: (value: T) => void,
     ) {
-      let request: { route: string; body: string } | undefined;
+      let request: Request | undefined;
       return () =>
         enqueue(async () => {
           request ??= capture();
-          const value = await send(request.route, request.body);
+          const value = await send(request);
           saved(value);
         });
     },

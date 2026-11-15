@@ -12,11 +12,22 @@ import type { StateFile, GradeResult } from '../../../shared/v2/state.js';
 import type { JsonValue } from '../../../shared/v2/json.js';
 import type { BankFile, BankInfo } from '../../../shared/v2/bank.js';
 import type { createApi } from '../../../frontend/src/v2/api/index.js';
+import type { SavedOperation } from '../../../frontend/src/v2/types/save.js';
 
 type Assert<T extends true> = T;
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Api = ReturnType<typeof createApi>;
+export declare const api: Api;
+export type AnswerSaveReply = Assert<
+  Equal<Awaited<ReturnType<typeof api.questions.sendSave<'answer'>>>, QuestionResponse>
+>;
+export type InkSaveReply = Assert<
+  Equal<Awaited<ReturnType<typeof api.questions.sendSave<'ink'>>>, InkResponse>
+>;
+export type InkOutcome = Assert<
+  Equal<Extract<SavedOperation, { kind: 'ink' }>['value'], InkResponse>
+>;
 export type GetReturnsInk = Assert<
   Equal<Awaited<ReturnType<Api['questions']['get']>>, QuestionReadResponse>
 >;

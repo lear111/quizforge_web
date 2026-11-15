@@ -162,12 +162,32 @@ test('save captures revision only at dispatch and retries identical bytes while 
     answer: { text: '保留输入' },
     answered: true,
   });
+  assert.equal(
+    f.requests[1].body,
+    JSON.stringify({
+      requestId: JSON.parse(f.requests[0].body).requestId,
+      snapshotId: 's&1',
+      expectedRevision: 8,
+      answer: { text: '保留输入' },
+      answered: true,
+    }),
+  );
   const ink = f.api.questions.prepareInk(q, { strokes: [1] });
-  await f.api.questions.sendSave(ink.route, ink.body);
+  assert.equal(ink.kind, 'ink');
+  await f.api.questions.sendSave(ink);
   const inkBody = JSON.parse(f.requests[2].body);
   assert.equal(inkBody.expectedInkRevision, 3);
   assert.equal(Object.hasOwn(inkBody, 'expectedRevision'), false);
   assert.notEqual(inkBody.requestId, JSON.parse(f.requests[0].body).requestId);
+  assert.equal(
+    f.requests[2].body,
+    JSON.stringify({
+      requestId: inkBody.requestId,
+      snapshotId: 'changed',
+      expectedInkRevision: 3,
+      ink: { strokes: [1] },
+    }),
+  );
 });
 
 test('single and bulk operations retain wire fields, snapshot and lock credentials without adding refresh credentials', async () => {

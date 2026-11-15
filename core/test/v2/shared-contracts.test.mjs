@@ -70,6 +70,15 @@ test('contracts reject missing request fields, opaque access and invalid host-ow
     ['JSON cannot contain function', 'const bad: JsonValue = { callback: () => true };'],
     ['wrong maximum score', 'bank.outline[0].items[0].maxScore = "2";'],
     ['wrong part maximum', 'bank.outline[0].items[1].parts = [{ id:"p", maxScore:false }];'],
+    ['wrong save tag', 'api.questions.sendSave({kind:"draft",route:"/answer",body:"{}"});'],
+    [
+      'ink reply as question',
+      'const bad: Promise<QuestionResponse> = api.questions.sendSave({kind:"ink",route:"/ink",body:"{}"});',
+    ],
+    [
+      'mismatched reply tag',
+      'const bad: SavedOperation = {kind:"answer",value:{} as InkResponse};',
+    ],
   ];
   const imports = fs.readFileSync(fixture, 'utf8');
   const source = imports + '\n' + cases.map(([, code]) => `{ ${code} }`).join('\n');

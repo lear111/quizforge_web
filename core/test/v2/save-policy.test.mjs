@@ -312,3 +312,72 @@ test('unload warns only with unsaved input; hidden flushes now and teardown remo
   assert.equal(event().defaultPrevented, false);
   win.close();
 });
+
+test('input during a pending getter keeps the original capture version and overlapping flush returns the same promise', async () => {
+  const time = clock(),
+    writes = [],
+    statuses = [];
+  let value = 'A',
+    release;
+  const saver = createSaveController({
+    clock: time,
+    read: () => {
+      const captured = value;
+      return writes.length
+        ? Promise.resolve(captured)
+        : new Promise((resolve) => {
+            release = () => resolve(captured);
+          });
+    },
+    prepare: (captured) => async () => {
+      writes.push(captured);
+    },
+    status: (status) => statuses.push(status),
+  });
+  saver.changed('text');
+  const pending = saver.flush();
+  assert.equal(saver.flush(), pending);
+  value = 'B';
+  saver.changed('choice');
+  release();
+  await pending;
+  assert.deepEqual(writes, ['A', 'B']);
+  assert.deepEqual(statuses, ['unsaved', 'saving', 'unsaved', 'saved']);
+  assert.equal(saver.dirty, false);
+  await time.tick(10000);
+  assert.equal(writes.length, 2);
+  saver.destroy();
+});
+
+test('destroy during a getter rejects the active flush without preparing, reporting errors or starting late timers', async () => {
+  const time = clock(),
+    statuses = [],
+    errors = [];
+  let release,
+    prepared = 0;
+  const saver = createSaveController({
+    clock: time,
+    read: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    prepare: () => {
+      prepared++;
+      return async () => {};
+    },
+    status: (status) => statuses.push(status),
+    error: (error) => errors.push(error),
+  });
+  saver.changed('text');
+  const pending = saver.flush();
+  saver.destroy();
+  assert.equal(saver.flush(), pending, 'an already running flush still takes precedence');
+  release('late');
+  await assert.rejects(pending, /题目已关闭/);
+  await assert.rejects(saver.flush(), /题目已关闭/);
+  await time.tick(10000);
+  assert.equal(prepared, 0);
+  assert.deepEqual(statuses, ['unsaved', 'saving']);
+  assert.deepEqual(errors, []);
+  assert.equal(saver.dirty, true);
+});
