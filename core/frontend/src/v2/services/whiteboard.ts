@@ -4,17 +4,16 @@ import '../../../../web/draft/whiteboard.css';
 
 // Host-only adapter: the v1 pen, selection, camera, dock and tools are unchanged.
 // No answer-area registration/channel: all strokes here are scratch ink.
-export function mountScratch(
+function createScratchLayout(
   viewport: HTMLElement,
   stage: HTMLElement,
   world: HTMLElement,
   options: { changed(): void; error(error: Error): void },
 ) {
-  let drafting = false,
-    loading = false;
+  const state = { drafting: false, loading: false };
   const shell = viewport.closest('.v2-app');
   const fullscreen = createDraftFullscreen(document, {
-    canEnter: () => drafting,
+    canEnter: () => state.drafting,
     onChange: (state) => {
       shell?.classList.toggle('v2-fullscreen', state.active);
       board.setFullscreenState(state);
@@ -23,8 +22,8 @@ export function mountScratch(
   });
   const resize = () => {
     // Only the draft view uses the fixed coordinate space; practice stays fluid.
-    const zoom = drafting ? board.getViewCamera().zoom : 1;
-    const y = drafting ? Math.max(0, board.getViewCamera().y * zoom) : 0;
+    const zoom = state.drafting ? board.getViewCamera().zoom : 1;
+    const y = state.drafting ? Math.max(0, board.getViewCamera().y * zoom) : 0;
     stage.style.height = `${Math.max(viewport.clientHeight, world.offsetHeight * zoom + y + 32)}px`;
   };
   const board = mountWhiteboard(viewport, {
@@ -32,7 +31,7 @@ export function mountScratch(
       viewport.parentElement?.querySelectorAll<HTMLElement>('.v2-side-nav') ?? [],
     onChange() {
       resize();
-      if (!loading) {
+      if (!state.loading) {
         options.changed();
       }
     },
@@ -46,9 +45,24 @@ export function mountScratch(
   observer.observe(viewport);
   observer.observe(world);
   board.setFullscreenState(fullscreen.getState());
+  return { state, shell, fullscreen, resize, board, observer };
+}
+
+export function mountScratch(
+  viewport: HTMLElement,
+  stage: HTMLElement,
+  world: HTMLElement,
+  options: { changed(): void; error(error: Error): void },
+) {
+  const { state, shell, fullscreen, resize, board, observer } = createScratchLayout(
+    viewport,
+    stage,
+    world,
+    options,
+  );
   return {
     load(ink: unknown) {
-      loading = true;
+      state.loading = true;
       try {
         board.load(ink ?? null);
         // Layout is a host preference for this question, not an empty ink save.
@@ -61,11 +75,11 @@ export function mountScratch(
         }
         resize();
       } finally {
-        loading = false;
+        state.loading = false;
       }
     },
     setMode(value: boolean) {
-      drafting = value;
+      state.drafting = value;
       viewport.classList.toggle('v2-drafting', value);
       board.setMode(value ? 'draft' : 'practice');
       fullscreen.sync();

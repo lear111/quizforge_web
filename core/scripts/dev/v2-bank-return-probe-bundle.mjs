@@ -10,6 +10,79 @@ function replaceOnce(source, before, after) {
   return source.replace(before, () => after);
 }
 
+const stamp =
+  'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
+
+function bankPhases(code) {
+  const declaration =
+    'export async function openBank(\n  ctx: PracticeSession,\n  _kind: string,\n  id?: string,\n  questionId?: string,\n)';
+  const overview = 'const value: Overview = await api.banks.overview(id);';
+  code = replaceOnce(code, declaration, stamp + '\n' + declaration);
+  return replaceOnce(
+    code,
+    overview,
+    "phase('overview:start');" + overview + "phase('overview:end');",
+  );
+}
+
+function questionPhases(code) {
+  const declaration =
+    'export async function show(ctx: PracticeSession, q: Question, resume = true)';
+  const sources =
+    'const [loaded, assets] = await Promise.all([\n    ctx.runtime.sources!.load(q.extension.artifactId),\n    ctx.actions().pictures(q),\n  ]);';
+  code = replaceOnce(code, declaration, stamp + '\n' + declaration);
+  code = replaceOnce(code, sources, "phase('sources:start');" + sources + "phase('sources:end');");
+  return replaceOnce(code, 'await instance.ready;', "await instance.ready;phase('host:ready');");
+}
+
+function creationPhase(code) {
+  return replaceOnce(
+    code,
+    'const frame = document.createElement',
+    "(globalThis as any).__qfBankReturnPhases?.push(['frame:start', performance.timeOrigin + performance.now()]);\n  const frame = document.createElement",
+  );
+}
+
+function documentPhases(code) {
+  code = replaceOnce(
+    code,
+    'return `\n    // The nonce is a host capability,',
+    "return `\n    const phase=(name)=>parent.postMessage({qfBankReturnPhase:name,at:performance.timeOrigin+performance.now()},'*');phase('frame:runtime');\n    // The nonce is a host capability,",
+  );
+  code = replaceOnce(
+    code,
+    'for(const source of ${literal([...sources.sdks, sources.js])}){',
+    "let scriptIndex=0;for(const source of ${literal([...sources.sdks, sources.js])}){\n        const phaseName=scriptIndex++ < ${sources.sdks.length} ? 'sdk' : 'type-script';phase(phaseName+':start');",
+  );
+  code = replaceOnce(
+    code,
+    'finally{script.remove();URL.revokeObjectURL(url);}',
+    "finally{script.remove();URL.revokeObjectURL(url);phase(phaseName+':end');}",
+  );
+  code = replaceOnce(
+    code,
+    'await page.load(context);reportHeight();',
+    "phase('load:start');await page.load(context);phase('load:end');reportHeight();requestAnimationFrame(()=>requestAnimationFrame(()=>phase('frame:paint')));",
+  );
+  return code;
+}
+
+function transformProbe(code, id) {
+  const file = id.replaceAll('\\', '/');
+  if (file.endsWith('/v2/stores/practice/banks.ts')) {
+    return bankPhases(code);
+  }
+  if (file.endsWith('/v2/stores/practice/page.ts')) {
+    return questionPhases(code);
+  }
+  if (file.endsWith('/v2/services/page.ts')) {
+    return creationPhase(code);
+  }
+  if (file.endsWith('/v2/services/page/document.ts')) {
+    return documentPhases(code);
+  }
+}
+
 export async function buildPhaseUi(core) {
   const results = await build({
     root: core,
@@ -21,67 +94,7 @@ export async function buildPhaseUi(core) {
         name: 'quizforge-bank-return-probe',
         enforce: 'pre',
         transform(code, id) {
-          const file = id.replaceAll('\\', '/');
-          const stamp =
-            'const phase = (name: string) => (globalThis as any).__qfBankReturnPhases?.push([name, performance.timeOrigin + performance.now()]);';
-          if (file.endsWith('/v2/stores/practice/banks.ts')) {
-            const declaration =
-              'export async function openBank(\n  ctx: PracticeSession,\n  _kind: string,\n  id?: string,\n  questionId?: string,\n)';
-            const overview = 'const value: Overview = await api.banks.overview(id);';
-            code = replaceOnce(code, declaration, stamp + '\n' + declaration);
-            return replaceOnce(
-              code,
-              overview,
-              "phase('overview:start');" + overview + "phase('overview:end');",
-            );
-          }
-          if (file.endsWith('/v2/stores/practice/page.ts')) {
-            const declaration =
-              'export async function show(ctx: PracticeSession, q: Question, resume = true)';
-            const sources =
-              'const [loaded, assets] = await Promise.all([\n    ctx.runtime.sources!.load(q.extension.artifactId),\n    ctx.actions().pictures(q),\n  ]);';
-            code = replaceOnce(code, declaration, stamp + '\n' + declaration);
-            code = replaceOnce(
-              code,
-              sources,
-              "phase('sources:start');" + sources + "phase('sources:end');",
-            );
-            return replaceOnce(
-              code,
-              'await instance.ready;',
-              "await instance.ready;phase('host:ready');",
-            );
-          }
-          if (file.endsWith('/v2/services/page.ts')) {
-            return replaceOnce(
-              code,
-              'const frame = document.createElement',
-              "(globalThis as any).__qfBankReturnPhases?.push(['frame:start', performance.timeOrigin + performance.now()]);\n  const frame = document.createElement",
-            );
-          }
-          if (file.endsWith('/v2/services/page/document.ts')) {
-            code = replaceOnce(
-              code,
-              'return `\n    // The nonce is a host capability,',
-              "return `\n    const phase=(name)=>parent.postMessage({qfBankReturnPhase:name,at:performance.timeOrigin+performance.now()},'*');phase('frame:runtime');\n    // The nonce is a host capability,",
-            );
-            code = replaceOnce(
-              code,
-              'for(const source of ${literal([...sources.sdks, sources.js])}){',
-              "let scriptIndex=0;for(const source of ${literal([...sources.sdks, sources.js])}){\n        const phaseName=scriptIndex++ < ${sources.sdks.length} ? 'sdk' : 'type-script';phase(phaseName+':start');",
-            );
-            code = replaceOnce(
-              code,
-              'finally{script.remove();URL.revokeObjectURL(url);}',
-              "finally{script.remove();URL.revokeObjectURL(url);phase(phaseName+':end');}",
-            );
-            code = replaceOnce(
-              code,
-              'await page.load(context);reportHeight();',
-              "phase('load:start');await page.load(context);phase('load:end');reportHeight();requestAnimationFrame(()=>requestAnimationFrame(()=>phase('frame:paint')));",
-            );
-            return code;
-          }
+          return transformProbe(code, id);
         },
       },
     ],

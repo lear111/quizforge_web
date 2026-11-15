@@ -72,7 +72,7 @@ test('V2 formatter checks without writing and converges with shared configuratio
   assert.equal(config.printWidth, 100);
 });
 
-test('V2 length policy exempts literals and reports size as warnings outside tests', async () => {
+test('V2 length policy exempts literals and rejects oversized code outside tests', async () => {
   const long = 'x'.repeat(120);
   const literalLines = [
     `export const quoted = '${long}';`,
@@ -85,18 +85,62 @@ test('V2 length policy exempts literals and reports size as warnings outside tes
   const [result] = await lint.lintText(body, {
     filePath: 'core/server/v2/length-probe.js',
   });
-  assert.equal(result.errorCount, 0);
+  assert.equal(result.errorCount, 1);
   assert.ok(
     result.messages.some(
-      (message) => message.ruleId === 'max-lines-per-function' && message.severity === 1,
+      (message) => message.ruleId === 'max-lines-per-function' && message.severity === 2,
     ),
   );
   const vue = await lint.calculateConfigForFile('core/frontend/src/v2/LengthProbe.vue');
-  assert.equal(vue.rules['max-lines'][0], 1);
+  assert.equal(vue.rules['max-lines'][0], 2);
   assert.equal(vue.rules['max-lines'][1].max, 150);
   const tests = await lint.calculateConfigForFile('core/test/v2/length-probe.test.mjs');
   assert.equal(tests.rules['max-lines'][0], 0);
   assert.equal(tests.rules['max-lines-per-function'][0], 0);
+});
+
+test('H length errors retain file limits and exclude blank and comment lines', async () => {
+  const file = 'core/server/v2/length-probe.js';
+  const configuration = await lint.calculateConfigForFile(file);
+  for (const [rule, max] of [
+    ['max-lines', 300],
+    ['max-lines-per-function', 50],
+  ]) {
+    assert.deepEqual(configuration.rules[rule], [
+      2,
+      {
+        max,
+        skipBlankLines: true,
+        skipComments: true,
+      },
+    ]);
+  }
+  const [oversized] = await lint.lintText('void 0;\n'.repeat(301), { filePath: file });
+  assert.equal(oversized.errorCount, 1);
+  assert.equal(oversized.messages[0].ruleId, 'max-lines');
+  assert.equal(oversized.messages[0].severity, 2);
+  const comments = '\n// ignored line\n'.repeat(301);
+  assert.deepEqual(await rules('export function short() {\n' + comments + '}\n', file), []);
+});
+
+test('H browser closure exceptions apply only to the two named probe files', async () => {
+  for (const [name, max] of [
+    ['probe-v2-grading.mjs', 137],
+    ['probe-v2-page-review.mjs', 76],
+    ['probe-v2-page.mjs', 50],
+    ['probe-v2-practice-flow.mjs', 50],
+  ]) {
+    const configured = await lint.calculateConfigForFile('core/scripts/dev/' + name);
+    assert.deepEqual(configured.rules['max-lines-per-function'], [
+      2,
+      {
+        max,
+        skipBlankLines: true,
+        skipComments: true,
+      },
+    ]);
+    assert.equal(configured.rules['max-lines'][1].max, 300);
+  }
 });
 
 test('D48 layer rule rejects reverse imports, controller disk access and bypasses', async () => {

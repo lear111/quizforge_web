@@ -1,3 +1,21 @@
+function bindActions(context) {
+  for (const name of ['submit', 'retry']) {
+    const button = document.getElementById(name);
+    button.hidden = !context.can[name];
+    button.onclick = async () => {
+      button.disabled = true;
+      document.getElementById('action-error').textContent = '';
+      try {
+        await QF.page[name]();
+      } catch (error) {
+        document.getElementById('action-error').textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+  }
+}
+
 QF.page.register({
   async load(context) {
     const views = [QFRichText.render(document.getElementById('stem'), context.question.stem)];
@@ -24,21 +42,7 @@ QF.page.register({
         QFRichText.render(document.getElementById('solution'), context.solution.explanation),
       );
     }
-    for (const name of ['submit', 'retry']) {
-      const button = document.getElementById(name);
-      button.hidden = !context.can[name];
-      button.onclick = async () => {
-        button.disabled = true;
-        document.getElementById('action-error').textContent = '';
-        try {
-          await QF.page[name]();
-        } catch (error) {
-          document.getElementById('action-error').textContent = error.message;
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
+    bindActions(context);
     const result = document.getElementById('result');
     result.hidden = !context.result && !context.locked;
     const maxScore =

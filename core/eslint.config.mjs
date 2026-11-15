@@ -22,8 +22,8 @@ const rules = {
       ignoreRegExpLiterals: true,
     },
   ],
-  'max-lines-per-function': ['warn', { max: 50, skipBlankLines: true, skipComments: true }],
-  'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
+  'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
+  'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
 };
 export default [
   { basePath: root, files: sourcePatterns, rules },
@@ -96,7 +96,23 @@ export default [
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'error',
       'vue/no-unused-vars': 'error',
-      'max-lines': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    basePath: root,
+    // These callbacks are serialized into an opaque browser realm. Their local
+    // helpers and instrumentation state cannot import the Node probe's scope.
+    files: ['core/scripts/dev/probe-v2-grading.mjs'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 137, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    basePath: root,
+    files: ['core/scripts/dev/probe-v2-page-review.mjs'],
+    rules: {
+      'max-lines-per-function': ['error', { max: 76, skipBlankLines: true, skipComments: true }],
     },
   },
   {

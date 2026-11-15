@@ -3,6 +3,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const repo = fileURLToPath(new URL('../../../', import.meta.url));
+function adapt(value, assets) {
+  if (Array.isArray(value)) {
+    return value.map((child) => adapt(child, assets));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  const copy = Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, adapt(child, assets)]),
+  );
+  if (copy.type === 'image' && copy.attrs?.assetId) {
+    const relative = 'assets/' + copy.attrs.assetId + '.png';
+    assets.add(relative);
+    copy.attrs.src = 'qf-asset:' + relative;
+    delete copy.attrs.assetId;
+  }
+  return copy;
+}
+
 export function basicDemo() {
   const source = path.join(repo, 'question-banks/基础题型/基础题型展示');
   const old = JSON.parse(fs.readFileSync(path.join(source, 'bank.json'), 'utf8'));
@@ -15,24 +34,6 @@ export function basicDemo() {
     ['判断题', { type: 'quizforge.true-false@2', field: 'correctAnswer', output: 'value' }],
   ]);
   const assets = new Set();
-  const adapt = (value) => {
-    if (Array.isArray(value)) {
-      return value.map(adapt);
-    }
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-    const copy = Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [key, adapt(child)]),
-    );
-    if (copy.type === 'image' && copy.attrs?.assetId) {
-      const relative = 'assets/' + copy.attrs.assetId + '.png';
-      assets.add(relative);
-      copy.attrs.src = 'qf-asset:' + relative;
-      delete copy.attrs.assetId;
-    }
-    return copy;
-  };
   const outline = [],
     questions = {};
   for (const [title, spec] of groups) {
@@ -44,8 +45,14 @@ export function basicDemo() {
       items.push({ id: q.id, label: q.outline.label, maxScore: d.maxScore });
       questions[q.id] = {
         type: spec.type,
-        question: { stem: adapt(d.stem), ...(d.options ? { options: adapt(d.options) } : {}) },
-        solution: { [spec.output]: d[spec.field], explanation: adapt(d.answerAndExplanation) },
+        question: {
+          stem: adapt(d.stem, assets),
+          ...(d.options ? { options: adapt(d.options, assets) } : {}),
+        },
+        solution: {
+          [spec.output]: d[spec.field],
+          explanation: adapt(d.answerAndExplanation, assets),
+        },
       };
     }
     outline.push({ title, items });

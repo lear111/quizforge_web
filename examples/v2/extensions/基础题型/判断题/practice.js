@@ -1,3 +1,21 @@
+function bindActions(context) {
+  for (const name of ['submit', 'retry']) {
+    const button = document.getElementById(name);
+    button.hidden = !context.can[name];
+    button.onclick = async () => {
+      button.disabled = true;
+      document.getElementById('action-error').textContent = '';
+      try {
+        await QF.page[name]();
+      } catch (error) {
+        document.getElementById('action-error').textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    };
+  }
+}
+
 QF.page.register({
   async load(context) {
     const views = [QFRichText.render(document.getElementById('stem'), context.question.stem)];
@@ -18,21 +36,7 @@ QF.page.register({
       options.append(label);
       input.addEventListener('change', () => QF.page.changed({ kind: 'choice', answered: true }));
     }
-    for (const name of ['submit', 'retry']) {
-      const button = document.getElementById(name);
-      button.hidden = !context.can[name];
-      button.onclick = async () => {
-        button.disabled = true;
-        document.getElementById('action-error').textContent = '';
-        try {
-          await QF.page[name]();
-        } catch (error) {
-          document.getElementById('action-error').textContent = error.message;
-        } finally {
-          button.disabled = false;
-        }
-      };
-    }
+    bindActions(context);
     document.getElementById('explanation').hidden = !context.locked;
     if (context.locked) {
       views.push(

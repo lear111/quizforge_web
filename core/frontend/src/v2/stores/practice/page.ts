@@ -4,6 +4,7 @@ import { nextTick, toRaw } from 'vue';
 import { reportOutlineStatus } from '../../../../../shared/v2/answered.js';
 import { mountQuestionPage } from '../../services/page';
 import type { Picture } from '../../services/page';
+import type { PageOptions } from '../../services/page/types';
 import type { Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
 
@@ -83,8 +84,63 @@ export async function applyContext(ctx: PracticeSession, q: Question) {
   }
 }
 
+function pageChanged(ctx: PracticeSession, mine: number): PageOptions['onChanged'] {
+  return (kind, answered) => {
+    if (mine !== ctx.runtime.generation) {
+      return;
+    }
+    const active = ctx.current.value!;
+    if (answered !== undefined && !active.state.locked) {
+      try {
+        ctx.actions().update({
+          ...toRaw(active),
+          state: {
+            ...toRaw(active.state),
+            status: reportOutlineStatus(answered, active.item, active.state.status),
+          },
+        });
+      } catch (error) {
+        ctx.message.value = error instanceof Error ? error.message : '作答状态无效。';
+        return;
+      }
+    }
+    ctx.runtime.answerVersion++;
+    ctx.runtime.saver?.changed(kind);
+  };
+}
+
+function pageActions(ctx: PracticeSession, mine: number): PageOptions {
+  return {
+    onChanged: pageChanged(ctx, mine),
+    async onSubmit() {
+      if (
+        mine !== ctx.runtime.generation ||
+        ctx.busy.value ||
+        ctx.recovering.value ||
+        ctx.overview.value?.completedAt ||
+        ctx.current.value?.state.locked
+      ) {
+        throw Error('当前不允许提交。');
+      }
+      await ctx.actions().submit();
+    },
+    async onRetry() {
+      if (
+        mine !== ctx.runtime.generation ||
+        ctx.busy.value ||
+        ctx.recovering.value ||
+        ctx.overview.value?.completedAt ||
+        !ctx.current.value?.state.hasSavedAnswer
+      ) {
+        throw Error('当前不允许重做。');
+      }
+      await ctx.actions().retry();
+    },
+  };
+}
+
 export async function show(ctx: PracticeSession, q: Question, resume = true) {
-  const { overview, current, typeName, recovering, busy, message, token } = ctx;
+  const { overview, typeName, token } = ctx;
   // Keep the current page and its input intact if fetching the next page fails.
   ctx.runtime.sources!.scope(q.bankId, q.snapshotId, token.value);
   const [loaded, assets] = await Promise.all([
@@ -107,52 +163,7 @@ export async function show(ctx: PracticeSession, q: Question, resume = true) {
     {
       title: loaded.name,
       resources: assets,
-      onChanged(kind, answered) {
-        if (mine !== ctx.runtime.generation) {
-          return;
-        }
-        const active = current.value!;
-        if (answered !== undefined && !active.state.locked) {
-          try {
-            ctx.actions().update({
-              ...toRaw(active),
-              state: {
-                ...toRaw(active.state),
-                status: reportOutlineStatus(answered, active.item, active.state.status),
-              },
-            });
-          } catch (error) {
-            message.value = error instanceof Error ? error.message : '作答状态无效。';
-            return;
-          }
-        }
-        ctx.runtime.answerVersion++;
-        ctx.runtime.saver?.changed(kind);
-      },
-      async onSubmit() {
-        if (
-          mine !== ctx.runtime.generation ||
-          busy.value ||
-          recovering.value ||
-          overview.value?.completedAt ||
-          current.value?.state.locked
-        ) {
-          throw Error('当前不允许提交。');
-        }
-        await ctx.actions().submit();
-      },
-      async onRetry() {
-        if (
-          mine !== ctx.runtime.generation ||
-          busy.value ||
-          recovering.value ||
-          overview.value?.completedAt ||
-          !current.value?.state.hasSavedAnswer
-        ) {
-          throw Error('当前不允许重做。');
-        }
-        await ctx.actions().retry();
-      },
+      ...pageActions(ctx, mine),
     },
   );
   ctx.runtime.page = instance;
