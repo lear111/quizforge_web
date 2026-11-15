@@ -38,12 +38,12 @@ async function finishPractice() {
     return;
   }
   await practice.complete();
-  await navigation.showCurrent();
+  await navigation.showSummary();
 }
 onMounted(navigation.start);
 async function resumeCompletion() {
   await practice.resumeCompletion();
-  await navigation.showCurrent();
+  await (overview.value?.completedAt ? navigation.showSummary() : navigation.showQuestion());
 }
 </script>
 <template>

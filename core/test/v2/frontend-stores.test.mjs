@@ -82,7 +82,7 @@ function internalActions(pinia, practice) {
   return actions;
 }
 
-test('Pinia app instances isolate question, catalog, UI and navigation memory', async () => {
+test('Pinia app instances isolate state without completion data implicitly navigating', async () => {
   const a = createPinia(),
     b = createPinia();
   try {
@@ -108,7 +108,7 @@ test('Pinia app instances isolate question, catalog, UI and navigation memory', 
     assert.equal(practice.lastQuestions.has('b0'), false);
     practice.overview.completedAt = 'completed';
     await nextTick();
-    assert.equal(useUiStore(a).scoreView, true);
+    assert.equal(useUiStore(a).scoreView, false);
     assert.equal(useUiStore(b).scoreView, false);
   } finally {
     disposePinia(a);

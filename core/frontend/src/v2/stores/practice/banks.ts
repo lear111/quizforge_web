@@ -1,4 +1,3 @@
-import { nextTick } from 'vue';
 import type { Overview, Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
 
@@ -51,7 +50,6 @@ export async function openBank(ctx: PracticeSession, id?: string, questionId?: s
       } catch (error) {
         if (current.value?.bankId !== value.bank.bankId) {
           overview.value = previous;
-          await nextTick();
           scoreView.value = previousScoreView;
         }
         throw error;

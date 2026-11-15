@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { defineStore, storeToRefs } from 'pinia';
 import { createApi } from '../api';
 import { buildV2Outline } from '../services/outline';
@@ -44,12 +44,6 @@ export const usePracticeStore = defineStore('v2-practice', () => {
       state.overview.value?.states ?? [],
       ui.scoreView ? undefined : state.current.value?.questionId,
     ),
-  );
-  watch(
-    () => state.overview.value?.completedAt,
-    (value) => {
-      ui.scoreView = !!value;
-    },
   );
   return { ...state, outlineModel, ...viewActions(actions) };
 });

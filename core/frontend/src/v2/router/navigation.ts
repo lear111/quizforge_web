@@ -201,7 +201,8 @@ class WorkspaceNavigation {
         })
       : Promise.resolve();
   };
-  // Views call this after completion/refresh; there is no reverse state watcher.
+  // Refresh publishes its preferred view explicitly; no completion watcher
+  // changes the view behind the Router's back.
   showCurrent = () => this.push(visibleLocation(this.practice, this.ui), true);
   dispose = () => {
     this.disposed = true;

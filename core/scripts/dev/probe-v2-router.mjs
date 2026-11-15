@@ -2,6 +2,7 @@
 import { checkWorkspaceLayout } from './probe-v2-workspace-layout.mjs';
 import { checkSideNavigation } from './probe-v2-workspace-navigation.mjs';
 import { checkReload, checkSummary } from './probe-v2-router-views.mjs';
+import { checkCompletionRouting } from './probe-v2-completion-routing.mjs';
 import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 import { captureBrowserFailure } from './v2-browser-failure.mjs';
 import fs from 'node:fs';
@@ -220,6 +221,14 @@ async function exercise(page, origin, name, catalog) {
   await checkNativeHistory(h);
   await checkLoadRollback(h);
   await checkSummary(h, output);
+  await checkCompletionRouting(h, () => {
+    const records = path.resolve(root, 'question-banks/演示', `${name}-B`, '.qf-v2');
+    assert.ok(records.startsWith(path.resolve(root) + path.sep));
+    fs.rmSync(records, {
+      recursive: true,
+      force: true,
+    });
+  });
   rows.push({
     viewport: name,
     deepLink: true,
@@ -234,6 +243,7 @@ async function exercise(page, origin, name, catalog) {
     workspaceLayout: true,
     sidebarResizeAndDrawers: true,
     activeSummaryWithoutLock: true,
+    completionRouting: true,
   });
 }
 
