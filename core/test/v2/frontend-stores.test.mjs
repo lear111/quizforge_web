@@ -71,16 +71,28 @@ const overview = (q) => ({
   total: { score: 0, maxScore: 2 },
 });
 
+function internalActions(pinia, practice) {
+  const ctx = {
+    ...storeToRefs(useUiStore(pinia)),
+    ...storeToRefs(practice),
+    runtime: createRuntime(),
+    actions: () => actions,
+  };
+  const actions = createActions(ctx);
+  return actions;
+}
+
 test('Pinia app instances isolate question, catalog, UI and navigation memory', async () => {
   const a = createPinia(),
     b = createPinia();
   try {
     const practice = usePracticeStore(a),
       other = usePracticeStore(b);
-    const q = question();
+    const q = question(),
+      actions = internalActions(a, practice);
     practice.overview = overview(q);
-    practice.update(q);
-    practice.remember(q);
+    actions.update(q);
+    actions.remember(q);
     practice.saveStatus = '未保存';
     useUiStore(a).token = 'only-a';
     assert.equal(other.current, null);
@@ -90,7 +102,7 @@ test('Pinia app instances isolate question, catalog, UI and navigation memory', 
     assert.equal(useUiStore(b).token, '');
     assert.notEqual(useCatalogStore(a), useCatalogStore(b));
     for (let i = 0; i < 10; i++) {
-      practice.remember({ ...q, bankId: 'b' + i });
+      actions.remember({ ...q, bankId: 'b' + i });
     }
     assert.equal(practice.lastQuestions.size, 8);
     assert.equal(practice.lastQuestions.has('b0'), false);
@@ -108,25 +120,26 @@ test('save responses preserve newer outline status and absent ink; context keeps
   const pinia = createPinia();
   try {
     const practice = usePracticeStore(pinia),
-      q = question();
+      q = question(),
+      actions = internalActions(pinia, practice);
     practice.overview = overview(q);
-    practice.update({ ...q, state: { ...q.state, status: 'answered' } });
+    actions.update({ ...q, state: { ...q.state, status: 'answered' } });
     const saved = { ...q, answer: 'A', state: { ...q.state, revision: 1 } };
     delete saved.ink;
     delete saved.inkRevision;
-    practice.update(saved, true);
+    actions.update(saved, true);
     assert.equal(practice.current.state.status, 'answered');
     assert.deepEqual(practice.current.ink, q.ink);
     assert.equal(practice.overview.states[0].revision, 1);
-    assert.equal(practice.context(practice.current).can.submit, true);
-    practice.update({
+    assert.equal(actions.context(practice.current).can.submit, true);
+    actions.update({
       ...practice.current,
       state: { ...practice.current.state, locked: true, hasSavedAnswer: true },
     });
-    assert.equal(practice.context(practice.current).can.submit, false);
-    assert.equal(practice.context(practice.current).can.retry, true);
+    assert.equal(actions.context(practice.current).can.submit, false);
+    assert.equal(actions.context(practice.current).can.retry, true);
     practice.overview.completedAt = 'completed';
-    assert.equal(practice.context(practice.current).can.retry, false);
+    assert.equal(actions.context(practice.current).can.retry, false);
   } finally {
     disposePinia(pinia);
   }
@@ -138,11 +151,9 @@ test('catalog mapping, collapsed groups and UI busy/error cleanup keep their beh
     const catalog = useCatalogStore(pinia),
       ui = useUiStore(pinia);
     await catalog.read({
-      catalog: {
-        get: async () => ({
-          groups: [{ id: 'g1', name: 'Group', items: [{ bankId: 'b1', title: 'Bank' }] }],
-        }),
-      },
+      get: async () => ({
+        groups: [{ id: 'g1', name: 'Group', items: [{ bankId: 'b1', title: 'Bank' }] }],
+      }),
     });
     assert.equal(catalog.groups[0].expanded, false);
     assert.equal(catalog.groups[0].children[0].row.id, 'b1');

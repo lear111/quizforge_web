@@ -37,7 +37,7 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
   // iframe loads; finishing that load must not dismiss the newly opened menu.
   ui.drawer = null;
   if (to.name === 'bank' || practice.overview?.bank.bankId !== bankId) {
-    await practice.openBank('bank', bankId, questionId);
+    await practice.openBank(bankId, questionId);
   } else if (to.name === 'practice' && questionId) {
     await practice.navigate(questionId);
   }
@@ -172,7 +172,7 @@ class WorkspaceNavigation {
     if (this.started || this.disposed) {
       return;
     }
-    await this.practice.initializeCatalog();
+    await this.practice.catalog();
     this.started = true;
     await this.restore();
   };

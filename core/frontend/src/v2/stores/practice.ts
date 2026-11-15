@@ -5,7 +5,7 @@ import { buildV2Outline } from '../services/outline';
 import { useUiStore } from './ui';
 import { useCatalogStore } from './catalog';
 import { createRuntime } from './practice/runtime';
-import { createActions } from './practice/actions';
+import { createActions, viewActions } from './practice/actions';
 import type { Overview, Question } from '../types/practice-types';
 import type { PracticeSession } from '../types/practice-session';
 
@@ -51,5 +51,5 @@ export const usePracticeStore = defineStore('v2-practice', () => {
       ui.scoreView = !!value;
     },
   );
-  return { ...state, outlineModel, ...actions };
+  return { ...state, outlineModel, ...viewActions(actions) };
 });
