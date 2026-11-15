@@ -15,7 +15,7 @@ export function visibleLocation(practice: Practice, ui: Ui): RouteLocationRaw {
   if (!bankId) {
     return { name: 'library' };
   }
-  if (ui.scoreView && practice.overview?.completedAt) {
+  if (ui.scoreView) {
     return { name: 'summary', params: { bankId } };
   }
   const questionId = practice.current?.bankId === bankId ? practice.current.questionId : undefined;
@@ -46,7 +46,7 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
   }
   if (to.name === 'practice' && (!questionId || practice.current?.questionId === questionId)) {
     ui.scoreView = false;
-  } else if (to.name === 'summary' && practice.overview.completedAt) {
+  } else if (to.name === 'summary') {
     ui.scoreView = true;
   }
 }
@@ -190,9 +190,7 @@ class WorkspaceNavigation {
   };
   showSummary = () => {
     const bankId = this.practice.overview?.bank.bankId;
-    return bankId && this.practice.overview?.completedAt
-      ? this.push({ name: 'summary', params: { bankId } })
-      : Promise.resolve();
+    return bankId ? this.push({ name: 'summary', params: { bankId } }) : Promise.resolve();
   };
   showQuestion = () => {
     const bankId = this.practice.overview?.bank.bankId;

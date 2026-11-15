@@ -96,7 +96,7 @@ try {
     await page.locator('.library-item').filter({ hasText: 'rollback' }).click();
     await page.locator('.v2-error').filter({ hasText: '合成题型加载失败' }).waitFor();
     await idle();
-    assert.equal(await page.getByRole('heading', { name: '本轮练习已完成' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: '练习已完成' }).count(), 0);
     assert.equal(
       await frame()
         .locator('input')
@@ -116,6 +116,10 @@ try {
         await dialog.dismiss();
       }
     });
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '大纲', exact: true }).click();
+    }
+    await page.locator('.v2-summary-entry').click();
     await page.getByRole('button', { name: '完成练习', exact: true }).click();
     assert.equal((await api(base + '/overview')).completedAt, null);
     // A saved then cleared choice must be zeroed rather than sent to the grader.
@@ -151,8 +155,12 @@ try {
       }),
     );
     accept = true;
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '大纲', exact: true }).click();
+    }
+    await page.locator('.v2-summary-entry').click();
     await page.getByRole('button', { name: '完成练习', exact: true }).click();
-    await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
+    await page.getByRole('heading', { name: '练习已完成' }).waitFor();
     await page.getByRole('button', { name: '继续评分', exact: true }).waitFor({ state: 'visible' });
     await page
       .getByRole('button', { name: '继续评分', exact: true })
@@ -174,7 +182,7 @@ try {
         .sort(),
       [first, 'true-false-sample-false'].sort(),
     );
-    await page.getByRole('button', { name: '查看题目', exact: true }).click();
+    await page.getByRole('button', { name: '返回题目', exact: true }).click();
     await idle();
     assert.equal(await frame().getByRole('button', { name: '提交答案', exact: true }).count(), 0);
     assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).count(), 0);
@@ -194,7 +202,10 @@ try {
     await go(first);
     assert.equal(individualResults, 0);
     assert.equal((await api(base + '/overview')).total.score, 0);
-    await page.getByRole('button', { name: '最终得分', exact: true }).click();
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '大纲', exact: true }).click();
+    }
+    await page.locator('.v2-summary-entry').click();
     await page.unroute('**/results');
     page.on('request', (r) => {
       if (r.url().endsWith('/results')) {
@@ -207,11 +218,11 @@ try {
     assert.equal(order[0], 'finish');
     assert.equal(dialogs, 2);
     await page.reload();
-    await page.getByRole('heading', { name: '本轮练习已完成' }).waitFor();
+    await page.getByRole('heading', { name: '练习已完成' }).waitFor();
     await idle();
     assert.equal(await page.locator('.v2-final-score strong').textContent(), '4');
     await go('true-false-sample-false');
-    assert.equal(await page.getByRole('heading', { name: '本轮练习已完成' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: '练习已完成' }).count(), 0);
     assert.equal(await frame().getByRole('button', { name: '提交答案', exact: true }).count(), 0);
     assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).count(), 0);
     await page.getByRole('button', { name: '草稿', exact: true }).click();
@@ -231,7 +242,10 @@ try {
     assert.equal(final.total.score, 4);
     assert.ok(final.states.some((s) => s.hasInk));
     await page.getByRole('button', { name: '返回作答', exact: true }).click();
-    await page.getByRole('button', { name: '最终得分', exact: true }).click();
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '大纲', exact: true }).click();
+    }
+    await page.locator('.v2-summary-entry').click();
     await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
     rows.push({
       name,

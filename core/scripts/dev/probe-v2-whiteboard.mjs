@@ -117,6 +117,19 @@ try {
     await saved();
     await page.getByRole('button', { name: '草稿', exact: true }).click();
     await page.locator('button[data-tool="pen"]').click();
+    await page.waitForFunction(() => {
+      const toolbar = document.querySelector('.qf-whiteboard-toolbar').getBoundingClientRect();
+      return [...document.querySelectorAll('.v2-side-nav')].every((node) => {
+        const box = node.getBoundingClientRect();
+        return (
+          box.right <= toolbar.left ||
+          box.left >= toolbar.right ||
+          box.bottom <= toolbar.top ||
+          box.top >= toolbar.bottom
+        );
+      });
+    });
+
     await stroke();
     await saved();
     let q = await question();

@@ -50,6 +50,8 @@ jobs:
         run: npm --prefix core run typecheck:ui 2>&1 | tee ci-logs/typecheck.log
       - name: Typecheck V2 server
         run: npm --prefix core run typecheck:server 2>&1 | tee ci-logs/typecheck-server.log
+      - name: Build UI from source
+        run: npm --prefix core run build:ui 2>&1 | tee ci-logs/build-source.log
       - name: Check UI build
         run: npm --prefix core run build:ui -- --check 2>&1 | tee ci-logs/build.log
       - name: Run tests

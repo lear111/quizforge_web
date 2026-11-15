@@ -1,0 +1,100 @@
+.v2-sidebar-heading {
+  gap: 8px;
+  justify-content: space-between;
+}
+.v2-progress {
+  font-size: 12px;
+  color: var(--qf-text-muted);
+}
+.v2-outline-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 14px 8px;
+}
+:deep(.outline-group) {
+  margin-bottom: 16px;
+}
+:deep(.outline-group-title) {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--qf-text-muted);
+  margin: 0 0 8px;
+}
+:deep(.outline-matrix) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+  gap: 6px;
+}
+:deep(.outline-item) {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 3px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--qf-unanswered-bg);
+  border: 1px solid var(--qf-unanswered-border);
+  color: var(--qf-unanswered-text);
+}
+:deep(.outline-item.active) {
+  box-shadow:
+    0 0 0 2px var(--qf-surface),
+    0 0 0 4px var(--qf-accent);
+}
+:deep(.outline-item.correct),
+.v2-legend .correct {
+  background: var(--qf-correct-bg);
+  border-color: var(--qf-correct-border);
+  color: var(--qf-correct-text);
+}
+:deep(.outline-item.wrong),
+.v2-legend .wrong {
+  background: var(--qf-wrong-bg);
+  border-color: var(--qf-wrong-border);
+  color: var(--qf-wrong-text);
+}
+:deep(.outline-item.answered),
+.v2-legend .answered {
+  background: var(--qf-answered-bg);
+  border-color: var(--qf-answered-border);
+  color: var(--qf-answered-text);
+}
+:deep(.outline-item.ungradable) {
+  background: var(--qf-ungradable-bg);
+  border: 1.5px dashed var(--qf-ungradable-border);
+  color: var(--qf-ungradable-text);
+}
+.v2-summary-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-top: 4px;
+}
+.v2-summary-entry.active {
+  background: var(--qf-accent-soft);
+  color: var(--qf-accent-strong);
+  border-color: var(--qf-accent-soft);
+}
+.v2-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--qf-border);
+}
+.v2-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--qf-text-muted);
+}
+.v2-legend i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid;
+  border-radius: 3px;
+}

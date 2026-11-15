@@ -28,6 +28,8 @@ export function mountScratch(
     stage.style.height = `${Math.max(viewport.clientHeight, world.offsetHeight * zoom + y + 32)}px`;
   };
   const board = mountWhiteboard(viewport, {
+    toolbarObstacles: () =>
+      viewport.parentElement?.querySelectorAll<HTMLElement>('.v2-side-nav') ?? [],
     onChange() {
       resize();
       if (!loading) {

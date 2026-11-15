@@ -1,68 +1,68 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import OutlinePanel from '../../outline/OutlinePanel.vue';
 import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
+import { useLayoutStore } from '../stores/layout';
 import { useWorkspaceNavigation } from '../router/injection';
-const { outlineModel } = storeToRefs(usePracticeStore());
-const { drawer } = storeToRefs(useUiStore());
+import SidebarResize from './SidebarResize.vue';
+import WorkspaceIcon from './WorkspaceIcon.vue';
+const { outlineModel, overview, recovering } = storeToRefs(usePracticeStore());
+const { drawer, scoreView, busy } = storeToRefs(useUiStore());
+const layout = useLayoutStore();
 const navigation = useWorkspaceNavigation();
+const buttons = computed(() => outlineModel.value.groups.flatMap((group) => group.buttons));
+const answered = computed(
+  () => buttons.value.filter((button) => button.status !== 'unanswered').length,
+);
+const legend = [
+  ['answered', '已作答'],
+  ['correct', '正确'],
+  ['wrong', '错误'],
+];
 </script>
 <template>
   <aside
+    id="v2-outline"
     class="v2-outline v2-sidebar"
-    :class="{ open: drawer === 'outline' }"
+    :class="{ open: drawer === 'outline', closed: layout.collapsed.outline }"
+    aria-label="题目大纲"
   >
-    <h2>题目大纲</h2>
-    <OutlinePanel
-      :model="outlineModel"
-      @navigate="navigation.navigate"
-    />
+    <SidebarResize side="outline" />
+    <header class="v2-sidebar-heading">
+      <strong>题目大纲</strong>
+      <span class="v2-progress">{{ answered }} / {{ buttons.length }}</span>
+    </header>
+    <div class="v2-outline-content">
+      <OutlinePanel
+        :model="outlineModel"
+        @navigate="navigation.navigate"
+      />
+      <button
+        v-if="overview"
+        class="v2-summary-entry"
+        :class="{ active: scoreView }"
+        :aria-current="scoreView ? 'page' : undefined"
+        :disabled="busy || recovering"
+        @click="navigation.showSummary()"
+      >
+        <WorkspaceIcon name="summary" />分数汇总
+      </button>
+    </div>
+    <footer class="v2-legend">
+      <span
+        v-for="[status, label] in legend"
+        :key="status"
+      >
+        <i
+          :class="status"
+          aria-hidden="true"
+        ></i
+        >{{ label }}</span
+      >
+    </footer>
   </aside>
 </template>
 <style scoped src="../styles/sidebar.css"></style>
-<style scoped>
-.v2-outline {
-  border-left: 1px solid #e6e3ee;
-}
-:deep(.outline-group-title) {
-  font-size: 13px;
-  font-weight: 500;
-  color: #827b96;
-  margin: 16px 0;
-}
-:deep(.outline-matrix) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-:deep(.outline-item) {
-  min-width: 40px;
-  padding: 6px;
-}
-:deep(.outline-item.active) {
-  box-shadow: 0 0 0 2px #b7a6e8;
-}
-:deep(.outline-item.correct) {
-  background: #e5f5ec;
-  color: #286b45;
-}
-:deep(.outline-item.wrong) {
-  background: #fff0e5;
-  color: #995b2f;
-}
-:deep(.outline-item.ungradable) {
-  background: #ffedb7;
-  color: #784500;
-  border-color: #d89922;
-}
-:deep(.outline-item.answered) {
-  background: #eee8fc;
-  color: #655389;
-}
-@media (max-width: 800px) {
-  .v2-outline {
-    right: 0;
-  }
-}
-</style>
+<style scoped src="./WorkspaceOutline.css"></style>

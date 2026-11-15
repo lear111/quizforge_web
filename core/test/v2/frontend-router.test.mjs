@@ -362,7 +362,7 @@ test(
 );
 
 test(
-  'direct missing bank, unknown page and uncompleted summary recover to an available page',
+  'direct missing bank and unknown page recover; an active practice can open its current summary',
   options,
   async (t) => {
     const f = fixture(t);
@@ -373,6 +373,11 @@ test(
     await f.router.push('/unknown');
     assert.equal(f.router.currentRoute.value.name, 'library');
     await f.router.push('/banks/a/summary');
+    await until(() => f.router.currentRoute.value.fullPath === '/banks/a/summary');
+    assert.equal(f.ui.scoreView, true);
+    assert.equal(f.practice.overview.completedAt, null);
+    assert.equal(f.practice.current.questionId, '1');
+    await f.navigation.showQuestion();
     await until(() => f.router.currentRoute.value.fullPath === '/banks/a/questions/1');
     assert.equal(f.ui.scoreView, false);
   },
@@ -460,3 +465,35 @@ test(
     assert.equal(f.requests.includes('get:a:3'), false);
   },
 );
+
+for (const fails of [false, true]) {
+  test(
+    `current summary waits for saving and ${fails ? 'keeps the question on failure' : 'never locks on entry'}`,
+    options,
+    async (t) => {
+      const f = fixture(t);
+      await f.open('/banks/a/questions/1');
+      f.dirty();
+      const navigation = f.navigation.showSummary();
+      await f.controls.sent.promise;
+      assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/1');
+      assert.equal(f.ui.scoreView, false);
+      if (fails) {
+        f.controls.save.reject(Error('summary save failed'));
+      } else {
+        f.controls.save.resolve({ ...question('a', '1'), answer: 'B' });
+      }
+      await navigation;
+      assert.equal(f.ui.scoreView, !fails);
+      assert.equal(
+        f.router.currentRoute.value.fullPath,
+        fails ? '/banks/a/questions/1' : '/banks/a/summary',
+      );
+      assert.equal(f.practice.current.questionId, '1');
+      assert.equal(f.practice.current.submissionId, null);
+      assert.equal(f.practice.overview.completedAt, null);
+      assert.equal(f.ctx.runtime.saver.dirty, fails);
+      assert.deepEqual(f.requests, ['overview:a', 'save']);
+    },
+  );
+}
