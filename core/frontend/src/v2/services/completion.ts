@@ -1,8 +1,8 @@
-import type { ResultEntry, ApiErrorCode } from '../../../../shared/v2/api.js';
+import type { ResultEntry } from '../../../../shared/v2/api.js';
 import type { GradingInput, GradingOutput } from './grading';
-import { ungradable } from './grading';
-import type { Overview, Question, Completion } from '../types/practice-types';
-import { createRequestId, writeBody } from '../api/requests';
+import type { Overview, Completion } from '../types/practice-types';
+import { groupQuestions, gradingInputs, appendResults } from './completion/results';
+import { createBatch, replaceInvalidResult, type PendingBatch } from './completion/batch';
 
 // The same batch/body/request id is retained after an uncertain transport
 // failure. Author code only runs in the existing browser grading service.
@@ -11,11 +11,7 @@ export function createCompletionGrader(options: {
   send(body: string): Promise<Completion>;
   requestId?(): string;
 }) {
-  let pending: {
-    snapshotId: string;
-    body: string;
-    rows: ResultEntry[];
-  } | null = null;
+  let pending: PendingBatch | null = null;
   return {
     clear() {
       pending = null;
@@ -25,52 +21,16 @@ export function createCompletionGrader(options: {
         pending = null;
       }
       if (!pending) {
-        const groups = new Map<string, Question[]>();
-        for (const candidate of value.pendingGrading) {
-          if (candidate.question) {
-            const q = candidate.question,
-              id = q.extension.artifactId;
-            if (!groups.has(id)) {
-              groups.set(id, []);
-            }
-            groups.get(id)!.push(q);
-          }
-        }
-        const rows = [];
+        const groups = groupQuestions(value.pendingGrading);
+        const rows: ResultEntry[] = [];
         for (const [id, questions] of groups) {
-          const graded = await options.grade(
-            id,
-            questions.map((q) => ({
-              questionId: q.questionId,
-              question: q.question,
-              solution: q.solution,
-              answer: q.answer,
-              item: q.item,
-            })),
-          );
-          for (const q of questions) {
-            rows.push({
-              questionId: q.questionId,
-              submissionId: q.submissionId!,
-              expectedRevision: q.state.revision,
-              result:
-                graded.find((row) => row.questionId === q.questionId)?.result ??
-                ungradable('题型没有返回本题的评分结果。'),
-            });
-          }
+          const graded = await options.grade(id, gradingInputs(questions));
+          appendResults(rows, questions, graded);
         }
         if (!rows.length) {
           return null;
         }
-        pending = {
-          snapshotId: value.snapshotId,
-          rows,
-          body: writeBody(
-            value.snapshotId,
-            { results: rows },
-            (options.requestId ?? createRequestId)(),
-          ),
-        };
+        pending = createBatch(value, rows, options);
       }
       const batch = pending;
       if (!batch) {
@@ -82,23 +42,7 @@ export function createCompletionGrader(options: {
           pending = null;
           return saved;
         } catch (error) {
-          const info = error as { code?: string; questionId?: string };
-          // Match single-question scoring: a rejected author result becomes
-          // ungradable. The server has saved none of the rejected batch.
-          const row = batch.rows.find((row) => row.questionId === info.questionId);
-          if (
-            info.code !== ('INVALID_RESULT' satisfies ApiErrorCode) ||
-            !row ||
-            (row.result.score === null && row.result.message)
-          ) {
-            throw error;
-          }
-          row.result = ungradable('题型返回的评分格式或分数无效。');
-          batch.body = writeBody(
-            batch.snapshotId,
-            { results: batch.rows },
-            (options.requestId ?? createRequestId)(),
-          );
+          replaceInvalidResult(batch, error, options);
         }
       }
     },
