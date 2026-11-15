@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-trusted&amp;&quot;&lt;nonce'; worker-src blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <script nonce="trusted&amp;&quot;&lt;nonce">
+      const channel = "000102030405060708090a0b0c0d0e0f";
+      const send = value => parent.postMessage({...value, channel}, '*');
+      let worker;
+      try {
+        const url = URL.createObjectURL(new Blob(["\n    let grader;\n    const QF = Object.freeze({grader: Object.freeze({register(value) { grader = value; }})});\n    /* \u003c/script>\u003c!--\u003cscript>hostile()\u003c/script> */ QF.grader.register({grade(){return {score:2}}});\n    self.onmessage = async ({data}) => {\n      const results = [];\n      for (const entry of data.items) {\n        try {\n          const result = structuredClone(await grader.grade(entry.question, entry.solution, entry.answer, entry.item));\n          results.push({questionId: entry.questionId, result});\n        } catch (error) {\n          results.push({questionId: entry.questionId, error: typeof error?.message === 'string' && error.message.trim() ? error.message : '该题评分失败。'});\n        }\n      }\n      self.postMessage({job: data.job, results});\n    };\n    self.postMessage({ready:true});"], {type:'text/javascript'}));
+        worker = new Worker(url); URL.revokeObjectURL(url);
+        worker.onmessage = ({data}) => send(data);
+        worker.onerror = event => { event.preventDefault(); send({error:true}); };
+        addEventListener('message', event => {
+          if (event.source === parent && event.data?.channel === channel) worker.postMessage(event.data);
+        });
+      } catch { send({error:true}); }
+    </script>

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import srcdocInput from './fixtures/grading-srcdoc.mjs';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
@@ -303,4 +305,162 @@ test('grading distinguishes a request for human review from a thrown or malforme
   assert.equal(rows[2].score, null);
   assert.match(rows[2].message, /无效/);
   assert.deepEqual(rows[3], { score: 2, parts: { x: 2 }, message: null });
+});
+
+test('grading srcdoc including Worker and bootstrap matches the pre-split document byte for byte', async (t) => {
+  const compiled = await build({
+    entryPoints: [
+      fileURLToPath(new URL('../../frontend/src/v2/services/grading.ts', import.meta.url)),
+    ],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    globalName: 'TestGrading',
+    platform: 'browser',
+  });
+  const dom = new JSDOM('<body></body>', { runScripts: 'outside-only' });
+  dom.window.crypto.getRandomValues = (values) => {
+    values.forEach((_, i) => (values[i] = i));
+    return values;
+  };
+  dom.window.eval(compiled.outputFiles[0].text + '\nwindow.TestGrading = TestGrading;');
+  const service = dom.window.TestGrading.createGradingService({
+    document: dom.window.document,
+    loadSource: async () => srcdocInput.source,
+    scriptNonce: srcdocInput.nonce,
+  });
+  t.after(() => {
+    service.dispose();
+    dom.window.close();
+  });
+  const pending = service.grade('synthetic', []);
+  await turn();
+  const actual = Buffer.from(dom.window.document.querySelector('iframe').srcdoc);
+  const expected = fs.readFileSync(new URL('./fixtures/grading-srcdoc.txt', import.meta.url));
+  assert.ok(actual.equals(expected));
+  service.dispose();
+  await pending;
+});
+
+test('message priority remains error then ready then current job result', async (t) => {
+  const f = fixture(t),
+    pending = f.service.grade('a', input('q1'));
+  await turn();
+  const probe = f.observe(f.frames()[0]);
+  probe.send({ ready: true });
+  await turn();
+  const job = probe.messages[0].job;
+  let finished = false;
+  void pending.then(() => {
+    finished = true;
+  });
+  probe.send({ ready: true, job, results: result('q1') });
+  await turn();
+  assert.equal(finished, false, 'a ready message cannot also resolve a job');
+  probe.send({ error: true, ready: true, job, results: result('q1') });
+  assert.deepEqual(await pending, [
+    {
+      questionId: 'q1',
+      result: { score: null, parts: null, message: '评分环境执行失败，请重试。' },
+    },
+  ]);
+  assert.equal(f.frames().length, 0);
+});
+
+test('postMessage failure discards the environment and the next queued job recovers', async (t) => {
+  const f = fixture(t),
+    first = f.service.grade('a', input('q1')),
+    second = f.service.grade('a', input('q2'));
+  await turn();
+  const frame = f.frames()[0],
+    probe = f.observe(frame);
+  frame.contentWindow.postMessage = () => {
+    throw new DOMException('synthetic', 'DataCloneError');
+  };
+  probe.send({ ready: true });
+  assert.deepEqual(await first, [
+    {
+      questionId: 'q1',
+      result: { score: null, parts: null, message: '评分环境执行失败，请重试。' },
+    },
+  ]);
+  await turn();
+  assert.equal(frame.isConnected, false);
+  assert.equal(f.frames().length, 1);
+  const next = f.observe(f.frames()[0]);
+  next.send({ ready: true });
+  await turn();
+  next.send({ job: next.messages[0].job, results: result('q2') });
+  assert.deepEqual(await second, normalized('q2'));
+});
+
+test('deadline includes source loading and its late resolution cannot replace the next environment', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let resolveSource,
+    signal,
+    loads = 0;
+  const f = fixture(t, {
+    loadSource: async (_id, suppliedSignal) => {
+      if (++loads === 1) {
+        signal = suppliedSignal;
+        return new Promise((resolve) => {
+          resolveSource = resolve;
+        });
+      }
+      return '';
+    },
+  });
+  const first = f.service.grade('a', input('q1')),
+    second = f.service.grade('a', input('q2'));
+  await turn();
+  t.mock.timers.tick(10_000);
+  assert.deepEqual(await first, [
+    {
+      questionId: 'q1',
+      result: { score: null, parts: null, message: '评分超时，请重新评分。' },
+    },
+  ]);
+  assert.equal(signal.aborted, true);
+  await turn();
+  const frame = f.frames()[0],
+    probe = f.observe(frame);
+  resolveSource('throw new Error("late source must not execute");');
+  await turn();
+  assert.deepEqual(f.frames(), [frame]);
+  probe.send({ ready: true });
+  await turn();
+  probe.send({ job: probe.messages[0].job, results: result('q2') });
+  assert.deepEqual(await second, normalized('q2'));
+});
+
+test('normalization preserves error text, rejects pending parts and leaves score range checks to the server', async (t) => {
+  const ids = ['error', 'blank', 'pending-parts', 'nonfinite', 'score', 'parts'];
+  const f = fixture(t),
+    pending = f.service.grade('a', ids.flatMap(input));
+  await turn();
+  const probe = f.observe(f.frames()[0]);
+  probe.send({ ready: true });
+  await turn();
+  const parts = { p: -4 };
+  probe.send({
+    job: probe.messages[0].job,
+    results: [
+      { questionId: 'error', error: '  synthetic error  ', result: { score: 2 } },
+      { questionId: 'blank', error: '  ', result: { score: 2 } },
+      { questionId: 'pending-parts', result: { score: null, parts: null } },
+      { questionId: 'nonfinite', result: { score: 2, parts: { p: Infinity } } },
+      { questionId: 'score', result: { score: -4 } },
+      { questionId: 'parts', result: { score: 8, parts } },
+    ],
+  });
+  const rows = (await pending).map(({ result }) => result);
+  assert.deepEqual(rows, [
+    { score: null, parts: null, message: '  synthetic error  ' },
+    { score: 2, parts: null, message: null },
+    { score: null, parts: null, message: '题型返回的评分结果无效。' },
+    { score: null, parts: null, message: '题型返回的评分结果无效。' },
+    { score: -4, parts: null, message: null },
+    { score: 8, parts: { p: -4 }, message: null },
+  ]);
+  assert.equal(rows[5].parts, parts, 'the host does not clone or rewrite parts');
 });
