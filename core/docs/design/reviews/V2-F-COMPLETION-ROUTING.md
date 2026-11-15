@@ -1,6 +1,6 @@
 # F⑦：完成状态与路由同步整理
 
-**状态：实施完成，待代码审查，不自行合并。** 从最新 `v2` 的 `14e6ad1` 建立 `fix/v2-completion-routing`。依据 [#140 审查意见](https://github.com/lear111/quizforge_web/pull/140#issuecomment-6878898252)、D40/D42 的完成与重载、D45 的汇总入口以及 D48 的 Vue Router 分层。保留已批准的单向导航，修复隐式切页；不更新 `V2_PROGRESS.md`，不开始 F⑧/I②。
+**状态：[#165](https://github.com/lear111/quizforge_web/pull/165) 已完成代码审查（Review #5911013433）、最新 CI 五项全绿，经负责人既定授权于 2026-11-15 合并到 `v2`（squash `0980db5`）；F⑧/I② 尚未开工。** 从最新 `v2` 的 `14e6ad1` 建立 `fix/v2-completion-routing`。依据 [#140 审查意见](https://github.com/lear111/quizforge_web/pull/140#issuecomment-6878898252)、D40/D42 的完成与重载、D45 的汇总入口以及 D48 的 Vue Router 分层。保留已批准的单向导航，修复隐式切页；不更新 `V2_PROGRESS.md`，不开始 F⑧/I②。
 
 **现状与复现。** 原 Store watch 监听 `overview?.completedAt` 的值（相同值不触发），直接写 `ui.scoreView = !!value`，没有 Router 调用。所有生产触发来源：① banks 的打开/刷新替换概览及打开失败回滚；② `applyCompletion` 的 Object.assign（finish 成功、丢响应后确认成功、批次结果）；③ `resumeCompletion` 重读概览（新的完成时间或记录已被清空）；④ `reloadAfterConflict` 在 ROUND_COMPLETED/快照冲突时回读概览、题库已移除时清空概览；⑤ Router 回到目录时清空 overview。打开/刷新和目录导航本来就显式选择视图，watch 重复介入；完成、继续评分和冲突回读的数据更新则可能在异步流程内擅自切页。
 
