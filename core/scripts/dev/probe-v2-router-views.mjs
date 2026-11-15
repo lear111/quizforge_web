@@ -63,7 +63,7 @@ export async function checkReload(h) {
       await page.locator('.v2-library').evaluate((node) => node.classList.contains('open')),
       true,
     );
-    await page.getByRole('button', { name: '题库', exact: true }).click();
+    await page.keyboard.press('Escape');
     await page.unroute('**/extensions/*/manifest');
   }
 }

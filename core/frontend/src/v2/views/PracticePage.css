@@ -92,3 +92,9 @@
     height: 460px;
   }
 }
+
+@media (max-width: 600px) {
+  .v2-world {
+    padding: 16px 16px 24px;
+  }
+}

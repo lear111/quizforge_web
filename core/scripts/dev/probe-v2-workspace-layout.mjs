@@ -1,6 +1,7 @@
 // Presentation and real pointer checks, called by the existing router probe.
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { checkWorkspaceMotion } from './probe-v2-workspace-motion.mjs';
 
 async function drag(handle, page, distance) {
   const box = await handle.boundingBox();
@@ -63,6 +64,9 @@ async function mobile(h, output) {
     ['大纲', '.v2-outline', 'left'],
   ]) {
     await page.getByRole('button', { name: label, exact: true }).click();
+    await page.locator(selector).evaluate(async (node) => {
+      await Promise.all(node.getAnimations().map((animation) => animation.finished));
+    });
     await page.screenshot({ path: path.join(output, `mobile-${label}.png`), fullPage: true });
     const box = await page.locator(selector).boundingBox();
     assert.equal(box.width, 280);
@@ -72,13 +76,16 @@ async function mobile(h, output) {
     await scrim.click({
       position: { x: edge === 'right' ? area.width - 5 : 5, y: area.height - 5 },
     });
+    await page.locator(selector).waitFor({ state: 'hidden' });
     assert.equal(await page.locator(selector).isVisible(), false);
   }
   assert.equal(await page.getByRole('button', { name: '收起或展开题库栏' }).isVisible(), false);
   await page.setViewportSize({ width: 900, height: 844 });
-  assert.equal(await page.locator('.v2-mobile').isVisible(), true);
+  assert.equal(await page.locator('.v2-toolbar').count(), 1);
+  assert.equal(await page.locator('.v2-toolbar').evaluate((n) => n.offsetHeight), 56);
   await page.setViewportSize({ width: 901, height: 844 });
-  assert.equal(await page.locator('.v2-mobile').isVisible(), false);
+  assert.equal(await page.locator('.v2-toolbar').count(), 1);
+  assert.equal(await page.locator('.v2-toolbar').evaluate((n) => n.offsetHeight), 56);
   await page.setViewportSize({ width: 390, height: 844 });
 }
 async function statusColors(page) {
@@ -121,7 +128,7 @@ export async function checkWorkspaceLayout(h, output) {
   }
   await statusColors(page);
   if (h.name === 'mobile') {
-    await page.getByRole('button', { name: '大纲', exact: true }).click();
+    await page.keyboard.press('Escape');
   }
   assert.equal(
     await page.locator('.v2-toolbar').getByRole('button', { name: '完成练习' }).count(),
@@ -137,7 +144,8 @@ export async function checkWorkspaceLayout(h, output) {
   await page.locator('.extension-group-toggle').click();
   assert.equal(await frame.evaluate((node) => node.isConnected), true);
   if (h.name === 'mobile') {
-    await page.getByRole('button', { name: '题库', exact: true }).click();
+    await page.keyboard.press('Escape');
   }
+  await checkWorkspaceMotion(h);
   await page.screenshot({ path: path.join(output, `${h.name}-workspace.png`), fullPage: true });
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import LibraryList from '../../library/LibraryList.vue';
 import SidebarResize from './SidebarResize.vue';
@@ -14,6 +15,9 @@ const { groups } = storeToRefs(catalogStore);
 const { overview } = storeToRefs(usePracticeStore());
 const { drawer, token, authRequired, message } = storeToRefs(useUiStore());
 const navigation = useWorkspaceNavigation();
+const visible = computed(() =>
+  layout.mobile ? drawer.value === 'library' : !layout.collapsed.library,
+);
 function open(kind: string, bankId?: string) {
   void navigation.openBank(kind, bankId);
 }
@@ -26,7 +30,13 @@ function notice(text: string) {
     id="v2-library"
     aria-label="题库"
     class="v2-library v2-sidebar"
-    :class="{ open: drawer === 'library', closed: layout.collapsed.library }"
+    :class="{
+      open: drawer === 'library',
+      closed: layout.collapsed.library,
+      resizing: layout.resizing === 'library',
+    }"
+    :inert="!visible"
+    :aria-hidden="!visible"
   >
     <SidebarResize side="library" />
     <div class="v2-brand v2-sidebar-heading">
@@ -65,6 +75,7 @@ function notice(text: string) {
         mode="bank"
         :active-key="overview ? `bank:${overview.bank.bankId}` : null"
         :can-manage="false"
+        :animate-groups="true"
         empty-message="暂无 V2 题库"
         @open="open"
         @toggle-group="catalogStore.toggleGroup"

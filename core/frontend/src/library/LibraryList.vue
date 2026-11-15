@@ -15,6 +15,7 @@ const emit = defineEmits<LibraryEvents>();
     :mode="mode"
     :active-key="activeKey"
     :can-manage="canManage"
+    :animate-groups="animateGroups"
     @toggle-group="emit('toggleGroup', $event)"
     @notice="emit('notice', $event)"
     @open="(kind, id) => emit('open', kind, id)"

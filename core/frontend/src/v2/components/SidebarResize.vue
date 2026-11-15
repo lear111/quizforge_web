@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 import { useLayoutStore } from '../stores/layout';
 import type { Sidebar } from '../types/layout';
 const props = defineProps<{ side: Sidebar }>();
@@ -10,6 +10,7 @@ function start(event: PointerEvent) {
     return;
   }
   drag.value = { id: event.pointerId, x: event.clientX, width: layout.widths[props.side] };
+  layout.resizing = props.side;
   const handle = event.currentTarget as HTMLElement;
   handle.focus();
   handle.setPointerCapture(event.pointerId);
@@ -26,6 +27,7 @@ function end() {
     return;
   }
   drag.value = null;
+  layout.resizing = null;
   layout.persist();
 }
 function key(event: KeyboardEvent) {
@@ -37,6 +39,7 @@ function key(event: KeyboardEvent) {
   layout.resize(props.side, layout.widths[props.side] + direction * 16);
   layout.persist();
 }
+onBeforeUnmount(end);
 </script>
 <template>
   <div
@@ -61,7 +64,7 @@ function key(event: KeyboardEvent) {
 <style scoped>
 .v2-resize {
   position: absolute;
-  inset: 0 -4px 0 auto;
+  inset: 0 0 0 auto;
   width: 8px;
   z-index: 5;
   cursor: col-resize;
@@ -69,7 +72,7 @@ function key(event: KeyboardEvent) {
   outline: none;
 }
 .v2-resize.outline {
-  left: -4px;
+  left: 0;
   right: auto;
 }
 .v2-resize::after {

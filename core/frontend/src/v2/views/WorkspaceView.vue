@@ -9,7 +9,7 @@ import FinalScore from '../components/FinalScore.vue';
 import WorkspaceLibrary from '../components/WorkspaceLibrary.vue';
 import WorkspaceOutline from '../components/WorkspaceOutline.vue';
 import WorkspaceToolbar from '../components/WorkspaceToolbar.vue';
-import WorkspaceMobile from '../components/WorkspaceMobile.vue';
+import { useWorkspacePanels } from './workspace-panels';
 import QuestionNavigation from '../components/QuestionNavigation.vue';
 import { useLayoutStore } from '../stores/layout';
 import '../styles/workspace.css';
@@ -19,6 +19,7 @@ const { overview, outlineModel, recovering } = storeToRefs(practice);
 const { busy, message, scoreView, drawer } = storeToRefs(useUiStore());
 const navigation = useWorkspaceNavigation();
 const layout = useLayoutStore();
+useWorkspacePanels();
 const layoutStyle = computed(() => ({
   '--v2-library-width': `${layout.widths.library}px`,
   '--v2-outline-width': `${layout.widths.outline}px`,
@@ -52,15 +53,20 @@ async function resumeCompletion() {
     :style="layoutStyle"
     @keydown.esc="drawer = null"
   >
-    <WorkspaceMobile />
     <button
-      v-if="drawer"
       class="v2-scrim"
+      :class="{ open: drawer }"
       aria-label="关闭侧栏"
+      :aria-hidden="!drawer"
+      :inert="!drawer"
+      tabindex="-1"
       @click="drawer = null"
     ></button>
     <WorkspaceLibrary />
-    <main class="v2-main">
+    <main
+      class="v2-main"
+      :inert="layout.mobile && drawer !== null"
+    >
       <WorkspaceToolbar />
       <p
         v-if="message"

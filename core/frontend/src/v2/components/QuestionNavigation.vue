@@ -27,7 +27,11 @@ function next() {
 }
 </script>
 <template>
-  <template v-if="current && !scoreView">
+  <nav
+    v-if="current && !scoreView"
+    class="v2-question-navigation"
+    aria-label="题目翻页"
+  >
     <button
       class="v2-side-nav previous"
       aria-label="上一题"
@@ -46,9 +50,12 @@ function next() {
     >
       <WorkspaceIcon name="next" />
     </button>
-  </template>
+  </nav>
 </template>
 <style scoped>
+.v2-question-navigation {
+  display: contents;
+}
 .v2-side-nav {
   position: absolute;
   top: 50%;
@@ -84,6 +91,26 @@ function next() {
   }
   .next {
     right: 6px;
+  }
+}
+@media (max-width: 600px) {
+  .v2-question-navigation {
+    display: flex;
+    flex: none;
+    align-items: flex-start;
+    justify-content: space-between;
+    height: calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--qf-surface);
+    border-top: 1px solid var(--qf-border);
+    z-index: 4;
+  }
+  .v2-side-nav {
+    position: static;
+    transform: none;
+    width: 48px;
+    height: 52px;
+    border-radius: 14px;
   }
 }
 </style>

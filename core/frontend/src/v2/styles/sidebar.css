@@ -5,20 +5,43 @@
   display: flex;
   flex-direction: column;
   background: var(--qf-surface);
+  overflow: hidden;
+  min-width: 0;
+  transition:
+    width 320ms var(--qf-panel-ease),
+    opacity 240ms ease,
+    visibility 0s linear 0s;
+}
+.v2-sidebar > :not(.v2-resize) {
+  min-width: calc(var(--v2-panel-width) - 1px);
 }
 .v2-library {
+  --v2-panel-width: var(--v2-library-width);
   width: var(--v2-library-width);
   border-right: 1px solid var(--qf-border);
 }
 .v2-outline {
+  --v2-panel-width: var(--v2-outline-width);
   width: var(--v2-outline-width);
   border-left: 1px solid var(--qf-border);
 }
 .v2-sidebar.closed {
-  display: none;
+  width: 0;
+  opacity: 0;
+  border-width: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    width 320ms var(--qf-panel-ease),
+    opacity 240ms ease,
+    visibility 0s linear 320ms;
+}
+.v2-sidebar.resizing {
+  transition: none;
 }
 .v2-sidebar-heading {
   height: 56px;
+  box-sizing: border-box;
   padding: 0 16px;
   flex: none;
   display: flex;
@@ -28,21 +51,42 @@
 @media (max-width: 900px) {
   .v2-sidebar,
   .v2-sidebar.closed {
-    display: none;
-    position: absolute;
-    top: 56px;
-    bottom: 0;
-    z-index: 20;
+    --v2-panel-width: min(280px, 100vw);
+    display: flex;
+    position: fixed;
+    inset-block: 0;
+    z-index: 40;
     width: min(280px, 100%);
+    opacity: 1;
     box-shadow: var(--qf-drawer-shadow);
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-104%);
+    transition:
+      transform 340ms var(--qf-panel-ease),
+      visibility 0s linear 340ms;
+    border-width: 1px;
   }
   .v2-sidebar.open {
-    display: flex;
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
   }
   .v2-library {
     left: 0;
   }
   .v2-outline {
     right: 0;
+    transform: translateX(104%);
+  }
+  .v2-outline.open {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-sidebar,
+  .v2-sidebar.closed {
+    transition: none;
   }
 }

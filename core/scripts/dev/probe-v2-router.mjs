@@ -50,7 +50,7 @@ function navigationButtons(page, name) {
   };
   const openBank = async (letter) => {
     await drawer('library');
-    if (!(await page.locator('.library-item').first().isVisible())) {
+    if ((await page.locator('.extension-group-toggle').getAttribute('aria-expanded')) !== 'true') {
       await page.locator('.extension-group-toggle').click();
     }
     await page
@@ -148,7 +148,7 @@ async function checkFailedSave(h) {
   assert.equal(await frame().locator('input[value="A"]').isChecked(), true);
   await page.unroute(`**${base}/questions/3/answer`);
   if (name === 'mobile') {
-    await page.getByRole('button', { name: '大纲', exact: true }).click();
+    await page.keyboard.press('Escape');
   }
   await page.getByRole('button', { name: '重试保存', exact: true }).click();
   await saved();

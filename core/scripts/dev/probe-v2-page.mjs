@@ -216,6 +216,7 @@ try {
     await go('2');
     assert.equal(await frame().getByRole('radio', { name: 'B', exact: true }).isChecked(), true);
     if (name === 'mobile') {
+      await page.keyboard.press('Escape'); // failed navigation leaves the outline drawer open
       await page.getByRole('button', { name: '题库', exact: true }).click();
     }
     await page
@@ -225,7 +226,7 @@ try {
     await page.getByRole('alert').filter({ hasText: '合成保存失败' }).waitFor();
     assert.equal(await page.locator('.v2-main h1').textContent(), name);
     if (name === 'mobile') {
-      await page.getByRole('button', { name: '题库', exact: true }).click();
+      await page.keyboard.press('Escape');
     } // close drawer
     const failureBody = drafts.at(-1);
     await page.unroute('**/questions/1/answer');

@@ -19,6 +19,7 @@ export interface LibraryProps {
   mode: string;
   activeKey: string | null;
   canManage: boolean;
+  animateGroups?: boolean;
 }
 export type LibraryEvents = {
   toggleGroup: [path: string];

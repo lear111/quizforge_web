@@ -1,5 +1,6 @@
 @import './tokens.css';
 .v2-app {
+  --qf-panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
   background: var(--qf-bg);
   color: var(--qf-text);
   font:

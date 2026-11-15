@@ -66,7 +66,7 @@ try {
         name === 'mobile' &&
         (await page.locator('.v2-outline').evaluate((n) => n.classList.contains('open')))
       ) {
-        await page.getByRole('button', { name: '大纲', exact: true }).click();
+        await page.keyboard.press('Escape');
       }
     };
     const base = '/api/v2/banks/' + ids[name];
