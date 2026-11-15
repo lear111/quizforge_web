@@ -11,7 +11,7 @@ import type { PracticeApi } from '../api';
 import type { LibraryTree } from '../../library/types';
 
 export type QuestionPage = ReturnType<typeof mountQuestionPage>;
-export type Saver = ReturnType<typeof createSaveController<Record<string, unknown>>>;
+export type Saver = ReturnType<typeof createSaveController>;
 export interface ViewElements {
   container: HTMLElement;
   viewport: HTMLElement;

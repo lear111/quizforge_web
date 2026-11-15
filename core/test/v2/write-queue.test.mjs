@@ -41,7 +41,7 @@ test('answer and ink share queue with independent revisions and retain exact fai
         }),
       };
     },
-    async (route, body) => {
+    async ({ route, body }) => {
       sent.push([route, body]);
       if (++attempts === 1) {
         throw new Error('transport');
@@ -66,7 +66,7 @@ test('answer and ink share queue with independent revisions and retain exact fai
   assert.equal(revision, 1);
   const answer = queue.prepare(
     () => ({ route: '/answer', body: JSON.stringify({ expectedRevision: revision }) }),
-    async (_route, body) => {
+    async ({ body }) => {
       assert.equal(JSON.parse(body).expectedRevision, 1);
       return 3;
     },

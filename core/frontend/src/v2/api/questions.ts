@@ -1,7 +1,6 @@
 import type {
   AnswerRequest,
   InkRequest,
-  InkResponse,
   QuestionKey,
   QuestionResponse,
   QuestionReadResponse,
@@ -11,6 +10,7 @@ import type {
 } from '../../../../shared/v2/api.js';
 import type { GradeResult } from '../../../../shared/v2/state.js';
 import { bankPath } from './banks';
+import type { PreparedSave, SaveResponses } from '../types/save';
 import { jsonRequest, type ApiClient } from './client';
 import { snapshotQuery, writeBody } from './requests';
 
@@ -18,7 +18,12 @@ type Question = QuestionResponse;
 type AnswerFields = Pick<AnswerRequest, 'answer' | 'answered'>;
 const questionPath = (q: Pick<QuestionKey, 'bankId' | 'questionId'>) =>
   `${bankPath(q.bankId)}/questions/${encodeURIComponent(q.questionId)}`;
-const prepareSave = (q: Question, kind: string, fields: Record<string, unknown>) => ({
+const prepareSave = <K extends keyof SaveResponses>(
+  q: Question,
+  kind: K,
+  fields: Record<string, unknown>,
+): PreparedSave<K> => ({
+  kind,
   route: `${questionPath(q)}/${kind}`,
   body: writeBody(q.snapshotId, fields),
 });
@@ -45,8 +50,8 @@ export function createQuestionApi(client: ApiClient) {
         InkRequest,
         'requestId' | 'snapshotId'
       >),
-    sendSave: (route: string, body: string) =>
-      client.json<QuestionResponse | InkResponse>(route, jsonRequest('PUT', body)),
+    sendSave: <K extends keyof SaveResponses>(request: PreparedSave<K>) =>
+      client.json<SaveResponses[K]>(request.route, jsonRequest('PUT', request.body)),
     submit: (q: Question, answer: unknown) =>
       write<QuestionResponse>(q, 'submit', 'POST', {
         expectedRevision: q.state.revision,
