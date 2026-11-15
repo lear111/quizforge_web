@@ -28,6 +28,8 @@ extensions/<分组>/<题型>/
   README.md          推荐：说明本题型的 question / solution / answer 各有哪些字段
 ```
 
+现行 `apiVersion: 2` 仍要求上述 5 个必需文件，包括 `grade.js`；仅支持人工评分的主观题也必须提供 `grade.js`，可在其中返回 `{ score: null }`。未来是否允许省略评分入口尚未决定，不得按已实现功能处理。
+
 `manifest.json`：
 
 ```json
@@ -85,7 +87,7 @@ QF.page.register({
 | `QF.page.changed({ kind, answered })` | 告诉宿主"用户改了内容"。见 3.4 |
 | `QF.page.submit()` | 请求提交本题。宿主会调用你的 `getAnswer()`，保存并锁定，评分，然后用新的 `context` 再次调用 `load` |
 | `QF.page.retry()` | 请求重做本题。宿主清空本题的作答、笔迹和分数，然后用初始 `context` 再次调用 `load` |
-| `QF.page.grade({ score, parts, message })` | **待实现（D60）。** 用户人工打分或改分。只在本题已锁定时有效；宿主检查分数后保存，再用新的 `context` 调用 `load`。写法同 4.2 的返回值 |
+| `QF.page.grade({ score, parts, message })` | **待实现（D60）。** 用户人工评分或改分。页面只把分数通知宿主，不直接请求后端，也不执行 `grade.js`；仅对已锁定的本题有效。宿主校验并保存成功后，再用新的 `context` 调用 `load`。见 4.3 |
 | `QF.page.regrade()` | **待实现（D62）。** 请求宿主重新调用评分函数。只在本题已锁定时有效 |
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
 | `QFRichText.render(节点, 文档)` | 显示富文本。返回对象的 `ready` 在显示完成时结束 |
@@ -144,7 +146,7 @@ QF.page.register({
 
 ### 4.1 你要提供的
 
-`grade.js` 在一个没有界面的隔离环境里运行，不能访问页面、网络和文件，必须是纯计算。
+`grade.js` 在一个没有界面的隔离环境里运行，当前不能访问页面、网络和文件；自动评分必须只依赖收到的数据，不能读取 `practice.js` 的 DOM 或页面状态。未来支持 AI 后，也只能经宿主提供的 `QF.ai.ask(...)` 接口调用模型，不由评分脚本自行联网。
 
 ```js
 QF.grader.register({
@@ -155,7 +157,7 @@ QF.grader.register({
 });
 ```
 
-`answer` 可能是 `null`（用户没有作答就提交）。
+`answer` 可能是 `null`（用户没有作答就提交）。单题提交和集中评分共用这个入口；宿主按拓展版本（`artifactId`）分组，在未打开题目页面时也能加载 Worker 评分。当前每组内逐题执行，完成练习时各组也是依次等待结果。
 
 **需要 AI 的题型（待实现，D61、D62）。** `grade` 可以是异步函数，在里面请求 AI：
 
@@ -183,15 +185,27 @@ QF.grader.register({
 | 需要人工或 AI 评分 | `{ score: null }` |
 | 评不了（数据有误等） | 直接抛出错误，错误信息会作为说明保存下来 |
 
-`score` 必须在 0 到满分之间。分数超出范围、小题得分合计与总分不符、评分超过 10 秒（等待 AI 的时间不计入），都会被记为"无法评分"。
+`score` 必须在 0 到满分之间。分数超出范围、小题得分合计与总分不符，都会被记为“无法评分”。当前评分批次默认超时 10 秒（含源码加载）；以后 AI 请求的等待时长及超时区分按 D62 另行实现。`grade()` 必须明确 `return` 结果：`{ score: null }` 表示正常等待人工或 AI 评分，漏写 `return` 导致 `undefined` 则是无效结果。
 
-返回值里可以带 `message`。有分数时它是给用户看的评语（如 AI 的点评）；没有分数时是原因说明。它随分数一起保存，之后出现在做题页面的 `context.result.message` 里。
+**当前实现**：`grade.js` 返回值只允许 `score` 和可选的 `parts`，带 `message` 会被判为无效；宿主在规整后添加 `message: null`，发生错误时由宿主填入原因。有分数的结果，后端当前也只接受 `message: null`。**后续 D60–D62**：人工评分备注和 AI 评语将通过结果的 `message` 保存，届时需同步放宽宿主与后端校验，不得误认为现已支持。
 
 做题页面和评分模块互相不通信。评分结果由宿主保存后，再通过 `load` 交给页面显示。
 
 得满分的小题在大纲上显示为"对"，否则为"错"，由宿主判断，你不用处理。
 
-做题页面的 `context.result` 是 `{ score, parts, message }`：`score` 为数字表示已评分；为 `null` 表示还没有分数，这时 `message` 里可能有原因说明。没有评过分时 `context.result` 为 `null`。
+做题页面的 `context.result` 是 `{ score, parts, message }`：`score` 为数字表示已评分；为 `null` 表示还没有分数，这时 `message` 里可能有原因说明。没有评过分时 `context.result` 为 `null`。已经保存 `{ score: null }` 的题处于等待人工或 AI 评分，不应因刷新页面就自动重复调用评分脚本；只有尚无 `result` 的题才按中断恢复机制补评。
+
+### 4.3 人工评分（D60，待实现）
+
+人工评分是**题目页面交互**，不需要加载或执行后台评分模块。题型作者在 `practice.js` 绘制评分输入（分数以及未来可选的评语），仅在宿主允许且本题已提交锁定时调用：
+
+```js
+QF.page.grade({ score: 8, parts: null, message: null });
+```
+
+页面与宿主通过既有 iframe 消息机制通信。Vue 宿主接到评分请求后负责校验及持久化；后端再次检查锁定凭证、请求版本、分数范围和小题分数合计。保存成功后宿主以**后端返回的结果**调用页面 `load(context)`，更新显示；手动输入的分数不能先行作为已保存结果展示。允许对已有自动评分的分数进行人工改分。
+
+后端**拟复用**现有 `PUT /api/v2/banks/{bankId}/questions/{questionId}/result`：计划在 `source: 'grader'` 之外增加 `source: 'manual'`，并沿用 `snapshotId`、`requestId`、`submissionId`、`expectedRevision` 以防止过期、重复或越权写入。**目前前端 `QF.page.grade` 尚未实现，后端也仅接受 `source: 'grader'`**；此处是待实施协议，不是当前可调用的 API。人工评语也要等后端支持非空 `message` 后才能保存。
 
 ## 5. 完整示例：单选题
 
