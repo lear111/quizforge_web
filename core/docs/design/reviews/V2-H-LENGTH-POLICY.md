@@ -1,6 +1,6 @@
 # H：代码长度规则强制化
 
-**状态：实现完成，待代码审查；不自行合并。** 基线 `v2` / `90b8d57`，分支 `chore/v2-enforce-length`。仅执行 H，不启动 J/K/L 或 AI Agent。PR 正文与本记录同步。
+**状态：[#174](https://github.com/lear111/quizforge_web/pull/174) 实现完成，实施提交五项 CI 全绿，待代码审查；不自行合并。** 基线 `v2` / `90b8d57`，分支 `chore/v2-enforce-length`。仅执行 H，不启动 J/K/L 或 AI Agent。PR 正文与本记录同步。
 
 ## 规则与基线
 
@@ -61,8 +61,34 @@ Windows 11 / Node 24.13.0，合成数据、独立临时目录与回环端口；�
 | 完整 V2 | 最终 241 通过 / 0 失败 / 0 跳过，93.20s；基线 239 项保留，新增长度配置回归 2 项 |
 | 十项浏览器探针 | 原十入口全部通过：page / page-contract / grading / page-review / practice / save-recovery / whiteboard / basic-types / completion / router；无固定 sleep、超时或断言调整 |
 | 性能组 | 2 通过 / 0 失败 / 0 跳过；16.97s；与其他回归并行，数值不作性能优化或负载结论 |
-| 本机完整默认回归 | 运行中，待补；保留可能的既有环境失败 |
-| Windows / Ubuntu / 质量 / 浏览器 / 性能 CI | 推送后补全五项结果、耗时与失败名单 |
+| 本机完整默认回归 | 1502 项：1493 通过 / 9 失败 / 0 跳过；870.09s，退出 1；完整名单见下 |
+| Windows / Ubuntu / 质量 / 浏览器 / 性能 CI | 实施提交 `5ac88c5` 五项全绿，失败名单均为空；见下表 |
+
+**CI 证据。** [运行 43745683135](https://github.com/lear111/quizforge_web/actions/runs/43745683135)，实施提交 `5ac88c590cf63938e22bdd6ce35d0f0d344103e7`。本地九项错误在 Windows/Ubuntu CI 均未出现。Ubuntu 的 34 项跳过仍为既有 Windows 专项，没有新增跳过。以下为每个 job 的完整运行时间（非仅测试耗时）；此后仅补本文与 H 进度索引，最终提交仍须核对五项 CI。
+
+| CI job | 结果 | 总耗时 |
+|---|---|---|
+| Checks · Windows | 1502 通过 / 0 失败 / 0 跳过；类型、构建、--check、成品未追踪检查通过 | 303s |
+| Checks · Ubuntu | 1468 通过 / 0 失败 / 34 跳过；同上 | 99s |
+| V2 code quality · Ubuntu | 格式通过，222 文件 lint 0 错误/0 警告 | 21s |
+| V2 browser checks · Ubuntu | 十项原入口全部通过 | 208s |
+| Performance · Ubuntu | 2 通过 / 0 失败 / 0 跳过 | 14s |
+
+**本机默认回归失败清单。** 路径均在 `core/server/host/`，本次没有修改这些文件。前八项首条错误为 `AI_SETTINGS_SAVE_FAILED`（无法完成设置文件访问保护），最后一项为 503 不等于 200。与 G 已记录的九项本机凭据保护现象一致；本次没有另做干净基线复跑，不宣称再次证明其起因。没有放宽期望、修改权限或跳过它们。
+
+| 文件:行号 | 用例名 |
+|---|---|
+| ai/hub-connection.test.mjs:68 | completing login saves only the device token, reads quota, and logout revokes it |
+| ai/hub-connection.test.mjs:88 | a token the Hub rejects logs this computer out |
+| ai/hub-connection.test.mjs:96 | the free quota grades through the Hub gateway with the device token and keeps custom settings |
+| ai/hub-connection.test.mjs:114 | gateway errors become clear, non-retried messages and a rejected token logs out |
+| ai/hub-connection.test.mjs:133 | with both sources on, the free quota grades first and the custom model takes over when it cannot |
+| ai/hub-connection.test.mjs:160 | settings saved with one source before this version keep working |
+| ai/settings-provider.test.mjs:32 | AI settings preserve masked-key editing and owner-protected saved credentials |
+| ai/settings-provider.test.mjs:54 | disabled AI remains disabled across persisted settings reload without losing automatic preference |
+| http/server.test.mjs:290 | Hub login starts on the host only and the loopback callback finishes it without exposing the token |
+
+**额外诊断脚本验证。** 四类 Vite 注入转换，各在 `/` 和 `\` 路径上比较重构前后输出，8 项均逐字节相同；4 项缺失锚点错误也完全相同，非目标文件仍返回 undefined。这里只验证转换等价，不宣称重跑了 bank-return 的性能测量：原 `--phases` 中 openBank 锚点仍含 F⑥ 前的 `_kind`，与当前签名不符，H 保留既有失败关闭行为，未顺带修复。两处保持原文的浏览器计时闭包已经十项探针实际执行通过。
 
 ## 风险与范围
 
