@@ -1,6 +1,6 @@
 # I②（D64）：第三版前端原型适配
 
-**状态：已实现，待审查与负责人试用；不自行合并。** 基于 `v2` 的 `0ad25e4`，分支 `feat/v2-ui-prototype-3`。依据第三版 `prototype/quizforge-v2-mobile-overlay-bottom-nav-animated.html`、`V2_UI_PROTOTYPE.md` 第 3/5 节、D45/D63/D64 与工作流程；不参考旧第二版画布。当前只接入宿主界面，AI 辅导、考试、历史和设置仍待各自任务，不开始 G/H/J。
+**状态：已审查并合并到 `v2`，等待负责人试用。** PR [#170](https://github.com/lear111/quizforge_web/pull/170)，审查记录 #5911681782，五项 CI 全绿，2026-11-15 squash 合并提交 `73a4051`。 基于 `v2` 的 `0ad25e4`，分支 `feat/v2-ui-prototype-3`。依据第三版 `prototype/quizforge-v2-mobile-overlay-bottom-nav-animated.html`、`V2_UI_PROTOTYPE.md` 第 3/5 节、D45/D63/D64 与工作流程；不参考旧第二版画布。当前只接入宿主界面，AI 辅导、考试、历史和设置仍待各自任务，不开始 G/H/J。
 
 **改动与职责。**
 
