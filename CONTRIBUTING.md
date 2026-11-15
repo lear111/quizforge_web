@@ -10,27 +10,30 @@ V2 开发以 [总体设计](core/docs/design/V2_ARCHITECTURE.md)、[工作流程
 
 ```powershell
 npm --prefix core ci --ignore-scripts
+npm --prefix core run build:ui
 node core/server/v2-main.mjs --root examples/v2 --port 8794
 ```
 
 访问 `http://127.0.0.1:8794/`，Ctrl+C 停止。Windows 可双击“启动 V2 基础题型演示.cmd”（旧单选演示入口也可）。示例题库和题型均在 `examples/v2/`，演示作答保存在该题库文件夹内部被忽略的 `.qf-v2/state.json`（D19），不覆盖原基础题型。`Start-QuizForge-V2.cmd` 和 `npm --prefix core start` 仍以仓库根目录作为数据根，只有该根已安装 V2 题库时才会显示可用题目。旧 `QuizForge.exe`、旧启动与安装脚本尚未接入 V2，不能用来验收；打包在功能第 7 段处理。V2 不读取 V1 的 `.state`、设置和密钥，不自动迁移真实数据。
 
-前端 Vue / TypeScript 源码在 `core/frontend/`，产物在 `core/web/ui/`；修改后运行 `npm --prefix core run build:ui`。底层通用工具在 `core/server/host/platform/`，新后端在 `core/server/v2/`。`core/docs/reference/` 中未迁移的旧接口说明只描述 V1，不能覆盖 V2 总体设计。
+前端 Vue / TypeScript 源码在 `core/frontend/`，产物在 `core/web/ui/`；JS/CSS 不提交，许可说明继续跟踪。三个 V2 CMD、V1 PowerShell 源码启动以及 npm start/test 在缺失或过期时先构建（按全部前端源码、Vite 配置、构建脚本、package/lock 和 npm 安装时间判断），暖态不重建。直接运行 node 后端或浏览器脚本前先手工执行 `npm --prefix core run build:ui`。底层通用工具在 `core/server/host/platform/`，新后端在 `core/server/v2/`。`core/docs/reference/` 中未迁移的旧接口说明只描述 V1，不能覆盖 V2 总体设计。
 
 ## 检查与合并
 
-CI 在 Windows、Ubuntu 检查 Node.js 24，另有 Ubuntu 性能测试、V2 代码规范和 V2 浏览器检查。所有适用的 job 必须全绿，以 CI 结果为准；不跳过、删除、放宽测试，不加重试掩盖失败。基础检查对应本地四条命令：
+CI 在 Windows、Ubuntu 检查 Node.js 24，另有 Ubuntu 性能测试、V2 代码规范和 V2 浏览器检查。所有适用的 job 必须全绿，以 CI 结果为准；不跳过、删除、放宽测试，不加重试掩盖失败。基础检查对应本地命令：
 
 ```powershell
 npm --prefix core ci --ignore-scripts
 npm --prefix core run typecheck:ui
+npm --prefix core run typecheck:server
+npm --prefix core run build:ui
 npm --prefix core run build:ui -- --check
 npm --prefix core test
 ```
 
 独立性能测试：`npm --prefix core run test:perf`。CI 失败日志保留 7 天；如实记录未验证内容和本地环境差异。界面变化须做真实浏览器检查，接口成功不等于界面验收通过。
 
-提交到 `v2` 的 PR 和推送还会在 Ubuntu 用无窗口 Chromium 依次运行九个现有浏览器探针。各探针使用独立的合成题库与临时回环服务；任何一项失败都会让该检查失败，并上传日志及关闭浏览器前可取得的截图。
+提交到 `v2` 的 PR 和推送还会在 Ubuntu 用无窗口 Chromium 依次运行十个现有浏览器探针。各探针使用独立的合成题库与临时回环服务；任何一项失败都会让该检查失败，并上传日志及关闭浏览器前可取得的截图。
 
 V2 源码另有独立的代码规范 CI 检查，合并前同样必须通过：
 
@@ -48,6 +51,8 @@ npm --prefix core run lint
 作答保存、锁定、分数、重做、历史/考试存储、题库写入、solution 发送、沙箱、鉴权/LAN 等高风险 PR 等审查通过再合并；其他 PR 在 CI 全绿后可合并。一个 PR 只做一件事，不顺带增加用户功能或检查、缓存、限制等保护机制；需改变这些行为时先依工作流程取得决定。
 
 各 PR 的说明同步提交为 `core/docs/design/reviews/<任务>.md`，**不超过一页**；写清范围、没有改什么、测试与各 CI job 的实际结果、失败名单、必要计时和存疑事项。更新 PR 描述时同步更新文件，未完成的检查写“待确认”。长篇原始证据存归档，不作为当前必须阅读的排期。
+
+进度页保持“总表 + 每任务独立记录”的索引，已有实施记录不重复创建，旧细节完整保存在 [G 前快照](core/docs/design/archive/V2_PROGRESS_BEFORE_G.md)。
 
 功能合并后提供五步以内的试用方法，负责人确认“可以”才算完成，并更新进度。完整说明见工作流程；不沿用已取消的 P1–P6 后端先行排期。
 

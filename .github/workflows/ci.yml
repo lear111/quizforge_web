@@ -54,6 +54,13 @@ jobs:
         run: npm --prefix core run build:ui 2>&1 | tee ci-logs/build-source.log
       - name: Check UI build
         run: npm --prefix core run build:ui -- --check 2>&1 | tee ci-logs/build.log
+      - name: Check generated UI is not tracked
+        run: |
+          tracked=$(git ls-files -- core/web/ui/quizforge-ui.js core/web/ui/quizforge-web-local.css)
+          if [ -n "$tracked" ]; then echo "Generated UI must not be tracked: $tracked"; exit 1; fi
+          test -f core/web/ui/quizforge-ui.js
+          test -f core/web/ui/quizforge-web-local.css
+          git ls-files --error-unmatch core/web/ui/THIRD_PARTY_NOTICES.txt
       - name: Run tests
         run: npm --prefix core test 2>&1 | tee ci-logs/test.log
       - name: Upload failure logs
