@@ -28,4 +28,6 @@ export const createBankApi = (client: ApiClient) => ({
   // Batch scoring keeps the prepared body across failed sends in its service.
   results: (bankId: string, body: string) =>
     client.json<CompletionResponse>(`${bankPath(bankId)}/results`, jsonRequest('PUT', body)),
+  restart: (bankId: string, body: string) =>
+    client.json<OverviewResponse>(`${bankPath(bankId)}/restart`, jsonRequest('POST', body)),
 });

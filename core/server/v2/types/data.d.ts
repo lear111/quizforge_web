@@ -52,6 +52,7 @@ export interface SdkEntry {
   hashes: Map<string, string>;
 }
 export interface Snapshot extends ReadBank, BankLocation {
+  practiceEpoch: string | null;
   snapshotId: string;
   contentFingerprint: string;
   resolutions: Map<string, Resolution>;

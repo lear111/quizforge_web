@@ -102,9 +102,13 @@ test('read APIs isolate v1 data, never write files or execute author code, and n
   for (const route of ['/api/v2/settings/ai', base + '/history']) {
     assert.equal((await get(route)).response.status, 501);
   }
-  for (const route of [base + '/questions/1/answer', base + '/restart']) {
+  for (const route of [base + '/questions/1/answer']) {
     assert.equal((await get(route, { method: 'POST', body: '{}' })).response.status, 501);
   }
+  // Restart now exists; a malformed request is rejected without any writes or solution.
+  const badRestart = await get(base + '/restart', { method: 'POST', body: '{}' });
+  assert.equal(badRestart.response.status, 400);
+  assert.doesNotMatch(badRestart.text, new RegExp(SOLUTION_MARKER));
   // Submit is now implemented; malformed requests still cannot disclose answers.
   const rejected = await get(base + '/questions/1/submit', {
     method: 'POST',

@@ -53,7 +53,7 @@ function questionWrites(library) {
  */
 function bankHandlers(server, library) {
   /**
-   * @param {'finish' | 'results'} operation @returns {Handler}
+   * @param {'finish' | 'results' | 'restart'} operation @returns {Handler}
    */
   const roundWrite = (operation) => (request, response) => {
     const value = measureSave('validate', () =>
@@ -77,6 +77,7 @@ function bankHandlers(server, library) {
     },
     finish: roundWrite('finish'),
     results: roundWrite('results'),
+    restart: roundWrite('restart'),
     ...questionWrites(library),
   };
 }

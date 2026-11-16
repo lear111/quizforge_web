@@ -5,6 +5,8 @@ import type { GradeResult, StateSummary } from './state.js';
 /** Only codes currently emitted by core/server/v2, including public fallbacks. */
 export type ApiErrorCode =
   | 'ANSWER_LOCKED'
+  | 'ARCHIVE_FAILED'
+  | 'PRACTICE_NOT_COMPLETED'
   | 'ASSET_PATH_INVALID'
   | 'AUTH_REQUIRED'
   | 'BANK_NOT_FOUND'
@@ -171,6 +173,8 @@ export interface ResultRequest extends VersionedRequest {
 export type ResultEntry = Pick<QuestionKey, 'questionId'> &
   Omit<ResultRequest, 'requestId' | 'snapshotId' | 'source'>;
 export type FinishRequest = WriteRequest;
+export type RestartRequest = WriteRequest;
+export type RestartResponse = OverviewResponse;
 export interface ResultsRequest extends WriteRequest {
   results: ResultEntry[];
 }

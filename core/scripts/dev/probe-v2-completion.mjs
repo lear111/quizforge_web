@@ -6,6 +6,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { V2Server } from '../../server/v2/app.js';
+import { probeRestart } from './v2-restart-browser.mjs';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
@@ -247,6 +248,11 @@ try {
     }
     await page.locator('.v2-summary-entry').click();
     await page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
+    accept = false;
+    await page.getByRole('button', { name: '再练一次', exact: true }).click();
+    assert.ok((await api(base + '/overview')).completedAt);
+    accept = true;
+    await probeRestart(page, base, api, frame);
     rows.push({
       name,
       failedBankKeepsView: true,
@@ -260,6 +266,7 @@ try {
       score: final.total,
       reopenSummary: true,
       lockedScratch: true,
+      restartWithFailedAndLostReply: true,
     });
     await context.close();
   }
