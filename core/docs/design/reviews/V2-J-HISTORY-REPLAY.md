@@ -1,6 +1,6 @@
 # J：历史列表与只读回看
 
-状态：已实现，[PR #182](https://github.com/lear111/quizforge_web/pull/182) 等待审查；目标 `v2`，基于 `a55ebea`（#180 归档已合并）。不自行合并，不开始历史删除或 K。本文件与 PR 描述同步。
+状态：已审查并合并，[PR #182](https://github.com/lear111/quizforge_web/pull/182)，Review #5918561377；最终 head `34fce19` 的 GitHub CI 五项全绿，2026-11-16 squash 合并到 `v2`（`a4d968e`）。历史删除及 K 尚未开始。本文件与 PR 描述同步。
 
 ## 依据与边界
 
