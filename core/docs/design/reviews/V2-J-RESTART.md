@@ -1,6 +1,6 @@
 # J：练习归档与「再练一次」
 
-目标分支 `v2`，基线 `616e2ac`。[PR #180](https://github.com/lear111/quizforge_web/pull/180) 待审查，不自行合并。依据 D20、D22、D23、D42、D50，以及 `V2_ARCHITECTURE.md` 4.9、`V2_DATA_STRUCTURES.md` 2–4、`V2_API_AND_STATE.md` 的 restart 约定。本文与 PR 描述同步。
+目标分支 `v2`，基线 `616e2ac`。[PR #180](https://github.com/lear111/quizforge_web/pull/180) 已审查通过（Review #5915183191），最终 head `44f8163` 的 CI 五项全绿，squash 合并到 `v2`（`355549b`）；历史回看相关接口未实现。依据 D20、D22、D23、D42、D50，以及 `V2_ARCHITECTURE.md` 4.9、`V2_DATA_STRUCTURES.md` 2–4、`V2_API_AND_STATE.md` 的 restart 约定。本文与 PR 描述同步。
 
 ## 改了什么
 
@@ -114,6 +114,10 @@ V2 运行命令：`node --import ./core/scripts/test/test-environment.mjs --test
 数值以新 JSON 原始值为准；写入计数为进程内临时 hook 统计 fs.writeSync 返回的字节与写文件打开次数，包含 bank/state/拓展/笔迹及两次 journal，rename 不重复计数，不是物理磁盘写放大。目录元数据写入不计为文件正文。三档有效样本中这些文件数与字节数保持一致。
 
 这不是 #176 的等量前后优化对比：#176 是直接 copy 的模拟归档，没有真实 HTTP、完整题库/拓展核对、持久回执、目录切换、恢复及响应概览；其目录复制没有逐文件 fsync。本次每个副本沿用安全原子写入。还将旧合成已评分小题的 outline 对齐到其 parts，满足真实接口的数据语义。真实接口明显慢于模拟，尤其含 100 份笔迹时；没有据此替换 JSON 编码器或未经批准改变文件安全策略。没有测多用户并发或恶劣磁盘负载；同步文件操作会在归档期间占用此本地服务的事件循环，应由后续实测/审查决定是否需要异步化。
+
+## 审查后保留事项
+
+归档采用同步文件操作，200 题、100 份笔迹的真实 HTTP 测量 median 约 1.43–1.55 秒、P95 可达约 3.34 秒；可能阻塞单机 Node.js 服务的其他请求。CI 五项通过不构成生产 100 并发验收，需要单独测并发延迟。当前 `restart.json` 的 committed 回执恢复时要求最新轮次目录存在；后续实现删除历史尤其删除最新轮次时，须同步处理回执/恢复与旧请求重放语义，否则可能影响打开当前练习。本轮未提前实现该修改。
 
 ## 潜在风险和未测试事项
 
