@@ -26,6 +26,9 @@ export async function reloadCompletedQuestion(ctx: PracticeSession) {
 }
 
 export async function gradeCompleted(ctx: PracticeSession, value: Overview) {
+  if (value.readOnly) {
+    return;
+  }
   const { message } = ctx;
   try {
     const saved = await ctx.runtime.completionGrader!.run(toRaw(value));
@@ -46,7 +49,7 @@ export async function gradeCompleted(ctx: PracticeSession, value: Overview) {
 
 export async function complete(ctx: PracticeSession) {
   const { overview, api } = ctx;
-  if (!overview.value || overview.value.completedAt) {
+  if (!overview.value || overview.value.readOnly || overview.value.completedAt) {
     return;
   }
   await ctx.run('正在完成练习并评分', async () => {
@@ -81,7 +84,7 @@ export async function complete(ctx: PracticeSession) {
 
 export async function resumeCompletion(ctx: PracticeSession) {
   const { overview, message, api } = ctx;
-  if (!overview.value?.completedAt) {
+  if (!overview.value?.completedAt || overview.value.readOnly) {
     return;
   }
   await ctx.run('正在评分', async () => {

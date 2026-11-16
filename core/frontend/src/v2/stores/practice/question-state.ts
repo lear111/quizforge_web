@@ -29,10 +29,10 @@ export function context(ctx: PracticeSession, question: Question) {
     solution: q.solution,
     result: q.result,
     item: q.item,
-    locked: q.state.locked,
+    locked: q.readOnly || q.state.locked,
     can: {
-      submit: !q.state.locked && !overview.value?.completedAt,
-      retry: q.state.hasSavedAnswer && !overview.value?.completedAt,
+      submit: !q.readOnly && !q.state.locked && !overview.value?.completedAt,
+      retry: !q.readOnly && q.state.hasSavedAnswer && !overview.value?.completedAt,
     },
     appearance: { theme: 'light' as const },
   };

@@ -6,6 +6,7 @@ import * as scoring from './scoring';
 import * as completion from './completion';
 import * as banks from './banks';
 import { restart } from './restart';
+import * as history from './history';
 import * as runtime from './runtime';
 import type {
   PracticeSession,
@@ -17,6 +18,9 @@ import type {
 // reference is needed to coordinate saving, navigation and scoring.
 export function createActions(ctx: PracticeSession): PracticeActions {
   return {
+    historyList: () => history.historyList(ctx),
+    openHistory: (bank, round, question) => history.openHistory(ctx, bank, round, question),
+    leaveHistory: () => history.leaveHistory(ctx),
     update: (q, preserve) => state.update(ctx, q, preserve),
     context: (q) => state.context(ctx, q),
     applyCompletion: (value) => state.applyCompletion(ctx, value),
@@ -58,6 +62,9 @@ export function createActions(ctx: PracticeSession): PracticeActions {
 // Publish existing bound functions, not another set of forwarding callbacks.
 export function viewActions(actions: PracticeActions): PracticeViewActions {
   return {
+    historyList: actions.historyList,
+    openHistory: actions.openHistory,
+    leaveHistory: actions.leaveHistory,
     catalog: actions.catalog,
     openBank: actions.openBank,
     navigate: actions.navigate,

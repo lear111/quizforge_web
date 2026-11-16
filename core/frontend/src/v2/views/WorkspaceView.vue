@@ -6,6 +6,7 @@ import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
 import PracticePage from './PracticePage.vue';
 import FinalScore from '../components/FinalScore.vue';
+import HistoryBanner from '../components/HistoryBanner.vue';
 import WorkspaceLibrary from '../components/WorkspaceLibrary.vue';
 import WorkspaceOutline from '../components/WorkspaceOutline.vue';
 import WorkspaceToolbar from '../components/WorkspaceToolbar.vue';
@@ -75,6 +76,7 @@ async function restartPractice() {
       :inert="layout.mobile && drawer !== null"
     >
       <WorkspaceToolbar />
+      <HistoryBanner />
       <p
         v-if="message"
         class="v2-error"
@@ -89,6 +91,7 @@ async function restartPractice() {
           :busy="busy || recovering"
           :unanswered="unanswered"
           :activity="loading === '正在归档上一轮练习' ? loading : undefined"
+          :read-only="overview.readOnly"
           @view="navigation.showQuestion()"
           @grade="resumeCompletion"
           @complete="finishPractice"

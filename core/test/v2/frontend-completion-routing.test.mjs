@@ -190,3 +190,66 @@ for (const completedAt of ['externally-completed', null]) {
     assert.deepEqual(f.requests, ['/api/v2/banks/a/refresh']);
   });
 }
+
+test('history question and summary routes stay scoped through back, forward and return', async (t) => {
+  const f = await fixture(t);
+  const original = f.practice.overview;
+  const question = f.practice.current;
+  const roundId = '11111111-1111-4111-8111-111111111111';
+  // Routing is under test here; actual read/restore and iframe guards have
+  // separate store and real-browser coverage.
+  t.mock.method(f.practice, 'openHistory', async () => {
+    f.practice.overview = { ...original, roundId, readOnly: true };
+    f.practice.current = { ...question, roundId, readOnly: true };
+    f.ui.scoreView = false;
+  });
+  t.mock.method(f.practice, 'leaveHistory', async () => {
+    f.practice.overview = original;
+    f.practice.current = question;
+    f.ui.scoreView = false;
+  });
+  t.mock.method(f.practice, 'navigate', async (id) => {
+    assert.equal(id, '1');
+    f.ui.scoreView = false;
+  });
+  await f.navigation.openHistory(roundId);
+  assert.equal(f.router.currentRoute.value.fullPath, `/banks/a/rounds/${roundId}/questions/1`);
+  await f.navigation.showSummary();
+  assert.equal(f.router.currentRoute.value.name, 'history-summary');
+  await f.navigation.showQuestion();
+  for (const [delta, name] of [
+    [-1, 'history-summary'],
+    [1, 'history'],
+  ]) {
+    await history(f.router, delta);
+    assert.equal(f.router.currentRoute.value.name, name);
+    assert.equal(f.ui.scoreView, name === 'history-summary');
+    assert.equal(f.practice.overview.roundId, roundId);
+  }
+  await f.navigation.returnToPractice();
+  assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/1');
+  assert.equal(f.practice.overview, original);
+  assert.equal(f.practice.current, question);
+  assert.deepEqual(f.requests, []);
+});
+
+test('failed history read or unsaved-answer flush preserves the active view and address', async (t) => {
+  const f = await fixture(t);
+  const original = f.practice.current;
+  const open = t.mock.method(f.practice, 'openHistory', async () => {
+    f.ui.message = '合成历史文件损坏';
+  });
+  await f.router.push('/banks/a/rounds/missing/summary');
+  assert.equal(f.ui.scoreView, false);
+  assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/1');
+  assert.equal(f.practice.current, original);
+  assert.equal(open.mock.callCount(), 1);
+  t.mock.method(f.practice, 'flush', async () => {
+    throw Error('合成保存失败');
+  });
+  await f.navigation.openHistory('another');
+  assert.equal(open.mock.callCount(), 1);
+  assert.equal(f.router.currentRoute.value.fullPath, '/banks/a/questions/1');
+  assert.equal(f.practice.current, original);
+  assert.match(f.ui.message, /合成保存失败/);
+});

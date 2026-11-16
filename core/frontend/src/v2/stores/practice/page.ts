@@ -8,6 +8,16 @@ import type { PageOptions } from '../../services/page/types';
 import type { Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
 
+function missingAsset(ctx: PracticeSession, q: Question, error: unknown) {
+  if ((error as { status?: number }).status !== 404) {
+    return false;
+  }
+  if (q.readOnly) {
+    ctx.message.value = '素材已不存在';
+  }
+  return true;
+}
+
 export async function pictures(
   ctx: PracticeSession,
   q: Question,
@@ -42,7 +52,7 @@ export async function pictures(
           try {
             result = await api.questions.asset(q, asset.assetId);
           } catch (error) {
-            if ((error as { status?: number }).status === 404) {
+            if (missingAsset(ctx, q, error)) {
               return null;
             }
             throw error;
@@ -86,7 +96,7 @@ export async function applyContext(ctx: PracticeSession, q: Question) {
 
 function pageChanged(ctx: PracticeSession, mine: number): PageOptions['onChanged'] {
   return (kind, answered) => {
-    if (mine !== ctx.runtime.generation) {
+    if (mine !== ctx.runtime.generation || ctx.overview.value?.readOnly) {
       return;
     }
     const active = ctx.current.value!;
@@ -117,6 +127,7 @@ function pageActions(ctx: PracticeSession, mine: number): PageOptions {
         mine !== ctx.runtime.generation ||
         ctx.busy.value ||
         ctx.recovering.value ||
+        ctx.overview.value?.readOnly ||
         ctx.overview.value?.completedAt ||
         ctx.current.value?.state.locked
       ) {
@@ -129,6 +140,7 @@ function pageActions(ctx: PracticeSession, mine: number): PageOptions {
         mine !== ctx.runtime.generation ||
         ctx.busy.value ||
         ctx.recovering.value ||
+        ctx.overview.value?.readOnly ||
         ctx.overview.value?.completedAt ||
         !ctx.current.value?.state.hasSavedAnswer
       ) {
@@ -168,6 +180,8 @@ export async function show(ctx: PracticeSession, q: Question, resume = true) {
   );
   ctx.runtime.page = instance;
   ctx.runtime.scratch?.load(q.ink);
+  ctx.runtime.scratch?.setReadOnly(Boolean(q.readOnly));
+  ctx.runtime.scratch?.setMode(ctx.drafting.value);
   ctx.runtime.saver = ctx.actions().createSaver(q, mine, instance);
   await instance.ready;
   ctx.actions().remember(q);

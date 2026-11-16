@@ -18,7 +18,10 @@ export function uiFile(codeRoot, entry) {
  */
 export function sdkResource(library, { component, version, entry }, snapshot) {
   const key = `${component}@${version}`;
-  const sdk = [...library.opened.values()]
+  const sdk = [
+    ...library.opened.values(),
+    ...[...library.history.opened.values()].map((entry) => entry.snapshot),
+  ]
     .filter((value) => snapshot === null || value.snapshotId === snapshot)
     .map((value) => value.sdk.get(key))
     .find(Boolean);

@@ -5,6 +5,9 @@ import type { Overview, Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
 
 export async function score(ctx: PracticeSession, q: Question): Promise<Question> {
+  if (q.readOnly || ctx.overview.value?.readOnly) {
+    throw Error('历史记录只读。');
+  }
   const { current, api } = ctx;
   // Browser postMessage cannot clone Vue proxies from the current-question ref.
   q = toRaw(q);
@@ -46,6 +49,9 @@ export async function score(ctx: PracticeSession, q: Question): Promise<Question
 }
 
 export async function grade(ctx: PracticeSession, q: Question) {
+  if (q.readOnly || ctx.overview.value?.readOnly) {
+    return;
+  }
   const { current } = ctx;
   await ctx.actions().flush();
   const active = current.value;
@@ -62,6 +68,8 @@ export async function submit(ctx: PracticeSession) {
   const { overview, current, api } = ctx;
   if (
     !current.value ||
+    current.value.readOnly ||
+    overview.value?.readOnly ||
     !ctx.runtime.page ||
     current.value.state.locked ||
     overview.value?.completedAt
@@ -92,7 +100,12 @@ export async function submit(ctx: PracticeSession) {
 
 export async function retry(ctx: PracticeSession) {
   const { overview, current, api } = ctx;
-  if (!current.value || overview.value?.completedAt) {
+  if (
+    !current.value ||
+    current.value.readOnly ||
+    overview.value?.readOnly ||
+    overview.value?.completedAt
+  ) {
     return;
   }
   await ctx.run('正在重做', async () => {
@@ -112,6 +125,9 @@ export async function retry(ctx: PracticeSession) {
 }
 
 export async function recoverPending(ctx: PracticeSession, value: Overview) {
+  if (value.readOnly) {
+    return;
+  }
   const { overview, current, message } = ctx;
   if (value.completedAt) {
     try {
@@ -142,6 +158,9 @@ export async function recoverPending(ctx: PracticeSession, value: Overview) {
 }
 
 export function continueGrading(ctx: PracticeSession) {
+  if (ctx.overview.value?.readOnly) {
+    return;
+  }
   const { overview, current } = ctx;
   if (overview.value?.completedAt) {
     return ctx.actions().resumeCompletion();

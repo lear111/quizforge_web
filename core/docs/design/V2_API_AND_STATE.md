@@ -47,7 +47,7 @@
 
 ## 第 3 段接口：完成练习、归档、历史
 
-完成与评分已实现待审查；归档与历史尚未实现。
+完成、评分与归档已审查合并；历史列表与只读回看在本次 J 实现，待审查。历史宿主白板笔迹允许独立保存；历史删除尚未实现。
 
 `B = /api/v2/banks/{bankId}`，`R = B/rounds/{roundId}`。设计依据：D20、D22、D40、D42、D44，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.1、4 节。
 
@@ -74,21 +74,21 @@
 
 效果按顺序：仍无分数的题记 0 分（D23）；新建 `rounds/<轮次>/`，复制 `bank.json`、`state.json`、所用拓展文件夹，移入笔迹；全部成功后清空当前 `state.json`。中途失败则删除未完成的目录并返回可重试的错误，当前作答保持已完成状态。
 
-J 本次实现此接口（待审查）。返回类型为 `RestartResponse = OverviewResponse`；请求类型为 `RestartRequest = WriteRequest`。`PRACTICE_NOT_COMPLETED`（409）表示尚未完成；`SNAPSHOT_STALE`（409）表示旧快照或原题库/已用拓展被替换；`EXTENSION_NOT_FOUND` 表示缺少所用拓展；`REQUEST_CONFLICT`（409）表示同一请求编号被用于不同快照；`ARCHIVE_FAILED`（503）表示归档或恢复未能完成，保留现有文件。其他现有路径、大小、存储错误仍适用。
+J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewResponse`；请求类型为 `RestartRequest = WriteRequest`。`PRACTICE_NOT_COMPLETED`（409）表示尚未完成；`SNAPSHOT_STALE`（409）表示旧快照或原题库/已用拓展被替换；`EXTENSION_NOT_FOUND` 表示缺少所用拓展；`REQUEST_CONFLICT`（409）表示同一请求编号被用于不同快照；`ARCHIVE_FAILED`（503）表示归档或恢复未能完成，保留现有文件。其他现有路径、大小、存储错误仍适用。
 
 归档使用暂存目录与仅保存最近一次转换的内部恢复回执 `.qf-v2/restart.json`，不是历史索引。提交点前异常/进程退出恢复已完成练习，提交点后仅清理临时备份。响应丢失时重发**相同** `requestId + snapshotId` 返回当前新轮概览，不重复归档。新轮快照包含新的轮次代际；旧快照的保存/评分/完成/归档请求均被拒绝。正常读题仍使用内存快照，不增加逐请求目录扫描。跨进程同时操作同一数据目录不受支持。
 
-前端先 flush 白板与保存队列，归档请求也进入现有写队列；失败保留汇总及同一请求体，成功清除旧 iframe、文件缓存、评分会话并进入新轮第一题。归档后无答案时不会预写空 `practice/state.json`。已提交后清理临时备份失败不回滚新轮，返回成功及 `notice`，后续打开/归档重试清理；绝不以清理失败为由删除新轮作答。归档历史读取及修改接口本次均未实现，详见[实施记录](reviews/V2-J-RESTART.md)。
+前端先 flush 白板与保存队列，归档请求也进入现有写队列；失败保留汇总及同一请求体，成功清除旧 iframe、文件缓存、评分会话并进入新轮第一题。归档后无答案时不会预写空 `practice/state.json`。已提交后清理临时备份失败不回滚新轮，返回成功及 `notice`，后续打开/归档重试清理；绝不以清理失败为由删除新轮作答。该归档 PR 未实现历史读取及修改接口；只读回看见下节，详见[实施记录](reviews/V2-J-RESTART.md)。
 
 **历史**
 
 | 接口 | 作用 |
 |---|---|
 | GET `B/rounds` | 历史列表：`[{ roundId, completedAt, score, maxScore }]`，按完成时间倒序。得分由该轮 `state.json` 相加得出，不另存索引 |
-| DELETE `R` | 删除一轮（整个目录） |
-| GET `R/overview` | 打开一轮。返回内容与 `B/overview` 同形，另带 `readOnly: true` |
-| GET `R/questions/{questionId}` | 读一道题，与 `Q` 同形。`solution` 总是返回（全部已锁定） |
-| PUT `R/questions/{questionId}/ink` | 保存笔记，与 `Q/ink` 相同 |
+| DELETE `R` | 后续删除一轮；本次未实现，返回 404 |
+| GET `R/overview` | 打开一轮。返回内容与 `B/overview` 同形，另带 `readOnly: true`、`roundId`；待评分列表为空 |
+| GET `R/questions/{questionId}` | 读归档题目、作答、成绩和笔迹，与 `Q` 同形，另带 `readOnly: true`、`roundId`。`solution` 总是返回（全部已锁定） |
+| PUT `R/questions/{questionId}/ink` | 保存宿主白板笔记：沿用 InkRequest（requestId、snapshotId、expectedInkRevision、ink），返回 InkResponse（inkRevision、state）；独立版本/回执、32 MiB 上限与原子写入 |
 | GET `R/questions/{questionId}/assets/{assetId}` | 素材。引用来自该轮的 `bank.json`，文件仍在题库文件夹里找；不存在时返回 404，前端显示"素材已不存在" |
 
 拓展文件沿用 `/api/v2/extensions/{artifactId}/…`，该轮概览给出的 `artifactId` 指向轮次目录里的拓展副本。
@@ -96,6 +96,12 @@ J 本次实现此接口（待审查）。返回类型为 `RestartResponse = Over
 `R` 下不提供 `answer`、`submit`、`retry`、`result`，请求这些路径返回 404。宿主给拓展的事实固定为 `locked: true`、`can.submit: false`、`can.retry: false`。
 
 拓展副本无法解析或载入时，该题按"题型不可用"处理，概览中的状态和分数照常返回。
+
+本次只读接口仅检查并读取归档，不执行 D27 或 restart 恢复；不创建或改写任何状态、索引及恢复文件。`roundId` 必须为小写 UUID，非法值返回 400 `INVALID_REQUEST`，不存在或尚为 `prepared` 的轮次返回 404；暂存目录不列入历史。已提交归档损坏返回 503 `STATE_INVALID`，保留文件，不回退当前练习。
+
+历史拓展的 `artifactId` 按题库和轮次隔离，只解析归档 `extensions/`；版本化共享 SDK 沿用宿主现有资源及沙箱。宿主独立拦截 changed/submit/retry，禁用题型作答保存、评分及评分写回。白板默认以只读方式显示归档笔迹与相机，顶部「草稿」可进入宿主白板编辑，保存至该轮 ink；不向题型 SDK 提供白板写能力。自动保存、同请求重试、版本冲突恢复及切题/换轮/退出前 flush 沿用现有机制，冲突始终重读历史作用域，不打开当前练习。返回时恢复进入历史前的当前题目、作答、草稿视图与笔迹。详见[实施记录](reviews/V2-J-HISTORY-REPLAY.md)。
+
+历史 ink 仅写 `.qf-v2/rounds/{roundId}/ink/{contentFingerprint}/{SHA256(questionId)}.json`；不改归档 bank/state/extensions、当前 practice/state 或 practice/ink，也不读写 restart.json。快照不符为 409 SNAPSHOT_STALE，笔迹版本不符为 409 REVISION_CONFLICT，同 requestId 不同请求为 REQUEST_CONFLICT；缺字段为 400 INVALID_REQUEST，超限 413 STATE_SIZE_LIMIT，写失败 503 STATE_WRITE_FAILED。历史读取不迁移旧笔迹，损坏时保留原文件。
 
 ## 第 4 段接口：考试（已定稿，未实现）
 

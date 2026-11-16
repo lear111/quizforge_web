@@ -10,7 +10,7 @@ function createScratchLayout(
   world: HTMLElement,
   options: { changed(): void; error(error: Error): void },
 ) {
-  const state = { drafting: false, loading: false };
+  const state = { drafting: false, history: false, loading: false };
   const shell = viewport.closest('.v2-app');
   const fullscreen = createDraftFullscreen(document, {
     canEnter: () => state.drafting,
@@ -21,9 +21,10 @@ function createScratchLayout(
     onError: options.error,
   });
   const resize = () => {
-    // Only the draft view uses the fixed coordinate space; practice stays fluid.
-    const zoom = state.drafting ? board.getViewCamera().zoom : 1;
-    const y = state.drafting ? Math.max(0, board.getViewCamera().y * zoom) : 0;
+    // Scratch editing and history use fixed coordinates; live practice stays fluid.
+    const fixed = state.drafting || state.history;
+    const zoom = fixed ? board.getViewCamera().zoom : 1;
+    const y = fixed ? Math.max(0, board.getViewCamera().y * zoom) : 0;
     stage.style.height = `${Math.max(viewport.clientHeight, world.offsetHeight * zoom + y + 32)}px`;
   };
   const board = mountWhiteboard(viewport, {
@@ -48,19 +49,30 @@ function createScratchLayout(
   return { state, shell, fullscreen, resize, board, observer };
 }
 
+function scratchMode(layout: ReturnType<typeof createScratchLayout>, viewport: HTMLElement) {
+  const { board, state, resize, fullscreen } = layout;
+  board.setReadOnly(state.history && !state.drafting);
+  viewport.classList.toggle('v2-history-replay', state.history && !state.drafting);
+  viewport.classList.toggle('v2-drafting', state.drafting || state.history);
+  // History keeps the archived coordinate space even outside scratch editing.
+  board.setMode(state.drafting || state.history ? 'draft' : 'practice');
+  fullscreen.sync();
+  resize();
+}
+
 export function mountScratch(
   viewport: HTMLElement,
   stage: HTMLElement,
   world: HTMLElement,
   options: { changed(): void; error(error: Error): void },
 ) {
-  const { state, shell, fullscreen, resize, board, observer } = createScratchLayout(
-    viewport,
-    stage,
-    world,
-    options,
-  );
+  const layout = createScratchLayout(viewport, stage, world, options);
+  const { state, shell, fullscreen, resize, board, observer } = layout;
   return {
+    setReadOnly(value: boolean) {
+      state.history = value;
+      scratchMode(layout, viewport);
+    },
     load(ink: unknown) {
       state.loading = true;
       try {
@@ -80,10 +92,7 @@ export function mountScratch(
     },
     setMode(value: boolean) {
       state.drafting = value;
-      viewport.classList.toggle('v2-drafting', value);
-      board.setMode(value ? 'draft' : 'practice');
-      fullscreen.sync();
-      resize();
+      scratchMode(layout, viewport);
     },
     getDraft: () => ({ ...board.getDraft(), viewport: board.getViewCamera() }),
     flush: () => board.flush(),

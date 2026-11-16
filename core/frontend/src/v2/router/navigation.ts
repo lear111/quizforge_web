@@ -6,11 +6,16 @@ import type {
 } from 'vue-router';
 import type { usePracticeStore } from '../stores/practice';
 import type { useUiStore } from '../stores/ui';
+import { historyLocation, loadHistoryLocation } from './history';
 
 type Practice = ReturnType<typeof usePracticeStore>;
 type Ui = ReturnType<typeof useUiStore>;
 
 export function visibleLocation(practice: Practice, ui: Ui): RouteLocationRaw {
+  const history = historyLocation(practice, ui.scoreView);
+  if (history) {
+    return history;
+  }
   const bankId = practice.overview?.bank.bankId;
   if (!bankId) {
     return { name: 'library' };
@@ -23,6 +28,13 @@ export function visibleLocation(practice: Practice, ui: Ui): RouteLocationRaw {
 }
 
 async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui: Ui) {
+  if (to.name === 'history' || to.name === 'history-summary') {
+    await loadHistoryLocation(to, practice, ui);
+    return;
+  }
+  if (practice.overview?.readOnly) {
+    await practice.leaveHistory();
+  }
   if (to.name === 'library') {
     practice.clearQuestion(true);
     practice.resetSources();
@@ -130,7 +142,10 @@ class WorkspaceNavigation {
       // Unavailable initial links fall back to the blank library page. A failed
       // navigation from an existing page is cancelled without changing its URL.
       if (
-        (to.name === 'bank' || to.name === 'summary') &&
+        (to.name === 'bank' ||
+          to.name === 'summary' ||
+          to.name === 'history' ||
+          to.name === 'history-summary') &&
         practice.overview?.bank.bankId === String(to.params.bankId)
       ) {
         return { ...router.resolve(target), replace: true };
@@ -185,14 +200,25 @@ class WorkspaceNavigation {
   navigate = (questionId: string) => {
     const bankId = this.practice.overview?.bank.bankId;
     return bankId
-      ? this.push({ name: 'practice', params: { bankId, questionId } })
+      ? this.push(
+          historyLocation(this.practice, false, questionId) ?? {
+            name: 'practice',
+            params: { bankId, questionId },
+          },
+        )
       : Promise.resolve();
   };
   showSummary = () => {
     const bankId = this.practice.overview?.bank.bankId;
-    return bankId ? this.push({ name: 'summary', params: { bankId } }) : Promise.resolve();
+    return bankId
+      ? this.push(historyLocation(this.practice, true) ?? { name: 'summary', params: { bankId } })
+      : Promise.resolve();
   };
   showQuestion = () => {
+    const history = historyLocation(this.practice, false);
+    if (history) {
+      return this.push(history);
+    }
     const bankId = this.practice.overview?.bank.bankId;
     return bankId
       ? this.push({
@@ -204,6 +230,17 @@ class WorkspaceNavigation {
   // Callers explicitly publish the selected view/current question after refresh
   // or grading; no reverse completion watcher drives navigation.
   showCurrent = () => this.push(visibleLocation(this.practice, this.ui), true);
+  openHistory = (roundId: string) => {
+    const bankId = this.practice.overview?.bank.bankId;
+    return bankId ? this.push({ name: 'history', params: { bankId, roundId } }) : Promise.resolve();
+  };
+  returnToPractice = async () => {
+    if (this.ui.busy || this.pending || this.pushing) {
+      return;
+    }
+    await this.practice.leaveHistory();
+    await this.showCurrent();
+  };
   dispose = () => {
     this.disposed = true;
     this.stop();

@@ -24,6 +24,7 @@ import { measureOverview } from '../utils/timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 import { optionalProperty } from '../utils/properties.js';
 import { restartPractice } from './practice-archive.service.js';
+import { HistoryRounds } from './history.service.js';
 
 export const OPEN_BANK_LIMIT = 8;
 
@@ -56,6 +57,7 @@ export class LibrarySnapshots {
     /** @type {Map<string, Snapshot>} */
     this.opened = new Map();
     this.stateStore = stateStore;
+    this.history = new HistoryRounds(this);
   }
   rebuildIndexes() {
     this.types.rebuild();

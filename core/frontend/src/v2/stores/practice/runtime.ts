@@ -11,6 +11,7 @@ import type { PracticeSession, PracticeRuntime, ViewElements } from '../../types
 // Handles are private to this store instance, not reactive/serializable UI state.
 export function createRuntime(): PracticeRuntime {
   return {
+    returnPractice: null,
     restartRequest: null,
     page: null,
     scratch: null,

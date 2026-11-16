@@ -1,7 +1,11 @@
 import type { Overview, Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
+import { showHistoryQuestion } from './history';
 
 export function remember(ctx: PracticeSession, q: Question) {
+  if (q.readOnly) {
+    return;
+  }
   const { lastQuestions } = ctx;
   lastQuestions.value.delete(q.bankId);
   lastQuestions.value.set(q.bankId, q.questionId);
@@ -70,6 +74,15 @@ export async function navigate(ctx: PracticeSession, id: string) {
   if (!overview.value) {
     return;
   }
+  if (overview.value.readOnly) {
+    await ctx.run('正在读取历史题目', async () => {
+      await ctx.actions().flush();
+      await showHistoryQuestion(ctx, id);
+      scoreView.value = false;
+      drawer.value = null;
+    });
+    return;
+  }
   if (id === current.value?.questionId && !ctx.actions().pageFaulted()) {
     if (!busy.value) {
       scoreView.value = false;
@@ -97,7 +110,7 @@ export async function navigate(ctx: PracticeSession, id: string) {
 
 export async function refreshBank(ctx: PracticeSession) {
   const { overview, current, message, scoreView, api } = ctx;
-  if (!overview.value) {
+  if (!overview.value || overview.value.readOnly) {
     return;
   }
   await ctx.run('正在刷新题库', async () => {

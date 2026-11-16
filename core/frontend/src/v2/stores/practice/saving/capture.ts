@@ -11,7 +11,7 @@ export async function readDraft(
     av = ctx.runtime.answerVersion,
     iv = ctx.runtime.inkVersion;
   let fields: AnswerFields | null = null;
-  if (av > ctx.runtime.savedAnswer) {
+  if (!active.readOnly && av > ctx.runtime.savedAnswer) {
     const answer = active.state.locked ? undefined : await instance.answer();
     if (!active.state.locked) {
       fields = { answer, answered: answeredFromStatus(toRaw(active.state.status)) };

@@ -23,6 +23,7 @@ import {
   registerQuestionWriteRoutes,
 } from './routes/question.routes.js';
 import { registerSystemRoutes } from './routes/system.routes.js';
+import { registerHistoryRoutes } from './routes/history.routes.js';
 import { createPracticeLibrary } from './services/bank.service.js';
 import { PracticeState } from './services/practice.service.js';
 import { readResource } from './services/resource.service.js';
@@ -63,6 +64,7 @@ export function createApp(server) {
   const body = [requireJson, readJson];
   registerSystemRoutes(app, handlers);
   registerBankOverviewRoute(app, handlers);
+  registerHistoryRoutes(app, handlers, body);
   registerQuestionReadRoutes(app, handlers);
   registerBankListeningRoute(app, handlers);
   registerExtensionRoutes(app, handlers);

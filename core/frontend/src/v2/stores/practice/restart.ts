@@ -3,7 +3,7 @@ import { writeBody } from '../../api/requests';
 
 export async function restart(ctx: PracticeSession) {
   const value = ctx.overview.value;
-  if (!value?.completedAt) {
+  if (!value?.completedAt || value.readOnly) {
     return;
   }
   await ctx.run('正在归档上一轮练习', async () => {
