@@ -31,7 +31,7 @@
 
 ## 验证结果
 
-本机：Windows，Node 24.13.0。所有浏览器检查与 CI 的最终结果将在本段补齐。
+本机：Windows，Node 24.13.0。浏览器使用独立回环服务和合成夹具。
 
 | 检查 | 实际结果 |
 |---|---|
@@ -41,7 +41,18 @@
 | ESLint / 格式 | 267 文件、0 错误或警告；277 文件、0 格式差异 |
 | UI 构建和 `--check` | 通过；生成 JS/CSS 仍未被 Git 追踪 |
 | 历史删除桌面/手机流程 | Chromium 157.0.8103.39，1440×900 和 390×844 均通过，无页面错误 |
+| 十项既有浏览器探针 | 全通过：page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion、router |
 | `test:perf` | 20/200 题既有回环检查 2 通过、0 失败；不测量大规模历史清理 |
+
+GitHub CI：实现提交 `ee2a91e` 的[运行记录](https://github.com/lear111/quizforge_web/actions/runs/43869039447)五项全部通过，失败用例无。结果如下；本文记录提交未再修改代码或测试。
+
+| CI job | 结果 | 用时 |
+|---|---|---:|
+| Checks (Windows) | 1614 通过，0 失败或跳过 | 4m44s |
+| Checks (Ubuntu) | 1580 通过，0 失败，34 项原有平台限制跳过 | 2m14s |
+| V2 browser checks (Ubuntu) | 十项探针通过 | 3m36s |
+| V2 code quality (Ubuntu) | 格式与 lint 通过 | 24s |
+| Performance (Ubuntu) | 2 通过，0 失败 | 20s |
 
 ## 风险与限制
 
