@@ -7,6 +7,7 @@ import { READ_LIMITS, treeIdentity } from '../utils/io.js';
 import { STATE_BYTES } from '../utils/limits.js';
 import { object, problem, V2Error } from '../utils/errors.js';
 import { statusAfterResult } from './practice-result.service.js';
+import { readSnapshot } from './bank-open.service.js';
 import {
   archiveError,
   copyFile,
@@ -158,6 +159,25 @@ export function archivePractice(library, snapshot, input, checkpoint = () => {})
   return recovery.cleanupPending;
 }
 
+/** A cold restart must not call open(): normal open reconciles changed content
+ * by clearing practice, which is forbidden before a failed archive.
+ * @param {PracticeLibrary} library @param {import('../types/data.js').BankLocation} location
+ * @param {string} snapshotId */
+function restartSnapshot(library, location, snapshotId) {
+  if (library.opened.has(location.bankId)) {
+    return library.snapshot(location.bankId, snapshotId);
+  }
+  if (!library.indexed) {
+    library.rebuildIndexes();
+  }
+  const snapshot = readSnapshot(library, location, location.bankId, false);
+  if (snapshot.snapshotId !== snapshotId) {
+    throw problem('SNAPSHOT_STALE', '归档快照已变化，原练习已保留，请检查原题库和拓展。', {}, 409);
+  }
+  library.rememberSnapshot(location.bankId, snapshot);
+  return snapshot;
+}
+
 /** @param {PracticeLibrary} library @param {string} bankId @param {unknown} input */
 export function restartPractice(library, bankId, input) {
   if (
@@ -187,7 +207,7 @@ export function restartPractice(library, bankId, input) {
   if (recovery.cleanupPending) {
     throw archiveError();
   }
-  const snapshot = library.snapshot(bankId, input.snapshotId);
+  const snapshot = restartSnapshot(library, location, input.snapshotId);
   const cleanupPending = archivePractice(library, snapshot, {
     requestId: input.requestId,
     snapshotId: input.snapshotId,

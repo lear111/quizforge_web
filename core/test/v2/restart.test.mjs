@@ -182,3 +182,40 @@ test('externally changed state identity is not archived against a cached bank sn
   assert.ok(fs.readFileSync(file).equals(before));
   assert.equal(f.rounds().length, 0);
 });
+
+test('cold and evicted archive requests never reconcile changed content by clearing completed practice', async (t) => {
+  for (const change of ['bank', 'extension', 'missing']) {
+    await t.test(change, async (t) => {
+      const f = await restartFixture(t);
+      await f.finish();
+      const file = f.library.stateStore.file(f.directory),
+        before = fs.readFileSync(file);
+      f.library.opened.delete(f.bankId);
+      f.library.stateStore.evict(f.directory);
+      if (change === 'bank') {
+        fs.appendFileSync(f.bankFile, '\n');
+      } else if (change === 'extension') {
+        fs.appendFileSync(path.join(f.extension, 'grade.js'), '\n// new');
+      } else {
+        fs.unlinkSync(path.join(f.extension, 'grade.js'));
+      }
+      const result = await f.restart();
+      assert.equal(result.value.error.code, 'SNAPSHOT_STALE');
+      assert.ok(fs.readFileSync(file).equals(before));
+      assert.equal(f.rounds().length, 0);
+    });
+  }
+});
+
+test('completed practice can be archived directly after a service restart without first opening it', async (t) => {
+  const f = await restartFixture(t);
+  await f.finish();
+  const { createPracticeLibrary } = await import('../../server/v2/services/bank.service.js');
+  const { PracticeState } = await import('../../server/v2/services/practice.service.js');
+  const fresh = createPracticeLibrary(f.root, f.codeRoot, { stateStore: new PracticeState() });
+  assert.equal(fresh.opened.size, 0);
+  const response = fresh.restart(f.bankId, f.input);
+  assert.equal(response.completedAt, null);
+  assert.notEqual(response.snapshotId, f.input.snapshotId);
+  assert.equal(f.rounds().length, 1);
+});
