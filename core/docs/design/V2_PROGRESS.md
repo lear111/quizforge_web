@@ -34,7 +34,7 @@
 | F⑥ · Store 动作与依赖 | 已审查合并，CI 通过 | [#162](https://github.com/lear111/quizforge_web/pull/162) | [记录](reviews/V2-F-STORE-ACTIONS.md) |
 | F⑦ · 完成状态与路由 | 已审查合并，CI 通过 | [#165](https://github.com/lear111/quizforge_web/pull/165) | [记录](reviews/V2-F-COMPLETION-ROUTING.md) |
 | F⑧ · 后端断言及 health 清理 | 已审查合并，CI 通过 | [#167](https://github.com/lear111/quizforge_web/pull/167) | [记录](reviews/V2-F-SERVER-ASSERTIONS.md) |
-| I② · 第三版界面（D64） | **代码已合并，待负责人试用**；不视为试用通过 | [#170](https://github.com/lear111/quizforge_web/pull/170)、[#171](https://github.com/lear111/quizforge_web/pull/171) | [记录](reviews/V2-I2-UI-PROTOTYPE.md) |
+| I② · 第三版界面（D64） | **已审查合并，负责人已试用验收通过** | [#170](https://github.com/lear111/quizforge_web/pull/170)、[#171](https://github.com/lear111/quizforge_web/pull/171) | [记录](reviews/V2-I2-UI-PROTOTYPE.md) |
 | G · 测试与文档整理 | 已审查合并（CI 五项通过，`b32e4bf`） | [#172](https://github.com/lear111/quizforge_web/pull/172) | [记录](reviews/V2-G-ENGINEERING.md) |
 | H · 长度规则强制 | 已审查合并，CI 五项通过；两处精确浏览器闭包例外已批准（`b3f7c16`） | [#174](https://github.com/lear111/quizforge_web/pull/174) | [记录](reviews/V2-H-LENGTH-POLICY.md) |
 | J · 归档与历史 | 前置测量及 D50、练习归档、历史列表与只读回看、单轮删除均已审查合并；D65 历史作答/草稿双状态已修复、审查合并并验收 | [#176](https://github.com/lear111/quizforge_web/pull/176)、[#178](https://github.com/lear111/quizforge_web/pull/178)、[#180](https://github.com/lear111/quizforge_web/pull/180)、[#182](https://github.com/lear111/quizforge_web/pull/182)、[#184](https://github.com/lear111/quizforge_web/pull/184)、[#190](https://github.com/lear111/quizforge_web/pull/190) | [测量](reviews/V2-J-HISTORY.md)、[D50 实施](reviews/V2-J-PRACTICE-STORAGE.md)、[归档实施](reviews/V2-J-RESTART.md)、[只读回看](reviews/V2-J-HISTORY-REPLAY.md)、[单轮删除](reviews/V2-J-HISTORY-DELETE.md)、[D65](reviews/V2-D65-HISTORY-MODES.md) |
