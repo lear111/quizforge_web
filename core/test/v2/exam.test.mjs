@@ -317,3 +317,17 @@ test('a redirected exam directory is rejected and D27 refresh clears both active
   assert.equal(refresh.initial.question.answer, null);
   assert.equal(fs.existsSync(examDir(f)), false);
 });
+
+test('malformed exam state fails closed instead of switching to practice or altering either scope', async (t) => {
+  const f = await restartFixture(t);
+  assert.equal((await save(f, f.snapshot, 0, 'practice')).status, 200);
+  const practice = f.library.stateStore.file(f.directory);
+  const contents = fs.readFileSync(practice);
+  await begin(f);
+  const file = path.join(examDir(f), 'state.json');
+  fs.writeFileSync(file, '{invalid synthetic exam');
+  const overview = await f.api(f.base + '/overview');
+  assert.equal(overview.value.error.code, 'STATE_INVALID');
+  assert.ok(fs.readFileSync(practice).equals(contents));
+  assert.equal(fs.readFileSync(file, 'utf8'), '{invalid synthetic exam');
+});

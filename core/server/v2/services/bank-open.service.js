@@ -136,7 +136,7 @@ export function readSnapshot(library, location, bankId, rebuild) {
  */
 export function overviewResponse(
   library,
-  snapshot,
+  bank,
   {
     requestedQuestionId,
     lastQuestionId,
@@ -146,13 +146,19 @@ export function overviewResponse(
     activeRoundInterrupted,
   },
 ) {
-  const { bankId, snapshotId, activeCleared } = snapshot;
-  const bank = snapshot;
+  const { bankId, snapshotId, activeCleared } = bank;
   const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
+  // Reading the initial ink can clear a recognized legacy record before outline summaries.
+  const initial = initialCandidate(
+    library,
+    bankId,
+    snapshotId,
+    includeInitial ? questionId : undefined,
+  );
   return {
     bank: cloneJson(bank.info),
     snapshotId,
-    exam: examClock(library, snapshot),
+    exam: examClock(library, bank),
     outline: cloneJson(bank.raw.outline),
     listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
     questionTypes: [...bank.items.keys()].map((id) => {
@@ -162,12 +168,12 @@ export function overviewResponse(
           : undefined;
       return { questionId: id, type: typeof type === 'string' ? type : null };
     }),
-    ...library.completion(snapshot),
+    ...library.completion(bank),
     lastQuestionId,
-    initial: initialCandidate(library, bankId, snapshotId, includeInitial ? questionId : undefined),
+    initial,
     activeCleared,
     notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
-    pendingGrading: includeInitial ? library.pendingGrading(snapshot) : [],
+    pendingGrading: includeInitial ? library.pendingGrading(bank) : [],
     ...(refresh
       ? {
           changes: {

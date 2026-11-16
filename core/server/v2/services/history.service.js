@@ -33,13 +33,14 @@ export class HistoryRounds {
       .map((roundId) => {
         const round = readRound(this.library, bankId, roundId);
         const exam = round.state.exam;
+        /** @type {'exam' | 'practice'} */
+        const kind = exam ? 'exam' : 'practice';
         return {
           roundId,
           completedAt: round.state.completedAt,
           ...historyTotal(round),
-          ...(exam
-            ? { kind: /** @type {const} */ ('exam'), startedAt: exam.startedAt }
-            : { kind: /** @type {const} */ ('practice') }),
+          kind,
+          ...(exam ? { startedAt: exam.startedAt } : {}),
         };
       })
       .sort(

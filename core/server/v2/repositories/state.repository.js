@@ -58,6 +58,10 @@ export class StateRepository {
     let value, observed;
     try {
       observed = identity(file);
+      if (scope === 'exam' && observed === null) {
+        this.evict(directory, scope);
+        return freezeJson(empty());
+      }
       if (
         cached !== undefined &&
         this.identities.has(file) &&

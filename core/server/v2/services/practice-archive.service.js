@@ -120,11 +120,12 @@ function prepare(library, snapshot, p) {
 export function archivePractice(library, snapshot, input, checkpoint = () => {}) {
   const previous = readJournal(snapshot.directory);
   const p = restartPaths(snapshot.directory, randomUUID(), scopeOf(snapshot));
+  /** @type {Omit<import('../types/restart.js').RestartJournal, 'phase'>} */
   const receipt = {
     requestKey: fingerprint(input.requestId, 'quizforge-v2-restart-request'),
     snapshotId: input.snapshotId,
     roundId: path.basename(p.round),
-    ...(snapshot.exam ? { scope: /** @type {const} */ ('exam') } : {}),
+    ...(snapshot.exam ? { scope: 'exam' } : {}),
     previous: previous
       ? {
           requestKey: previous.requestKey,

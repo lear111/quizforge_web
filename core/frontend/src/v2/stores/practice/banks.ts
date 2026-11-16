@@ -20,7 +20,7 @@ export function remember(ctx: PracticeSession, q: Question) {
   }
   const { lastQuestions } = ctx;
   const value = ctx.overview.value;
-  const key = value ? roundPositionKey(value) : q.bankId;
+  const key = value?.exam && value.bank.bankId === q.bankId ? roundPositionKey(value) : q.bankId;
   lastQuestions.value.delete(key);
   lastQuestions.value.set(key, q.questionId);
   while (lastQuestions.value.size > 8) {
