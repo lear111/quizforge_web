@@ -12,6 +12,7 @@ const ids = computed(
   () => overview.value?.outline.flatMap((group) => group.items.map((q) => q.id)) ?? [],
 );
 const index = computed(() => ids.value.indexOf(current.value?.questionId ?? ''));
+const examInProgress = computed(() => Boolean(overview.value?.exam && !overview.value.completedAt));
 const last = computed(() => index.value === ids.value.length - 1);
 function previous() {
   if (index.value > 0) {
@@ -19,9 +20,9 @@ function previous() {
   }
 }
 function next() {
-  if (last.value) {
+  if (last.value && !examInProgress.value) {
     void navigation.showSummary();
-  } else if (index.value >= 0) {
+  } else if (!last.value && index.value >= 0) {
     void navigation.navigate(ids.value[index.value + 1]);
   }
 }
@@ -43,9 +44,9 @@ function next() {
     </button>
     <button
       class="v2-side-nav next"
-      :aria-label="last ? '分数汇总' : '下一题'"
-      :title="last ? '分数汇总' : '下一题'"
-      :disabled="busy || recovering || index < 0"
+      :aria-label="last && !examInProgress ? '分数汇总' : '下一题'"
+      :title="last && !examInProgress ? '分数汇总' : '下一题'"
+      :disabled="busy || recovering || index < 0 || (last && examInProgress)"
       @click="next"
     >
       <WorkspaceIcon name="next" />

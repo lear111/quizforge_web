@@ -56,7 +56,12 @@ async function loadLocation(to: RouteLocationNormalized, practice: Practice, ui:
   if (practice.overview?.bank.bankId !== bankId) {
     return;
   }
-  if (to.name === 'practice' && (!questionId || practice.current?.questionId === questionId)) {
+  if (practice.overview.exam && !practice.overview.completedAt) {
+    ui.scoreView = false;
+  } else if (
+    to.name === 'practice' &&
+    (!questionId || practice.current?.questionId === questionId)
+  ) {
     ui.scoreView = false;
   } else if (to.name === 'summary') {
     ui.scoreView = true;
@@ -210,7 +215,7 @@ class WorkspaceNavigation {
   };
   showSummary = () => {
     const bankId = this.practice.overview?.bank.bankId;
-    return bankId
+    return bankId && !(this.practice.overview?.exam && !this.practice.overview.completedAt)
       ? this.push(historyLocation(this.practice, true) ?? { name: 'summary', params: { bankId } })
       : Promise.resolve();
   };

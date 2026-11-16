@@ -32,7 +32,15 @@ export class HistoryRounds {
     return roundIds(this.library, bankId)
       .map((roundId) => {
         const round = readRound(this.library, bankId, roundId);
-        return { roundId, completedAt: round.state.completedAt, ...historyTotal(round) };
+        const exam = round.state.exam;
+        return {
+          roundId,
+          completedAt: round.state.completedAt,
+          ...historyTotal(round),
+          ...(exam
+            ? { kind: /** @type {const} */ ('exam'), startedAt: exam.startedAt }
+            : { kind: /** @type {const} */ ('practice') }),
+        };
       })
       .sort(
         (a, b) =>
@@ -84,6 +92,7 @@ export class HistoryRounds {
     return {
       readOnly: true,
       roundId,
+      exam: null,
       bank: cloneJson(round.info),
       snapshotId: snapshot.snapshotId,
       completedAt: round.state.completedAt,

@@ -8,6 +8,7 @@ import { useWorkspaceNavigation } from '../router/injection';
 const props = defineProps<{ nonce: string; visible: boolean }>();
 const practice = usePracticeStore();
 const { current, overview, typeName, saveStatus, recovering } = storeToRefs(practice);
+const { examRemaining } = storeToRefs(practice);
 const { busy } = storeToRefs(useUiStore());
 const { retrySave } = practice;
 const navigation = useWorkspaceNavigation();
@@ -62,7 +63,7 @@ onBeforeUnmount(practice.detachView);
           <div
             ref="container"
             class="v2-question-frame"
-            :inert="busy || recovering"
+            :inert="busy || recovering || examRemaining === 0"
           ></div>
           <div class="v2-answer-footer">
             <span

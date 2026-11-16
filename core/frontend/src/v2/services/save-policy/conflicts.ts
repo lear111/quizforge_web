@@ -25,8 +25,13 @@ export function isSaveConflict(error: unknown): boolean {
   ] satisfies ApiErrorCode[];
   return conflicts.includes(value.code ?? '');
 }
-export const saveRecoveryMessage = (error: unknown) =>
-  (error as { status?: number; code?: string } | null)?.status === 413 ||
-  (error as { code?: string } | null)?.code === ('STATE_SIZE_LIMIT' satisfies ApiErrorCode)
-    ? '作答文件已达上限，本次输入未保存，已载入最新内容。'
-    : '本题已在别处修改，已载入最新内容';
+export function saveRecoveryMessage(error: unknown) {
+  const value = error as { status?: number; code?: ApiErrorCode } | null;
+  if (value?.code === 'EXAM_ENDED') {
+    return '考试时间已到，最后一次输入未保存。';
+  }
+  if (value?.status === 413 || value?.code === 'STATE_SIZE_LIMIT') {
+    return '作答文件已达上限，本次输入未保存，已载入最新内容。';
+  }
+  return '本题已在别处修改，已载入最新内容';
+}

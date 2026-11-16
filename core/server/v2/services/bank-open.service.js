@@ -16,6 +16,7 @@ import { relativeFile } from '../repositories/resource.repository.js';
 import { readBank, validId } from '../repositories/bank.repository.js';
 import { measureOverview } from '../utils/timing.js';
 import { optionalProperty } from '../utils/properties.js';
+import { activeExam, examNow } from './exam.service.js';
 import { recoverRestart } from '../repositories/restart-journal.repository.js';
 /**
  * @param {LibrarySnapshots} library
@@ -43,13 +44,15 @@ function resolveTypes(library, bank, rebuild) {
  * @param {Map<string, Resolution>} resolutions
  * @param {Map<string, SdkEntry>} sdk
  * @param {string | null} practiceEpoch
+ * @param {Snapshot['exam']} exam
  */
-function snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch) {
+function snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch, exam) {
   const snapshotId = measureOverview('snapshot-id', () =>
     fingerprint(
       {
         bankId,
         ...(practiceEpoch ? { practiceEpoch } : {}),
+        ...(exam ? { exam } : {}),
         tree,
         types: [...resolutions].map(([id, value]) => [
           id,
@@ -109,13 +112,15 @@ export function readSnapshot(library, location, bankId, rebuild) {
   );
 
   const { resolutions, sdk } = resolveTypes(library, bank, rebuild);
-  const snapshotId = snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch);
+  const exam = activeExam(library.stateStore, location.directory);
+  const snapshotId = snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch, exam);
   const contentFingerprint = contentIdentity(library, location, resolutions);
   const snapshot = {
     ...bank,
     ...location,
     snapshotId,
     practiceEpoch,
+    ...(exam ? { exam } : {}),
     contentFingerprint,
     resolutions,
     sdk,
@@ -132,23 +137,22 @@ export function readSnapshot(library, location, bankId, rebuild) {
 export function overviewResponse(
   library,
   snapshot,
-  { requestedQuestionId, lastQuestionId, includeInitial, refresh, previous },
+  {
+    requestedQuestionId,
+    lastQuestionId,
+    includeInitial,
+    refresh,
+    previous,
+    activeRoundInterrupted,
+  },
 ) {
   const { bankId, snapshotId, activeCleared } = snapshot;
   const bank = snapshot;
   const questionId = requestedQuestionId ?? lastQuestionId ?? bank.items.keys().next().value;
-  /** @type {QuestionCandidate<QuestionReadResponse>} */
-  let initial = { question: null, error: null };
-  if (includeInitial && questionId !== undefined) {
-    try {
-      initial.question = library.question(bankId, questionId, snapshotId);
-    } catch (error) {
-      initial.error = publicError(error);
-    }
-  }
   return {
     bank: cloneJson(bank.info),
     snapshotId,
+    exam: examClock(library, snapshot),
     outline: cloneJson(bank.raw.outline),
     listening: [...bank.listening.values()].map(({ id, title }) => ({ id, title })),
     questionTypes: [...bank.items.keys()].map((id) => {
@@ -160,7 +164,7 @@ export function overviewResponse(
     }),
     ...library.completion(snapshot),
     lastQuestionId,
-    initial,
+    initial: initialCandidate(library, bankId, snapshotId, includeInitial ? questionId : undefined),
     activeCleared,
     notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
     pendingGrading: includeInitial ? library.pendingGrading(snapshot) : [],
@@ -172,11 +176,33 @@ export function overviewResponse(
             removedQuestionIds: previous
               ? [...previous.items.keys()].filter((id) => !bank.items.has(id))
               : [],
-            activeRoundInterrupted: false,
+            activeRoundInterrupted,
           },
         }
       : {}),
   };
+}
+
+/** @param {LibrarySnapshots} library @param {Snapshot} snapshot */
+function examClock(library, snapshot) {
+  return snapshot.exam && library.stateStore
+    ? { ...snapshot.exam, now: examNow(library.stateStore) }
+    : null;
+}
+
+/** @param {LibrarySnapshots} library @param {string} bankId @param {string} snapshotId
+ * @param {string | undefined} questionId */
+function initialCandidate(library, bankId, snapshotId, questionId) {
+  /** @type {QuestionCandidate<QuestionReadResponse>} */
+  let initial = { question: null, error: null };
+  if (questionId !== undefined) {
+    try {
+      initial.question = library.question(bankId, questionId, snapshotId);
+    } catch (error) {
+      initial.error = publicError(error);
+    }
+  }
+  return initial;
 }
 
 /**

@@ -8,6 +8,7 @@ export function buildV2Outline(
   groups: OutlineGroup[],
   states: State[],
   currentId?: string,
+  examInProgress = false,
 ): OutlineModel {
   const byId = new Map(states.map((state) => [state.questionId, state.status]));
   return {
@@ -19,13 +20,14 @@ export function buildV2Outline(
       buttons: group.items.flatMap((item) => {
         const outline = byId.get(item.id);
         return (item.parts ?? [{ id: null, label: item.label ?? item.id }]).map((part) => {
-          const status =
+          const reported =
             (part.id === null
               ? typeof outline === 'string' && outline
               : outline &&
                 typeof outline === 'object' &&
                 Object.hasOwn(outline, part.id) &&
                 outline[part.id]) || 'unanswered';
+          const status = examInProgress && reported !== 'unanswered' ? 'answered' : reported;
           const label = OUTLINE_LABELS[status];
           return {
             key: `${item.id}:${part.id}`,

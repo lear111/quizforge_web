@@ -18,12 +18,17 @@ export interface QuestionState {
   receipts: Receipt[];
 }
 /** Empty records omit the optional keys; opening alone does not create a file. */
+export interface ExamTimes {
+  startedAt: string;
+  endsAt: string;
+}
 export interface StateFile {
   formatVersion: 2;
   contentFingerprint?: string;
   lastQuestionId?: string | null;
   completedAt?: string | null;
   questions: Record<string, QuestionState>;
+  exam?: ExamTimes;
 }
 export interface InkFile {
   ink: unknown;

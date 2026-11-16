@@ -105,7 +105,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 
 历史 ink 仅写 `.qf-v2/rounds/{roundId}/ink/{contentFingerprint}/{SHA256(questionId)}.json`；不改归档 bank/state/extensions、当前 practice/state 或 practice/ink，也不读写 restart.json。快照不符为 409 SNAPSHOT_STALE，笔迹版本不符为 409 REVISION_CONFLICT，同 requestId 不同请求为 REQUEST_CONFLICT；缺字段为 400 INVALID_REQUEST，超限 413 STATE_SIZE_LIMIT，写失败 503 STATE_WRITE_FAILED。历史读取不迁移旧笔迹，损坏时保留原文件。
 
-## 第 4 段接口：考试（已定稿，未实现）
+## 第 4 段接口：考试（已实现）
 
 设计依据：D24、D49–D52，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.4 节。
 
@@ -113,7 +113,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 
 | 接口 | 请求 | 成功返回 | 主要错误 |
 |---|---|---|---|
-| POST `B/exam` | `requestId`、`snapshotId`、`durationMinutes`（正整数） | 考试的概览，同 `B/overview` | 快照过期；已有考试 409 `EXAM_EXISTS`；时长不合格 |
+| POST `B/exam` | `requestId`、`snapshotId`、`durationMinutes`（正整数） | 考试的概览，同 `B/overview` | 已有考试 409 `EXAM_EXISTS`；快照过期 409 `SNAPSHOT_STALE`；时长不合格 400 `INVALID_REQUEST` |
 
 效果：建立 `.qf-v2/exam/state.json`，写入 `exam: { startedAt, endsAt }`。练习的文件不动。
 
@@ -122,9 +122,9 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 | 接口 | 变化 |
 |---|---|
 | GET `B/overview` | 多返回 `exam: { startedAt, endsAt, now }`，`now` 为后端当前时间，供页面校准倒计时；练习时为 `null` |
-| PUT `Q/answer` | 过了 `endsAt` 加 5 秒后拒绝，409 `EXAM_ENDED` |
+| PUT `Q/answer` | 到 `endsAt` 加 5 秒时（含边界）拒绝，409 `EXAM_ENDED` |
 | POST `Q/submit`、POST `Q/retry` | 交卷前一律拒绝，409 `EXAM_IN_PROGRESS` |
-| GET `Q` | 交卷前不返回 `solution` 和 `result`（本来也不会有） |
+| GET `Q` | 交卷前 `solution`、`result` 均为 `null`，不提供仅由解析引用的素材；到点后显示为锁定 |
 | PUT `Q/ink` | 不变，过期和交卷后仍可写 |
 | POST `B/finish`、PUT `B/results` | 就是交卷和上报评分。提前交、到点交、过期后补交都用它，过期不拒绝 |
 | POST `B/restart` | 归档考试：生成一轮历史，删除 `exam/`，返回练习的概览 |
@@ -132,7 +132,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 
 开始考试和归档考试都会更换 `snapshotId`。别的标签页里停在另一种状态的页面，下一次写入会收到 `SNAPSHOT_STALE` 并重新载入，不会写到错的那一轮上。
 
-过期但未交卷时，概览里 `completedAt` 为空而 `exam.now` 已超过 `exam.endsAt`。页面据此直接调用 `B/finish`，再按现有流程补评分。后端不主动改文件（D51）。
+过期但未交卷时，概览里 `completedAt` 为空且 `exam.now >= exam.endsAt`。宿主锁住答案输入，等待已有保存队列和白板 flush 后调用 `B/finish`，再按原流程补评分。交卷失败保留原页面，可以重试；已交卷但未完成评分时下次打开恢复评分。后端不主动交卷或改文件（D51）。
 
 ## 第 5 段接口：作答文件（已定稿，未实现）
 

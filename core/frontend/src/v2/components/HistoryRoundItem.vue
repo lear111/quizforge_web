@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { HistoryRoundSummary } from '../../../../shared/v2/api.js';
+import { formatDuration } from './duration';
 import WorkspaceIcon from './WorkspaceIcon.vue';
 
 const props = defineProps<{ round: HistoryRoundSummary; viewing: boolean; deleting: boolean }>();
 const emit = defineEmits<{ select: [id: string]; remove: [id: string] }>();
 const date = computed(() => new Date(props.round.completedAt).toLocaleString());
+const duration = computed(() => {
+  const { startedAt, completedAt, kind } = props.round;
+  return kind === 'exam' && startedAt
+    ? formatDuration(
+        Math.max(0, Math.floor((Date.parse(completedAt) - Date.parse(startedAt)) / 1000)),
+      )
+    : null;
+});
 const score = computed(() => `${props.round.score} / ${props.round.maxScore} 分`);
 
 function confirmRemoval() {
@@ -23,6 +32,7 @@ function confirmRemoval() {
       @click="emit('select', round.roundId)"
     >
       <time :datetime="round.completedAt">{{ date }}</time>
+      <span v-if="duration">考试 · 用时 {{ duration }}</span>
       <span>{{ score }}</span>
     </button>
     <button

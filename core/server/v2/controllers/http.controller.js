@@ -79,6 +79,9 @@ function bankHandlers(server, library) {
     finish: roundWrite('finish'),
     results: roundWrite('results'),
     restart: roundWrite('restart'),
+    exam(request, response) {
+      json(response, 200, library.startExam(request.params.bankId, response.locals.input));
+    },
     ...questionWrites(library),
   };
 }

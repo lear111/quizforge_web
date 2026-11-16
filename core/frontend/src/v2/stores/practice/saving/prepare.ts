@@ -32,9 +32,17 @@ export function prepareDraft(
 ) {
   const { answer, ink } = prepareStages(ctx, mine, snapshot);
   let answerDone = false;
+  let lateAnswer: unknown;
   return async () => {
     if (!answerDone) {
-      await answer();
+      try {
+        await answer();
+      } catch (error) {
+        if ((error as { code?: string } | null)?.code !== 'EXAM_ENDED') {
+          throw error;
+        }
+        lateAnswer = error;
+      }
       answerDone = true;
     }
     if (needsRepaint(ctx, mine, instance, snapshot.av)) {
@@ -51,5 +59,8 @@ export function prepareDraft(
       }
     }
     await ink();
+    if (lateAnswer) {
+      throw lateAnswer;
+    }
   };
 }

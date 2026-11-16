@@ -1,6 +1,7 @@
 import type { ApiErrorCode } from '../../../../../shared/v2/api.js';
 import { isSaveConflict, saveRecoveryMessage } from '../../services/save-policy';
 import type { Overview, Question } from '../../types/practice-types';
+import { examScopeChanged } from './banks';
 import type { PracticeSession } from '../../types/practice-session';
 
 function isCurrent(ctx: PracticeSession, previous: Question) {
@@ -32,6 +33,10 @@ async function refreshedQuestion(ctx: PracticeSession, previous: Question, mine:
   if (mine !== ctx.runtime.generation) {
     return null;
   }
+  if (examScopeChanged(overview.value, value)) {
+    await replaceExamRound(ctx, value);
+    return null;
+  }
   overview.value = value;
   ctx.runtime.sources!.scope(previous.bankId, value.snapshotId, token.value);
   if (!value.states.some((state) => state.questionId === previous.questionId)) {
@@ -55,6 +60,15 @@ async function refreshedQuestion(ctx: PracticeSession, previous: Question, mine:
     message.value = '本题暂时不可用，本地未保存内容已放弃，请选择其他题目。';
     return null;
   }
+}
+
+async function replaceExamRound(ctx: PracticeSession, value: Overview) {
+  ctx.actions().clearQuestion(true);
+  ctx.overview.value = value;
+  if (value.initial.question) {
+    await ctx.actions().show(value.initial.question, false);
+  }
+  ctx.message.value = '考试或练习轮次已变化，已载入当前轮次。';
 }
 
 async function latestQuestion(ctx: PracticeSession, previous: Question, mine: number) {

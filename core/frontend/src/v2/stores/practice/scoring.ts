@@ -72,6 +72,7 @@ export async function submit(ctx: PracticeSession) {
     overview.value?.readOnly ||
     !ctx.runtime.page ||
     current.value.state.locked ||
+    overview.value?.exam ||
     overview.value?.completedAt
   ) {
     return;
@@ -104,6 +105,7 @@ export async function retry(ctx: PracticeSession) {
     !current.value ||
     current.value.readOnly ||
     overview.value?.readOnly ||
+    overview.value?.exam ||
     overview.value?.completedAt
   ) {
     return;
@@ -135,6 +137,9 @@ export async function recoverPending(ctx: PracticeSession, value: Overview) {
     } catch (error) {
       message.value = error instanceof Error ? error.message : '部分题目暂未完成评分，请稍后重试。';
     }
+    return;
+  }
+  if (value.exam) {
     return;
   }
   await recoverGrades(

@@ -19,6 +19,7 @@ const buttons = computed(() => outlineModel.value.groups.flatMap((group) => grou
 const answered = computed(
   () => buttons.value.filter((button) => button.status !== 'unanswered').length,
 );
+const examInProgress = computed(() => Boolean(overview.value?.exam && !overview.value.completedAt));
 const legend = [
   ['answered', '已作答'],
   ['correct', '正确'],
@@ -49,7 +50,7 @@ const legend = [
         @navigate="navigation.navigate"
       />
       <button
-        v-if="overview"
+        v-if="overview && !examInProgress"
         class="v2-summary-entry"
         :class="{ active: scoreView }"
         :aria-current="scoreView ? 'page' : undefined"
@@ -61,7 +62,7 @@ const legend = [
     </div>
     <footer class="v2-legend">
       <span
-        v-for="[status, label] in legend"
+        v-for="[status, label] in examInProgress ? legend.slice(0, 1) : legend"
         :key="status"
       >
         <i

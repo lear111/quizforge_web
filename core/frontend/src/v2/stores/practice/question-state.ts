@@ -23,16 +23,18 @@ export function update(ctx: PracticeSession, q: Question, preserveStatus = false
 export function context(ctx: PracticeSession, question: Question) {
   const { overview } = ctx;
   const q = toRaw(question);
+  const examInProgress = Boolean(overview.value?.exam && !overview.value.completedAt);
+  const canAct = !q.readOnly && !overview.value?.completedAt && !examInProgress;
   return {
     question: q.question,
     answer: q.answer,
-    solution: q.solution,
-    result: q.result,
+    solution: examInProgress ? null : q.solution,
+    result: examInProgress ? null : q.result,
     item: q.item,
-    locked: q.readOnly || q.state.locked,
+    locked: q.readOnly || q.state.locked || (examInProgress && ctx.examExpired()),
     can: {
-      submit: !q.readOnly && !q.state.locked && !overview.value?.completedAt,
-      retry: !q.readOnly && q.state.hasSavedAnswer && !overview.value?.completedAt,
+      submit: canAct && !q.state.locked,
+      retry: canAct && q.state.hasSavedAnswer,
     },
     appearance: { theme: 'light' as const },
   };

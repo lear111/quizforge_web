@@ -24,6 +24,7 @@ import { measureOverview } from '../utils/timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 import { optionalProperty } from '../utils/properties.js';
 import { restartPractice } from './practice-archive.service.js';
+import { clearExam, startExam } from './exam.service.js';
 import { HistoryRounds } from './history.service.js';
 
 export const OPEN_BANK_LIMIT = 8;
@@ -99,24 +100,15 @@ export class LibrarySnapshots {
     if (!location) {
       throw problem('BANK_NOT_FOUND', '题库不存在，请刷新题库列表。', { bankId }, 404);
     }
-    const snapshot = readSnapshot(this, location, bankId, rebuild);
+    let snapshot = readSnapshot(this, location, bankId, rebuild);
     const initialQuestionId = startingQuestion(snapshot, requestedQuestionId, refresh);
-    let activeCleared;
-    try {
-      activeCleared = measureOverview(
-        'state-check',
-        () => this.stateStore?.reconcile(snapshot) ?? false,
-      );
-    } catch (error) {
-      if (!previous) {
-        this.stateStore?.evict(location.directory);
-      }
-      throw error;
-    }
+    const prepared = this.prepareOpen(snapshot, location, rebuild, previous);
+    const { activeCleared, activeRoundInterrupted } = prepared;
+    snapshot = prepared.snapshot;
     const activeSnapshot = Object.assign(snapshot, { activeCleared });
     const savedPosition = measureOverview(
       'state-check',
-      () => this.stateStore?.load(location.directory).lastQuestionId,
+      () => this.stateStore?.loadRound(snapshot).lastQuestionId,
     );
     const lastQuestionId =
       typeof savedPosition === 'string' && snapshot.items.has(savedPosition) ? savedPosition : null;
@@ -129,6 +121,7 @@ export class LibrarySnapshots {
         includeInitial,
         refresh,
         previous,
+        activeRoundInterrupted,
       });
     });
   }
@@ -188,6 +181,49 @@ export class LibrarySnapshots {
     this.opened.set(bankId, value);
     return value;
   }
+  /** @param {Snapshot} snapshot @param {import('../types/data.js').BankLocation} location
+   * @param {boolean} rebuild @param {Snapshot | undefined} previous */
+  prepareOpen(snapshot, location, rebuild, previous) {
+    let activeCleared;
+    let activeRoundInterrupted;
+    try {
+      activeRoundInterrupted = this.reconcileExam(snapshot);
+      if (activeRoundInterrupted) {
+        snapshot = readSnapshot(this, location, snapshot.bankId, rebuild);
+      }
+      activeCleared =
+        measureOverview(
+          'state-check',
+          () =>
+            (snapshot.exam
+              ? this.stateStore?.ink.open(snapshot)
+              : this.stateStore?.reconcile(snapshot)) ?? false,
+        ) || activeRoundInterrupted;
+    } catch (error) {
+      if (!previous) {
+        this.stateStore?.evict(location.directory);
+      }
+      throw error;
+    }
+    return { snapshot, activeCleared, activeRoundInterrupted };
+  }
+  /** @param {Snapshot} snapshot */
+  reconcileExam(snapshot) {
+    const store = this.stateStore;
+    if (
+      !snapshot.exam ||
+      !store ||
+      store.loadRound(snapshot).contentFingerprint === snapshot.contentFingerprint
+    ) {
+      return false;
+    }
+    clearExam(store, snapshot.directory);
+    return true;
+  }
+  /** @this {PracticeLibrary} @param {string} bankId @param {unknown} input */
+  startExam(bankId, input) {
+    return startExam(this, bankId, input);
+  }
   /** @this {PracticeLibrary} @param {string} bankId @param {unknown} input */
   restart(bankId, input) {
     return restartPractice(this, bankId, input);
@@ -210,6 +246,9 @@ export class LibrarySnapshots {
    * @returns {QuestionCandidate[]}
    */
   pendingGrading(snapshot, { includeInk = true } = {}) {
+    if (snapshot.exam && !this.stateStore?.loadRound(snapshot).completedAt) {
+      return [];
+    }
     return [...snapshot.items.keys()]
       .filter((id) => {
         const store = this.stateStore;
@@ -235,7 +274,7 @@ export class LibrarySnapshots {
    */
   completion(snapshot) {
     return {
-      completedAt: this.stateStore?.load(snapshot.directory).completedAt ?? null,
+      completedAt: this.stateStore?.loadRound(snapshot).completedAt ?? null,
       total: this.stateStore
         ? this.stateStore.total(snapshot)
         : { score: 0, maxScore: decimalSum([...snapshot.maxScores.values()]) },

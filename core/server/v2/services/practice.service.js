@@ -16,6 +16,7 @@ import { PracticeInk } from '../repositories/ink.repository.js';
 import { StateRepository } from '../repositories/state.repository.js';
 import { clearLegacyPractice } from '../repositories/legacy-practice.repository.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
+import { scopeOf } from '../utils/round.js';
 import { optionalProperty } from '../utils/properties.js';
 export { validateResult } from './practice-result.service.js';
 export { STATE_BYTES } from '../utils/limits.js';
@@ -71,9 +72,15 @@ export class PracticeState {
   commit(directory, value) {
     return this.records.commit(directory, value);
   }
-  /**
-   * @param {Snapshot} snapshot
-   */
+  /** @param {Snapshot} snapshot @param {{refresh?: boolean}} [options] */
+  loadRound(snapshot, options = {}) {
+    return this.records.load(snapshot.directory, { ...options, scope: scopeOf(snapshot) });
+  }
+  /** @param {Snapshot} snapshot @param {LoadedState} state */
+  commitRound(snapshot, state) {
+    return this.records.commit(snapshot.directory, state, scopeOf(snapshot));
+  }
+  /** @param {Snapshot} snapshot */
   reconcile(snapshot) {
     clearLegacyPractice(snapshot.directory);
     const old = this.load(snapshot.directory, { refresh: true });
@@ -97,6 +104,7 @@ export class PracticeState {
    */
   evict(directory) {
     this.records.evict(directory);
+    this.records.evict(directory, 'exam');
     this.ink.evict(directory);
   }
   /**
@@ -104,7 +112,7 @@ export class PracticeState {
    * @param {string} id @returns {QuestionState}
    */
   get(snapshot, id) {
-    const root = this.load(snapshot.directory);
+    const root = this.loadRound(snapshot);
     if (own(root, 'historyIndex')) {
       throw invalid();
     }
@@ -140,7 +148,7 @@ export class PracticeState {
    * @param {Snapshot} snapshot
    * @param {LoadedState} [root]
    */
-  total(snapshot, root = this.load(snapshot.directory)) {
+  total(snapshot, root = this.loadRound(snapshot)) {
     try {
       return {
         score: decimalSum(

@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore, storeToRefs } from 'pinia';
+import { createExamClock } from '../services/exam-clock';
 import { createApi } from '../api';
 import { buildV2Outline } from '../services/outline';
 import { useUiStore } from './ui';
@@ -28,10 +29,12 @@ export const usePracticeStore = defineStore('v2-practice', () => {
       actions.resetSources();
     },
   });
+  const examClock = createExamClock(state.overview);
   const session: PracticeSession = {
     ...uiRefs,
     ...state,
     api,
+    examExpired: examClock.expired,
     run: ui.run,
     catalogStore: useCatalogStore(),
     runtime: createRuntime(),
@@ -43,7 +46,8 @@ export const usePracticeStore = defineStore('v2-practice', () => {
       state.overview.value?.outline ?? [],
       state.overview.value?.states ?? [],
       ui.scoreView ? undefined : state.current.value?.questionId,
+      Boolean(state.overview.value?.exam && !state.overview.value.completedAt),
     ),
   );
-  return { ...state, outlineModel, ...viewActions(actions) };
+  return { ...state, outlineModel, examRemaining: examClock.remaining, ...viewActions(actions) };
 });

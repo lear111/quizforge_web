@@ -10,7 +10,7 @@
 | 2 · 多题型、自动保存、白板与刷新 | 已完成，负责人 2026-11-13 试用确认 | [#69](https://github.com/lear111/quizforge_web/pull/69)、[#73](https://github.com/lear111/quizforge_web/pull/73)、[#76](https://github.com/lear111/quizforge_web/pull/76)、[#83](https://github.com/lear111/quizforge_web/pull/83)、[#85](https://github.com/lear111/quizforge_web/pull/85)、[#91](https://github.com/lear111/quizforge_web/pull/91) | [记录](reviews/V2-SEG2-DESIGN.md)、[记录](reviews/V2-SEG2-BASIC.md) |
 | 2.5 · V1 清点与切库测量 | 已审查合并；后续旧链清理留第 7 段 | [#98](https://github.com/lear111/quizforge_web/pull/98)、[#101](https://github.com/lear111/quizforge_web/pull/101)、[#102](https://github.com/lear111/quizforge_web/pull/102)、[#108](https://github.com/lear111/quizforge_web/pull/108)、[#109](https://github.com/lear111/quizforge_web/pull/109) | [记录](reviews/V2-SEG2-5-V1-INVENTORY.md)、[记录](reviews/V2-SEG2-5-BANK-RETURN.md)、[记录](reviews/V2-SEG2-5-V1-RETIREMENT.md) |
 | 3 · 完成练习、汇总、历史 | 完成与汇总已试用确认；归档已审查合并；历史列表、只读回看与宿主白板编辑已实现，待审查 | [#107](https://github.com/lear111/quizforge_web/pull/107)、[#110](https://github.com/lear111/quizforge_web/pull/110)、[#112](https://github.com/lear111/quizforge_web/pull/112)、[#180](https://github.com/lear111/quizforge_web/pull/180)、[#182](https://github.com/lear111/quizforge_web/pull/182) | [记录](reviews/V2-SEG3-KICKOFF.md)、[记录](reviews/V2-SEG3-WORKSPACE.md)、[记录](reviews/V2-SEG3-FINISH.md)、[归档](reviews/V2-J-RESTART.md)、[回看](reviews/V2-J-HISTORY-REPLAY.md) |
-| 4 · 考试 | 设计定稿，尚未实现（K） | — | [记录](reviews/V2-K-EXAM.md) |
+| 4 · 考试 | 已实现，待审查与负责人试用（K） | — | [记录](reviews/V2-K-EXAM.md) |
 | 5 · 简答、AI/人工评分与设置 | 尚未开始；已确认边界保留，复杂答题区后续单独设计 | [#153](https://github.com/lear111/quizforge_web/pull/153)（仅文档） | [记录](reviews/V2-SEG5-REQUIREMENTS.md) |
 | 6 · 导入导出、Hub、编辑器与开发模式 | 尚未开始 | — | [记录](reviews/V2-SEG6-REQUIREMENTS.md) |
 | 7 · 删除旧代码、打包与性能复测 | 尚未开始 | — | [记录](reviews/V2-SEG7-REQUIREMENTS.md) |
@@ -38,5 +38,5 @@
 | G · 测试与文档整理 | 已审查合并（CI 五项通过，`b32e4bf`） | [#172](https://github.com/lear111/quizforge_web/pull/172) | [记录](reviews/V2-G-ENGINEERING.md) |
 | H · 长度规则强制 | 已审查合并，CI 五项通过；两处精确浏览器闭包例外已批准（`b3f7c16`） | [#174](https://github.com/lear111/quizforge_web/pull/174) | [记录](reviews/V2-H-LENGTH-POLICY.md) |
 | J · 归档与历史 | 前置测量及 D50 已审查合并；练习归档与「再练一次」已审查合并（`355549b`，CI 五项通过）；历史列表、只读回看及历史宿主白板编辑已审查合并（`a4d968e`，CI 五项通过）；单轮删除已审查合并（`f677706`，CI 五项通过） | [#176](https://github.com/lear111/quizforge_web/pull/176)、[#178](https://github.com/lear111/quizforge_web/pull/178)、[#180](https://github.com/lear111/quizforge_web/pull/180)、[#182](https://github.com/lear111/quizforge_web/pull/182)、[#184](https://github.com/lear111/quizforge_web/pull/184) | [测量](reviews/V2-J-HISTORY.md)、[D50 实施](reviews/V2-J-PRACTICE-STORAGE.md)、[归档实施](reviews/V2-J-RESTART.md)、[只读回看](reviews/V2-J-HISTORY-REPLAY.md)、[单轮删除](reviews/V2-J-HISTORY-DELETE.md) |
-| K · 考试（D49–D52） | 尚未开始 | — | [记录](reviews/V2-K-EXAM.md) |
+| K · 考试（D49–D52） | 已实现，待审查与负责人试用 | — | [记录](reviews/V2-K-EXAM.md) |
 | L · 受限 HTML 富文本（D54） | 尚未开始，先提交设计说明 | — | [记录](reviews/V2-L-RICHTEXT.md) |

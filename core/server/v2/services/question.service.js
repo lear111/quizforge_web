@@ -16,6 +16,7 @@ import { questionRecord } from '../repositories/bank.repository.js';
 import { relativePath } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { measureOverview } from '../utils/timing.js';
+import { examAnswerClosed } from './exam.service.js';
 import { optionalProperty } from '../utils/properties.js';
 /**
  * @param {LibrarySnapshots} library
@@ -61,7 +62,7 @@ export function visibleAssets(
   snapshot,
   id,
   record,
-  includeSolution = Boolean(library.stateStore?.get(snapshot, id).submissionId),
+  includeSolution = mayReveal(library, snapshot, id),
 ) {
   const /** @type {Map<string, {reference: string, file: string, relative: string}>} */ assets =
       new Map();
@@ -125,9 +126,15 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
   const snapshot = library.snapshot(bankId, snapshotId);
   try {
     const record = questionRecord(snapshot, id),
-      artifact = library.resolution(snapshot, record),
-      assets = library.visibleAssets(snapshot, id, record);
-    const saved = library.stateStore?.get(snapshot, id);
+      artifact = library.resolution(snapshot, record);
+    const store = library.stateStore;
+    const saved = store?.get(snapshot, id);
+    const reveal = mayReveal(library, snapshot, id);
+    const assets = library.visibleAssets(snapshot, id, record, reveal);
+    const state = library.state(snapshot, id);
+    if (store && snapshot.exam && examAnswerClosed(store, snapshot.exam)) {
+      state.locked = true;
+    }
     const ink = includeInk
       ? measureOverview(
           'ink-body',
@@ -142,12 +149,12 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
       extension: cloneJson(artifact.descriptor),
       item: cloneJson(/** @type {OutlineItem} */ (snapshot.items.get(id))),
       question: cloneJson(record.question),
-      solution: saved?.submissionId ? cloneJson(record.solution) : null,
+      solution: reveal ? cloneJson(record.solution) : null,
       answer: cloneJson(saved?.answer ?? null),
       ...(ink ? cloneJson(projectJson(ink, ['ink', 'inkRevision'])) : {}),
-      state: library.state(snapshot, id),
+      state,
       submissionId: saved?.submissionId ?? null,
-      result: cloneJson(saved?.result ?? null),
+      result: reveal ? cloneJson(saved?.result ?? null) : null,
       resources: [...assets].map(([assetId, { reference }]) => ({ assetId, reference })),
     };
   } catch (error) {
@@ -242,4 +249,13 @@ export function artifact(library, id) {
     }
   }
   throw problem('EXTENSION_NOT_FOUND', '拓展工件不存在，请重新打开题库。', {}, 404);
+}
+
+/** @param {LibrarySnapshots} library @param {Snapshot} snapshot @param {string} id */
+function mayReveal(library, snapshot, id) {
+  const store = library.stateStore;
+  return Boolean(
+    store?.get(snapshot, id).submissionId &&
+    (!snapshot.exam || store.loadRound(snapshot).completedAt),
+  );
 }

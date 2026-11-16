@@ -57,6 +57,7 @@ export type Handlers = Record<
   | 'finish'
   | 'results'
   | 'restart'
+  | 'exam'
   | 'rounds'
   | 'roundOverview'
   | 'roundQuestion'
@@ -81,4 +82,4 @@ export type Handlers = Record<
 export type QuestionOperation = 'answer' | 'ink' | 'result' | 'retry' | 'submit';
 export type QuestionHandlers = Pick<Handlers, QuestionOperation>;
 export type BankHandlers = QuestionHandlers &
-  Pick<Handlers, 'overview' | 'question' | 'refresh' | 'finish' | 'results' | 'restart'>;
+  Pick<Handlers, 'overview' | 'question' | 'refresh' | 'finish' | 'results' | 'restart' | 'exam'>;

@@ -4,7 +4,7 @@ import type {
   ExtensionDescriptor,
   ExtensionManifestResponse,
 } from '../../../shared/v2/api.js';
-import type { StateFile, QuestionState } from '../../../shared/v2/state.js';
+import type { ExamTimes, StateFile, QuestionState } from '../../../shared/v2/state.js';
 
 export interface BankLocation {
   directory: string;
@@ -51,8 +51,10 @@ export interface SdkEntry {
   digest: string;
   hashes: Map<string, string>;
 }
+export type RoundScope = 'practice' | 'exam';
 export interface Snapshot extends ReadBank, BankLocation {
   practiceEpoch: string | null;
+  exam?: ExamTimes;
   snapshotId: string;
   contentFingerprint: string;
   resolutions: Map<string, Resolution>;
@@ -64,6 +66,7 @@ export interface Snapshot extends ReadBank, BankLocation {
 export interface LegacyState extends Record<string, unknown> {
   formatVersion: 2;
   historyIndex: unknown[];
+  exam?: never;
   questions: Record<string, unknown>;
   completedAt?: string | null;
   contentFingerprint?: unknown;
@@ -102,6 +105,7 @@ export interface OverviewOptions {
   includeInitial: boolean;
   refresh: boolean;
   previous: Snapshot | undefined;
+  activeRoundInterrupted: boolean;
 }
 
 export type OpenedSnapshot = Snapshot & { activeCleared: boolean };
