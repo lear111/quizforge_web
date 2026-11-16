@@ -131,16 +131,16 @@ export function question(library, bankId, id, snapshotId, { includeInk = true } 
     const saved = store?.get(snapshot, id);
     const reveal = mayReveal(library, snapshot, id);
     const assets = library.visibleAssets(snapshot, id, record, reveal);
-    const state = library.state(snapshot, id);
-    if (store && snapshot.exam && examAnswerClosed(store, snapshot.exam)) {
-      state.locked = true;
-    }
     const ink = includeInk
       ? measureOverview(
           'ink-body',
           () => library.stateStore?.ink.read(snapshot, id) ?? { ink: null, inkRevision: 0 },
         )
       : null;
+    const state = library.state(snapshot, id);
+    if (store && snapshot.exam && examAnswerClosed(store, snapshot.exam)) {
+      state.locked = true;
+    }
     return {
       bankId,
       snapshotId: snapshot.snapshotId,

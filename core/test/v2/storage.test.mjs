@@ -311,6 +311,7 @@ test('D39 legacy ink-only files reset on access, but malformed current ink remai
   const opened = library.open(id);
   assert.equal(opened.initial.question.ink, null);
   assert.equal(opened.initial.question.inkRevision, 0);
+  assert.equal(opened.initial.question.state.hasInk, false);
   assert.equal(opened.states.find((row) => row.questionId === '1').hasInk, false);
   assert.equal(fs.existsSync(legacy), false);
   assert.throws(() => library.question(id, '3', opened.snapshotId), { code: 'STATE_INVALID' });
