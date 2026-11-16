@@ -46,7 +46,9 @@ test('J synthetic completed round is readable by existing state and ink reposito
     assert.ok(ink.read(snapshot, '1').ink.strokes.length > 0);
     assert.equal(ink.read(snapshot, '2').ink, null);
     assert.ok(
-      jsonBytes(loaded).equals(fs.readFileSync(path.join(fixture.directory, '.qf-v2/state.json'))),
+      jsonBytes(loaded).equals(
+        fs.readFileSync(path.join(fixture.directory, '.qf-v2/practice/state.json')),
+      ),
     );
     assert.deepEqual(sourceHashes(fixture), before);
   } finally {
@@ -74,9 +76,9 @@ test('J simulation has exclusive stages, exact copied bytes and never removes th
     assert.ok(Object.values(row).every((ms) => ms >= 0));
     const copied = sourceHashes({ directory: destination });
     assert.equal(Object.keys(copied).length, 2 + size.extensionFiles + size.inkFiles);
-    assert.equal(copied['state.json'], before[path.join('.qf-v2', 'state.json')]);
+    assert.equal(copied['state.json'], before[path.join('.qf-v2', 'practice', 'state.json')]);
     assert.deepEqual(sourceHashes(fixture), before);
-    assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/state.json')), true);
+    assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/practice/state.json')), true);
   } finally {
     temporary.cleanup();
   }

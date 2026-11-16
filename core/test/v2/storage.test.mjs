@@ -139,7 +139,7 @@ test('D27 exact bank bytes or any used extension file clear all active questions
     assert.equal(overview.notice, '题库或题型已变化，本轮作答已清空');
     assert.deepEqual(store.load(fixture.directory).questions, {});
     assert.equal(Object.hasOwn(store.load(fixture.directory), 'historyIndex'), false);
-    assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/ink')), false);
+    assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/practice/ink')), false);
     assert.equal(
       overview.states.some((s) => s.hasInk || s.hasSavedAnswer),
       false,
@@ -223,8 +223,8 @@ test('ink reading, saving and recursive clearing reject redirected private direc
   const outside = path.join(fixture.root, 'outside'),
     protectedFile = path.join(outside, 'keep.json');
   writeFixtureFile(protectedFile, 'protected synthetic content');
-  const local = path.join(fixture.directory, '.qf-v2');
-  fs.mkdirSync(local);
+  const local = path.join(fixture.directory, '.qf-v2/practice');
+  fs.mkdirSync(local, { recursive: true });
   fs.symlinkSync(
     outside,
     path.join(local, 'ink'),

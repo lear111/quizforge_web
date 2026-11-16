@@ -88,7 +88,10 @@ export function archiveSample(fixture, destination) {
 function verifyCopy(fixture, destination, expectedBytes) {
   assert.ok(fs.readFileSync(path.join(destination, 'state.json')).equals(jsonBytes(fixture.state)));
   for (const relative of ['bank.json', 'extensions', 'ink']) {
-    const from = path.join(fixture.directory, relative === 'ink' ? '.qf-v2/ink' : relative);
+    const from = path.join(
+      fixture.directory,
+      relative === 'ink' ? '.qf-v2/practice/ink' : relative,
+    );
     const sources = fs.statSync(from).isDirectory() ? filesUnder(from) : [from];
     for (const source of sources) {
       const target = path.join(destination, relative, path.relative(from, source));

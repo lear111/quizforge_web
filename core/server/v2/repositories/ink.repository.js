@@ -23,6 +23,7 @@ import { measureSave } from '../utils/timing.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
 import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
 import { integer } from '../utils/state.js';
+import { practiceDirectory } from './practice-directory.repository.js';
 
 const LIMIT = 32 * 1024 * 1024;
 /**
@@ -39,9 +40,7 @@ export class PracticeInk {
   }
   /** @param {Snapshot} snapshot */
   directory(snapshot) {
-    const base = checkPath(snapshot.directory, { directory: true }),
-      local = path.join(base, '.qf-v2');
-    checkedStat(local, { directory: true, optional: true });
+    const local = practiceDirectory(snapshot.directory);
     const ink = path.join(local, 'ink');
     checkedStat(ink, { directory: true, optional: true });
     return ink;

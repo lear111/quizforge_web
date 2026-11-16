@@ -298,7 +298,7 @@ test('D19 bank-local records follow rename and movement; copied banks retain pro
   const locked = await submit();
   await result(locked.value);
   const stateFile = server.library.stateStore.file(directory);
-  assert.equal(stateFile, path.join(directory, '.qf-v2', 'state.json'));
+  assert.equal(stateFile, path.join(directory, '.qf-v2', 'practice', 'state.json'));
   const bytes = fs.readFileSync(stateFile);
   assert.equal(Object.hasOwn(JSON.parse(bytes), 'bankId'), false);
   const renamed = path.join(path.dirname(directory), 'renamed');
@@ -354,7 +354,13 @@ test('D19 private records are excluded from fingerprints, file limits, question 
   const before = treeDigest(directory, newCache());
   writeFixtureFile(path.join(local, 'not-json'), '{broken');
   assert.equal(treeDigest(directory, newCache()), before);
-  for (const relative of ['.qf-v2/state.json', '.QF-V2/state.json', 'assets/.qf-v2/secret']) {
+  for (const relative of [
+    '.qf-v2/state.json',
+    '.QF-V2/state.json',
+    'assets/.qf-v2/secret',
+    '.qf-v2/practice/state.json',
+    '.QF-V2/practice/ink/secret',
+  ]) {
     assert.throws(
       () => relativeFile(directory, relative),
       (error) => error.code === 'ASSET_PATH_INVALID',

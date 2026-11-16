@@ -1,6 +1,6 @@
 /** @typedef {import('../types/data.js').LoadedState} LoadedState */
 import path from 'node:path';
-import { readBytes, replaceFile, checkPath, checkedStat } from '../../host/platform/files.js';
+import { readBytes, replaceFile, checkedStat } from '../../host/platform/files.js';
 import { freezeJson, jsonBytes, parseJson } from '../../host/platform/json.js';
 import { problem } from '../utils/errors.js';
 import { invalid, empty } from '../utils/state.js';
@@ -8,6 +8,7 @@ import { validateState } from './state-shape.repository.js';
 import { measureSave } from '../utils/timing.js';
 import { STATE_BYTES } from '../utils/limits.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
+import { practiceDirectory, practiceStatePath } from './practice-directory.repository.js';
 /**
  * @param {string} file
  */
@@ -32,13 +33,10 @@ export class StateRepository {
   }
   /** @param {string} directory @param {{atomic?: boolean}} [options] */
   file(directory, { atomic = false } = {}) {
-    const local = path.join(checkPath(directory, { directory: true }), '.qf-v2');
+    const local = practiceDirectory(directory, { atomic });
     // replaceFile's safeDirectory checks this very directory (including links
     // and canonical paths) immediately before creating its temporary file.
     // Still check the bank here so a deleted/moved bank is never recreated.
-    if (!atomic) {
-      checkedStat(local, { directory: true, optional: true });
-    }
     return path.join(local, 'state.json');
   }
   /** @param {string} directory @param {{refresh?: boolean}} [options]
@@ -46,7 +44,7 @@ export class StateRepository {
   load(directory, { refresh = false } = {}) {
     // A warm immutable graph needs no repeated filesystem resolution. Explicit
     // open/refresh checks identity; every commit still checks the destination.
-    const key = path.join(directory, '.qf-v2', 'state.json');
+    const key = practiceStatePath(directory);
     const byKey = this.loaded.get(key);
     if (!refresh && byKey !== undefined) {
       return byKey;
@@ -123,11 +121,11 @@ export class StateRepository {
 
   /** @param {string} directory */
   exists(directory) {
-    return this.identities.get(path.join(directory, '.qf-v2', 'state.json')) !== null;
+    return this.identities.get(practiceStatePath(directory)) !== null;
   }
   /** @param {string} directory */
   evict(directory) {
-    const file = path.join(directory, '.qf-v2', 'state.json');
+    const file = practiceStatePath(directory);
     this.loaded.delete(file);
     this.identities.delete(file);
   }
