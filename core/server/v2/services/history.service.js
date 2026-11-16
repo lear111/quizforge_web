@@ -4,7 +4,12 @@
 /** @typedef {import('../../../shared/v2/api.js').HistoryQuestionResponse} Question */
 import { cloneJson } from '../../host/platform/json.js';
 import { questionRecord } from '../repositories/bank.repository.js';
-import { readRound, roundIds, readHistoryInk } from '../repositories/history.repository.js';
+import {
+  readRound,
+  roundIds,
+  readHistoryInk,
+  deleteHistoryRound,
+} from '../repositories/history.repository.js';
 import { relativeFile } from '../repositories/resource.repository.js';
 import { historySnapshot } from './history-snapshot.service.js';
 import { historicalState, historySummary, historyTotal } from './history-state.service.js';
@@ -12,6 +17,7 @@ import { resolution, visibleAssets } from './question.service.js';
 import { object, problem, publicError } from '../utils/errors.js';
 import { optionalProperty } from '../utils/properties.js';
 import { HistoryInk } from '../repositories/history-ink.repository.js';
+import { deletedRound } from '../repositories/history-delete.repository.js';
 
 export class HistoryRounds {
   /** @param {Library} library */
@@ -33,6 +39,15 @@ export class HistoryRounds {
           Date.parse(b.completedAt) - Date.parse(a.completedAt) ||
           a.roundId.localeCompare(b.roundId),
       );
+  }
+  /** @param {string} bankId @param {string} roundId */
+  delete(bankId, roundId) {
+    try {
+      deleteHistoryRound(this.library, bankId, roundId);
+    } finally {
+      // Cleanup may fail after the logical deletion already took effect.
+      this.opened.delete(bankId + ':' + roundId);
+    }
   }
   /** @param {string} bankId @param {string} roundId */
   load(bankId, roundId) {
@@ -153,10 +168,10 @@ export class HistoryRounds {
   }
   /** @param {string} artifactId */
   artifact(artifactId) {
-    for (const { snapshot } of this.opened.values()) {
+    for (const { round, snapshot } of this.opened.values()) {
       for (const value of snapshot.resolutions.values()) {
         if (value.artifact?.descriptor.artifactId === artifactId) {
-          return value.artifact;
+          return deletedRound(round.directory, round.roundId) ? undefined : value.artifact;
         }
       }
     }

@@ -62,6 +62,7 @@ export type Handlers = Record<
   | 'roundQuestion'
   | 'roundAsset'
   | 'roundInk'
+  | 'roundDelete'
   | 'answer'
   | 'ink'
   | 'result'

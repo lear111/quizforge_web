@@ -14,8 +14,13 @@ import { STATE_BYTES } from '../utils/limits.js';
 import { problem, object } from '../utils/errors.js';
 import { integer } from '../utils/state.js';
 import { validReceipts } from '../utils/receipts.js';
+import {
+  cleanDeletedRound,
+  deletedRound,
+  deleteRoundFiles,
+  roundPattern,
+} from './history-delete.repository.js';
 
-const roundPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 export const invalidHistory = () =>
   problem('STATE_INVALID', '历史记录损坏或无法读取，原文件未改动。', {}, 503);
 
@@ -42,9 +47,42 @@ export function historyLocation(library, bankId) {
 /** @param {Library} library @param {string} bankId */
 export function roundIds(library, bankId) {
   const scope = historyLocation(library, bankId);
-  return scope.exists
-    ? fs.readdirSync(scope.directory).filter((id) => roundPattern.test(id) && id !== scope.pending)
-    : [];
+  if (!scope.exists) {
+    return [];
+  }
+  return fs.readdirSync(scope.directory).filter((id) => {
+    if (!roundPattern.test(id) || id === scope.pending) {
+      return false;
+    }
+    const directory = path.join(scope.directory, id);
+    if (deletedRound(directory, id)) {
+      cleanDeletedRound(directory, id);
+      return false;
+    }
+    return true;
+  });
+}
+
+/** @param {string} roundId */
+function validateRoundId(roundId) {
+  if (!roundPattern.test(roundId)) {
+    throw problem('INVALID_REQUEST', '历史轮次编号无效。', {}, 400);
+  }
+}
+
+const missingRound = () =>
+  problem('RESOURCE_NOT_FOUND', '历史轮次不存在、已删除或尚未归档完成。', {}, 404);
+
+/** @param {Library} library @param {string} bankId @param {string} roundId */
+export function deleteHistoryRound(library, bankId, roundId) {
+  validateRoundId(roundId);
+  const scope = historyLocation(library, bankId);
+  if (scope.pending === roundId) {
+    throw missingRound();
+  }
+  if (scope.exists) {
+    deleteRoundFiles(path.join(scope.directory, roundId), roundId);
+  }
 }
 
 /** @param {unknown} raw @returns {asserts raw is HistoryRound['state']} */
@@ -65,16 +103,15 @@ function validateRoundState(raw) {
  * @returns {HistoryRound}
  */
 export function readRound(library, bankId, roundId) {
-  if (!roundPattern.test(roundId)) {
-    throw problem('INVALID_REQUEST', '历史轮次编号无效。', {}, 400);
-  }
+  validateRoundId(roundId);
   const scope = historyLocation(library, bankId);
   const directory = path.join(scope.directory, roundId);
   if (
     roundId === scope.pending ||
-    !checkedStat(directory, { directory: true, optional: true }).stat
+    !checkedStat(directory, { directory: true, optional: true }).stat ||
+    deletedRound(directory, roundId)
   ) {
-    throw problem('RESOURCE_NOT_FOUND', '历史轮次不存在或尚未归档完成。', {}, 404);
+    throw missingRound();
   }
   try {
     const raw = cloneJson(readJson(path.join(directory, 'state.json'), library.cache, STATE_BYTES));

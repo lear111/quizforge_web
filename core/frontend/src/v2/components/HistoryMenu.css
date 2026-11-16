@@ -31,9 +31,14 @@
 .v2-history-popover li + li {
   border-top: 1px solid #eeeaf4;
 }
-.v2-history-popover li button {
+.v2-history-popover :deep(.v2-history-row) {
   display: flex;
-  width: 100%;
+  align-items: center;
+  gap: 4px;
+}
+.v2-history-popover :deep(.v2-history-open) {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
@@ -43,10 +48,23 @@
   padding: 12px 8px;
   text-align: left;
 }
-.v2-history-popover li button:hover {
+.v2-history-popover :deep(button:not(:disabled):hover) {
   background: #f4f1fa;
 }
-.v2-history-popover time {
+.v2-history-popover :deep(.v2-history-delete) {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #933145;
+}
+.v2-history-popover :deep(.v2-history-delete:disabled) {
+  opacity: 0.45;
+}
+.v2-history-popover :deep(time) {
   font-size: 13px;
 }
 .v2-history-popover p {

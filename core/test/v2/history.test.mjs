@@ -142,7 +142,7 @@ test('history reads archived questions, answers, scores, extensions and ink with
   assert.deepEqual(bytes(f.directory), before);
 });
 
-test('history answer, score and delete routes return 404 and leaves both states byte-identical', async (t) => {
+test('history answer and score write routes return 404 and leave both states byte-identical', async (t) => {
   const f = await archived(t),
     before = bytes(f.directory);
   for (const [route, method] of [
@@ -153,7 +153,6 @@ test('history answer, score and delete routes return 404 and leaves both states 
     ['/results', 'PUT'],
     ['/finish', 'POST'],
     ['/restart', 'POST'],
-    ['', 'DELETE'],
   ]) {
     const response = await f.api(
       f.roundBase + route,
@@ -222,6 +221,7 @@ test('staged and prepared archives are not listed or recovered by historical rea
   const before = bytes(f.directory);
   assert.deepEqual((await f.api(f.base + '/rounds')).value, []);
   assert.equal((await f.api(f.roundBase + '/overview')).status, 404);
+  assert.equal((await f.api(f.roundBase, {}, 'DELETE')).status, 404);
   assert.deepEqual(bytes(f.directory), before);
 });
 

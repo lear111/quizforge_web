@@ -265,6 +265,9 @@ try {
       output,
       name,
       directory: path.join(root, 'question-banks/basic', name),
+      setAccept: (value) => {
+        accept = value;
+      },
     });
     rows.push(completionResult(name, final));
     await context.close();

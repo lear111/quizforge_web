@@ -7,6 +7,14 @@ export async function historyList(ctx: PracticeSession) {
   return bankId ? ctx.api.history.list(bankId) : [];
 }
 
+export async function deleteHistory(ctx: PracticeSession, roundId: string) {
+  const overview = ctx.overview.value;
+  if (!overview || (overview.readOnly && overview.roundId === roundId)) {
+    throw new Error('请先退出该轮历史回看，再删除。');
+  }
+  await ctx.api.history.remove(overview.bank.bankId, roundId);
+}
+
 function suspendPractice(ctx: PracticeSession) {
   if (ctx.overview.value && !ctx.overview.value.readOnly) {
     const question = ctx.current.value;

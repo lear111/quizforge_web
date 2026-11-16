@@ -6,6 +6,8 @@ import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
 import { useWorkspaceNavigation } from '../router/injection';
 import WorkspaceIcon from './WorkspaceIcon.vue';
+import HistoryRoundItem from './HistoryRoundItem.vue';
+import { useHistoryDeletion } from './history-deletion';
 const practice = usePracticeStore();
 const { overview, recovering } = storeToRefs(practice);
 const { busy } = storeToRefs(useUiStore());
@@ -17,6 +19,7 @@ const open = ref(false),
   error = ref('');
 const rounds = ref<HistoryRoundSummary[]>([]);
 let generation = 0;
+const { deleting, deleteError, remove } = useHistoryDeletion(practice, rounds, () => generation);
 function close() {
   open.value = false;
   generation++;
@@ -40,6 +43,7 @@ async function toggle() {
   open.value = true;
   loading.value = true;
   error.value = '';
+  deleteError.value = '';
   const mine = ++generation;
   try {
     const value = await practice.historyList();
@@ -81,7 +85,7 @@ onBeforeUnmount(() => {
     <button
       ref="trigger"
       class="v2-history-trigger"
-      :disabled="busy || recovering"
+      :disabled="busy || recovering || (deleting && !open)"
       :aria-expanded="open"
       aria-controls="v2-history-popover"
       @click="toggle"
@@ -96,6 +100,12 @@ onBeforeUnmount(() => {
     >
       <strong>历史记录</strong>
       <p
+        v-if="deleteError"
+        role="alert"
+      >
+        {{ deleteError }}
+      </p>
+      <p
         v-if="loading"
         role="status"
       >
@@ -109,16 +119,15 @@ onBeforeUnmount(() => {
       </p>
       <p v-else-if="rounds.length === 0">暂无历史记录</p>
       <ul v-else>
-        <li
+        <HistoryRoundItem
           v-for="round in rounds"
           :key="round.roundId"
-        >
-          <button @click="select(round.roundId)">
-            <time :datetime="round.completedAt">{{
-              new Date(round.completedAt).toLocaleString()
-            }}</time><span>{{ round.score }} / {{ round.maxScore }} 分</span>
-          </button>
-        </li>
+          :round="round"
+          :viewing="Boolean(overview?.readOnly && overview.roundId === round.roundId)"
+          :deleting="deleting"
+          @select="select"
+          @remove="remove"
+        />
       </ul>
     </section>
   </div>
