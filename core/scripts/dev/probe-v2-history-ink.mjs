@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import {
+  checkAnswerLayout,
+  checkDraftLayout,
+  checkPaintedInk,
+} from './probe-v2-history-layout.mjs';
 
 const id = 'true-false-sample-false';
 const saved = (page) =>
@@ -147,8 +152,15 @@ export async function probeHistoryInk(h, roundBase) {
   const edited = await api(question);
   assert.equal(edited.inkRevision, old.inkRevision + 1);
   assert.equal(edited.ink.strokes.length, old.ink.strokes.length + 1);
+  await page.getByRole('button', { name: '返回作答', exact: true }).click();
+  await checkAnswerLayout(page);
+  await editMode(page);
+  await checkDraftLayout(page);
+  await checkPaintedInk(page);
+  assert.deepEqual((await api(question)).ink, edited.ink);
   await page.reload();
   await h.idle();
+  await checkAnswerLayout(page);
   assert.deepEqual((await api(question)).ink, edited.ink);
   await editMode(page);
   await retryFailure(h, question + '/ink');
