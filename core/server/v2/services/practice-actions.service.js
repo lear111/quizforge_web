@@ -9,6 +9,7 @@ import { integer, increment, own } from '../utils/state.js';
 import { appendReceipt, replayed } from '../utils/receipts.js';
 import { emptyOutlineStatus, reportOutlineStatus } from '../../../shared/v2/answered.js';
 import { projectJson } from '../../host/platform/json.js';
+import { guardExamAction } from './exam.service.js';
 import { statusAfterResult, validateResult } from './practice-result.service.js';
 /**
  * @param {PracticeState} store
@@ -22,7 +23,7 @@ export function applyAction(store, snapshot, id, op, input) {
   if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) {
     throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
   }
-  const root = /** @type {CurrentState} */ (store.load(snapshot.directory)),
+  const root = /** @type {CurrentState} */ (store.loadRound(snapshot)),
     old = store.get(snapshot, id),
     key = input.requestId;
   // Completed rounds remain editable only through score and ink routes. This
@@ -30,6 +31,7 @@ export function applyAction(store, snapshot, id, op, input) {
   if (root.completedAt != null && ['answer', 'submit', 'retry'].includes(op)) {
     throw problem('ROUND_COMPLETED', '本轮练习已完成，不能修改答案或单题重做。', {}, 409);
   }
+  guardExamAction(store, root, op);
   const signature = fingerprint({ op, input }, 'quizforge-v2-receipt');
   // Check the current lock/generation before replay; never resurrect an old lock.
   if (op === 'result' && (old.submissionId === null || old.submissionId !== input.submissionId)) {
@@ -65,7 +67,7 @@ export function applyAction(store, snapshot, id, op, input) {
   if (op === 'result') {
     store.total(snapshot, candidate);
   }
-  store.commit(snapshot.directory, candidate);
+  store.commitRound(snapshot, candidate);
   return next;
 }
 /**

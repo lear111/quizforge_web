@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { jsonBytes, patchJson, shallowCopyJson, fingerprint } from '../../host/platform/json.js';
 import { READ_LIMITS, treeIdentity } from '../utils/io.js';
+import { scopeOf } from '../utils/round.js';
 import { STATE_BYTES } from '../utils/limits.js';
 import { object, problem, V2Error } from '../utils/errors.js';
 import { statusAfterResult } from './practice-result.service.js';
@@ -29,7 +30,7 @@ import {
  * @param {PracticeLibrary} library @param {Snapshot} snapshot */
 function finalState(library, snapshot) {
   const store = library.stateStore;
-  const root = store.load(snapshot.directory, { refresh: true });
+  const root = store.loadRound(snapshot, { refresh: true });
   if (!root.completedAt) {
     throw problem('PRACTICE_NOT_COMPLETED', '请先完成练习，再归档并开始新一轮。', {}, 409);
   }
@@ -92,12 +93,14 @@ function copyExtensions(library, snapshot, target) {
  * @param {ReturnType<typeof restartPaths>} p */
 function prepare(library, snapshot, p) {
   const bytes = jsonBytes(finalState(library, snapshot));
-  checkPractice(p.practice);
+  checkPractice(p.active);
   if (bytes.length > STATE_BYTES) {
     throw archiveError();
   }
   directory(p.archive);
-  directory(p.fresh);
+  if (p.scope === 'practice') {
+    directory(p.fresh);
+  }
   copyFile(
     path.join(snapshot.directory, 'bank.json'),
     path.join(p.archive, 'bank.json'),
@@ -106,7 +109,7 @@ function prepare(library, snapshot, p) {
   );
   writeFile(path.join(p.archive, 'state.json'), bytes);
   copyExtensions(library, snapshot, path.join(p.archive, 'extensions'));
-  copyTree(path.join(p.practice, 'ink'), path.join(p.archive, 'ink'), STATE_BYTES);
+  copyTree(path.join(p.active, 'ink'), path.join(p.archive, 'ink'), STATE_BYTES);
   directory(path.join(p.archive, 'ink'));
 }
 
@@ -116,16 +119,19 @@ function prepare(library, snapshot, p) {
  * @param {(phase: string) => void} [checkpoint] */
 export function archivePractice(library, snapshot, input, checkpoint = () => {}) {
   const previous = readJournal(snapshot.directory);
-  const p = restartPaths(snapshot.directory, randomUUID());
+  const p = restartPaths(snapshot.directory, randomUUID(), scopeOf(snapshot));
+  /** @type {Omit<import('../types/restart.js').RestartJournal, 'phase'>} */
   const receipt = {
     requestKey: fingerprint(input.requestId, 'quizforge-v2-restart-request'),
     snapshotId: input.snapshotId,
     roundId: path.basename(p.round),
+    ...(snapshot.exam ? { scope: 'exam' } : {}),
     previous: previous
       ? {
           requestKey: previous.requestKey,
           snapshotId: previous.snapshotId,
           roundId: previous.roundId,
+          ...(previous.scope ? { scope: previous.scope } : {}),
         }
       : null,
   };
@@ -134,9 +140,11 @@ export function archivePractice(library, snapshot, input, checkpoint = () => {})
     checkpoint('copied');
     writeJournal(snapshot.directory, { ...receipt, phase: 'prepared' });
     checkpoint('prepared');
-    move(p.practice, p.backup);
+    move(p.active, p.backup);
     checkpoint('backed-up');
-    move(p.fresh, p.practice);
+    if (p.scope === 'practice') {
+      move(p.fresh, p.active);
+    }
     checkpoint('fresh');
     directory(path.dirname(p.round));
     move(p.archive, p.round);

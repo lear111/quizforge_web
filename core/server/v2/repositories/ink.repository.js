@@ -15,8 +15,11 @@ import { applyInkFile } from './ink-write.repository.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
 import { validOldReceipts, validReceipts } from '../utils/receipts.js';
 import { integer } from '../utils/state.js';
+import { scopeOf } from '../utils/round.js';
 import { practiceDirectory } from './practice-directory.repository.js';
 
+/** @param {Snapshot} snapshot */
+const inkKey = (snapshot) => path.join(snapshot.directory, scopeOf(snapshot));
 const LIMIT = 32 * 1024 * 1024;
 /**
  * @returns {InkFile}
@@ -32,7 +35,7 @@ export class PracticeInk {
   }
   /** @param {Snapshot} snapshot */
   directory(snapshot) {
-    const local = practiceDirectory(snapshot.directory);
+    const local = practiceDirectory(snapshot.directory, { scope: scopeOf(snapshot) });
     const ink = path.join(local, 'ink');
     checkedStat(ink, { directory: true, optional: true });
     return ink;
@@ -73,7 +76,7 @@ export class PracticeInk {
           fs.unlinkSync(entry.file);
         }
       }
-      this.indexes.delete(snapshot.directory);
+      this.indexes.delete(inkKey(snapshot));
     } catch {
       throw problem('STATE_WRITE_FAILED', '草稿笔迹未能清除，请重试。', {}, 503);
     }
@@ -82,13 +85,13 @@ export class PracticeInk {
   open(snapshot) {
     const root = this.directory(snapshot);
     if (!fs.existsSync(root)) {
-      this.indexes.set(snapshot.directory, new Set());
+      this.indexes.set(inkKey(snapshot), new Set());
       return false;
     }
     const names = fs.readdirSync(root);
     if (names.some((name) => name !== snapshot.contentFingerprint)) {
       this.clear(snapshot);
-      this.indexes.set(snapshot.directory, new Set());
+      this.indexes.set(inkKey(snapshot), new Set());
       return true;
     }
     const directory = path.join(root, snapshot.contentFingerprint);
@@ -104,12 +107,12 @@ export class PracticeInk {
         }
       }
     }
-    this.indexes.set(snapshot.directory, index);
+    this.indexes.set(inkKey(snapshot), index);
     return false;
   }
   /** @param {Snapshot} snapshot @param {string} id */
   has(snapshot, id) {
-    return this.indexes.get(snapshot.directory)?.has(hash(Buffer.from(id))) ?? false;
+    return this.indexes.get(inkKey(snapshot))?.has(hash(Buffer.from(id))) ?? false;
   }
   /** @param {Snapshot} snapshot @param {string} id
    * @returns {InkFile} */
@@ -163,7 +166,7 @@ export class PracticeInk {
         }
         fs.unlinkSync(file);
       }
-      this.indexes.get(snapshot.directory)?.delete(hash(Buffer.from(id)));
+      this.indexes.get(inkKey(snapshot))?.delete(hash(Buffer.from(id)));
     } catch {
       throw problem('STATE_WRITE_FAILED', '草稿笔迹未能清除，请重试。', {}, 503);
     }
@@ -175,13 +178,14 @@ export class PracticeInk {
         read: () => this.read(snapshot, id),
         file: () => this.file(snapshot, id),
         write: this.write,
-        saved: () => this.indexes.get(snapshot.directory)?.add(hash(Buffer.from(id))),
+        saved: () => this.indexes.get(inkKey(snapshot))?.add(hash(Buffer.from(id))),
       },
       input,
     );
   }
   /** @param {string} directory */
   evict(directory) {
-    this.indexes.delete(directory);
+    this.indexes.delete(path.join(directory, 'practice'));
+    this.indexes.delete(path.join(directory, 'exam'));
   }
 }

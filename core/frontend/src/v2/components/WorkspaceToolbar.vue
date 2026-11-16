@@ -6,7 +6,9 @@ import { useUiStore } from '../stores/ui';
 import { useCatalogStore } from '../stores/catalog';
 import { useLayoutStore } from '../stores/layout';
 import WorkspaceIcon from './WorkspaceIcon.vue';
+import ExamControls from './ExamControls.vue';
 import HistoryMenu from './HistoryMenu.vue';
+defineEmits<{ examSubmit: [] }>();
 const practice = usePracticeStore();
 const { overview, current, recovering, drafting } = storeToRefs(practice);
 const { busy, loading, scoreView, drawer } = storeToRefs(useUiStore());
@@ -55,6 +57,7 @@ const groupName = computed(() => {
       >{{ loading }}</span
     >
     <div class="v2-actions">
+      <ExamControls @submit="$emit('examSubmit')" />
       <button
         v-if="current && !scoreView"
         class="v2-draft-button"

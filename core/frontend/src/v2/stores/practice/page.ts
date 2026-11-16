@@ -96,7 +96,7 @@ export async function applyContext(ctx: PracticeSession, q: Question) {
 
 function pageChanged(ctx: PracticeSession, mine: number): PageOptions['onChanged'] {
   return (kind, answered) => {
-    if (mine !== ctx.runtime.generation || ctx.overview.value?.readOnly) {
+    if (mine !== ctx.runtime.generation || ctx.overview.value?.readOnly || ctx.examExpired()) {
       return;
     }
     const active = ctx.current.value!;
@@ -128,6 +128,7 @@ function pageActions(ctx: PracticeSession, mine: number): PageOptions {
         ctx.busy.value ||
         ctx.recovering.value ||
         ctx.overview.value?.readOnly ||
+        ctx.overview.value?.exam ||
         ctx.overview.value?.completedAt ||
         ctx.current.value?.state.locked
       ) {
@@ -141,6 +142,7 @@ function pageActions(ctx: PracticeSession, mine: number): PageOptions {
         ctx.busy.value ||
         ctx.recovering.value ||
         ctx.overview.value?.readOnly ||
+        ctx.overview.value?.exam ||
         ctx.overview.value?.completedAt ||
         !ctx.current.value?.state.hasSavedAnswer
       ) {

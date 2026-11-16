@@ -47,35 +47,42 @@ export async function gradeCompleted(ctx: PracticeSession, value: Overview) {
   }
 }
 
+async function sendFinish(ctx: PracticeSession, bank: Overview): Promise<Completion> {
+  const { api } = ctx;
+  try {
+    return await ctx.runtime.queue.enqueue(() =>
+      api.banks.finish(bank.bank.bankId, bank.snapshotId),
+    );
+  } catch (error) {
+    // A lost response may follow a successful lock. Verify its generation
+    // before scoring, since a different tab may already have archived it.
+    if (!isSaveConflict(error)) {
+      const latest = await api.banks.overview(bank.bank.bankId).catch(() => null);
+      if (latest?.completedAt && (!bank.exam || latest.snapshotId === bank.snapshotId)) {
+        if (bank.exam) {
+          return latest;
+        }
+        ctx.actions().applyCompletion(latest);
+        await ctx.actions().reloadCompletedQuestion();
+      }
+    }
+    throw error;
+  }
+}
+
 export async function complete(ctx: PracticeSession) {
-  const { overview, api } = ctx;
+  const { overview } = ctx;
   if (!overview.value || overview.value.readOnly || overview.value.completedAt) {
     return;
   }
-  await ctx.run('正在完成练习并评分', async () => {
+  await ctx.run(overview.value.exam ? '正在交卷并评分' : '正在完成练习并评分', async () => {
+    const examSnapshot = overview.value?.exam ? overview.value.snapshotId : null;
     await ctx.actions().flush();
-    const bank = overview.value!;
-    let saved: Completion;
-    try {
-      saved = await ctx.runtime.queue.enqueue(() =>
-        api.banks.finish(bank.bank.bankId, bank.snapshotId),
-      );
-    } catch (error) {
-      // A lost response may follow a successful lock. Read its actual state;
-      // offline failures still surface and may be retried without relocking.
-      if (!isSaveConflict(error)) {
-        try {
-          const latest: Overview = await api.banks.overview(bank.bank.bankId);
-          if (latest.completedAt) {
-            ctx.actions().applyCompletion(latest);
-            await ctx.actions().reloadCompletedQuestion();
-          }
-        } catch {
-          /* Keep the original completion error. */
-        }
-      }
-      throw error;
+    const bank = overview.value;
+    if (!bank || (examSnapshot && bank.snapshotId !== examSnapshot)) {
+      return;
     }
+    const saved = await sendFinish(ctx, bank);
     ctx.actions().applyCompletion(saved);
     await ctx.actions().reloadCompletedQuestion();
     await ctx.actions().gradeCompleted(overview.value!);

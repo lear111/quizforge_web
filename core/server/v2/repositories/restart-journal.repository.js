@@ -7,8 +7,9 @@ import { object } from '../utils/errors.js';
 import { archiveError, directory, exists, move, removeTree } from './restart-files.repository.js';
 import { deletedRound, roundPattern } from './history-delete.repository.js';
 
-/** @param {string} bank @param {string} roundId */
-export function restartPaths(bank, roundId) {
+/** @param {string} bank @param {string} roundId
+ * @param {import('../types/data.js').RoundScope} [scope] */
+export function restartPaths(bank, roundId, scope = 'practice') {
   if (!roundPattern.test(roundId)) {
     throw archiveError();
   }
@@ -16,7 +17,8 @@ export function restartPaths(bank, roundId) {
   return {
     root,
     journal: path.join(root, 'restart.json'),
-    practice: path.join(root, 'practice'),
+    active: path.join(root, scope),
+    scope,
     stage: path.join(root, `.restart-${roundId}`),
     archive: path.join(root, `.restart-${roundId}`, 'archive'),
     fresh: path.join(root, `.restart-${roundId}`, 'fresh'),
@@ -33,7 +35,8 @@ function receipt(value) {
     /^[0-9a-f]{64}$/.test(value.requestKey) &&
     typeof value.snapshotId === 'string' &&
     typeof value.roundId === 'string' &&
-    roundPattern.test(value.roundId)
+    roundPattern.test(value.roundId) &&
+    (value.scope === undefined || value.scope === 'exam')
   );
 }
 
@@ -58,6 +61,7 @@ export function readJournal(bank) {
     requestKey: value.requestKey,
     snapshotId: value.snapshotId,
     roundId: value.roundId,
+    ...(value.scope ? { scope: value.scope } : {}),
     phase: value.phase === 'prepared' ? 'prepared' : 'committed',
     previous: receipt(value.previous) ? value.previous : null,
   };
@@ -76,7 +80,7 @@ export function recoverRestart(bank) {
   if (!record) {
     return { epoch: null, cleanupPending: false };
   }
-  const p = restartPaths(bank, record.roundId);
+  const p = restartPaths(bank, record.roundId, record.scope);
   if (record.phase === 'prepared') {
     rollback(p);
     if (record.previous) {
@@ -107,13 +111,13 @@ export function recoverRestart(bank) {
 function rollback(p) {
   directory(p.root);
   if (exists(p.backup)) {
-    if (exists(p.practice)) {
-      if (fs.readdirSync(p.practice).length) {
+    if (exists(p.active)) {
+      if (p.scope === 'exam' || fs.readdirSync(p.active).length) {
         throw archiveError();
       }
-      removeTree(p.practice);
+      removeTree(p.active);
     }
-    move(p.backup, p.practice);
+    move(p.backup, p.active);
   }
   if (exists(p.round)) {
     // Only the journal's exact round can have been published before commit.

@@ -5,6 +5,7 @@ import * as recovery from './recovery';
 import * as scoring from './scoring';
 import * as completion from './completion';
 import * as banks from './banks';
+import { startExam } from './exam';
 import { restart } from './restart';
 import * as history from './history';
 import * as runtime from './runtime';
@@ -45,6 +46,7 @@ export function createActions(ctx: PracticeSession): PracticeActions {
     reloadCompletedQuestion: () => completion.reloadCompletedQuestion(ctx),
     gradeCompleted: (value) => completion.gradeCompleted(ctx, value),
     complete: () => completion.complete(ctx),
+    startExam: (duration) => startExam(ctx, duration),
     resumeCompletion: () => completion.resumeCompletion(ctx),
     restart: () => restart(ctx),
     initializeRuntime: (nonce) => runtime.initializeRuntime(ctx, nonce),
@@ -75,6 +77,7 @@ export function viewActions(actions: PracticeActions): PracticeViewActions {
     retrySave: actions.retrySave,
     continueGrading: actions.continueGrading,
     complete: actions.complete,
+    startExam: actions.startExam,
     resumeCompletion: actions.resumeCompletion,
     restart: actions.restart,
     clearQuestion: actions.clearQuestion,

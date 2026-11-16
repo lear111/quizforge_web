@@ -1,6 +1,6 @@
 import type { Answered } from './answered.js';
 import type { BankInfo, OutlineGroup, OutlineItem } from './bank.js';
-import type { GradeResult, StateSummary } from './state.js';
+import type { ExamTimes, GradeResult, StateSummary } from './state.js';
 
 /** Only codes currently emitted by core/server/v2, including public fallbacks. */
 export type ApiErrorCode =
@@ -12,6 +12,9 @@ export type ApiErrorCode =
   | 'BANK_NOT_FOUND'
   | 'BANK_NOT_OPEN'
   | 'BANK_STRUCTURE_INVALID'
+  | 'EXAM_ENDED'
+  | 'EXAM_EXISTS'
+  | 'EXAM_IN_PROGRESS'
   | 'EXTENSION_AMBIGUOUS'
   | 'EXTENSION_INVALID'
   | 'EXTENSION_NOT_FOUND'
@@ -123,7 +126,11 @@ export interface CompletionResponse {
 export interface FinishResponse extends CompletionResponse {
   pendingGrading: QuestionCandidate[];
 }
+export interface ExamClock extends ExamTimes {
+  now: string;
+}
 export interface OverviewResponse extends CompletionResponse {
+  exam: ExamClock | null;
   readOnly?: true;
   roundId?: string;
   bank: BankInfo;
@@ -146,6 +153,8 @@ export interface HistoryRoundSummary {
   completedAt: string;
   score: number;
   maxScore: number;
+  kind: 'practice' | 'exam';
+  startedAt?: string;
 }
 export interface HistoryOverviewResponse extends OverviewResponse {
   readOnly: true;
@@ -161,7 +170,7 @@ export interface RefreshResponse extends OverviewResponse {
     activeCleared: boolean;
     addedQuestionIds: string[];
     removedQuestionIds: string[];
-    activeRoundInterrupted: false;
+    activeRoundInterrupted: boolean;
   };
 }
 export interface WriteRequest {
@@ -193,6 +202,9 @@ export interface ResultRequest extends VersionedRequest {
 export type ResultEntry = Pick<QuestionKey, 'questionId'> &
   Omit<ResultRequest, 'requestId' | 'snapshotId' | 'source'>;
 export type FinishRequest = WriteRequest;
+export interface ExamRequest extends WriteRequest {
+  durationMinutes: number;
+}
 export type RestartRequest = WriteRequest;
 export type RestartResponse = OverviewResponse;
 export interface ResultsRequest extends WriteRequest {

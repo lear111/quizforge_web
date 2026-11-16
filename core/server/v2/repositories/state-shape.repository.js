@@ -106,7 +106,13 @@ export function validateState(value) {
   ) {
     throw invalid();
   }
+  if (own(value, 'exam') && !validExamTimes(value.exam)) {
+    throw invalid();
+  }
   if (own(value, 'historyIndex')) {
+    if (own(value, 'exam')) {
+      throw invalid();
+    }
     // Only a recognizable older development record is reset on open.
     if (
       !Array.isArray(value.historyIndex) ||
@@ -126,7 +132,10 @@ export function validateState(value) {
               Object.keys(raw).filter((key) => key !== 'draft'),
             )
           : raw;
-      if (!validQuestion(state)) {
+      if (
+        !validQuestion(state) ||
+        (value.exam && value.completedAt == null && state.submissionId !== null)
+      ) {
         throw invalid();
       }
       if (state !== raw) {
@@ -134,4 +143,14 @@ export function validateState(value) {
       }
     }
   }
+}
+
+/** @param {unknown} value @returns {value is import('../../../shared/v2/state.js').ExamTimes} */
+export function validExamTimes(value) {
+  if (!object(value) || typeof value.startedAt !== 'string' || typeof value.endsAt !== 'string') {
+    return false;
+  }
+  const start = Date.parse(value.startedAt);
+  const end = Date.parse(value.endsAt);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start;
 }

@@ -1,4 +1,5 @@
 /** @typedef {import('../types/data.js').LoadedState} LoadedState */
+/** @typedef {import('../types/data.js').RoundScope} RoundScope */
 import path from 'node:path';
 import { readBytes, replaceFile, checkedStat } from '../../host/platform/files.js';
 import { freezeJson, jsonBytes, parseJson } from '../../host/platform/json.js';
@@ -31,25 +32,25 @@ export class StateRepository {
     this.loaded.delete(file);
     this.loaded.set(file, value);
   }
-  /** @param {string} directory @param {{atomic?: boolean}} [options] */
-  file(directory, { atomic = false } = {}) {
-    const local = practiceDirectory(directory, { atomic });
+  /** @param {string} directory @param {{atomic?: boolean, scope?: RoundScope}} [options] */
+  file(directory, { atomic = false, scope = 'practice' } = {}) {
+    const local = practiceDirectory(directory, { atomic, scope });
     // replaceFile's safeDirectory checks this very directory (including links
     // and canonical paths) immediately before creating its temporary file.
     // Still check the bank here so a deleted/moved bank is never recreated.
     return path.join(local, 'state.json');
   }
-  /** @param {string} directory @param {{refresh?: boolean}} [options]
+  /** @param {string} directory @param {{refresh?: boolean, scope?: RoundScope}} [options]
    * @returns {LoadedState} */
-  load(directory, { refresh = false } = {}) {
+  load(directory, { refresh = false, scope = 'practice' } = {}) {
     // A warm immutable graph needs no repeated filesystem resolution. Explicit
     // open/refresh checks identity; every commit still checks the destination.
-    const key = practiceStatePath(directory);
+    const key = practiceStatePath(directory, scope);
     const byKey = this.loaded.get(key);
     if (!refresh && byKey !== undefined) {
       return byKey;
     }
-    const file = this.file(directory);
+    const file = this.file(directory, { scope });
     const cached = this.loaded.get(file);
     if (!refresh && cached !== undefined) {
       return cached;
@@ -57,6 +58,10 @@ export class StateRepository {
     let value, observed;
     try {
       observed = identity(file);
+      if (scope === 'exam' && observed === null) {
+        this.evict(directory, scope);
+        return freezeJson(empty());
+      }
       if (
         cached !== undefined &&
         this.identities.has(file) &&
@@ -72,6 +77,9 @@ export class StateRepository {
       throw invalid();
     }
     freezeJson(value);
+    if (observed !== null && (scope === 'exam') !== Boolean(value.exam)) {
+      throw invalid();
+    }
     this.remember(file, value);
     this.identities.set(file, observed);
     return value;
@@ -92,8 +100,8 @@ export class StateRepository {
           : empty();
     return value;
   }
-  /** @param {string} directory @param {LoadedState} value */
-  commit(directory, value) {
+  /** @param {string} directory @param {LoadedState} value @param {RoundScope} [scope] */
+  commit(directory, value, scope = 'practice') {
     const bytes = measureSave('serialize', () => jsonBytes(value));
     if (bytes.length > STATE_BYTES) {
       throw problem(
@@ -103,7 +111,7 @@ export class StateRepository {
         413,
       );
     }
-    const file = this.file(directory, { atomic: this.write === replaceFile });
+    const file = this.file(directory, { atomic: this.write === replaceFile, scope });
     try {
       measureSave('write', () => this.write(file, bytes));
     } catch {
@@ -119,13 +127,13 @@ export class StateRepository {
     this.identities.delete(file);
   }
 
-  /** @param {string} directory */
-  exists(directory) {
-    return this.identities.get(practiceStatePath(directory)) !== null;
+  /** @param {string} directory @param {RoundScope} [scope] */
+  exists(directory, scope = 'practice') {
+    return this.identities.get(practiceStatePath(directory, scope)) !== null;
   }
-  /** @param {string} directory */
-  evict(directory) {
-    const file = practiceStatePath(directory);
+  /** @param {string} directory @param {RoundScope} [scope] */
+  evict(directory, scope = 'practice') {
+    const file = practiceStatePath(directory, scope);
     this.loaded.delete(file);
     this.identities.delete(file);
   }

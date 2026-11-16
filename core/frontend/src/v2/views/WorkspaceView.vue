@@ -10,6 +10,7 @@ import HistoryBanner from '../components/HistoryBanner.vue';
 import WorkspaceLibrary from '../components/WorkspaceLibrary.vue';
 import WorkspaceOutline from '../components/WorkspaceOutline.vue';
 import WorkspaceToolbar from '../components/WorkspaceToolbar.vue';
+import { useExamSubmission } from './exam-submission';
 import { useWorkspacePanels } from './workspace-panels';
 import QuestionNavigation from '../components/QuestionNavigation.vue';
 import { useLayoutStore } from '../stores/layout';
@@ -21,6 +22,7 @@ const { busy, message, scoreView, drawer, loading } = storeToRefs(useUiStore());
 const navigation = useWorkspaceNavigation();
 const layout = useLayoutStore();
 useWorkspacePanels();
+const { submitExam } = useExamSubmission();
 const layoutStyle = computed(() => ({
   '--v2-library-width': `${layout.widths.library}px`,
   '--v2-outline-width': `${layout.widths.outline}px`,
@@ -34,6 +36,7 @@ const unanswered = computed(
 async function finishPractice() {
   if (
     !overview.value ||
+    overview.value.exam ||
     busy.value ||
     !confirm('完成练习后，答案将锁定，未作答题记 0 分。确定完成吗？')
   ) {
@@ -48,7 +51,10 @@ async function resumeCompletion() {
   await (overview.value?.completedAt ? navigation.showSummary() : navigation.showQuestion());
 }
 async function restartPractice() {
-  if (busy.value || !confirm('上一轮练习将归档，尚未评分的题记 0 分。确定再练一次吗？')) {
+  const prompt = overview.value?.exam
+    ? '本次考试将归档，尚未评分的题记 0 分，并返回原来的练习。确定归档吗？'
+    : '上一轮练习将归档，尚未评分的题记 0 分。确定再练一次吗？';
+  if (busy.value || !confirm(prompt)) {
     return;
   }
   await practice.restart();
@@ -75,7 +81,7 @@ async function restartPractice() {
       class="v2-main"
       :inert="layout.mobile && drawer !== null"
     >
-      <WorkspaceToolbar />
+      <WorkspaceToolbar @exam-submit="submitExam" />
       <HistoryBanner />
       <p
         v-if="message"
@@ -90,7 +96,8 @@ async function restartPractice() {
           :value="overview"
           :busy="busy || recovering"
           :unanswered="unanswered"
-          :activity="loading === '正在归档上一轮练习' ? loading : undefined"
+          :activity="loading.startsWith('正在归档') ? loading : undefined"
+          :exam="Boolean(overview.exam)"
           :read-only="overview.readOnly"
           @view="navigation.showQuestion()"
           @grade="resumeCompletion"

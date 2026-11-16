@@ -2,6 +2,7 @@ import type {
   CompletionResponse,
   OverviewResponse,
   FinishResponse,
+  ExamRequest,
   RefreshRequest,
   RefreshResponse,
 } from '../../../../shared/v2/api.js';
@@ -18,6 +19,14 @@ export const createBankApi = (client: ApiClient) => ({
       jsonRequest(
         'POST',
         JSON.stringify({ ...(questionId ? { questionId } : {}) } satisfies RefreshRequest),
+      ),
+    ),
+  startExam: (bankId: string, snapshotId: string, durationMinutes: number) =>
+    client.json<OverviewResponse>(
+      `${bankPath(bankId)}/exam`,
+      jsonRequest(
+        'POST',
+        writeBody(snapshotId, { durationMinutes } satisfies Pick<ExamRequest, 'durationMinutes'>),
       ),
     ),
   finish: (bankId: string, snapshotId: string) =>

@@ -19,7 +19,7 @@ export function finishRound(store, snapshot, input) {
   if (!object(input) || typeof input.requestId !== 'string' || !input.requestId.trim()) {
     throw problem('INVALID_REQUEST', '请求标识无效。', {}, 400);
   }
-  const root = /** @type {CurrentState} */ (store.load(snapshot.directory));
+  const root = /** @type {CurrentState} */ (store.loadRound(snapshot));
   // Completion itself is the idempotency marker: repeated calls never create
   // new locks or roll scores back, and the response reflects current scores.
   if (root.completedAt != null) {
@@ -49,7 +49,7 @@ export function finishRound(store, snapshot, input) {
     completedAt,
   });
   store.total(snapshot, candidate);
-  store.commit(snapshot.directory, candidate);
+  store.commitRound(snapshot, candidate);
   return candidate;
 }
 /**
@@ -59,7 +59,7 @@ export function finishRound(store, snapshot, input) {
  */
 export function recordResults(store, snapshot, input) {
   validateBatchInput(input);
-  const root = /** @type {CurrentState} */ (store.load(snapshot.directory)),
+  const root = /** @type {CurrentState} */ (store.loadRound(snapshot)),
     signature = fingerprint({ op: 'results', input }, 'quizforge-v2-receipt'),
     /** @type {Set<string>} */ seen = new Set(),
     entries = [];
@@ -95,7 +95,7 @@ export function recordResults(store, snapshot, input) {
     contentFingerprint: snapshot.contentFingerprint,
   });
   store.total(snapshot, candidate);
-  store.commit(snapshot.directory, candidate);
+  store.commitRound(snapshot, candidate);
   return candidate;
 }
 

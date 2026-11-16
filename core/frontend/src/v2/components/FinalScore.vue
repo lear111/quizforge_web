@@ -6,6 +6,7 @@ defineProps<{
   unanswered: number;
   activity?: string;
   readOnly?: boolean;
+  exam?: boolean;
 }>();
 defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
 </script>
@@ -15,7 +16,9 @@ defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
       class="v2-final"
       aria-labelledby="v2-final-title"
     >
-      <h2 id="v2-final-title">{{ value.completedAt ? '练习已完成' : '当前得分' }}</h2>
+      <h2 id="v2-final-title">
+        {{ value.completedAt ? (exam ? '考试已交卷' : '练习已完成') : '当前得分' }}
+      </h2>
       <p class="v2-final-score">
         <strong>{{ value.total.score }}</strong><span>/ {{ value.total.maxScore }}</span>
       </p>
@@ -33,7 +36,7 @@ defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
           :disabled="busy"
           @click="$emit('restart')"
         >
-          再练一次
+          {{ exam ? '归档并返回练习' : '再练一次' }}
         </button>
         <button
           :disabled="busy"

@@ -2,13 +2,27 @@ import type { Overview, Question } from '../../types/practice-types';
 import type { PracticeSession } from '../../types/practice-session';
 import { showHistoryQuestion } from './history';
 
+export function roundPositionKey(value: Overview) {
+  return value.exam ? `exam:${value.snapshotId}` : value.bank.bankId;
+}
+
+export function examScopeChanged(previous: Overview | null, next: Overview) {
+  return (
+    previous?.bank.bankId === next.bank.bankId &&
+    previous.snapshotId !== next.snapshotId &&
+    Boolean(previous.exam || next.exam)
+  );
+}
+
 export function remember(ctx: PracticeSession, q: Question) {
   if (q.readOnly) {
     return;
   }
   const { lastQuestions } = ctx;
-  lastQuestions.value.delete(q.bankId);
-  lastQuestions.value.set(q.bankId, q.questionId);
+  const value = ctx.overview.value;
+  const key = value?.exam && value.bank.bankId === q.bankId ? roundPositionKey(value) : q.bankId;
+  lastQuestions.value.delete(key);
+  lastQuestions.value.set(key, q.questionId);
   while (lastQuestions.value.size > 8) {
     lastQuestions.value.delete(lastQuestions.value.keys().next().value!);
   }
@@ -30,7 +44,7 @@ export async function openBank(ctx: PracticeSession, id?: string, questionId?: s
   await ctx.run('正在打开题库', async () => {
     await ctx.actions().flush();
     const value: Overview = await api.banks.overview(id);
-    const remembered = questionId ?? lastQuestions.value.get(id);
+    const remembered = questionId ?? lastQuestions.value.get(roundPositionKey(value));
     const initial =
       remembered &&
       (questionId || value.states.some((state) => state.questionId === remembered)) &&
@@ -43,6 +57,10 @@ export async function openBank(ctx: PracticeSession, id?: string, questionId?: s
         : value.initial.question;
     const previous = overview.value,
       previousScoreView = scoreView.value;
+    const changedRound = examScopeChanged(previous, value);
+    if (changedRound) {
+      ctx.actions().clearQuestion(true);
+    }
     ctx.actions().resetSources();
     ctx.actions().scopeSources(value.bank.bankId, value.snapshotId);
     overview.value = value;
@@ -52,7 +70,7 @@ export async function openBank(ctx: PracticeSession, id?: string, questionId?: s
       try {
         await ctx.actions().show(initial, false);
       } catch (error) {
-        if (current.value?.bankId !== value.bank.bankId) {
+        if (!changedRound && current.value?.bankId !== value.bank.bankId) {
           overview.value = previous;
           scoreView.value = previousScoreView;
         }
@@ -118,6 +136,9 @@ export async function refreshBank(ctx: PracticeSession) {
     const active = current.value,
       bank = overview.value!;
     const value: Overview = await api.banks.refresh(bank.bank.bankId, active?.questionId);
+    if (examScopeChanged(bank, value)) {
+      ctx.actions().clearQuestion(true);
+    }
     overview.value = value;
     scoreView.value = !!value.completedAt;
     ctx.actions().resetSources();

@@ -52,6 +52,7 @@ export interface PracticeViewActions {
   retrySave(): Promise<void>;
   continueGrading(): Promise<void> | undefined;
   complete(): Promise<void>;
+  startExam(durationMinutes: number): Promise<void>;
   resumeCompletion(): Promise<void>;
   restart(): Promise<void>;
   resetSources(): void;
@@ -89,6 +90,7 @@ export interface PracticeActions extends PracticeViewActions {
 }
 export interface PracticeSession extends PracticeWorkspace {
   current: Ref<Question | null>;
+  examExpired(): boolean;
   typeName: Ref<string>;
   saveStatus: Ref<string>;
   recovering: Ref<boolean>;

@@ -51,7 +51,7 @@ export function seedLegacy(f) {
 export function seedCurrentAndNeighbors(f) {
   f.write('answer', { requestId: 'current', expectedRevision: 0, answer: 'current-answer' });
   f.write('ink', { requestId: 'current-ink', expectedInkRevision: 0, ink: ['current-ink'] });
-  writeFixtureFile(path.join(f.local, 'exam/state.json'), 'future-exam-sentinel');
+  writeFixtureFile(path.join(f.local, 'exam/unknown.json'), 'exam-neighbor-sentinel');
   writeFixtureFile(path.join(f.local, 'rounds/one/state.json'), 'future-round-sentinel');
   writeFixtureFile(path.join(f.local, 'unrelated.txt'), 'keep');
 }
