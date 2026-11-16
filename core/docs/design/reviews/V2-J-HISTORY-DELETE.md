@@ -1,6 +1,6 @@
 # J：删除单轮历史记录
 
-状态：[PR #184](https://github.com/lear111/quizforge_web/pull/184)，待审查。目标分支 `v2`；不合并，不开始 K。
+状态：[PR #184](https://github.com/lear111/quizforge_web/pull/184) 已审查通过（Review #5921071430），最终 head `ef480b9` 的 GitHub CI 五项全绿，2026-11-16 squash 合并到 `v2`（`f677706`）。J 完成；K 尚未开始。
 
 ## 改了什么
 
@@ -62,7 +62,7 @@ GitHub CI：实现提交 `ee2a91e` 的[运行记录](https://github.com/lear111/
 
 修复前新断言复现「删除挂起时打开按钮仍启用」；修复后本机 `completion` 探针通过，Chromium 157.0.8103.39，桌面 1440×900、手机 390×844，无页面错误。UI 类型检查、ESLint、格式、构建及 `--check` 通过。
 
-修复提交 `d9dd8a9` 的 [完整 CI](https://github.com/lear111/quizforge_web/actions/runs/43872508990) 五项通过，无失败用例。Windows Checks 5m23s、Ubuntu Checks 2m03s、Ubuntu 十项浏览器探针 4m02s、代码质量 18s、性能 14s。后续提交只补充本记录。
+修复提交 `d9dd8a9` 的 [CI](https://github.com/lear111/quizforge_web/actions/runs/43872508990) 五项通过；最终 PR head `ef480b9` 的 [CI](https://github.com/lear111/quizforge_web/actions/runs/43873505120) 五项亦全部通过。Review #5921071430 确认删除期间打开按钮禁用，测试覆盖请求挂起、503 恢复、204 成功及再次打开。Squash 合并提交 `f677706`。后续仅同步本记录。
 
 ## 风险与限制
 
