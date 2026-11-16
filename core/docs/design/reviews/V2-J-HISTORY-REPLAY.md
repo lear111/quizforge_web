@@ -17,7 +17,7 @@
 - page/scoring/completion/API/whiteboard：独立阻断题型 changed、submit、retry、作答保存、评分 Worker 和结果写回。历史上下文始终 locked、can.submit/retry=false；API 客户端拒绝历史答案/提交/重做/评分，唯独宿主 ink 使用 roundId 路由。白板初始只读显示，点草稿可编辑并独立保存归档相机和笔迹；退出后恢复正常草稿行为。
 - `shared/v2/api.d.ts` 增加历史响应类型及读取作用域，正式 API/数据/界面状态说明与进度索引同步。没有改旧的 #176 测量 JSON，也没有提交真实数据或生成 UI 成品。
 
-## 回归覆盖与验证
+## 第一阶段：只读回看的回归与原始验证记录
 
 新增 17 项（含子用例）：空列表/三轮排序；历史题目、答案、成绩、拓展、笔迹隔离；所有非 ink 写入口 404；素材消失；拓展缺失；坏归档/非法 UUID；prepared 排除且 journal 不变；round/ink/assets 链接攻击；Store flush/失败保留/恢复当前页；只读上下文与评分阻断；API 作用域；历史路由前进后退及失败地址不变。逐文件 SHA-256/Buffer 比较保证当前及归档文件未改写。
 
@@ -92,14 +92,47 @@
 |---|---|
 | 历史 ink HTTP 专项 | 6 通过、0 失败/跳过；含两个链接攻击子用例 |
 | 历史 Store 专项（最终修改） | 8 通过、0 失败/跳过，2.725 秒 |
-| 完整 V2 中间轮 | 341 通过、0 失败/跳过，135.561 秒；随后补空暂存返回用例及恢复保护，最终结果以下补记 |
+| 完整 V2 | 中间轮 341 通过、0 失败/跳过，135.561 秒；随后补空暂存返回用例及恢复保护。最终全仓运行中的全部 V2 用例亦通过，CI 同时完整通过 |
 | UI / server 类型检查 | 均通过 |
 | lint / 格式检查 | 262 文件、0 错误/警告；272 文件、0 格式差异 |
 | UI 构建、构建一致性、Git 追踪 | 全部通过，生成 JS/CSS 未追踪 |
 | 十项浏览器探针 | 全部通过；completion 中新增的桌面 1440×900 / 手机 390×844 历史编辑流程通过，pageerror 为空 |
 | 性能检查 | 2 通过、0 失败/跳过，32.665 秒；与其他测试并行运行，不用于宣称性能改善 |
-| 完整 npm test / GitHub CI | 运行中，完成后在本节补记 |
+| 完整 npm test | 1603 项，1592 通过、11 失败，0 跳过/取消，969.349 秒；退出码 1；全部失败位于旧版 host，明细如下 |
+| GitHub CI | 代码 `2f4a3580040468263561abfd149e527bbc860013` 的五项全部通过，见下表 |
 
 新增 10 项（含子用例）：6 项后端，4 项 Store；既有协议/冻结/沙箱与业务断言保留。初次完整 V2 发现新增历史读取类型断言超出既有断言数限制，改用真实形状校验后的 asserts 类型守卫，未改变限制或放宽测试。初次 lint 的长度违规按职责提取测试 helper 后消除，没有增加规则豁免。
 
 浏览器边界：归档相机可能将题卡底部的“重试保存”置于指针可视区域之外；本探针通过按钮 focus + Enter 验证原有键盘操作，不使用 force 点击、不重置相机、不删除重试断言。这里未重设计白板相机/错误提示布局，仍作为交互局限记录。手机仅为 Chromium 手机视口，不代表真机触控验收。未启动、重启或修改日常服务和真实作答目录。
+
+### 补充实现 CI
+
+[CI 43839185398](https://github.com/lear111/quizforge_web/actions/runs/43839185398) 的最终结论为 success；以下为 job 开始到结束的实际耗时（包含依赖安装/收尾）。计数来自完整 CI 日志，未省略失败用例。
+
+| Job | 结果 | 总耗时 | 结果摘要与失败用例名单 |
+|---|---|---|---|
+| Checks (ubuntu-latest) | 通过 | 133 秒 | 1603 项，1569 通过、0 失败、34 项既有平台跳过；失败名单为空 |
+| Checks (windows-latest) | 通过 | 208 秒 | 1603 项全部通过，0 失败/跳过；失败名单为空 |
+| V2 browser checks (ubuntu-latest) | 通过 | 235 秒 | 十项探针通过，含桌面/手机历史编辑、重试、冲突及返回；失败名单为空 |
+| Performance (ubuntu-latest) | 通过 | 20 秒 | 2 项通过，0 失败/跳过；失败名单为空 |
+| V2 code quality (ubuntu-latest) | 通过 | 25 秒 | 格式及 lint 通过；失败名单为空 |
+
+### 补充后的本机完整回归失败（11 项）
+
+环境仍为 Windows 11 10.0.26200、Node 24.13.0，本机桌面账户；未改 ACL、账户或系统权限。以下为本次实际结果，不以 CI 通过覆盖，也未重新检出基线把原因当成已证明的结论。旧版代码及断言未改。前一阶段的 library-package、windows-tray 和 V2 D19 失败本轮均通过。
+
+| 文件（相对 core） | 失败用例 | 首条错误 |
+|---|---|---|
+| server/host/ai/hub-connection.test.mjs:68 | completing login saves only the device token, reads quota, and logout revokes it | AI_SETTINGS_SAVE_FAILED，无法完成 AI 设置文件的访问保护 |
+| 同文件 :88 | a token the Hub rejects logs this computer out | 同上 |
+| 同文件 :96 | the free quota grades through the Hub gateway with the device token and keeps custom settings | 同上 |
+| 同文件 :114 | gateway errors become clear, non-retried messages and a rejected token logs out | 同上 |
+| 同文件 :133 | with both sources on, the free quota grades first and the custom model takes over when it cannot | 同上 |
+| 同文件 :160 | settings saved with one source before this version keep working | 同上 |
+| server/host/ai/settings-provider.test.mjs:32 | AI settings preserve masked-key editing and owner-protected saved credentials | 同上 |
+| 同文件 :54 | disabled AI remains disabled across persisted settings reload without losing automatic preference | 同上 |
+| server/host/http/server.test.mjs:290 | Hub login starts on the host only and the loopback callback finishes it without exposing the token | 503 !== 200（the free quota needs no model address） |
+| server/host/extensions/rule-engine.test.mjs:99 | foreground requests skip queued background batches and get a reserved worker | 实际顺序含 background-1、foreground，预期只有 foreground |
+| server/host/library/library.test.mjs:288 | a extension change during rename cannot reuse old validated content | EPERM，rename |
+
+ACL/重命名错误与本机权限或文件占用有关的解释、规则调度失败与机器负载有关的解释，均仅为初步判断，未在本任务调整实现、延长超时或加测试重试。相同代码在 Windows、Ubuntu CI 的上述 11 项均通过；本次不扩展任务去修旧版环境问题。
