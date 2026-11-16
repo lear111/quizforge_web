@@ -60,7 +60,9 @@ GitHub CI：实现提交 `ee2a91e` 的[运行记录](https://github.com/lear111/
 
 在 `probe-v2-history-delete.mjs` 的临时题库中准备两条历史，用 Playwright 暂停 DELETE 请求回包。验证请求挂起时两行均无法打开，点击不会改变 URL；模拟 503 后两行恢复，可打开剩余轮次并重试删除；实际 DELETE 返回 204 后，被删行消失，剩余轮次可打开；正在回看的轮次仍不能删除。保留取消确认不发请求、确认显示时间和得分、删除后列表空态、当前作答字节不变的原断言。
 
-修复前新断言复现「删除挂起时打开按钮仍启用」；修复后本机 `completion` 探针通过，Chromium 157.0.8103.39，桌面 1440×900、手机 390×844，无页面错误。UI 类型检查、ESLint、格式、构建及 `--check` 通过。远端检查见 [PR #184 Checks](https://github.com/lear111/quizforge_web/pull/184/checks)。
+修复前新断言复现「删除挂起时打开按钮仍启用」；修复后本机 `completion` 探针通过，Chromium 157.0.8103.39，桌面 1440×900、手机 390×844，无页面错误。UI 类型检查、ESLint、格式、构建及 `--check` 通过。
+
+修复提交 `d9dd8a9` 的 [完整 CI](https://github.com/lear111/quizforge_web/actions/runs/43872508990) 五项通过，无失败用例。Windows Checks 5m23s、Ubuntu Checks 2m03s、Ubuntu 十项浏览器探针 4m02s、代码质量 18s、性能 14s。后续提交只补充本记录。
 
 ## 风险与限制
 
