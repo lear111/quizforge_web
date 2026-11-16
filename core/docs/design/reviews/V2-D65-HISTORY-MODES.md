@@ -21,7 +21,19 @@
 - 真实 Chromium 的完成练习/归档/历史探针通过：1440×900 和 390×844；题卡居中误差不超过 1px；默认隐藏画布和工具；草稿态显示已有笔迹且可新增；两个模式切题均保留模式；返回作答后再次进入保留笔迹。
 - 探针断言历史 `state.json`、当前 `practice/state.json` 和整个 `practice/` 字节不变；请求只写指定历史题目的 `ink`，没有题型作答、提交、重做或评分请求。
 - 前后端类型检查、ESLint **0 错误/0 警告**、格式检查 **0 差异**、UI 构建与 `--check` 通过；性能 **2 通过、0 失败**。
-- 本机 Windows、Node 24.13.0、Chrome 157.0.8103.39，全部 **11 项浏览器探针通过、0 失败**：page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion（含历史）、router、exam。全部使用隔离合成题库和临时回环服务，未访问真实作答。跨平台 CI 结果随 PR 同步。
+- 本机 Windows、Node 24.13.0、Chrome 157.0.8103.39，全部 **11 项浏览器探针通过、0 失败**：page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion（含历史）、router、exam。全部使用隔离合成题库和临时回环服务，未访问真实作答。
+
+## CI 与交付
+
+[PR #190](https://github.com/lear111/quizforge_web/pull/190)，目标 `v2`，不自行合并。代码提交 `9d9dbbf9e1a28268c32fd802b8223b331917c000` 的[完整 CI](https://github.com/lear111/quizforge_web/actions/runs/43916730454)五项全部通过，失败用例名单为空；后续仅补本节记录，未改代码或测试。
+
+| Job | 结果 | 耗时 |
+|---|---|---:|
+| Checks (windows-latest) | 通过 | 5m23s |
+| Checks (ubuntu-latest) | 通过 | 2m56s |
+| V2 code quality (ubuntu-latest) | 通过 | 1m05s |
+| V2 browser checks (ubuntu-latest) | 通过，含全部 11 项探针 | 4m48s |
+| Performance (ubuntu-latest) | 通过 | 41s |
 
 ## 边界与遗留
 
