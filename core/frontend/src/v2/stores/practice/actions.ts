@@ -19,6 +19,7 @@ import type {
 export function createActions(ctx: PracticeSession): PracticeActions {
   return {
     historyList: () => history.historyList(ctx),
+    deleteHistory: (roundId) => history.deleteHistory(ctx, roundId),
     openHistory: (bank, round, question) => history.openHistory(ctx, bank, round, question),
     leaveHistory: () => history.leaveHistory(ctx),
     update: (q, preserve) => state.update(ctx, q, preserve),
@@ -63,6 +64,7 @@ export function createActions(ctx: PracticeSession): PracticeActions {
 export function viewActions(actions: PracticeActions): PracticeViewActions {
   return {
     historyList: actions.historyList,
+    deleteHistory: actions.deleteHistory,
     openHistory: actions.openHistory,
     leaveHistory: actions.leaveHistory,
     catalog: actions.catalog,

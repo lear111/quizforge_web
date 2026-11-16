@@ -5,10 +5,11 @@ import { readBytes, replaceFile, checkedStat } from '../../host/platform/files.j
 import { parseJson, jsonBytes } from '../../host/platform/json.js';
 import { object } from '../utils/errors.js';
 import { archiveError, directory, exists, move, removeTree } from './restart-files.repository.js';
+import { deletedRound, roundPattern } from './history-delete.repository.js';
 
 /** @param {string} bank @param {string} roundId */
 export function restartPaths(bank, roundId) {
-  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(roundId)) {
+  if (!roundPattern.test(roundId)) {
     throw archiveError();
   }
   const root = path.join(bank, '.qf-v2');
@@ -32,7 +33,7 @@ function receipt(value) {
     /^[0-9a-f]{64}$/.test(value.requestKey) &&
     typeof value.snapshotId === 'string' &&
     typeof value.roundId === 'string' &&
-    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(value.roundId)
+    roundPattern.test(value.roundId)
   );
 }
 
@@ -85,9 +86,12 @@ export function recoverRestart(bank) {
     }
     return { epoch: record.previous?.roundId ?? null, cleanupPending: false };
   }
-  // A committed archive may never be silently repaired from mutable sources.
-  for (const file of ['bank.json', 'state.json', 'extensions']) {
-    checkedStat(path.join(p.round, file));
+  // A tombstone proves a deliberate deletion without changing the replay epoch.
+  // Leave residue cleanup to the history endpoints; it cannot block practice.
+  if (!deletedRound(p.round, record.roundId)) {
+    for (const file of ['bank.json', 'state.json', 'extensions']) {
+      checkedStat(path.join(p.round, file));
+    }
   }
   try {
     removeTree(p.stage);

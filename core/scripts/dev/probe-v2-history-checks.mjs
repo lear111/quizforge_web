@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { probeHistoryInk } from './probe-v2-history-ink.mjs';
+import { probeHistoryDelete } from './probe-v2-history-delete.mjs';
 
 export async function probeEmptyHistory(page) {
   await page.getByRole('button', { name: '历史记录', exact: true }).click();
@@ -26,9 +27,14 @@ async function checkMenu(h, round) {
   await page.locator('.v2-bank-heading').click();
   assert.equal(await popover.count(), 0);
   await button.click();
-  await popover.locator('li button').first().click();
+  await popover.locator('.v2-history-open').first().click();
   await page.locator('.v2-history-banner').waitFor();
   await h.idle();
+  await button.click();
+  const remove = popover.getByRole('button', { name: /^删除 .* 的历史记录$/ });
+  await remove.waitFor();
+  assert.equal(await remove.isDisabled(), true);
+  await page.keyboard.press('Escape');
 }
 
 async function checkHostGuards(h) {
@@ -222,4 +228,6 @@ export async function probeHistory(h) {
   assertInkOnly(writes, roundBase);
   assert.deepEqual(grades, []);
   unchangedStates([currentFile, historicFile], before);
+  await probeHistoryDelete(h);
+  assert.deepEqual(practiceBytes(path.dirname(currentFile)), practiceBefore);
 }

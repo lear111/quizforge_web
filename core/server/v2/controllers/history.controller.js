@@ -2,7 +2,7 @@
 /** @typedef {import('../types/http.js').Handler} Handler */
 /**
  * @typedef {'rounds' | 'roundOverview' | 'roundQuestion' |
- * 'roundAsset' | 'roundInk'} HistoryHandler
+ * 'roundAsset' | 'roundInk' | 'roundDelete'} HistoryHandler
  */
 import { json } from '../utils/http-response.js';
 
@@ -30,6 +30,10 @@ export function historyHandlers(server) {
     roundInk(request, response) {
       const { bankId, roundId, questionId } = request.params;
       json(response, 200, history.saveInk(bankId, roundId, questionId, response.locals.input));
+    },
+    roundDelete(request, response) {
+      history.delete(request.params.bankId, request.params.roundId);
+      response.status(204).end();
     },
   };
 }

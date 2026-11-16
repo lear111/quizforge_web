@@ -47,7 +47,7 @@
 
 ## 第 3 段接口：完成练习、归档、历史
 
-完成、评分与归档已审查合并；历史列表与只读回看在本次 J 实现，待审查。历史宿主白板笔迹允许独立保存；历史删除尚未实现。
+完成、评分、归档、历史回看及历史宿主白板编辑已审查合并；本次 J 补充单轮历史删除，待审查。
 
 `B = /api/v2/banks/{bankId}`，`R = B/rounds/{roundId}`。设计依据：D20、D22、D40、D42、D44，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.1、4 节。
 
@@ -85,7 +85,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 | 接口 | 作用 |
 |---|---|
 | GET `B/rounds` | 历史列表：`[{ roundId, completedAt, score, maxScore }]`，按完成时间倒序。得分由该轮 `state.json` 相加得出，不另存索引 |
-| DELETE `R` | 后续删除一轮；本次未实现，返回 404 |
+| DELETE `R` | 删除指定的一轮，无请求体；成功返回 204，无响应体。已不存在或已清理的同一轮可重复请求 |
 | GET `R/overview` | 打开一轮。返回内容与 `B/overview` 同形，另带 `readOnly: true`、`roundId`；待评分列表为空 |
 | GET `R/questions/{questionId}` | 读归档题目、作答、成绩和笔迹，与 `Q` 同形，另带 `readOnly: true`、`roundId`。`solution` 总是返回（全部已锁定） |
 | PUT `R/questions/{questionId}/ink` | 保存宿主白板笔记：沿用 InkRequest（requestId、snapshotId、expectedInkRevision、ink），返回 InkResponse（inkRevision、state）；独立版本/回执、32 MiB 上限与原子写入 |
@@ -97,7 +97,9 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 
 拓展副本无法解析或载入时，该题按"题型不可用"处理，概览中的状态和分数照常返回。
 
-本次只读接口仅检查并读取归档，不执行 D27 或 restart 恢复；不创建或改写任何状态、索引及恢复文件。`roundId` 必须为小写 UUID，非法值返回 400 `INVALID_REQUEST`，不存在或尚为 `prepared` 的轮次返回 404；暂存目录不列入历史。已提交归档损坏返回 503 `STATE_INVALID`，保留文件，不回退当前练习。
+历史读取不执行 D27 或 restart 恢复，不改写状态或恢复文件。`roundId` 必须为小写 UUID，非法值返回 400 `INVALID_REQUEST`；读取不存在、已删除或尚为 `prepared` 的轮次返回 404。暂存目录不列入历史。已提交归档损坏返回 503 `STATE_INVALID`，不回退当前练习。
+
+删除只接受已存在的题库与合法轮次编号；仍为 `prepared` 的候选返回 404。先检查整个目标树，再原子写 `deleted.json`，然后清理同一轮的内容。标记有效后，该轮不会再出现在列表，题目、素材和 ink 均不再可用。清理失败返回 503 `STATE_WRITE_FAILED`，可重试；再次请求列表也会尝试清理已标记轮次的残留，失败不会让该轮重现。删除及其清理均不修改 `restart.json`、当前练习或其他轮次。详见[删除实施记录](reviews/V2-J-HISTORY-DELETE.md)。
 
 历史拓展的 `artifactId` 按题库和轮次隔离，只解析归档 `extensions/`；版本化共享 SDK 沿用宿主现有资源及沙箱。宿主独立拦截 changed/submit/retry，禁用题型作答保存、评分及评分写回。白板默认以只读方式显示归档笔迹与相机，顶部「草稿」可进入宿主白板编辑，保存至该轮 ink；不向题型 SDK 提供白板写能力。自动保存、同请求重试、版本冲突恢复及切题/换轮/退出前 flush 沿用现有机制，冲突始终重读历史作用域，不打开当前练习。返回时恢复进入历史前的当前题目、作答、草稿视图与笔迹。详见[实施记录](reviews/V2-J-HISTORY-REPLAY.md)。
 

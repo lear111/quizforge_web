@@ -45,6 +45,7 @@ export interface PracticeRuntime {
 // The Pinia surface used by views and Router; runtime helpers stay in the session.
 export interface PracticeViewActions {
   historyList(): Promise<import('../../../../shared/v2/api.js').HistoryRoundSummary[]>;
+  deleteHistory(roundId: string): Promise<void>;
   openHistory(bankId: string, roundId: string, questionId?: string): Promise<void>;
   leaveHistory(): Promise<void>;
   flush(): Promise<void>;

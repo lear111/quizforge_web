@@ -7,5 +7,6 @@ export function registerHistoryRoutes(app, handlers, body) {
   app.get(`${round}/questions/:questionId`, handlers.roundQuestion);
   app.get(`${round}/questions/:questionId/assets/:assetId`, handlers.roundAsset);
   app.put(`${round}/questions/:questionId/ink`, body, handlers.roundInk);
-  // Only host scratch ink is writable; no answer, submit, retry, result or delete route.
+  app.delete(round, handlers.roundDelete);
+  // Only host scratch ink is editable; no answer, submit, retry or result route.
 }
