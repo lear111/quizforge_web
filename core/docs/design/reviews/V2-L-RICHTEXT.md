@@ -22,7 +22,7 @@ DOMPurify 的项目说明与版本：[npm](https://www.npmjs.com/package/dompuri
 
 ### 公式与图片
 
-- 复用现有 KaTeX 0.16.43，不再引入第二个公式库。当前富文本静态组件已经打包 KaTeX，并使用 MathML 输出、`trust: false`；沿用该配置。
+- 复用现有 KaTeX 0.16.43，不再引入第二个公式库。当前富文本静态组件已经打包 KaTeX，并使用 MathML 输出、`trust: false`；沿用锁定的 0.16.43 版本，不新增公式库依赖。新 SDK 自己的静态文件仍需包含 KaTeX 运行时代码。
 - 清洗后遍历普通文本节点识别行内与独立公式；`\\$` 保留为普通美元符号。公式不在 `code` / `pre` 内解析。
 - 图片只允许 D54 的 `qf-asset:` 引用，通过现有资源通道加载；资源缺失沿用现有图片缺失提示，不回退到任意网络 URL。
 - `QFRichText.render(container, htmlString)` 保持函数调用形式，第二个参数由树形 JSON 文档改为 HTML 字符串；返回对象仍提供 `ready` 与 `destroy`。
