@@ -1,5 +1,7 @@
 # K：限时考试、交卷与归档
 
+**状态：已审查通过（Review #5922271705），PR [#186](https://github.com/lear111/quizforge_web/pull/186) 已 squash 合并到 `v2`，提交 `009f91f`；最终 CI 五项全绿。等待负责人试用，尚不视为验收完成。**
+
 用户可在题库内开始限时考试，切去其他题库再回来继续；交卷后使用现有批量评分，成绩汇总可将本轮归档并回到原练习。历史列表标记考试并显示用时。实现依据：[D24、D49–D52](../V2_ARCHITECTURE.md)、[接口](../V2_API_AND_STATE.md)、[存储结构](../V2_DATA_STRUCTURES.md)。
 
 - **隔离与并发：** 练习和考试共用状态与笔迹仓储，以受检的 `exam/state.json` 选择考试作用域。开始考试不清空练习；开始和归档分别生成新的快照代际，旧标签页的快照不能写入新轮次。D27 内容失效仍然生效，清空失效作答并退出考试。状态文件损坏时保留原文件并报错，不静默回到练习。
@@ -16,6 +18,10 @@
 - 本机默认全套运行：1624 项中 1603 项通过、20 项失败、1 项跳过。20 项均落在 V1 的宿主、托盘、题库导入或旧规则测试；本次未更改这些测试或放宽断言。V2 专项及跨平台结果分别核对。
 - Ubuntu 的目录链接探针修正为只解除 POSIX 符号链接；Windows 保持解除 junction 原方式，断言与生产校验均未放宽。早期一轮 Ubuntu CI 同时出现 V1 合成夹具并发创建 `.temp/node-migration` 的 `EEXIST`，没有修改 V1。
 - Windows、Ubuntu 及其他 CI 结果均以此 PR 的 GitHub Actions 为准。[查看 PR #186 的五项检查](https://github.com/lear111/quizforge_web/pull/186/checks)。
+
+## 审查补充
+
+审查核对考试/练习存储隔离、后端 endsAt 与 5 秒答案宽限、单题 submit/retry 拦截、solution/result 与解析专属素材隔离、到期后自动交卷及重开补评分、批量评分恢复、考试归档与 restart.json prepared/committed 回滚。最终 GitHub Actions #43891318102 五项全部 success。Codex 本机完整默认测试仍有 20 项 V1 失败、1 项跳过；V2 专项 363 项和 11 项 Chromium 探针通过。手机为 390×844 浏览器视口测试，不等同真机验收。
 
 ## 考试操作实测
 
