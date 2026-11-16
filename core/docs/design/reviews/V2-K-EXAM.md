@@ -1,6 +1,6 @@
 # K：限时考试、交卷与归档
 
-**状态：已审查通过（Review #5922271705），PR [#186](https://github.com/lear111/quizforge_web/pull/186) 已 squash 合并到 `v2`，提交 `009f91f`；最终 CI 五项全绿。等待负责人试用，尚不视为验收完成。**
+**状态：已审查通过（Review #5922271705），PR [#186](https://github.com/lear111/quizforge_web/pull/186) 已 squash 合并到 `v2`，提交 `009f91f`；最终 CI 五项全绿；负责人已试用验收通过。**
 
 用户可在题库内开始限时考试，切去其他题库再回来继续；交卷后使用现有批量评分，成绩汇总可将本轮归档并回到原练习。历史列表标记考试并显示用时。实现依据：[D24、D49–D52](../V2_ARCHITECTURE.md)、[接口](../V2_API_AND_STATE.md)、[存储结构](../V2_DATA_STRUCTURES.md)。
 
