@@ -42,12 +42,8 @@ export class HistoryRounds {
   }
   /** @param {string} bankId @param {string} roundId */
   delete(bankId, roundId) {
-    try {
-      deleteHistoryRound(this.library, bankId, roundId);
-    } finally {
-      // Cleanup may fail after the logical deletion already took effect.
-      this.opened.delete(bankId + ':' + roundId);
-    }
+    deleteHistoryRound(this.library, bankId, roundId);
+    this.opened.delete(bankId + ':' + roundId);
   }
   /** @param {string} bankId @param {string} roundId */
   load(bankId, roundId) {

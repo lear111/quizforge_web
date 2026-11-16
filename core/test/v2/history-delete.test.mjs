@@ -189,6 +189,9 @@ test('an actual process exit after deleting one archive file hides the round and
 test('an atomic marker write failure leaves the complete archive visible and permits retry', async (t) => {
   const f = await restartFixture(t);
   const round = await archive(f, 'marker-error');
+  const question = (await f.api(round.route + '/questions/1')).value;
+  const manifest = `/api/v2/extensions/${question.extension.artifactId}/manifest`;
+  assert.equal((await f.api(manifest)).status, 200);
   const before = contents(round.directory);
   const original = fs.renameSync;
   fs.renameSync = (from, to) => {
@@ -206,6 +209,7 @@ test('an atomic marker write failure leaves the complete archive visible and per
   }
   assert.deepEqual(contents(round.directory), before);
   assert.deepEqual(await list(f), [round.roundId]);
+  assert.equal((await f.api(manifest)).status, 200);
   await remove(f, round.route);
 });
 
@@ -282,6 +286,9 @@ test('unsafe round paths and nested links are refused before marking or erasing 
 test('cleanup failure stays hidden, does not block opening or archiving, and can be retried', async (t) => {
   const f = await restartFixture(t);
   const round = await archive(f, 'cleanup-error');
+  const question = (await f.api(round.route + '/questions/1')).value;
+  const manifest = `/api/v2/extensions/${question.extension.artifactId}/manifest`;
+  assert.equal((await f.api(manifest)).status, 200);
   const unlink = fs.unlinkSync;
   fs.unlinkSync = (file) => {
     if (file.startsWith(round.directory + path.sep)) {
@@ -295,6 +302,7 @@ test('cleanup failure stays hidden, does not block opening or archiving, and can
     assert.match((await response.json()).error.message, /已标记删除/);
     assert.deepEqual(await list(f), []);
     assert.equal((await f.api(round.route + '/overview')).status, 404);
+    assert.equal((await f.api(manifest)).status, 404);
     assert.equal((await f.api(f.base + '/overview')).value.snapshotId, round.snapshotId);
     const later = await archive(f, 'while-cleanup-pending');
     assert.deepEqual(await list(f), [later.roundId]);
