@@ -69,7 +69,10 @@ test('read-only and injected libraries preserve construction and their actual st
   assert.deepEqual(opened.pendingGrading, []);
   assert.ok(opened.states.every((state) => state.revision === 0 && !state.locked));
   assert.throws(() => readonly.finish(id, { snapshotId: opened.snapshotId }), TypeError);
-  assert.equal(fs.existsSync(readonly.opened.get(id).directory + '/.qf-v2/state.json'), false);
+  assert.equal(
+    fs.existsSync(readonly.opened.get(id).directory + '/.qf-v2/practice/state.json'),
+    false,
+  );
   const stateStore = new PracticeState();
   const injected = createPracticeLibrary(f.root, f.codeRoot, { stateStore });
   const oldConstruction = new LibrarySnapshots(f.root, f.codeRoot, { stateStore });

@@ -34,7 +34,7 @@ test('D32 browsing and ink never create state or move the last answered position
     expectedInkRevision: 0,
     ink: [1],
   });
-  assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/state.json')), false);
+  assert.equal(fs.existsSync(path.join(fixture.directory, '.qf-v2/practice/state.json')), false);
   assert.equal((await api(base + '/overview')).lastQuestionId, null);
   await api(base + '/questions/5/answer', {
     snapshotId,

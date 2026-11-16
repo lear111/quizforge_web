@@ -144,8 +144,8 @@ export function createArchiveFixture(root, scenario) {
   const loaded = parseJson(jsonBytes(state));
   validateState(loaded);
   freezeJson(loaded);
-  write(path.join(directory, '.qf-v2/state.json'), loaded);
-  const inkRoot = path.join(directory, '.qf-v2/ink');
+  write(path.join(directory, '.qf-v2/practice/state.json'), loaded);
+  const inkRoot = path.join(directory, '.qf-v2/practice/ink');
   fs.mkdirSync(inkRoot, { recursive: true });
   if (scenario.strokes) {
     for (let index = 1; index <= 200; index += 2) {

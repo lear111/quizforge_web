@@ -222,7 +222,7 @@ async function exercise(page, origin, name, catalog) {
   await checkLoadRollback(h);
   await checkSummary(h, output);
   await checkCompletionRouting(h, () => {
-    const records = path.resolve(root, 'question-banks/演示', `${name}-B`, '.qf-v2');
+    const records = path.resolve(root, 'question-banks/演示', `${name}-B`, '.qf-v2/practice');
     assert.ok(records.startsWith(path.resolve(root) + path.sep));
     fs.rmSync(records, {
       recursive: true,

@@ -164,7 +164,7 @@
 
 ## 状态、锁定与分数
 
-- 主状态现为 `.qf-v2/state.json`（按 D50 将搬到 `.qf-v2/practice/state.json`）：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`，完成时增加 `completedAt`（缺省按未完成）。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
+- 主状态现为 `.qf-v2/practice/state.json`（D50）：`formatVersion:2`、`questions`、`contentFingerprint`、`lastQuestionId`，完成时增加 `completedAt`（缺省按未完成）。每题只保存 `status`、`answer`、`result`、`submissionId`、`revision`、`receipts`。不保存单独的 `answered`、历史索引或笔迹；从未作答的题使用默认值，浏览不创建作答文件。磁盘结构见[数据结构说明书](V2_DATA_STRUCTURES.md)。
 - D37/D38：`status` 是大纲显示状态；无小题时为值，有小题时为小题 id 到值的映射，未出现的小题为 `unanswered`。五个值为 `unanswered`、`answered`、`correct`、`wrong`、`ungradable`。拓展通过 `changed` 传布尔值或最多 1000 键的布尔映射 `answered`；宿主立即更新大纲，`Q/answer` 随答案转为 `status` 保存，忽略未知小题。提交锁定不变色；后端按得分等于满分判对，否则判错（含部分得分）；待人工或 AI 保持现状，无法评分显示警示色；重做恢复默认。
 - 保存与锁定：`Q/answer` 带 requestId、snapshotId、expectedRevision、answer，可带 answered；`Q/submit` 同样携带最终 answer，提交成功后返回 solution、submissionId，之后不可改答案。锁定由 submissionId 判断，已锁定且 result 为 null 才自动补评。作答、提交、结果、重做每次成功写入递增同一个 revision。
 - 评分上报：`Q/result` 带 requestId、snapshotId、submissionId、expectedRevision、source:"grader"、result。凭证必须仍属当前锁且版本一致，旧锁返回 SUBMISSION_STALE、旧版本返回 RESULT_CONFLICT。结果为 `{ score, parts, message }`：无小题或无分数时 parts 为 null；有小题的数值评分以小题 ID 为键，全部且仅包含对应小题，分值有限、非负、未越界，精确十进制合计等于总分。无分数时 message 为 null 表示待人工或 AI，非空说明表示无法评分。有分数时 message 为 null。
@@ -179,7 +179,8 @@
 - D16：完成/交卷时未作答的题直接记 0 分（负责人补充：存过又清空也按未作答）；批量结果后立即汇总，待评/无法评分单列，后续更新。D17 / D39：历史轮次单独保存，摘要来源与最终化规则留第 3 段设计，主状态不预留 historyIndex。
 - D27：根 contentFingerprint 由 bank.json 原始字节和全部已使用题型拓展的文件内容确定，不含物理目录名、题库素材、SDK 或无关文件。打开/刷新/重新加载不一致时清空全部 questions 与 ink 目录；无 state 文件不创建。返回 activeCleared 和“题库或题型已变化，本轮作答已清空”。不保存逐题 fingerprint，锁凭证为 submissionId。开发模式的进一步交互留第 6 段。
 - D32：state.json 根 lastQuestionId 只随 answer/submit/retry 更新，result/ink/浏览不更新；删除 position 接口与文件。窗口内切库仍用内存记浏览位置，浏览器只用 V2 localStorage 记题库。
-- D33：区外笔迹位于 .qf-v2/ink/<contentFingerprint>/<SHA256(questionId)>.json。按题原子替换且独立 inkRevision/回执；ink 不改 state.json；选择题保存不读写任何 ink；hasInk 只由目录文件名索引给出，代表存在保存记录（包括空白板）。retry 先删本题笔迹后写 state，后一写失败时答案保留、笔迹已删，原请求可重试。D27 先删全 ink 再清主状态，失败恢复同理。
+- D33 / D50：区外笔迹位于 `.qf-v2/practice/ink/<contentFingerprint>/<SHA256(questionId)>.json`。按题原子替换且独立 inkRevision/回执；ink 不改 state.json；选择题保存不读写任何 ink；hasInk 只由目录文件名索引给出，代表存在保存记录（包括空白板）。retry 先删本题笔迹后写 state，后一写失败时答案保留、笔迹已删，原请求可重试。D27 先删 practice/ink 再清练习主状态，失败恢复同理。
+- D50：打开/刷新时检查并清理旧开发位置 `.qf-v2/state.json`、`.qf-v2/ink/`，不迁移、不作为当前答案读取。先完整检查再删除；损坏、未知内容或重定向返回现有格式的 `STATE_INVALID`（503）并保留原文件，删除失败返回 `STATE_WRITE_FAILED`（503）并保留尚未处理的文件。需先检查旧位置再重试打开；新练习、考试、历史和无关目录不参与清理。没有新增接口或响应字段。
 - D29：后端最近 8 个题库 LRU，逐出时释放 state/身份/笔迹索引；带 snapshotId 访问被逐出题库时重开，比对一致则透明继续，否则返回过期并按 D27 清理。
 - 打开/刷新也检查作答文件的 dev/ino/size/mtimeNs/ctimeNs/birthtimeNs，变化重读，消失回初始态，坏文件报错保留并失效缓存；普通单题读写不扫描题库。写入后下次打开核对身份及字节，避免把外部替换文件身份误配给缓存。刷新接口的请求和返回见上表。
 - 打开仅检查 JSON 与大纲，坏题延迟到单题报错；overview 附一道起始题。遍历上限 1000 项，超限返回 lowerBound:1001、limit:1000 与中文原因，不为精确总数继续遍历。

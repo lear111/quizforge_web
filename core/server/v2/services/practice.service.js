@@ -14,6 +14,7 @@ import { own, invalid, empty } from '../utils/state.js';
 import { measureOverview } from '../utils/timing.js';
 import { PracticeInk } from '../repositories/ink.repository.js';
 import { StateRepository } from '../repositories/state.repository.js';
+import { clearLegacyPractice } from '../repositories/legacy-practice.repository.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 import { optionalProperty } from '../utils/properties.js';
 export { validateResult } from './practice-result.service.js';
@@ -74,6 +75,7 @@ export class PracticeState {
    * @param {Snapshot} snapshot
    */
   reconcile(snapshot) {
+    clearLegacyPractice(snapshot.directory);
     const old = this.load(snapshot.directory, { refresh: true });
     const exists = this.records.exists(snapshot.directory);
     const changed =
