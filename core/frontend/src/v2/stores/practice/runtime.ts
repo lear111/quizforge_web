@@ -56,7 +56,7 @@ export function attachView(ctx: PracticeSession, nonce: string, elements: ViewEl
   });
   runtime.scratch = mountScratch(elements.viewport, elements.stage, elements.world, {
     changed() {
-      if (ctx.current.value && !ctx.overview.value?.readOnly) {
+      if (ctx.current.value) {
         runtime.inkVersion++;
         runtime.saver?.changed('ink');
       }
@@ -77,9 +77,6 @@ export function detachView(ctx: PracticeSession) {
   runtime.container = undefined;
 }
 export async function toggleDraft(ctx: PracticeSession) {
-  if (ctx.overview.value?.readOnly) {
-    return;
-  }
   ctx.runtime.scratch?.flush();
   ctx.drafting.value = !ctx.drafting.value;
   ctx.runtime.scratch?.setMode(ctx.drafting.value);

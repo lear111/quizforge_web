@@ -47,7 +47,7 @@
 
 ## 第 3 段接口：完成练习、归档、历史
 
-完成、评分与归档已审查合并；历史列表与只读回看在本次 J 实现，待审查。历史删除与笔迹写入尚未实现。
+完成、评分与归档已审查合并；历史列表与只读回看在本次 J 实现，待审查。历史宿主白板笔迹允许独立保存；历史删除尚未实现。
 
 `B = /api/v2/banks/{bankId}`，`R = B/rounds/{roundId}`。设计依据：D20、D22、D40、D42、D44，数据结构见 [说明书](V2_DATA_STRUCTURES.md) 第 2.1、4 节。
 
@@ -88,7 +88,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 | DELETE `R` | 后续删除一轮；本次未实现，返回 404 |
 | GET `R/overview` | 打开一轮。返回内容与 `B/overview` 同形，另带 `readOnly: true`、`roundId`；待评分列表为空 |
 | GET `R/questions/{questionId}` | 读归档题目、作答、成绩和笔迹，与 `Q` 同形，另带 `readOnly: true`、`roundId`。`solution` 总是返回（全部已锁定） |
-| PUT `R/questions/{questionId}/ink` | 后续保存笔记；本次未实现，返回 404 |
+| PUT `R/questions/{questionId}/ink` | 保存宿主白板笔记：沿用 InkRequest（requestId、snapshotId、expectedInkRevision、ink），返回 InkResponse（inkRevision、state）；独立版本/回执、32 MiB 上限与原子写入 |
 | GET `R/questions/{questionId}/assets/{assetId}` | 素材。引用来自该轮的 `bank.json`，文件仍在题库文件夹里找；不存在时返回 404，前端显示"素材已不存在" |
 
 拓展文件沿用 `/api/v2/extensions/{artifactId}/…`，该轮概览给出的 `artifactId` 指向轮次目录里的拓展副本。
@@ -99,7 +99,9 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 
 本次只读接口仅检查并读取归档，不执行 D27 或 restart 恢复；不创建或改写任何状态、索引及恢复文件。`roundId` 必须为小写 UUID，非法值返回 400 `INVALID_REQUEST`，不存在或尚为 `prepared` 的轮次返回 404；暂存目录不列入历史。已提交归档损坏返回 503 `STATE_INVALID`，保留文件，不回退当前练习。
 
-历史拓展的 `artifactId` 按题库和轮次隔离，只解析归档 `extensions/`；版本化共享 SDK 沿用宿主现有资源及沙箱。宿主独立拦截 changed/submit/retry，禁用自动保存、评分及评分写回。白板复用已有只读模式，显示归档笔迹与坐标，不开放编辑或写入；返回时恢复进入历史前的当前题目、作答、草稿视图与笔迹。详见[实施记录](reviews/V2-J-HISTORY-REPLAY.md)。
+历史拓展的 `artifactId` 按题库和轮次隔离，只解析归档 `extensions/`；版本化共享 SDK 沿用宿主现有资源及沙箱。宿主独立拦截 changed/submit/retry，禁用题型作答保存、评分及评分写回。白板默认以只读方式显示归档笔迹与相机，顶部「草稿」可进入宿主白板编辑，保存至该轮 ink；不向题型 SDK 提供白板写能力。自动保存、同请求重试、版本冲突恢复及切题/换轮/退出前 flush 沿用现有机制，冲突始终重读历史作用域，不打开当前练习。返回时恢复进入历史前的当前题目、作答、草稿视图与笔迹。详见[实施记录](reviews/V2-J-HISTORY-REPLAY.md)。
+
+历史 ink 仅写 `.qf-v2/rounds/{roundId}/ink/{contentFingerprint}/{SHA256(questionId)}.json`；不改归档 bank/state/extensions、当前 practice/state 或 practice/ink，也不读写 restart.json。快照不符为 409 SNAPSHOT_STALE，笔迹版本不符为 409 REVISION_CONFLICT，同 requestId 不同请求为 REQUEST_CONFLICT；缺字段为 400 INVALID_REQUEST，超限 413 STATE_SIZE_LIMIT，写失败 503 STATE_WRITE_FAILED。历史读取不迁移旧笔迹，损坏时保留原文件。
 
 ## 第 4 段接口：考试（已定稿，未实现）
 

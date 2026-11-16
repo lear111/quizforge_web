@@ -11,11 +11,13 @@ import { historicalState, historySummary, historyTotal } from './history-state.s
 import { resolution, visibleAssets } from './question.service.js';
 import { object, problem, publicError } from '../utils/errors.js';
 import { optionalProperty } from '../utils/properties.js';
+import { HistoryInk } from '../repositories/history-ink.repository.js';
 
 export class HistoryRounds {
   /** @param {Library} library */
   constructor(library) {
     this.library = library;
+    this.ink = new HistoryInk();
     /** @type {Map<string, HistorySnapshot>} */
     this.opened = new Map();
   }
@@ -138,6 +140,16 @@ export class HistoryRounds {
       }
     }
     throw problem('RESOURCE_NOT_FOUND', '素材已不存在', {}, 404);
+  }
+  /** @param {string} bankId @param {string} roundId @param {string} id @param {unknown} input */
+  saveInk(bankId, roundId, id, input) {
+    const { round, snapshot } = this.context(bankId, roundId);
+    if (optionalProperty(input, 'snapshotId') !== snapshot.snapshotId) {
+      throw problem('SNAPSHOT_STALE', '历史快照已变化，请重新打开。', { bankId }, 409);
+    }
+    questionRecord(snapshot, id);
+    const saved = this.ink.apply(round, id, input);
+    return { inkRevision: saved.inkRevision, state: historySummary(round, id) };
   }
   /** @param {string} artifactId */
   artifact(artifactId) {

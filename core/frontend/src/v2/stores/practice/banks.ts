@@ -76,6 +76,7 @@ export async function navigate(ctx: PracticeSession, id: string) {
   }
   if (overview.value.readOnly) {
     await ctx.run('正在读取历史题目', async () => {
+      await ctx.actions().flush();
       await showHistoryQuestion(ctx, id);
       scoreView.value = false;
       drawer.value = null;

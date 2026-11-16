@@ -1,9 +1,11 @@
 /** @typedef {import('../services/bank.service.js').LibrarySnapshots} Library */
 /** @typedef {import('../types/history.js').HistoryRound} HistoryRound */
+/** @typedef {import('../../../shared/v2/state.js').InkFile} InkFile */
 import fs from 'node:fs';
 import path from 'node:path';
 import { checkedStat, readBytes } from '../../host/platform/files.js';
-import { cloneJson, hash, parseJson } from '../../host/platform/json.js';
+import { cloneJson, freezeJson, hash, parseJson } from '../../host/platform/json.js';
+import { statIdentity } from '../../host/platform/file-cache.js';
 import { readBank } from './bank.repository.js';
 import { validateState } from './state-shape.repository.js';
 import { readJournal } from './restart-journal.repository.js';
@@ -103,25 +105,46 @@ export function hasHistoryInk(round, id) {
   return Boolean(checkedStat(historyInkFile(round, id), { optional: true }).stat);
 }
 
-/** @param {HistoryRound} round @param {string} id */
-export function readHistoryInk(round, id) {
+/** @param {unknown} raw @returns {asserts raw is Record<string, unknown> & InkFile} */
+function validateInkRecord(raw) {
+  if (
+    !object(raw) ||
+    Object.keys(raw).length !== 3 ||
+    !Object.hasOwn(raw, 'ink') ||
+    !integer(raw.inkRevision) ||
+    !validReceipts(raw.receipts)
+  ) {
+    throw invalidHistory();
+  }
+}
+
+/** @param {HistoryRound} round @param {string} id
+ * @returns {InkFile} */
+export function readHistoryInkRecord(round, id) {
   try {
-    const bytes = readBytes(historyInkFile(round, id), STATE_BYTES, true);
-    if (!bytes) {
-      return { ink: null, inkRevision: 0 };
-    }
-    const raw = parseJson(bytes, { maxDepth: 68 });
-    if (
-      !object(raw) ||
-      Object.keys(raw).length !== 3 ||
-      !Object.hasOwn(raw, 'ink') ||
-      !integer(raw.inkRevision) ||
-      !validReceipts(raw.receipts)
-    ) {
+    const file = historyInkFile(round, id);
+    const identity = () => {
+      const { stat } = checkedStat(file, { optional: true, bigint: true });
+      return stat ? statIdentity(stat) : null;
+    };
+    const before = identity(),
+      bytes = readBytes(file, STATE_BYTES, true);
+    if (before !== identity()) {
       throw invalidHistory();
     }
-    return { ink: raw.ink, inkRevision: raw.inkRevision };
+    if (!bytes) {
+      return { ink: null, inkRevision: 0, receipts: [] };
+    }
+    const raw = parseJson(bytes, { maxDepth: 68 });
+    validateInkRecord(raw);
+    return freezeJson(raw);
   } catch {
     throw invalidHistory();
   }
+}
+
+/** @param {HistoryRound} round @param {string} id */
+export function readHistoryInk(round, id) {
+  const { ink, inkRevision } = readHistoryInkRecord(round, id);
+  return { ink, inkRevision };
 }

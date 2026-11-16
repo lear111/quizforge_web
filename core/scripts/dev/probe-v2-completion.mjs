@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { V2Server } from '../../server/v2/app.js';
 import { probeRestart } from './v2-restart-browser.mjs';
 import { probeHistory, probeEmptyHistory } from './probe-v2-history-checks.mjs';
-import { completionResult } from './v2-completion-result.mjs';
+import { completionResult, probeApi } from './v2-completion-result.mjs';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
@@ -31,11 +31,7 @@ try {
   }
   server = await new V2Server({ root, codeRoot: core }).start();
   const origin = `http://127.0.0.1:${server.port()}`;
-  const api = async (route) => {
-    const r = await fetch(origin + route);
-    assert.equal(r.ok, true);
-    return r.json();
-  };
+  const api = probeApi(origin);
   const catalog = await api('/api/v2/catalog'),
     rows = [],
     errors = [];

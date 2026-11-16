@@ -1,10 +1,14 @@
 /** @typedef {import('../types/http.js').ServerContext} ServerContext */
 /** @typedef {import('../types/http.js').Handler} Handler */
+/**
+ * @typedef {'rounds' | 'roundOverview' | 'roundQuestion' |
+ * 'roundAsset' | 'roundInk'} HistoryHandler
+ */
 import { json } from '../utils/http-response.js';
 
 /**
  * @param {ServerContext} server
- * @returns {Record<'rounds' | 'roundOverview' | 'roundQuestion' | 'roundAsset', Handler>}
+ * @returns {Record<HistoryHandler, Handler>}
  */
 export function historyHandlers(server) {
   const history = server.library.history;
@@ -22,6 +26,10 @@ export function historyHandlers(server) {
     roundAsset(request, response) {
       const { bankId, roundId, questionId, assetId } = request.params;
       server.binary(request, response, history.asset(bankId, roundId, questionId, assetId));
+    },
+    roundInk(request, response) {
+      const { bankId, roundId, questionId } = request.params;
+      json(response, 200, history.saveInk(bankId, roundId, questionId, response.locals.input));
     },
   };
 }

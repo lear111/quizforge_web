@@ -88,7 +88,7 @@ export interface QuestionKey {
   bankId: string;
   questionId: string;
   snapshotId: string;
-  /** Only history reads carry this scope; never a practice write. */
+  /** History reads and host-only scratch ink carry this scope; never a practice write. */
   roundId?: string;
 }
 /** Writes omit ink; retry and GET include it. They all include the full answer. */

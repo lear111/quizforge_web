@@ -9,19 +9,11 @@ import {
   replaceFile,
   within,
 } from '../../host/platform/files.js';
-import {
-  cloneJson,
-  fingerprint,
-  freezeJson,
-  hash,
-  jsonBytes,
-  parseJson,
-  projectJson,
-} from '../../host/platform/json.js';
+import { freezeJson, hash, parseJson } from '../../host/platform/json.js';
 import { object, problem } from '../utils/errors.js';
-import { measureSave } from '../utils/timing.js';
+import { applyInkFile } from './ink-write.repository.js';
 import { statIdentity } from '../../host/platform/file-cache.js';
-import { appendReceipt, replayed, validOldReceipts, validReceipts } from '../utils/receipts.js';
+import { validOldReceipts, validReceipts } from '../utils/receipts.js';
 import { integer } from '../utils/state.js';
 import { practiceDirectory } from './practice-directory.repository.js';
 
@@ -178,46 +170,15 @@ export class PracticeInk {
   }
   /** @param {Snapshot} snapshot @param {string} id @param {unknown} input */
   apply(snapshot, id, input) {
-    if (
-      !object(input) ||
-      typeof input.requestId !== 'string' ||
-      !input.requestId.trim() ||
-      !Object.hasOwn(input, 'ink')
-    ) {
-      throw problem('INVALID_REQUEST', '请求标识无效或缺少草稿笔迹。', {}, 400);
-    }
-    const old = this.read(snapshot, id),
-      signature = fingerprint({ op: 'ink', input }, 'quizforge-v2-receipt'),
-      key = input.requestId;
-    if (replayed(old.receipts, key, signature)) {
-      return old;
-    }
-    if (!integer(input.expectedInkRevision) || input.expectedInkRevision !== old.inkRevision) {
-      throw problem('REVISION_CONFLICT', '草稿笔迹已变化，请重新打开本题。', {}, 409);
-    }
-    if (!integer(old.inkRevision + 1)) {
-      throw problem('STATE_INVALID', '笔迹版本无法继续递增。', {}, 503);
-    }
-    const value = Object.assign(cloneJson(projectJson(input, ['ink'])), {
-      inkRevision: old.inkRevision + 1,
-      receipts: appendReceipt(old.receipts, key, signature),
-    });
-    const bytes = measureSave('serialize', () => jsonBytes(value));
-    if (bytes.length > LIMIT) {
-      throw problem(
-        'STATE_SIZE_LIMIT',
-        '本题草稿笔迹超过 32 MiB，本次未保存，原记录保留。',
-        {},
-        413,
-      );
-    }
-    try {
-      measureSave('write', () => this.write(this.file(snapshot, id), bytes));
-    } catch {
-      throw problem('STATE_WRITE_FAILED', '草稿笔迹未能保存，请重试；原记录保持不变。', {}, 503);
-    }
-    this.indexes.get(snapshot.directory)?.add(hash(Buffer.from(id)));
-    return freezeJson(value);
+    return applyInkFile(
+      {
+        read: () => this.read(snapshot, id),
+        file: () => this.file(snapshot, id),
+        write: this.write,
+        saved: () => this.indexes.get(snapshot.directory)?.add(hash(Buffer.from(id))),
+      },
+      input,
+    );
   }
   /** @param {string} directory */
   evict(directory) {

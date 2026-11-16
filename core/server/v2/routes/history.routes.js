@@ -1,10 +1,11 @@
 import { BANK } from './paths.js';
 
-export function registerHistoryRoutes(app, handlers) {
+export function registerHistoryRoutes(app, handlers, body) {
   const round = `${BANK}/rounds/:roundId`;
   app.get(`${BANK}/rounds`, handlers.rounds);
   app.get(`${round}/overview`, handlers.roundOverview);
   app.get(`${round}/questions/:questionId`, handlers.roundQuestion);
   app.get(`${round}/questions/:questionId/assets/:assetId`, handlers.roundAsset);
-  // No answer, submit, retry, result, ink write or delete route exists here.
+  app.put(`${round}/questions/:questionId/ink`, body, handlers.roundInk);
+  // Only host scratch ink is writable; no answer, submit, retry, result or delete route.
 }

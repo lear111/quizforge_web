@@ -6,6 +6,7 @@ import type { PracticeSession } from '../../types/practice-session';
 function isCurrent(ctx: PracticeSession, previous: Question) {
   return (
     ctx.current.value?.bankId === previous.bankId &&
+    ctx.current.value.roundId === previous.roundId &&
     ctx.current.value.questionId === previous.questionId
   );
 }
@@ -14,7 +15,9 @@ async function refreshedQuestion(ctx: PracticeSession, previous: Question, mine:
   const { api, current, overview, message, token } = ctx;
   let value: Overview;
   try {
-    value = await api.banks.overview(previous.bankId);
+    value = previous.roundId
+      ? await api.history.overview(previous.bankId, previous.roundId)
+      : await api.banks.overview(previous.bankId);
   } catch (error) {
     if (!isSaveConflict(error)) {
       throw error;
@@ -78,6 +81,7 @@ export async function reloadAfterConflict(
   recovering.value = true;
   try {
     if (
+      !previous.readOnly &&
       (error as { code?: string } | undefined)?.code === ('ROUND_COMPLETED' satisfies ApiErrorCode)
     ) {
       const value: Overview = await api.banks.overview(previous.bankId);

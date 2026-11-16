@@ -31,7 +31,7 @@ const prepareSave = <K extends keyof SaveResponses>(
   fields: Record<string, unknown>,
 ): PreparedSave<K> => ({
   kind,
-  route: `${questionPath(writable(q))}/${kind}`,
+  route: `${questionPath(kind === 'ink' ? q : writable(q))}/${kind}`,
   body: writeBody(q.snapshotId, fields),
 });
 

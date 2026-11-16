@@ -64,7 +64,7 @@ export function createApp(server) {
   const body = [requireJson, readJson];
   registerSystemRoutes(app, handlers);
   registerBankOverviewRoute(app, handlers);
-  registerHistoryRoutes(app, handlers);
+  registerHistoryRoutes(app, handlers, body);
   registerQuestionReadRoutes(app, handlers);
   registerBankListeningRoute(app, handlers);
   registerExtensionRoutes(app, handlers);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { probeHistoryInk } from './probe-v2-history-ink.mjs';
 
 export async function probeEmptyHistory(page) {
   await page.getByRole('button', { name: '历史记录', exact: true }).click();
@@ -66,7 +67,7 @@ async function checkHostGuards(h) {
   assert.deepEqual(results, ['rejected', 'rejected']);
   assert.equal(await frame().getByRole('button', { name: '提交答案', exact: true }).count(), 0);
   assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: '草稿', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '草稿', exact: true }).count(), 1);
   assert.equal(
     await frame()
       .locator('input')
@@ -149,6 +150,34 @@ function recordHistoryRequests(page) {
   return { writes, grades, stop: () => page.off('request', record) };
 }
 
+function practiceBytes(directory) {
+  return fs
+    .readdirSync(directory, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const file = path.join(entry.parentPath, entry.name);
+      return [path.relative(directory, file), fs.readFileSync(file).toString('base64')];
+    });
+}
+
+function unchangedStates(files, before) {
+  files.forEach((file, i) => assert.ok(fs.readFileSync(file).equals(before[i])));
+}
+
+function assertInkOnly(writes, roundBase) {
+  assert.ok(writes.every((url) => url.includes(roundBase + '/questions/') && url.endsWith('/ink')));
+}
+
+async function watchHistoryEnvelope(page) {
+  await page.evaluate(() =>
+    addEventListener('message', (event) => {
+      if (event.data?.kind === 'ready') {
+        globalThis.__historyEnvelope = { channel: event.data.channel, version: event.data.version };
+      }
+    }),
+  );
+}
+
 export async function probeHistory(h) {
   const { page, api, base, frame, first, directory, output, name } = h;
   const rounds = await api(base + '/rounds');
@@ -166,19 +195,15 @@ export async function probeHistory(h) {
   const currentFile = path.join(directory, '.qf-v2/practice/state.json');
   const historicFile = path.join(directory, `.qf-v2/rounds/${round.roundId}/state.json`);
   const before = [currentFile, historicFile].map((f) => fs.readFileSync(f));
+  const practiceBefore = practiceBytes(path.dirname(currentFile));
   const { writes, grades, stop } = recordHistoryRequests(page);
-  await page.evaluate(() =>
-    addEventListener('message', (event) => {
-      if (event.data?.kind === 'ready') {
-        globalThis.__historyEnvelope = { channel: event.data.channel, version: event.data.version };
-      }
-    }),
-  );
+  await watchHistoryEnvelope(page);
   await checkMenu(h, round);
   await checkHostGuards(h);
+  assert.deepEqual(writes, []);
   await checkInk(h, roundBase);
   await page.screenshot({ path: path.join(output, name + '-history.png'), fullPage: true });
-  await page.getByRole('button', { name: '返回当前练习', exact: true }).click();
+  await probeHistoryInk(h, roundBase);
   await h.idle();
   assert.ok(!page.url().includes('/rounds/'));
   assert.equal(await frame().locator('input:checked').count(), 1);
@@ -186,14 +211,15 @@ export async function probeHistory(h) {
     (await api(base + `/questions/${first}?snapshotId=${current.snapshotId}`)).answer,
     current.answer,
   );
-  [currentFile, historicFile].forEach((f, i) => assert.ok(fs.readFileSync(f).equals(before[i])));
-  assert.deepEqual(writes, []);
+  unchangedStates([currentFile, historicFile], before);
+  assert.ok(writes.length > 0);
+  assertInkOnly(writes, roundBase);
+  assert.deepEqual(practiceBytes(path.dirname(currentFile)), practiceBefore);
   assert.deepEqual(grades, []);
   await checkMenu(h, round);
   await checkUnavailable(h, roundBase);
   stop();
-  assert.deepEqual(writes, []);
+  assertInkOnly(writes, roundBase);
   assert.deepEqual(grades, []);
-  assert.ok(fs.readFileSync(currentFile).equals(before[0]));
-  assert.ok(fs.readFileSync(historicFile).equals(before[1]));
+  unchangedStates([currentFile, historicFile], before);
 }

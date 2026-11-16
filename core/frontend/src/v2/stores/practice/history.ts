@@ -8,7 +8,7 @@ export async function historyList(ctx: PracticeSession) {
 }
 
 function suspendPractice(ctx: PracticeSession) {
-  if (!ctx.overview.value?.readOnly) {
+  if (ctx.overview.value && !ctx.overview.value.readOnly) {
     const question = ctx.current.value;
     ctx.runtime.returnPractice = {
       overview: ctx.overview.value,
@@ -101,6 +101,7 @@ export async function leaveHistory(ctx: PracticeSession) {
   const bankId = ctx.overview.value.bank.bankId;
   const previous = ctx.runtime.returnPractice;
   await ctx.run('正在返回当前练习', async () => {
+    await ctx.actions().flush();
     await restorePractice(
       ctx,
       previous ?? {

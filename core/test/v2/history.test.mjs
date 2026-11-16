@@ -142,7 +142,7 @@ test('history reads archived questions, answers, scores, extensions and ink with
   assert.deepEqual(bytes(f.directory), before);
 });
 
-test('every history write route including ink and delete returns 404 and leaves both states byte-identical', async (t) => {
+test('history answer, score and delete routes return 404 and leaves both states byte-identical', async (t) => {
   const f = await archived(t),
     before = bytes(f.directory);
   for (const [route, method] of [
@@ -150,7 +150,6 @@ test('every history write route including ink and delete returns 404 and leaves 
     ['/questions/1/submit', 'POST'],
     ['/questions/1/retry', 'POST'],
     ['/questions/1/result', 'PUT'],
-    ['/questions/1/ink', 'PUT'],
     ['/results', 'PUT'],
     ['/finish', 'POST'],
     ['/restart', 'POST'],

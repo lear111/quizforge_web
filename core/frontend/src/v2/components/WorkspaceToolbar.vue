@@ -56,7 +56,7 @@ const groupName = computed(() => {
     >
     <div class="v2-actions">
       <button
-        v-if="current && !scoreView && !overview?.readOnly"
+        v-if="current && !scoreView"
         class="v2-draft-button"
         :class="{ active: drafting }"
         :disabled="busy || recovering"

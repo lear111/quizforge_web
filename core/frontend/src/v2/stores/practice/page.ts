@@ -181,7 +181,8 @@ export async function show(ctx: PracticeSession, q: Question, resume = true) {
   ctx.runtime.page = instance;
   ctx.runtime.scratch?.load(q.ink);
   ctx.runtime.scratch?.setReadOnly(Boolean(q.readOnly));
-  ctx.runtime.saver = q.readOnly ? null : ctx.actions().createSaver(q, mine, instance);
+  ctx.runtime.scratch?.setMode(ctx.drafting.value);
+  ctx.runtime.saver = ctx.actions().createSaver(q, mine, instance);
   await instance.ready;
   ctx.actions().remember(q);
   if (resume && !overview.value?.completedAt && q.submissionId !== null && q.result === null) {
