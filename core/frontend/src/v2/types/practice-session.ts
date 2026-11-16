@@ -18,6 +18,13 @@ export interface ViewElements {
   world: HTMLElement;
 }
 export interface PracticeRuntime {
+  returnPractice: {
+    overview: Overview | null;
+    question: Question | null;
+    scoreView: boolean;
+    drafting: boolean;
+    message: string;
+  } | null;
   restartRequest: { bankId: string; snapshotId: string; body: string } | null;
   page: QuestionPage | null;
   scratch: ReturnType<typeof mountScratch> | null;
@@ -37,6 +44,9 @@ export interface PracticeRuntime {
 }
 // The Pinia surface used by views and Router; runtime helpers stay in the session.
 export interface PracticeViewActions {
+  historyList(): Promise<import('../../../../shared/v2/api.js').HistoryRoundSummary[]>;
+  openHistory(bankId: string, roundId: string, questionId?: string): Promise<void>;
+  leaveHistory(): Promise<void>;
   flush(): Promise<void>;
   retrySave(): Promise<void>;
   continueGrading(): Promise<void> | undefined;

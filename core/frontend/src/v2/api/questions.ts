@@ -13,25 +13,32 @@ import { bankPath } from './banks';
 import type { PreparedSave, SaveResponses } from '../types/save';
 import { jsonRequest, type ApiClient } from './client';
 import { snapshotQuery, writeBody } from './requests';
+import { roundPath } from './history';
 
 type Question = QuestionResponse;
 type AnswerFields = Pick<AnswerRequest, 'answer' | 'answered'>;
-const questionPath = (q: Pick<QuestionKey, 'bankId' | 'questionId'>) =>
-  `${bankPath(q.bankId)}/questions/${encodeURIComponent(q.questionId)}`;
+const questionPath = (q: Pick<QuestionKey, 'bankId' | 'questionId' | 'roundId'>) =>
+  `${q.roundId ? roundPath(q.bankId, q.roundId) : bankPath(q.bankId)}/questions/${encodeURIComponent(q.questionId)}`;
+function writable(q: Question) {
+  if (q.readOnly || q.roundId) {
+    throw Error('历史记录只读。');
+  }
+  return q;
+}
 const prepareSave = <K extends keyof SaveResponses>(
   q: Question,
   kind: K,
   fields: Record<string, unknown>,
 ): PreparedSave<K> => ({
   kind,
-  route: `${questionPath(q)}/${kind}`,
+  route: `${questionPath(writable(q))}/${kind}`,
   body: writeBody(q.snapshotId, fields),
 });
 
 export function createQuestionApi(client: ApiClient) {
   const write = <T>(q: Question, action: string, method: string, fields: object) =>
     client.json<T>(
-      `${questionPath(q)}/${action}`,
+      `${questionPath(writable(q))}/${action}`,
       jsonRequest(method, writeBody(q.snapshotId, fields)),
     );
   return {

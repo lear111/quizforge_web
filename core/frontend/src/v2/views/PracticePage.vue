@@ -7,7 +7,7 @@ import { useWorkspaceNavigation } from '../router/injection';
 
 const props = defineProps<{ nonce: string; visible: boolean }>();
 const practice = usePracticeStore();
-const { current, typeName, saveStatus, recovering } = storeToRefs(practice);
+const { current, overview, typeName, saveStatus, recovering } = storeToRefs(practice);
 const { busy } = storeToRefs(useUiStore());
 const { retrySave } = practice;
 const navigation = useWorkspaceNavigation();
@@ -34,8 +34,8 @@ onBeforeUnmount(practice.detachView);
     v-if="!current && visible"
     class="v2-empty"
   >
-    从一道题开始
-    <p>选择左侧题库，开始练习。</p>
+    {{ overview?.readOnly ? '题型不可用' : '从一道题开始' }}
+    <p>{{ overview?.readOnly ? '仍可从大纲切题并查看历史成绩。' : '选择左侧题库，开始练习。' }}</p>
   </div>
   <div
     v-show="current && visible"
@@ -77,7 +77,13 @@ onBeforeUnmount(practice.detachView);
               重试保存
             </button>
             <button
-              v-if="current && current.submissionId !== null && current.result === null && !busy"
+              v-if="
+                current &&
+                !overview?.readOnly &&
+                current.submissionId !== null &&
+                current.result === null &&
+                !busy
+              "
               @click="continueGrading"
             >
               继续评分

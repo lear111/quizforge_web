@@ -5,14 +5,13 @@ import { usePracticeStore } from '../stores/practice';
 import { useUiStore } from '../stores/ui';
 import { useCatalogStore } from '../stores/catalog';
 import { useLayoutStore } from '../stores/layout';
-import { useWorkspaceNavigation } from '../router/injection';
 import WorkspaceIcon from './WorkspaceIcon.vue';
+import HistoryMenu from './HistoryMenu.vue';
 const practice = usePracticeStore();
 const { overview, current, recovering, drafting } = storeToRefs(practice);
 const { busy, loading, scoreView, drawer } = storeToRefs(useUiStore());
 const catalog = useCatalogStore();
 const layout = useLayoutStore();
-const navigation = useWorkspaceNavigation();
 function toggle(side: 'library' | 'outline') {
   if (layout.mobile) {
     drawer.value = drawer.value === side ? null : side;
@@ -30,10 +29,6 @@ const groupName = computed(() => {
   );
   return group?.kind === 'group' ? group.name : '';
 });
-async function refreshBank() {
-  await practice.refreshBank();
-  await navigation.showCurrent();
-}
 </script>
 <template>
   <header
@@ -61,7 +56,7 @@ async function refreshBank() {
     >
     <div class="v2-actions">
       <button
-        v-if="current && !scoreView"
+        v-if="current && !scoreView && !overview?.readOnly"
         class="v2-draft-button"
         :class="{ active: drafting }"
         :disabled="busy || recovering"
@@ -69,16 +64,7 @@ async function refreshBank() {
       >
         <WorkspaceIcon name="draft" />{{ drafting ? '返回作答' : '草稿' }}
       </button>
-      <button
-        v-if="overview"
-        class="v2-icon-button"
-        aria-label="刷新题库"
-        title="刷新题库"
-        :disabled="busy || recovering"
-        @click="refreshBank"
-      >
-        <WorkspaceIcon name="refresh" />
-      </button>
+      <HistoryMenu v-if="overview" />
     </div>
     <button
       class="v2-icon-button"

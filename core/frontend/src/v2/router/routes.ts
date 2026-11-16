@@ -8,6 +8,8 @@ export function workspaceRoutes(component: RouteComponent): RouteRecordRaw[] {
     { path: '/banks/:bankId', name: 'bank', component },
     { path: '/banks/:bankId/questions/:questionId?', name: 'practice', component },
     { path: '/banks/:bankId/summary', name: 'summary', component },
+    { path: '/banks/:bankId/rounds/:roundId/questions/:questionId?', name: 'history', component },
+    { path: '/banks/:bankId/rounds/:roundId/summary', name: 'history-summary', component },
     { path: '/:pathMatch(.*)*', redirect: { name: 'library', params: {} } },
   ];
 }

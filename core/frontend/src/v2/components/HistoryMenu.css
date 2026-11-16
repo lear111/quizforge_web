@@ -1,0 +1,54 @@
+.v2-history-menu {
+  position: relative;
+}
+.v2-history-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.v2-history-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, 70dvh);
+  overflow: auto;
+  border: 1px solid var(--v2-border, #e5e3ed);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px #26223826;
+  color: #34313f;
+}
+.v2-history-popover ul {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+}
+.v2-history-popover li + li {
+  border-top: 1px solid #eeeaf4;
+}
+.v2-history-popover li button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 12px 8px;
+  text-align: left;
+}
+.v2-history-popover li button:hover {
+  background: #f4f1fa;
+}
+.v2-history-popover time {
+  font-size: 13px;
+}
+.v2-history-popover p {
+  font-size: 13px;
+}

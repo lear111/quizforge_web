@@ -246,7 +246,13 @@ try {
     assert.deepEqual(after.result, locked.result);
     assert.deepEqual(after.submissionId, locked.submissionId);
     await page.getByRole('button', { name: '返回作答', exact: true }).click();
-    await page.getByRole('button', { name: '刷新题库', exact: true }).click();
+    if (name === 'mobile') {
+      await page.getByRole('button', { name: '题库', exact: true }).click();
+    }
+    if ((await page.locator('.extension-group-toggle').getAttribute('aria-expanded')) !== 'true') {
+      await page.locator('.extension-group-toggle').click();
+    }
+    await page.locator('.library-item').filter({ hasText: name }).click();
     await idle();
     assert.equal(await frame().locator('input[value="false"]').isChecked(), true);
     await frame().getByRole('button', { name: '重做', exact: true }).click();

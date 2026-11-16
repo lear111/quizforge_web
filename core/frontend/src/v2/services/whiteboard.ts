@@ -48,19 +48,35 @@ function createScratchLayout(
   return { state, shell, fullscreen, resize, board, observer };
 }
 
+function historicalCamera(
+  layout: ReturnType<typeof createScratchLayout>,
+  viewport: HTMLElement,
+  value: boolean,
+) {
+  const { board, state, resize } = layout;
+  board.setReadOnly(value);
+  viewport.classList.toggle('v2-history-replay', value);
+  if (value) {
+    // Replay the archived coordinate space; only the read-only camera changes.
+    state.drafting = true;
+    viewport.classList.add('v2-drafting');
+    board.setMode('draft');
+    // load() restored the archived camera. Fitting to the card again could move
+    // existing strokes outside the visible area of the historical canvas.
+    resize();
+  }
+}
+
 export function mountScratch(
   viewport: HTMLElement,
   stage: HTMLElement,
   world: HTMLElement,
   options: { changed(): void; error(error: Error): void },
 ) {
-  const { state, shell, fullscreen, resize, board, observer } = createScratchLayout(
-    viewport,
-    stage,
-    world,
-    options,
-  );
+  const layout = createScratchLayout(viewport, stage, world, options);
+  const { state, shell, fullscreen, resize, board, observer } = layout;
   return {
+    setReadOnly: (value: boolean) => historicalCamera(layout, viewport, value),
     load(ink: unknown) {
       state.loading = true;
       try {

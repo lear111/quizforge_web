@@ -1,0 +1,16 @@
+export const completionResult = (name, final) => ({
+  name,
+  failedBankKeepsView: true,
+  pendingViewDoesNotScoreIndividually: true,
+  cancelLeavesActive: true,
+  zeroClearedAnswer: true,
+  flushBeforeFinish: true,
+  groupedBatch: true,
+  replayBodyStable: true,
+  failedReadStaysLocked: true,
+  score: final.total,
+  reopenSummary: true,
+  lockedScratch: true,
+  restartWithFailedAndLostReply: true,
+  historyReadOnlyReplay: true,
+});

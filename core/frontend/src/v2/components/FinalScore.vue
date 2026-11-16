@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { Completion } from '../types/practice-types';
-defineProps<{ value: Completion; busy: boolean; unanswered: number; activity?: string }>();
+defineProps<{
+  value: Completion;
+  busy: boolean;
+  unanswered: number;
+  activity?: string;
+  readOnly?: boolean;
+}>();
 defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
 </script>
 <template>
@@ -22,7 +28,7 @@ defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
       </p>
       <div class="v2-final-actions">
         <button
-          v-if="value.completedAt"
+          v-if="value.completedAt && !readOnly"
           class="primary"
           :disabled="busy"
           @click="$emit('restart')"
@@ -36,7 +42,7 @@ defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
           返回题目
         </button>
         <button
-          v-if="!value.completedAt"
+          v-if="!readOnly && !value.completedAt"
           class="primary"
           :disabled="busy"
           @click="$emit('complete')"
@@ -44,7 +50,7 @@ defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
           完成练习
         </button>
         <button
-          v-if="value.completedAt && value.pendingGrading?.some((row) => row.question)"
+          v-if="!readOnly && value.completedAt && value.pendingGrading?.some((row) => row.question)"
           :disabled="busy"
           @click="$emit('grade')"
         >

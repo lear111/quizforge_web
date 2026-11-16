@@ -15,6 +15,7 @@ import { problem } from '../utils/errors.js';
 import { sdkResource, uiFile } from '../services/resource.service.js';
 import { json, rootPage } from '../utils/http-response.js';
 import { measureSave, withOverviewTiming } from '../utils/timing.js';
+import { historyHandlers } from './history.controller.js';
 
 /**
  * @param {HttpResponse} response
@@ -194,6 +195,7 @@ export function createHandlers(server) {
     },
     ...bankHandlers(server, library),
     ...bankResources(server, library),
+    ...historyHandlers(server),
     ...extensionHandlers(server, library),
     sdk: sdkHandler(server, library),
   };

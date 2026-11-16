@@ -1,6 +1,22 @@
 // Extra route checks on the disposable B bank used by the existing router probe.
 import assert from 'node:assert/strict';
 
+async function refreshBank(page) {
+  // The toolbar refresh entry was deliberately removed. Retain the original
+  // refresh/Router business assertions by invoking the mounted production
+  // action and navigation, without substituting either implementation.
+  await page.evaluate(async () => {
+    const app = document.querySelector('#app').__vue_app__;
+    const practice = app.config.globalProperties.$pinia._s.get('v2-practice');
+    const provides = app._context.provides;
+    const key = Object.getOwnPropertySymbols(provides).find(
+      (symbol) => symbol.description === 'workspace-navigation',
+    );
+    await practice.refreshBank();
+    await provides[key].showCurrent();
+  });
+}
+
 export async function checkCompletionRouting(h, resetRecords) {
   const { page, origin, other, name, frame, idle, openBank } = h;
   const base = `/api/v2/banks/${other}`;
@@ -17,7 +33,7 @@ export async function checkCompletionRouting(h, resetRecords) {
   });
   assert.equal(finished.ok(), true);
   await checkExternalCompletion(h, base, questionUrl);
-  await page.getByRole('button', { name: '刷新题库', exact: true }).click();
+  await refreshBank(page);
   await page.waitForURL(summaryUrl);
   await page.getByRole('heading', { name: '练习已完成', exact: true }).waitFor();
   await idle();
@@ -27,7 +43,7 @@ export async function checkCompletionRouting(h, resetRecords) {
 
   await checkChangedCompletion(h, base, questionUrl);
   await checkQuestionReset(h, base, before);
-  await page.getByRole('button', { name: '刷新题库', exact: true }).click();
+  await refreshBank(page);
   await page.waitForURL(summaryUrl);
   resetRecords();
   // Actual filesystem reset of this synthetic bank; the real backend reloads

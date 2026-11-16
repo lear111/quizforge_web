@@ -77,11 +77,13 @@ test('malformed journals and path traversal round IDs are rejected without delet
   }
 });
 
-test('archive does not expose history read/write endpoints or assets under the private directory', async (t) => {
+test('archive exposes the history list but not arbitrary history routes or writes', async (t) => {
   const f = await restartFixture(t);
   await f.finish();
   await f.restart();
-  for (const suffix of ['/rounds', '/rounds/any', '/rounds/any/questions/1']) {
+  assert.equal((await f.api(f.base + '/rounds')).status, 200);
+  assert.equal((await f.api(f.base + '/rounds', {}, 'PUT')).status, 404);
+  for (const suffix of ['/rounds/any', '/rounds/any/questions/1']) {
     assert.notEqual((await f.api(f.base + suffix)).status, 200);
     assert.notEqual((await f.api(f.base + suffix, {}, 'PUT')).status, 200);
   }

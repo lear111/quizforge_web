@@ -201,6 +201,11 @@ try {
       if (name === 'mobile') {
         await page.getByRole('button', { name: '题库', exact: true }).click();
       }
+      if (
+        (await page.locator('.extension-group-toggle').getAttribute('aria-expanded')) !== 'true'
+      ) {
+        await page.locator('.extension-group-toggle').click();
+      }
       await page.locator('.library-item').filter({ hasText: title }).click();
       await idle();
     };
@@ -252,9 +257,9 @@ try {
     assert.equal(q.ink, null);
     assert.equal(q.submissionId, null);
     assert.equal(q.result, null);
-    // Explicit refresh keeps a surviving current question; a removed one falls
+    // Reopening keeps a surviving current question; a removed one falls
     // back while preserving unrelated answers.
-    await page.getByRole('button', { name: '刷新题库', exact: true }).click();
+    await selectBank(bank.title);
     await idle();
     assert.equal(
       await page
@@ -275,7 +280,7 @@ try {
       group.items = group.items.filter((item) => item.id !== qid);
     });
     fs.writeFileSync(path.join(bankDirectory, 'bank.json'), JSON.stringify(latestBank));
-    await page.getByRole('button', { name: '刷新题库', exact: true }).click();
+    await selectBank(bank.title);
     await idle();
     assert.equal(await page.locator(`[data-question-id="${qid}"]`).count(), 0);
     assert.equal(await page.locator('.v2-question-frame iframe').count(), 1);

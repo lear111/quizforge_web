@@ -230,6 +230,10 @@ export function listening(library, bankId, id, snapshotId) {
  * @returns {Artifact}
  */
 export function artifact(library, id) {
+  const historical = library.history.artifact(id);
+  if (historical) {
+    return historical;
+  }
   for (const snapshot of library.opened.values()) {
     for (const value of snapshot.resolutions.values()) {
       if (value.artifact?.descriptor.artifactId === id) {

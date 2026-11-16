@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { V2Server } from '../../server/v2/app.js';
 import { probeRestart } from './v2-restart-browser.mjs';
+import { probeHistory, probeEmptyHistory } from './probe-v2-history-checks.mjs';
+import { completionResult } from './v2-completion-result.mjs';
 const core = fileURLToPath(new URL('../../', import.meta.url)),
   repo = path.dirname(core);
 const { chromium } = await import(pathToFileURL(path.resolve(process.argv[2])).href);
@@ -69,6 +71,7 @@ try {
     await page.locator('.extension-group-toggle').click();
     await page.locator('.library-item').filter({ hasText: name }).click();
     await idle();
+    await probeEmptyHistory(page);
     const rollbackId = catalog.groups[0].items.find((i) => i.title === 'rollback').bankId,
       rollbackBase = `/api/v2/banks/${rollbackId}`;
     const rollback = await api(rollbackBase + '/overview');
@@ -253,21 +256,21 @@ try {
     assert.ok((await api(base + '/overview')).completedAt);
     accept = true;
     await probeRestart(page, base, api, frame);
-    rows.push({
+    await probeHistory({
+      page,
+      api,
+      base,
+      frame,
+      first,
+      idle,
+      go,
+      origin,
+      viewport,
+      output,
       name,
-      failedBankKeepsView: true,
-      pendingViewDoesNotScoreIndividually: true,
-      cancelLeavesActive: true,
-      zeroClearedAnswer: true,
-      flushBeforeFinish: true,
-      groupedBatch: true,
-      replayBodyStable: true,
-      failedReadStaysLocked: true,
-      score: final.total,
-      reopenSummary: true,
-      lockedScratch: true,
-      restartWithFailedAndLostReply: true,
+      directory: path.join(root, 'question-banks/basic', name),
     });
+    rows.push(completionResult(name, final));
     await context.close();
   }
   assert.deepEqual(errors, []);

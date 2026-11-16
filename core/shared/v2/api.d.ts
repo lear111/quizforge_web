@@ -88,9 +88,12 @@ export interface QuestionKey {
   bankId: string;
   questionId: string;
   snapshotId: string;
+  /** Only history reads carry this scope; never a practice write. */
+  roundId?: string;
 }
 /** Writes omit ink; retry and GET include it. They all include the full answer. */
 export interface QuestionResponse extends QuestionKey {
+  readOnly?: true;
   type: string;
   extension: ExtensionDescriptor;
   item: OutlineItem;
@@ -121,6 +124,8 @@ export interface FinishResponse extends CompletionResponse {
   pendingGrading: QuestionCandidate[];
 }
 export interface OverviewResponse extends CompletionResponse {
+  readOnly?: true;
+  roundId?: string;
   bank: BankInfo;
   snapshotId: string;
   outline: OutlineGroup[];
@@ -135,6 +140,21 @@ export interface OverviewResponse extends CompletionResponse {
 export interface RefreshRequest {
   questionId?: string;
   expectedSnapshotId?: string;
+}
+export interface HistoryRoundSummary {
+  roundId: string;
+  completedAt: string;
+  score: number;
+  maxScore: number;
+}
+export interface HistoryOverviewResponse extends OverviewResponse {
+  readOnly: true;
+  roundId: string;
+  completedAt: string;
+}
+export interface HistoryQuestionResponse extends QuestionReadResponse {
+  readOnly: true;
+  roundId: string;
 }
 export interface RefreshResponse extends OverviewResponse {
   changes: {

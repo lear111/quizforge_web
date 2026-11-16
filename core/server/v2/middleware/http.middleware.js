@@ -146,6 +146,11 @@ export async function readJson(request, response, next) {
 }
 
 export function fallback(request, response) {
+  const parts = response.locals.parts;
+  if (parts[0] === 'api' && parts[1] === 'v2' && parts[2] === 'banks' && parts[4] === 'rounds') {
+    request.resume();
+    throw problem('RESOURCE_NOT_FOUND', '历史接口不存在或不允许此操作。', {}, 404);
+  }
   if (response.locals.parts[0] !== 'api') {
     throw problem('RESOURCE_NOT_FOUND', '页面或资源不存在。', {}, 404);
   }
