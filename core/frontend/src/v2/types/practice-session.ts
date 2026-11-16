@@ -18,6 +18,7 @@ export interface ViewElements {
   world: HTMLElement;
 }
 export interface PracticeRuntime {
+  restartRequest: { bankId: string; snapshotId: string; body: string } | null;
   page: QuestionPage | null;
   scratch: ReturnType<typeof mountScratch> | null;
   saver: Saver | null;
@@ -41,6 +42,7 @@ export interface PracticeViewActions {
   continueGrading(): Promise<void> | undefined;
   complete(): Promise<void>;
   resumeCompletion(): Promise<void>;
+  restart(): Promise<void>;
   resetSources(): void;
   clearQuestion(clearInk?: boolean): void;
   attachView(nonce: string, elements: ViewElements): void;

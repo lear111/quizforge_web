@@ -16,6 +16,7 @@ import { relativeFile } from '../repositories/resource.repository.js';
 import { readBank, validId } from '../repositories/bank.repository.js';
 import { measureOverview } from '../utils/timing.js';
 import { optionalProperty } from '../utils/properties.js';
+import { recoverRestart } from '../repositories/restart-journal.repository.js';
 /**
  * @param {LibrarySnapshots} library
  * @param {ReadBank} bank
@@ -41,12 +42,14 @@ function resolveTypes(library, bank, rebuild) {
  * @param {string} tree
  * @param {Map<string, Resolution>} resolutions
  * @param {Map<string, SdkEntry>} sdk
+ * @param {string | null} practiceEpoch
  */
-function snapshotIdentity(bankId, tree, resolutions, sdk) {
+function snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch) {
   const snapshotId = measureOverview('snapshot-id', () =>
     fingerprint(
       {
         bankId,
+        ...(practiceEpoch ? { practiceEpoch } : {}),
         tree,
         types: [...resolutions].map(([id, value]) => [
           id,
@@ -97,6 +100,7 @@ function contentIdentity(library, location, resolutions) {
  * @returns {Snapshot}
  */
 export function readSnapshot(library, location, bankId, rebuild) {
+  const { epoch: practiceEpoch } = recoverRestart(location.directory);
   const { digest: tree, hashes } = measureOverview('bank-tree', () =>
     treeIdentity(location.directory, library.cache, { bankId, field: 'bank.files' }),
   );
@@ -105,12 +109,13 @@ export function readSnapshot(library, location, bankId, rebuild) {
   );
 
   const { resolutions, sdk } = resolveTypes(library, bank, rebuild);
-  const snapshotId = snapshotIdentity(bankId, tree, resolutions, sdk);
+  const snapshotId = snapshotIdentity(bankId, tree, resolutions, sdk, practiceEpoch);
   const contentFingerprint = contentIdentity(library, location, resolutions);
   const snapshot = {
     ...bank,
     ...location,
     snapshotId,
+    practiceEpoch,
     contentFingerprint,
     resolutions,
     sdk,

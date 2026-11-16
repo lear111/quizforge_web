@@ -16,7 +16,7 @@ import '../styles/workspace.css';
 defineProps<{ nonce: string }>();
 const practice = usePracticeStore();
 const { overview, outlineModel, recovering } = storeToRefs(practice);
-const { busy, message, scoreView, drawer } = storeToRefs(useUiStore());
+const { busy, message, scoreView, drawer, loading } = storeToRefs(useUiStore());
 const navigation = useWorkspaceNavigation();
 const layout = useLayoutStore();
 useWorkspacePanels();
@@ -45,6 +45,13 @@ onMounted(navigation.start);
 async function resumeCompletion() {
   await practice.resumeCompletion();
   await (overview.value?.completedAt ? navigation.showSummary() : navigation.showQuestion());
+}
+async function restartPractice() {
+  if (busy.value || !confirm('上一轮练习将归档，尚未评分的题记 0 分。确定再练一次吗？')) {
+    return;
+  }
+  await practice.restart();
+  await navigation.showCurrent();
 }
 </script>
 <template>
@@ -81,9 +88,11 @@ async function resumeCompletion() {
           :value="overview"
           :busy="busy || recovering"
           :unanswered="unanswered"
+          :activity="loading === '正在归档上一轮练习' ? loading : undefined"
           @view="navigation.showQuestion()"
           @grade="resumeCompletion"
           @complete="finishPractice"
+          @restart="restartPractice"
         />
         <PracticePage
           :visible="!scoreView"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Completion } from '../types/practice-types';
-defineProps<{ value: Completion; busy: boolean; unanswered: number }>();
-defineEmits<{ view: []; grade: []; complete: [] }>();
+defineProps<{ value: Completion; busy: boolean; unanswered: number; activity?: string }>();
+defineEmits<{ view: []; grade: []; complete: []; restart: [] }>();
 </script>
 <template>
   <div class="v2-summary-viewport">
@@ -18,9 +18,17 @@ defineEmits<{ view: []; grade: []; complete: [] }>();
         v-if="busy"
         role="status"
       >
-        正在评分，总分将自动更新。
+        {{ activity || '正在评分，总分将自动更新。' }}
       </p>
       <div class="v2-final-actions">
+        <button
+          v-if="value.completedAt"
+          class="primary"
+          :disabled="busy"
+          @click="$emit('restart')"
+        >
+          再练一次
+        </button>
         <button
           :disabled="busy"
           @click="$emit('view')"

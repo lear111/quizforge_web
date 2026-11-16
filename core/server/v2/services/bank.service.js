@@ -23,6 +23,7 @@ import { SharedSdks } from '../repositories/shared-sdks.repository.js';
 import { measureOverview } from '../utils/timing.js';
 import { emptyOutlineStatus } from '../../../shared/v2/answered.js';
 import { optionalProperty } from '../utils/properties.js';
+import { restartPractice } from './practice-archive.service.js';
 
 export const OPEN_BANK_LIMIT = 8;
 
@@ -184,6 +185,10 @@ export class LibrarySnapshots {
     this.opened.delete(bankId);
     this.opened.set(bankId, value);
     return value;
+  }
+  /** @this {PracticeLibrary} @param {string} bankId @param {unknown} input */
+  restart(bankId, input) {
+    return restartPractice(this, bankId, input);
   }
   /**
    * @overload

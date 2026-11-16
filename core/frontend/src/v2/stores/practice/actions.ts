@@ -5,6 +5,7 @@ import * as recovery from './recovery';
 import * as scoring from './scoring';
 import * as completion from './completion';
 import * as banks from './banks';
+import { restart } from './restart';
 import * as runtime from './runtime';
 import type {
   PracticeSession,
@@ -40,6 +41,7 @@ export function createActions(ctx: PracticeSession): PracticeActions {
     gradeCompleted: (value) => completion.gradeCompleted(ctx, value),
     complete: () => completion.complete(ctx),
     resumeCompletion: () => completion.resumeCompletion(ctx),
+    restart: () => restart(ctx),
     initializeRuntime: (nonce) => runtime.initializeRuntime(ctx, nonce),
     attachView: (nonce, elements) => runtime.attachView(ctx, nonce, elements),
     detachView: () => runtime.detachView(ctx),
@@ -65,6 +67,7 @@ export function viewActions(actions: PracticeActions): PracticeViewActions {
     continueGrading: actions.continueGrading,
     complete: actions.complete,
     resumeCompletion: actions.resumeCompletion,
+    restart: actions.restart,
     clearQuestion: actions.clearQuestion,
     resetSources: actions.resetSources,
     pageFaulted: actions.pageFaulted,

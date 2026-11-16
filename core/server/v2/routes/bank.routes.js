@@ -11,5 +11,6 @@ export function registerBankListeningRoute(app, handlers) {
 export function registerBankWriteRoutes(app, handlers, body) {
   app.post(`${BANK}/refresh`, body, handlers.refresh);
   app.post(`${BANK}/finish`, body, handlers.finish);
+  app.post(`${BANK}/restart`, body, handlers.restart);
   app.put(`${BANK}/results`, body, handlers.results);
 }
