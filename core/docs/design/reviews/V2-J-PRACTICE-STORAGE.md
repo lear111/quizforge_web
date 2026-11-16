@@ -1,6 +1,6 @@
 # J：D50 练习存储路径调整
 
-状态：基于 `v2` 的 `6cb35d2`；实现完成，待审查，不自行合并。依据 D19、D27、D33、D50 及数据结构第 2、3、5 节。本记录同时作为本次 PR 的完整描述。
+状态：[PR #178](https://github.com/lear111/quizforge_web/pull/178)，目标 `v2`，基于 `6cb35d2`；实现完成，待审查，不自行合并。依据 D19、D27、D33、D50 及数据结构第 2、3、5 节。本记录同时作为本次 PR 的完整描述。
 
 ## 修改与不变项
 
@@ -50,4 +50,23 @@
 
 本机改用已安装的 Chrome，通过同一套十项探针（page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion、router），0 项失败；各探针原有桌面/手机场景和保存失败、版本冲突、完成练习断言均保留。没有修改测试超时或增加重试，最初缺少 Chromium 的十份失败日志也保留在被忽略的 `.temp` 中。CI 继续使用工作流原定的 Playwright Chromium。
 
-Windows / Ubuntu 五项 CI 尚待本 PR 运行，完成后在此记录逐项结果与耗时；不将待运行标为通过。PR 保持待审查，不合并、不开始历史或 K。
+实施提交 `be3cc53` 的 [CI run 43792215562](https://github.com/lear111/quizforge_web/actions/runs/43792215562)，首轮结果如下。没有失败用例被删除、跳过或放宽。
+
+| CI job | 首轮结果 / 测试数量 | 总耗时 |
+|---|---|---:|
+| Checks (windows-latest) | 1531 通过、2 失败、0 跳过；D50 新增测试全通过 | 4m15s |
+| Checks (ubuntu-latest) | 1499 通过、0 失败、34 项原有平台跳过；含类型/构建检查 | 2m11s |
+| V2 code quality (ubuntu-latest) | 格式、lint 全通过 | 20s |
+| V2 browser checks (ubuntu-latest) | 原有十项探针全通过 | 3m59s |
+| Performance (ubuntu-latest) | 2 通过、0 失败、0 跳过 | 14s |
+
+Windows 首轮失败完整名单：
+
+| 文件 / 用例 | 首条错误 | 调查 |
+|---|---|---|
+| `core/server/host/ai/hub-connection.test.mjs:68` — completing login saves only the device token, reads quota, and logout revokes it | `AI_SETTINGS_SAVE_FAILED` / 503：无法完成 AI 设置文件的访问保护，设置未确认保存，请重启服务后重试。 | 失败于 `ai-settings.js` 的 PowerShell 访问保护，约 15.311s |
+| `core/server/host/ai/settings-provider.test.mjs:32` — AI settings preserve masked-key editing and owner-protected saved credentials | 同上 | 同一保护路径，约 15.066s |
+
+两处测试、AI 保护实现和脚本与基准完全无差异，也不使用本次练习路径。保护调用固定超时为 15s，但异常被统一包装，日志未保留底层原因，不能只凭耗时断言一定超时。仅针对失败的 Windows job 手工复核一次，不改代码、超时或测试重试策略：同一实施提交的 [attempt 2 / job 133055162821](https://github.com/lear111/quizforge_web/actions/runs/43792215562/attempts/2) **1533 通过、0 失败、0 跳过，5m11s**。首次失败的两项均通过；因此确认本次首轮失败未稳定重现，底层原因仍不确定，不把它定性为已经修复的缺陷。
+
+实施提交五项 CI 均通过；以上保留首轮及复核的完整结果，不称首次全绿。随后提交只同步本记录与进度页，不改生产代码或测量数据；最终 PR 仍执行原有五项检查。无失败名单被隐去。PR 保持待审查，不合并、不开始历史或 K。
