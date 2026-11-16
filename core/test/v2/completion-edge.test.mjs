@@ -305,10 +305,11 @@ test('D27 extension source changes clear a completed active round but leave arch
   assert.equal(fs.readFileSync(archived, 'utf8'), 'immutable-archive');
 });
 
-test('finish and batch routes preserve token, Host and Origin gates before touching state', async (t) => {
+test('exam, finish and batch routes preserve token, Host and Origin gates before touching state', async (t) => {
   const token = 'synthetic-readonly-token',
     f = await setup(t, { token });
   for (const [route, method, body] of [
+    [f.base + '/exam', 'POST', { requestId: 'exam', snapshotId: f.snapshotId, durationMinutes: 1 }],
     [f.base + '/finish', 'POST', { requestId: 'finish', snapshotId: f.snapshotId }],
     [f.base + '/results', 'PUT', { requestId: 'batch', snapshotId: f.snapshotId, results: [] }],
   ]) {
@@ -322,6 +323,7 @@ test('finish and batch routes preserve token, Host and Origin gates before touch
       assert.ok([401, 403].includes(response.status));
       assert.doesNotMatch(response.text, new RegExp(SOLUTION_MARKER));
       assert.equal(fs.existsSync(f.store.file(f.fixture.directory)), false);
+      assert.equal(fs.existsSync(f.store.file(f.fixture.directory, { scope: 'exam' })), false);
     }
   }
 });
