@@ -35,9 +35,6 @@
 .v2-drafting .v2-question-frame :deep(iframe) {
   height: 420px;
 }
-.v2-history-replay :deep(.qf-whiteboard-toolbar) {
-  display: none;
-}
 .v2-card {
   margin: 0 auto;
   padding: 24px;

@@ -21,8 +21,8 @@ function createScratchLayout(
     onError: options.error,
   });
   const resize = () => {
-    // Scratch editing and history use fixed coordinates; live practice stays fluid.
-    const fixed = state.drafting || state.history;
+    // Only scratch editing uses fixed coordinates; answer views stay fluid.
+    const fixed = state.drafting;
     const zoom = fixed ? board.getViewCamera().zoom : 1;
     const y = fixed ? Math.max(0, board.getViewCamera().y * zoom) : 0;
     stage.style.height = `${Math.max(viewport.clientHeight, world.offsetHeight * zoom + y + 32)}px`;
@@ -52,10 +52,8 @@ function createScratchLayout(
 function scratchMode(layout: ReturnType<typeof createScratchLayout>, viewport: HTMLElement) {
   const { board, state, resize, fullscreen } = layout;
   board.setReadOnly(state.history && !state.drafting);
-  viewport.classList.toggle('v2-history-replay', state.history && !state.drafting);
-  viewport.classList.toggle('v2-drafting', state.drafting || state.history);
-  // History keeps the archived coordinate space even outside scratch editing.
-  board.setMode(state.drafting || state.history ? 'draft' : 'practice');
+  viewport.classList.toggle('v2-drafting', state.drafting);
+  board.setMode(state.drafting ? 'draft' : 'practice');
   fullscreen.sync();
   resize();
 }

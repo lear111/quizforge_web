@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { probeHistoryInk } from './probe-v2-history-ink.mjs';
 import { probeHistoryDelete } from './probe-v2-history-delete.mjs';
+import {
+  checkAnswerLayout,
+  probeHistoryLayout,
+  preparePracticeMode,
+  probePracticeReturn,
+} from './probe-v2-history-layout.mjs';
 
 export async function probeEmptyHistory(page) {
   await page.getByRole('button', { name: '历史记录', exact: true }).click();
@@ -37,7 +43,7 @@ async function checkMenu(h, round) {
   await page.keyboard.press('Escape');
 }
 
-async function checkHostGuards(h) {
+async function checkHostGuards(h, drafting = false) {
   const { page, frame } = h;
   const envelope = await page.evaluate(() => globalThis.__historyEnvelope);
   const results = await frame()
@@ -73,7 +79,10 @@ async function checkHostGuards(h) {
   assert.deepEqual(results, ['rejected', 'rejected']);
   assert.equal(await frame().getByRole('button', { name: '提交答案', exact: true }).count(), 0);
   assert.equal(await frame().getByRole('button', { name: '重做', exact: true }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: '草稿', exact: true }).count(), 1);
+  assert.equal(
+    await page.getByRole('button', { name: drafting ? '返回作答' : '草稿', exact: true }).count(),
+    1,
+  );
   assert.equal(
     await frame()
       .locator('input')
@@ -86,14 +95,7 @@ async function checkInk(h, roundBase) {
   await h.go('true-false-sample-false');
   const historic = await h.api(roundBase + '/questions/true-false-sample-false');
   assert.ok(historic.ink.strokes.length > 0);
-  await h.page.waitForFunction(() => {
-    const canvas = document.querySelector('.qf-whiteboard-ink');
-    if (canvas.hidden) {
-      return false;
-    }
-    const rgba = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
-    return rgba.some((value, i) => i % 4 === 3 && value > 0);
-  });
+  await checkAnswerLayout(h.page);
   assert.equal(await h.page.locator('.qf-whiteboard-toolbar').isVisible(), false);
   const box = await h.page.locator('.v2-viewport').boundingBox();
   await h.page.mouse.move(box.x + 20, box.y + 90);
@@ -104,6 +106,11 @@ async function checkInk(h, roundBase) {
     (await h.api(roundBase + '/questions/true-false-sample-false')).ink,
     historic.ink,
   );
+  await probeHistoryLayout(h);
+  await h.page.getByRole('button', { name: '草稿', exact: true }).click();
+  await checkHostGuards(h, true);
+  await h.page.getByRole('button', { name: '返回作答', exact: true }).click();
+  await checkAnswerLayout(h.page);
 }
 
 async function checkUnavailable(h, roundBase) {
@@ -195,6 +202,7 @@ export async function probeHistory(h) {
     .locator('.v2-save-status')
     .filter({ hasText: /^已保存$/ })
     .waitFor();
+  await preparePracticeMode(h);
   const current = await api(
     base + `/questions/${first}?snapshotId=${(await api(base + '/overview')).snapshotId}`,
   );
@@ -209,9 +217,11 @@ export async function probeHistory(h) {
   assert.deepEqual(writes, []);
   await checkInk(h, roundBase);
   await page.screenshot({ path: path.join(output, name + '-history.png'), fullPage: true });
+  await probePracticeReturn(h);
   await probeHistoryInk(h, roundBase);
   await h.idle();
   assert.ok(!page.url().includes('/rounds/'));
+  await checkAnswerLayout(page);
   assert.equal(await frame().locator('input:checked').count(), 1);
   assert.deepEqual(
     (await api(base + `/questions/${first}?snapshotId=${current.snapshotId}`)).answer,
