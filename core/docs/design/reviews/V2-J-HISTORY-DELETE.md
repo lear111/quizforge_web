@@ -54,6 +54,14 @@ GitHub CI：实现提交 `ee2a91e` 的[运行记录](https://github.com/lear111/
 | V2 code quality (Ubuntu) | 格式与 lint 通过 | 24s |
 | Performance (Ubuntu) | 2 通过，0 失败 | 20s |
 
+## 复审补充：删除请求期间禁止打开历史
+
+`HistoryRoundItem.vue` 的「打开」按钮复用菜单已有的 `deleting` 状态。任一轮的删除请求未结束时，浮层里的所有「打开」按钮均禁用。请求成功或失败后解除禁用，原有删除按钮条件保持不变。未修改后端、删除标记、`restart.json` 或其他业务功能。
+
+在 `probe-v2-history-delete.mjs` 的临时题库中准备两条历史，用 Playwright 暂停 DELETE 请求回包。验证请求挂起时两行均无法打开，点击不会改变 URL；模拟 503 后两行恢复，可打开剩余轮次并重试删除；实际 DELETE 返回 204 后，被删行消失，剩余轮次可打开；正在回看的轮次仍不能删除。保留取消确认不发请求、确认显示时间和得分、删除后列表空态、当前作答字节不变的原断言。
+
+修复前新断言复现「删除挂起时打开按钮仍启用」；修复后本机 `completion` 探针通过，Chromium 157.0.8103.39，桌面 1440×900、手机 390×844，无页面错误。UI 类型检查、ESLint、格式、构建及 `--check` 通过。远端检查见 [PR #184 Checks](https://github.com/lear111/quizforge_web/pull/184/checks)。
+
 ## 风险与限制
 
 - 标记需要保留，不能手动清除它来节省空间。它不包含用户内容，每个已删除轮次只保留一个小文件。

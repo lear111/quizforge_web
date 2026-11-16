@@ -19,6 +19,7 @@ function confirmRemoval() {
   <li class="v2-history-row">
     <button
       class="v2-history-open"
+      :disabled="deleting"
       @click="emit('select', round.roundId)"
     >
       <time :datetime="round.completedAt">{{ date }}</time>
