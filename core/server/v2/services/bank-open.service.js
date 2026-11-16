@@ -130,7 +130,7 @@ export function readSnapshot(library, location, bankId, rebuild) {
 }
 /**
  * @param {LibrarySnapshots} library
- * @param {OpenedSnapshot} snapshot
+ * @param {OpenedSnapshot} bank
  * @param {OverviewOptions} options
  * @returns {OverviewResult}
  */
@@ -174,18 +174,20 @@ export function overviewResponse(
     activeCleared,
     notice: activeCleared ? '题库或题型已变化，本轮作答已清空' : null,
     pendingGrading: includeInitial ? library.pendingGrading(bank) : [],
-    ...(refresh
-      ? {
-          changes: {
-            activeCleared,
-            addedQuestionIds: [...bank.items.keys()].filter((id) => !previous?.items.has(id)),
-            removedQuestionIds: previous
-              ? [...previous.items.keys()].filter((id) => !bank.items.has(id))
-              : [],
-            activeRoundInterrupted,
-          },
-        }
-      : {}),
+    ...(refresh ? { changes: refreshChanges(bank, previous, activeRoundInterrupted) } : {}),
+  };
+}
+
+/** @param {OpenedSnapshot} bank @param {Snapshot | undefined} previous
+ * @param {boolean} activeRoundInterrupted */
+function refreshChanges(bank, previous, activeRoundInterrupted) {
+  return {
+    activeCleared: bank.activeCleared,
+    addedQuestionIds: [...bank.items.keys()].filter((id) => !previous?.items.has(id)),
+    removedQuestionIds: previous
+      ? [...previous.items.keys()].filter((id) => !bank.items.has(id))
+      : [],
+    activeRoundInterrupted,
   };
 }
 
