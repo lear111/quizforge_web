@@ -1,6 +1,6 @@
 # J：练习归档与「再练一次」
 
-目标分支 `v2`，基线 `616e2ac`。本 PR 待审查，不自行合并。依据 D20、D22、D23、D42、D50，以及 `V2_ARCHITECTURE.md` 4.9、`V2_DATA_STRUCTURES.md` 2–4、`V2_API_AND_STATE.md` 的 restart 约定。本文与 PR 描述同步。
+目标分支 `v2`，基线 `616e2ac`。[PR #180](https://github.com/lear111/quizforge_web/pull/180) 待审查，不自行合并。依据 D20、D22、D23、D42、D50，以及 `V2_ARCHITECTURE.md` 4.9、`V2_DATA_STRUCTURES.md` 2–4、`V2_API_AND_STATE.md` 的 restart 约定。本文与 PR 描述同步。
 
 ## 改了什么
 
@@ -49,9 +49,57 @@
 
 ## 验证结果
 
-待补入最终本地与 CI 结果。首次完整 V2 运行揭示了 normal-read 多做目录检查及既有路径错误码提前变化，已移除逐请求恢复调用，保留旧读/写语义；原 readonly 中 restart 尚未实现的预期同步更新。新增恢复用例一次并发运行的 immediate retry 返回 503，单独原文件重跑通过；最终全量及 CI 结果将如实记录，不增重试/超时/跳过。
+实现提交 `045c2df`、`7f7ef37b97c7c1b0af8a0a5aff6ea192a0f47aa2`。以下为该最终代码的实际结果；没有增加测试重试、延长超时、跳过用例或降低断言。
 
-新增专项覆盖：未完成与旧快照拒绝；零分/原有效分数/锁定/答案；bank/拓展副本与源修改隔离；笔迹与空新轮；重复/冲突/迟到请求/服务重启；五处 precommit 回滚；状态写、拓展复制、目录切换失败；六处真实子进程退出；第二次归档失败恢复上一回执；提交后清理失败；链接/非法目录/未知 practice/畸形 journal；没有历史读写接口；Store 队列、并发点击、冻结重试与保存失败屏障。
+| 本地检查 | 结果 |
+|---|---|
+| `npm --prefix core run typecheck:ui`、`typecheck:server` | 均通过 |
+| `npm --prefix core run lint` | 242 个文件，0 错误、0 警告 |
+| `npm --prefix core run format:check` | 251 个文件，无格式差异 |
+| `npm --prefix core run build:ui`、`build:ui -- --check` | 均通过；生成 JS/CSS 未被 Git 追踪 |
+| 全部 `core/test/v2/*.test.mjs`，测试环境加载器、并发 4 | **315 通过、0 失败、0 取消、0 跳过**，80.179 秒；原 272 项 + 新增 43 项（含子用例） |
+| 十项现有浏览器探针 | 全部通过；completion 包含 1440px 桌面及 390px 手机的归档流程，浏览器 errors 为空 |
+| `npm --prefix core run test:perf` | 2 通过、0 失败，10.115 秒 |
+| `npm --prefix core test`（整个仓库，包含 v1） | 1576 项：1562 通过、13 失败、1 取消，1149.635 秒；完整名单见下表 |
+
+V2 运行命令：`node --import ./core/scripts/test/test-environment.mjs --test --test-concurrency=4 <core/test/v2 下全部 .test.mjs 文件>`。浏览器命令沿用 `node core/scripts/dev/probe-v2-<名称>.mjs .temp/v2-browser/node_modules/playwright/index.mjs chrome`，名称为 page、page-contract、grading、page-review、practice、save-recovery、whiteboard、basic-types、completion、router；工具位于忽略目录，不新增依赖。
+
+新增专项覆盖：未完成与旧快照拒绝；零分/原有效分数/锁定/答案；bank/拓展副本与源修改隔离；笔迹与空新轮；重复/冲突/迟到请求/服务重启；五处 precommit 回滚；状态写、拓展复制、目录切换失败；六处真实子进程退出；第二次归档失败恢复上一回执；提交后清理失败；回滚遇到额外新作答时同时保留两份；链接/非法目录/未知 practice/畸形 journal；没有历史读写接口；Store 队列、并发点击、冻结重试与保存失败屏障；冷请求/缓存驱逐后源内容变化及拓展缺失仍保留原已完成练习。
+
+过程中发现并修复：逐请求恢复曾令 normal-read 多做目录检查、提前改变既有路径错误码，现只在加载/归档边界恢复；冷归档曾可能调用普通 open 触发内容变化清理，现先构造只读快照并比较再处理。原 readonly 中 restart 尚未实现的预期同步更新。另一次并发完整 V2 中 D19 读题收到 ECONNRESET，新增恢复用例一次 immediate retry 收到 503；浏览器 router 在完整仓库测试同时运行时一次 workspace-motion 等待超时。停下重负载测试后原文件/探针原样重跑，最终全量 315 项和 router 均通过；没有修改这些超时或断言，CI 原始单轮也通过。
+
+### 本地完整仓库回归的非通过项
+
+以下均在未修改的旧版测试及生产路径，不能把本地完整回归说成全绿。未在本任务另建基线检出重跑，因此不将原因推断当作已证实的基线结论。8 项直接报告 Windows 私有凭据 ACL 保护失败，HTTP 登录项返回 503；另有规则/托盘时间与子进程问题。CI 两系统的同一套测试无失败，见后表。本地日志留在忽略目录，不提交真实用户数据。
+
+| 文件（相对 core/） | 用例名 | 首条错误 / 结果 |
+|---|---|---|
+| server/host/ai/hub-connection.test.mjs:68 | completing login saves only the device token, reads quota, and logout revokes it | AI_SETTINGS_SAVE_FAILED：无法完成 AI 设置文件的访问保护 |
+| server/host/ai/hub-connection.test.mjs:88 | a token the Hub rejects logs this computer out | 同上 |
+| server/host/ai/hub-connection.test.mjs:96 | the free quota grades through the Hub gateway with the device token and keeps custom settings | 同上 |
+| server/host/ai/hub-connection.test.mjs:114 | gateway errors become clear, non-retried messages and a rejected token logs out | 同上 |
+| server/host/ai/hub-connection.test.mjs:133 | with both sources on, the free quota grades first and the custom model takes over when it cannot | 同上 |
+| server/host/ai/hub-connection.test.mjs:160 | settings saved with one source before this version keep working | 同上 |
+| server/host/ai/settings-provider.test.mjs:32 | AI settings preserve masked-key editing and owner-protected saved credentials | 同上 |
+| server/host/ai/settings-provider.test.mjs:54 | disabled AI remains disabled across persisted settings reload without losing automatic preference | 同上 |
+| server/host/http/server.test.mjs:290 | Hub login starts on the host only and the loopback callback finishes it without exposing the token | the free quota needs no model address：503 !== 200 |
+| server/rules-runner.test.cjs:121 | merged outline jobs retain fresh globals at original request boundaries | spawnSync node.exe ETIMEDOUT |
+| server/rules-runner.test.cjs:259 | VM loops, oversized output and invalid grades are rejected | assert.ok(Date.now()-before<3500) 不成立 |
+| server/rules-runner.test.cjs:357 | outline hook rejects malformed arrays, unsafe labels, duplicate ids and hidden fields | spawnSync node.exe ETIMEDOUT |
+| test/desktop/windows-tray.test.mjs:117 | opening a local qbank cold-starts one tray, coalesces pending opens and imports later opens independently | 90000ms 超时，1 项 cancelled |
+| test/desktop/windows-tray.test.mjs:143 | running tray imports group packages and reports invalid files without partial installs or another service | Tray state did not settle：导入失败 Request could not be completed |
+
+### GitHub CI
+
+[运行 43802307362](https://github.com/lear111/quizforge_web/actions/runs/43802307362)，代码 SHA `7f7ef37b97c7c1b0af8a0a5aff6ea192a0f47aa2`，五个 job 全部通过；无失败用例。总耗时按 job 的 started_at / completed_at 差计算，含安装与构建；不是单纯测试耗时。
+
+| Job | 结果 | job 总耗时 | 测试/检查摘要 |
+|---|---|---:|---|
+| Checks (windows-latest) | success | 251 秒 | 1576 通过、0 失败、0 取消、0 跳过；测试 167.735 秒 |
+| Checks (ubuntu-latest) | success | 131 秒 | 1542 通过、0 失败、0 取消、34 既有平台跳过；测试 105.583 秒 |
+| Performance (ubuntu-latest) | success | 20 秒 | 2 通过、0 失败 |
+| V2 code quality (ubuntu-latest) | success | 19 秒 | 格式及 lint 通过 |
+| V2 browser checks (ubuntu-latest) | success | 220 秒 | 原有十项探针各执行一次，全部通过，含桌面/手机归档与响应丢失 |
 
 ## 200 题真实接口测量
 
