@@ -305,7 +305,11 @@ test('a redirected exam directory is rejected and D27 refresh clears both active
   });
   assert.ok(redirected.status >= 400);
   assert.deepEqual(fs.readFileSync(f.library.stateStore.file(f.directory)), before);
-  fs.rmdirSync(examDir(f));
+  if (process.platform === 'win32') {
+    fs.rmdirSync(examDir(f)); // The fixture is a directory junction.
+  } else {
+    fs.unlinkSync(examDir(f)); // POSIX rmdir does not remove a symbolic link.
+  }
   const exam = await begin(f);
   await save(f, exam);
   f.bank.questions['1'].question.changed = true;

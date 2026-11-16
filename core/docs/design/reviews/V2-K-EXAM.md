@@ -14,6 +14,7 @@
 - 本机 Windows、Node 24.13.0：状态存储、题库进度及考试专项合计 53 项通过；旧归档删除重跑 11 项通过；性能 2 项通过。旧归档删除有一次并发运行返回 `ARCHIVE_FAILED`，单独重跑全部通过，未修改其重试或断言。
 - 本机的完整 V2 单元测试 363 项均通过，11 项 Chromium 探针均通过。前后端类型检查、ESLint（0 错误、0 警告）、格式检查和 UI 构建一致性检查通过。
 - 本机默认全套运行：1624 项中 1603 项通过、20 项失败、1 项跳过。20 项均落在 V1 的宿主、托盘、题库导入或旧规则测试；本次未更改这些测试或放宽断言。V2 专项及跨平台结果分别核对。
+- Ubuntu 的目录链接探针修正为只解除 POSIX 符号链接；Windows 保持解除 junction 原方式，断言与生产校验均未放宽。早期一轮 Ubuntu CI 同时出现 V1 合成夹具并发创建 `.temp/node-migration` 的 `EEXIST`，没有修改 V1。
 - Windows、Ubuntu 及其他 CI 结果均以此 PR 的 GitHub Actions 为准。[查看 PR #186 的五项检查](https://github.com/lear111/quizforge_web/pull/186/checks)。
 
 ## 考试操作实测
