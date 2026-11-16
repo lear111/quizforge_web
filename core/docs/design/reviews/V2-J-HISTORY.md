@@ -1,6 +1,6 @@
 # J：归档与历史——性能前置测量
 
-> 后续记录：D50 练习路径调整的实现与验证见 [V2-J-PRACTICE-STORAGE.md](V2-J-PRACTICE-STORAGE.md)。以下保留 #176 测量时的原始结论和结果；机器可读证据 JSON 未改动，归档与历史仍未实现。
+> 后续记录：D50 练习路径调整见 [V2-J-PRACTICE-STORAGE.md](V2-J-PRACTICE-STORAGE.md)，「再练一次」归档已由 [#180](https://github.com/lear111/quizforge_web/pull/180) 实现并审查合并，详见 [V2-J-RESTART.md](V2-J-RESTART.md)。历史列表、回看、删除和历史笔迹接口仍未实现。以下保留 #176 测量时的原始结论和结果；机器可读证据 JSON 未改动。
 
 **测量阶段交付时状态：仅测量；PR [#176](https://github.com/lear111/quizforge_web/pull/176) 已审查（Review #5912334480），最终 CI 五项全绿，2026-11-15 squash 合并到 `v2`（`0f1693b`）；当时 D50 迁移、归档与历史接口均未实现。** 基于 `v2` 的 `f5bdc4d`。以下保留当时的 PR 描述；不新增任务编号，不开始 K。
 
