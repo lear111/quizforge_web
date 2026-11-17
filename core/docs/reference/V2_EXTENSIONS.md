@@ -35,18 +35,18 @@ extensions/<分组>/<题型>/
 ```json
 {
   "id": "quizforge.single-choice",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "name": "单选题",
   "apiVersion": 2,
   "entries": {
     "practice": { "html": "practice.html", "js": "practice.js", "css": "practice.css" },
     "grade": "grade.js"
   },
-  "sdkVersions": { "richtext": "1.0.0" }
+  "sdkVersions": { "richtext": "2.0.0" }
 }
 ```
 
-题库里用 `"type": "quizforge.single-choice@2"` 指向它，`@` 后面是 `version` 的主版本号。改了 `question`、`solution` 或 `answer` 的数据格式，必须升主版本号。
+题库里用 `"type": "quizforge.single-choice@3"` 指向它，`@` 后面是 `version` 的主版本号。题目富文本字段改为 HTML 字符串，因此题型拓展主版本从 2 升至 3。改了 `question`、`solution` 或 `answer` 的数据格式，必须升主版本号。
 
 程序不检查题目数据是否符合你的格式。数据写错了，你的 `load` 会出错，用户看到的是"题型页面未能加载"。所以请在 README 里把字段写清楚。
 
@@ -90,9 +90,9 @@ QF.page.register({
 | `QF.page.grade({ score, parts, message })` | **待实现（D60）。** 用户人工评分或改分。页面只把分数通知宿主，不直接请求后端，也不执行 `grade.js`；仅对已锁定的本题有效。宿主校验并保存成功后，再用新的 `context` 调用 `load`。见 4.3 |
 | `QF.page.regrade()` | **待实现（D62）。** 请求宿主重新调用评分函数。只在本题已锁定时有效 |
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
-| `QFRichText.render(节点, 文档)` | 显示富文本。返回对象的 `ready` 在显示完成时结束 |
+| `QFRichText.render(容器, htmlString)` | 清洗并显示 HTML 富文本。返回对象提供 `ready`（资源加载完成）和 `destroy()`（清理本次渲染） |
 
-> 已决定（D54，尚未实现）：富文本内容将改为受限的 HTML 字符串，`render` 的第二个参数届时传这段字符串，调用方式不变。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
+> D54 已确认、实现待完成：题干、选项和解析等富文本字段统一使用受限 HTML 字符串。`render` 的第二个参数传 HTML 字符串，调用方式不变；显示前由 SDK 按白名单清洗。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
 
 页面高度由宿主自动测量，不用上报。
 
