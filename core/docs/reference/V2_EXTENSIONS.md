@@ -159,22 +159,19 @@ QF.grader.register({
 
 `answer` 可能是 `null`（用户没有作答就提交）。单题提交和集中评分共用这个入口；宿主按拓展版本（`artifactId`）分组，在未打开题目页面时也能加载 Worker 评分。当前每组内逐题执行，完成练习时各组也是依次等待结果。
 
-**需要 AI 的题型（D61、D62、D69，待实现）。** AI 评分以评分对象为单位。没有小题时评分对象是整道大题；有小题时每次针对一个小题。拓展负责组装当前评分对象的上下文，并可选择相关小题内容；宿主只提供受控调用入口，后端负责模型调用、结构化结果校验、分数约束校验和保存。拓展不接收模型原始回答后自行定分。
+**需要 AI 的题型（D61、D62、D69，待实现）。** AI 请求以整道大题为单位。没有小题时返回整题评分；有小题时一次请求返回该大题所有需要 AI 评分的小题结果。拓展负责组装整道大题的上下文，并明确本次需要 AI 评分的小题 ID；可以选择共享材料、各小题题干、作答、答案解析和关联信息。宿主只提供受控调用入口，后端负责模型调用、结构化结果校验、各小题分数约束校验和整批原子保存。拓展不接收模型原始回答后自行定分。
 
 ```js
 // 示意：具体 API 名称和参数将在第 5 阶段接口设计中确定。
-const context = buildContextForPart({
+const context = buildContextForWholeQuestion({
   sharedMaterial,
-  currentPart,
-  relatedParts,
-  currentAnswer,
-  referenceAnswer
+  parts: allPartsWithAnswersAndReferences
 });
-const savedGrade = await QF.ai.grade({ partId, context });
-// savedGrade 是后端已校验并保存后返回的评分结果。
+const savedGrades = await QF.ai.grade({ context });
+// 一次返回并保存本大题所有需要 AI 评分的小题结果。
 ```
 
-上下文由拓展按题目实际关系组装，不要求后端理解题目 JSON，也不要求所有题型使用相同的小题结构。后端必须从当前题库大纲与提交凭证核实评分对象 ID、满分和 `scoreStep`，不能信任拓展/模型自报的分数上限。单个小题可独立重新评分；AI 失败不自动重试，允许用户重试或人工接管。
+上下文由拓展按题目实际关系组装，不要求后端理解题目 JSON，也不要求所有题型使用相同的小题内部结构。后端必须从当前题库大纲与提交凭证核实小题 ID、满分和 `scoreStep`，不能信任拓展/模型自报的分数上限。AI 重试以整道大题为单位，重新评分本大题所有需要 AI 评分的小题；AI 失败不自动重试，允许用户重试或人工接管。
 
 ### 4.2 返回值
 
