@@ -29,7 +29,7 @@ DOMPurify 的项目说明与版本：[npm](https://www.npmjs.com/package/dompuri
 
 ## 版本兼容与示例迁移
 
-新增不可变的 `quizforge.richtext@2.0.0`，专门接收 HTML 字符串。新版本确认后，负责人再安排 Codex 对现有 V2 题库做一次性迁移；迁移完成后删除旧的 V2 富文本 SDK 版本及其旧版本映射，不保留旧 JSON 格式的运行时兼容。
+新增不可变的 `quizforge.richtext@2.0.0`，专门接收 HTML 字符串。新版本确认后，负责人再安排 Codex 对现有 V2 题库内容及随附拓展做一次性迁移；不开发独立迁移工具。该次迁移不处理任何作答数据。迁移完成后删除旧的 V2 富文本 SDK 版本及其旧版本映射，不保留旧 JSON 格式的运行时兼容。
 
 V2 拓展规范规定：`question` / `solution` 数据格式变化必须升级拓展主版本。因此三个示例拓展从 `2.0.0` 升至 `3.0.0`，题库 `type` 从 `@2` 升至 `@3`，并将 `sdkVersions.richtext` 指向 `2.0.0`。拓展内 `QFRichText.render(element, value)` 的调用形式不变，只把 value 换成 HTML 字符串。
 
@@ -38,7 +38,7 @@ V2 拓展规范规定：`question` / `solution` 数据格式变化必须升级�
 - 判断：`question.stem`、`solution.explanation`。
 - 选择答案等非富文本字段（例如 `solution.selected`）保持原结构。
 
-本次不迁移历史记录。已有历史快照继续保留原始文件，但不保证在删除旧 SDK 后仍能打开；无需为旧历史保留旧 SDK、旧题型拓展或兼容渲染路径。新创建的历史记录使用 HTML 格式和新 SDK。V1 的拓展及运行路径不属于本次 V2 改造范围。
+不迁移任何既有作答记录，包括 `.qf-v2/practice/` 中正在进行的练习、`.qf-v2/exam/` 中正在进行的考试，以及 `.qf-v2/rounds/` 中已经归档的历史轮次。题库/拓展升级后，当前练习和考试按 D27 现有规则失效或中断；归档历史保留原始文件、不做格式转换，但不保证在删除旧 SDK 后仍能打开。无需为旧历史保留旧 SDK、旧题型拓展或兼容渲染路径。升级后新开始的练习/考试及其新归档使用 HTML 格式和新 SDK。V1 的拓展及运行路径不属于本次 V2 改造范围。
 
 ## 体积影响
 
@@ -49,11 +49,11 @@ V2 拓展规范规定：`question` / `solution` 数据格式变化必须升级�
 1. 白名单正向测试覆盖 D54 全部标签、属性、样式；负向测试覆盖 script、事件属性、危险 URL、非白名单 CSS、SVG/MathML 等内容。
 2. 公式测试覆盖行内、独立、转义美元符号、非法 LaTeX；图片测试覆盖 qf-asset 成功、缺失与拒绝远程 src。
 3. 七道示例题在桌面与手机视口验证段落、表格、图片、公式显示；提交前不泄露 solution。
-4. 新创建的历史快照使用 HTML 格式和新 SDK；不要求旧历史快照在旧 SDK 删除后继续可读。V1 原有富文本路径不受本次 V2 改造影响。
+4. 新创建的历史快照使用 HTML 格式和新 SDK；不迁移、不验证旧练习、旧考试或旧历史记录。V1 原有富文本路径不受本次 V2 改造影响。
 5. 实测新 SDK 的 JS minified/gzip、CSS 体积，并与当前 1.1.3 对比。
 
 ## 本次提案不包含
 
-富文本编辑器、题库编辑器改造、Word 粘贴、HTML 写入时校验、后端清洗，以及旧 V2 题库的一次性批量迁移脚本/执行任务。题库迁移在新格式正式确认后由负责人另行安排 Codex 执行；不迁移历史记录。V1 组件升级不属于本次 V2 改造范围。
+富文本编辑器、题库编辑器改造、Word 粘贴、HTML 写入时校验、后端清洗，以及旧 V2 题库的一次性迁移执行。题库迁移在新格式正式确认后由负责人另行安排 Codex 执行；不迁移当前练习、正在进行的考试或已归档历史。V1 组件升级不属于本次 V2 改造范围。
 
 参考：[DOMPurify npm](https://www.npmjs.com/package/dompurify)、[DOMPurify 构建体积测量](https://zachleat.github.io/bundlewhys/?package=dompurify)、[V2 拓展版本规则](../reference/V2_EXTENSIONS.md)。
