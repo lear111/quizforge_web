@@ -18,11 +18,11 @@ test('V2 entry dependency graph excludes the entire v1 rules, runner, validation
   const files = Object.keys(result.metafile.inputs).map((file) => file.replaceAll('\\', '/'));
   assert.ok(files.some((file) => file.endsWith('/v2/app.js')));
   assert.ok(files.some((file) => file.endsWith('/platform/json.js')));
-  assert.ok(files.some((file) => file.includes('/node_modules/parse5/')));
+  assert.ok(files.some((file) => /(?:^|\/)node_modules\/parse5\//.test(file)));
   for (const file of files) {
     // D54 explicitly adds parse5 and its entity decoder, not v1's rules stack.
-    if (file.includes('/node_modules/')) {
-      assert.match(file, /\/node_modules\/(?:parse5|entities)\//);
+    if (/(?:^|\/)node_modules\//.test(file)) {
+      assert.match(file, /(?:^|\/)node_modules\/(?:parse5|entities)\//);
     }
     assert.doesNotMatch(
       file,
