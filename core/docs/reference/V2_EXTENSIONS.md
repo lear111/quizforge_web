@@ -92,7 +92,7 @@ QF.page.register({
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
 | `QFRichText.render(容器, htmlString)` | 清洗并显示 HTML 富文本。返回对象提供 `ready`（资源加载完成）和 `destroy()`（清理本次渲染） |
 
-> D54 已确认、实现待完成：题干、选项和解析等富文本字段统一使用受限 HTML 字符串。`render` 的第二个参数传 HTML 字符串，调用方式不变；显示前由 SDK 按白名单清洗。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
+> D54 已实现：V2 新题型的题干、选项和解析等富文本字段统一使用受限 HTML 字符串。`render` 的第二个参数传 HTML 字符串，调用方式不变；显示前由 SDK 按白名单清洗。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。其他现有 V2 题库仍待负责人安排一次性迁移；不迁移任何既有作答记录。
 
 页面高度由宿主自动测量，不用上报。
 
