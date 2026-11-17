@@ -17,7 +17,7 @@
 - `style` 属性由浏览器 CSSOM 解析后重建，只保留 D54 列出的十种 CSS 属性，不允许其他 CSS 属性或自定义属性。
 - URL 按元素分别限制：`img[src]` 只接受 `qf-asset:`；`a[href]` 只接受 `http:`、`https:`、`mailto:`。通过 DOMPurify hook 仅对 `img[src]` 放行符合资源路径规则的 `qf-asset:`，不允许远程图片地址。
 - 清洗后再解析为 DOM；`qf-asset:` 图片通过现有 `QF.resources.get(reference)` 取资源，不把题库路径直接拼成 URL。
-- 后端仍原样存取题目 HTML，不做内容改写；但为了沿用素材权限检查与预加载，`visibleAssets` 必须从 HTML 富文本字段中提取 `<img src="qf-asset:…">` 引用。该步骤只收集资源引用，不解释题意；使用标准 HTML parser，避免用正则表达式解析 HTML，并只在 solution 可见时扫描 solution。
+- 后端仍原样存取题目 HTML，不做内容改写；但为了沿用素材权限检查与预加载，`visibleAssets` 需要递归访问 `question` / 可见的 `solution` 中的字符串，并用 parse5 将每个字符串解析为 HTML fragment，只收集 `<img src="qf-asset:…">` 引用。该步骤只收集资源引用，不解释题意；parse5 作为服务端依赖，不进入浏览器 SDK。
 
 DOMPurify 的项目说明与版本：[npm](https://www.npmjs.com/package/dompurify)。3.4.15 的公开构建测量约 28.3 kB minified / 11.0 kB gzip；3.4.18 的实际 SDK 构建体积以实现 PR 的 minified/gzip 实测为准：[bundlewhys 测量](https://zachleat.github.io/bundlewhys/?package=dompurify)。
 
@@ -57,4 +57,4 @@ V2 拓展规范规定：`question` / `solution` 数据格式变化必须升级�
 
 富文本编辑器、题库编辑器改造、Word 粘贴、HTML 写入时校验、后端清洗，以及旧 V2 题库的一次性迁移执行。题库迁移在新格式正式确认后由负责人另行安排 Codex 执行；不迁移当前练习、正在进行的考试或已归档历史。V1 组件升级不属于本次 V2 改造范围。
 
-参考：[DOMPurify npm](https://www.npmjs.com/package/dompurify)、[DOMPurify 构建体积测量](https://zachleat.github.io/bundlewhys/?package=dompurify)、[V2 拓展版本规则](../reference/V2_EXTENSIONS.md)。
+参考：[DOMPurify npm](https://www.npmjs.com/package/dompurify)、[DOMPurify 构建体积测量](https://zachleat.github.io/bundlewhys/?package=dompurify)、[parse5 npm](https://www.npmjs.com/package/parse5)、[V2 拓展版本规则](../reference/V2_EXTENSIONS.md)。
