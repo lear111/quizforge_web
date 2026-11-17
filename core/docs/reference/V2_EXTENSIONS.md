@@ -35,18 +35,18 @@ extensions/<分组>/<题型>/
 ```json
 {
   "id": "quizforge.single-choice",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "name": "单选题",
   "apiVersion": 2,
   "entries": {
     "practice": { "html": "practice.html", "js": "practice.js", "css": "practice.css" },
     "grade": "grade.js"
   },
-  "sdkVersions": { "richtext": "1.0.0" }
+  "sdkVersions": { "richtext": "2.0.0" }
 }
 ```
 
-题库里用 `"type": "quizforge.single-choice@2"` 指向它，`@` 后面是 `version` 的主版本号。改了 `question`、`solution` 或 `answer` 的数据格式，必须升主版本号。
+题库里用 `"type": "quizforge.single-choice@3"` 指向它，`@` 后面是 `version` 的主版本号。题目富文本字段改为 HTML 字符串，因此题型拓展主版本从 2 升至 3。改了 `question`、`solution` 或 `answer` 的数据格式，必须升主版本号。
 
 程序不检查题目数据是否符合你的格式。数据写错了，你的 `load` 会出错，用户看到的是"题型页面未能加载"。所以请在 README 里把字段写清楚。
 
@@ -90,9 +90,9 @@ QF.page.register({
 | `QF.page.grade({ score, parts, message })` | **待实现（D60）。** 用户人工评分或改分。页面只把分数通知宿主，不直接请求后端，也不执行 `grade.js`；仅对已锁定的本题有效。宿主校验并保存成功后，再用新的 `context` 调用 `load`。见 4.3 |
 | `QF.page.regrade()` | **待实现（D62）。** 请求宿主重新调用评分函数。只在本题已锁定时有效 |
 | `QF.resources.get(引用)` | 把题库里的 `qf-asset:路径` 换成可以显示的地址 |
-| `QFRichText.render(节点, 文档)` | 显示富文本。返回对象的 `ready` 在显示完成时结束 |
+| `QFRichText.render(容器, htmlString)` | 清洗并显示 HTML 富文本。返回对象提供 `ready`（资源加载完成）和 `destroy()`（清理本次渲染） |
 
-> 已决定（D54，尚未实现）：富文本内容将改为受限的 HTML 字符串，`render` 的第二个参数届时传这段字符串，调用方式不变。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
+> D54 已确认、实现待完成：题干、选项和解析等富文本字段统一使用受限 HTML 字符串。`render` 的第二个参数传 HTML 字符串，调用方式不变；显示前由 SDK 按白名单清洗。允许的标签和样式见[数据结构说明书](../design/V2_DATA_STRUCTURES.md) 1.1 节。
 
 页面高度由宿主自动测量，不用上报。
 
@@ -266,9 +266,11 @@ QF.page.register({
 
 ## 6. 历史回看
 
-一轮练习归档时，程序会把你的拓展文件夹复制一份，和当时的题库、作答存在一起。以后回看这一轮，用的是这份副本，所以你之后修改或卸载拓展都不影响已有的历史。
+一轮练习归档时，程序会把当时使用的拓展文件夹复制一份，和题库、作答存在一起。历史轮次保留归档时的题库与拓展文件。
 
-你不需要为历史写任何代码。回看时宿主照常调用 `load`，给出的事实是 `locked` 为真、`can.submit` 和 `can.retry` 为假，按 3.5 节照着画即可。
+但归档文件存在不等于永久保证可回放。按 D66，V2 题库、拓展或公共组件升级可能影响旧记录的保存或读取时，不迁移旧历史；旧 SDK 可以删除，因此旧历史不保证继续能够打开。新创建的历史记录使用归档时对应的新题库格式和 SDK。
+
+你不需要为历史写任何代码。可回放的历史中，宿主照常调用 `load`，给出的事实是 `locked` 为真、`can.submit` 和 `can.retry` 为假，按 3.5 节照着画即可。
 
 ## 7. 不在本文范围
 
@@ -278,4 +280,6 @@ QF.page.register({
 
 ## 8. 兼容承诺
 
-apiVersion 2 之内只会增加可选的函数和字段，不改变已有内容的含义。历史里保存着旧版本的拓展，这条承诺保证它们以后仍能运行。你在 `manifest.json` 里声明的公共组件版本也会被长期保留。
+在仍受支持的 `apiVersion: 2` 接口范围内，新增能力优先以可选函数和字段提供，不改变既有字段含义。题目数据格式变化必须升级拓展主版本号。
+
+本节不承诺永久保留所有旧拓展或公共 SDK 版本。按 D66，当 V2 题库、拓展或公共组件升级可能影响既有记录的保存或读取时，默认不迁移当前练习、正在进行的考试或已归档历史；旧 SDK 可在新格式上线后删除。旧历史保留原始文件，但不保证继续可回放。
