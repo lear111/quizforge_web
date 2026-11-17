@@ -4,7 +4,13 @@
 
 ## 目标与范围
 
-题干、选项、答案解析等富文本字段改为 HTML 字符串；显示时按 D54 白名单清洗。公式继续使用 `$…$` / `$$…$$`，图片继续使用 `qf-asset:路径`。只迁移 V2 基础题型展示库的 7 道示例题及单选、多选、判断三个题型。**不做编辑器**（排在第 6 段），不改后端对题目内容的原样存取，也不改评分流程。
+题干、选项、答案解析等富文本字段改为 HTML 字符串；显示时按 D54 白名单清洗。公式继续使用 `$…# L：受限 HTML 富文本（D54）
+
+**状态：设计提案，待负责人确认；尚未开工。** 本文只确定实现选型与影响评估，不授权 Codex 开始编码。正式行为仍以 [D54](../V2_ARCHITECTURE.md)、[数据结构说明书 1.1](../V2_DATA_STRUCTURES.md) 为准。
+
+## 目标与范围
+
+ / `$…$`，图片继续使用 `qf-asset:路径`。本阶段以 V2 基础题型展示库的 7 道示例题和单选、多选、判断三个示例题型完成实现与验证；新格式确认后，再由负责人安排 Codex 对其余现有 V2 题库内容及随附拓展做一次性迁移。**不做编辑器**（排在第 6 段），不改后端对题目内容的原样存取，也不改评分流程。
 
 ## 实现选型
 
@@ -17,6 +23,7 @@
 - `style` 属性再用浏览器 CSSOM 解析，只重建 D54 列出的十种 CSS 属性；不允许其他 CSS 属性或自定义属性。
 - URL 按元素分别限制：`img[src]` 只接受 `qf-asset:`；`a[href]` 只接受 `http:`、`https:`、`mailto:`。不允许远程图片地址。
 - 清洗后再解析为 DOM；`qf-asset:` 图片通过现有 `QF.resources.get(reference)` 取资源，不把题库路径直接拼成 URL。
+- 后端仍原样存取题目 HTML，不做内容改写；但为了沿用现有素材权限检查与预加载，`visibleAssets` 必须从 HTML 富文本字段中提取 `<img src="qf-asset:…">` 引用。该步骤只收集资源引用，不解释题意；实现时使用标准 HTML parser，避免用正则表达式解析 HTML，并只在 solution 可见时扫描 solution。
 
 DOMPurify 的项目说明与版本：[npm](https://www.npmjs.com/package/dompurify)。其 3.4.15 版本的浏览器构建测量约 28.3 kB minified / 11.0 kB gzip；3.4.18 的最终增量以实际构建结果为准：[bundlewhys 测量](https://zachleat.github.io/bundlewhys/?package=dompurify)。
 
