@@ -150,10 +150,10 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 | GET `Q/parts/{partId}/answer-ink/{areaId}` | — | 同读取草稿笔迹 | 读取指定小题答题区的笔迹 |
 | PUT `Q/answer-ink/{areaId}` / GET 同路径 | 同现有协议 | 同现有协议 | 无小题大题的题目级答题区笔迹 |
 
-- 三个写接口在该题已提交（有提交编号）、本轮已完成、考试已过结束时刻时一律拒绝，错误与 `PUT Q/answer` 相同。
+- 上述所有写接口在该题已提交（有提交编号）、本轮已完成、考试已过结束时刻时一律拒绝，错误与 `PUT Q/answer` 相同。
 - `partId` 必须属于当前大题的 `outline.parts[].id`；`name` 与 `areaId` 只允许字母、数字、点、横线、下划线。磁盘上用小题 ID 的哈希作为目录名，避免把 ID 直接拼入路径。后端不解析文件内容或 `answer.parts[partId]` 内部字段。单个文件上限 4 MiB（沿用旧版图片上限）。
 - `POST Q/retry` 删除该题的整个作答文件夹（含所有小题子目录）；按 D27 清空作答时一并删除；`POST B/restart` 把整个 `answer-files/` 搬进该轮目录。提交锁定仍以大题为单位，一次锁定该题所有小题文件。
-- 历史里只读：题目级与带 `partId` 的 `GET R/questions/{questionId}/…` 文件/笔迹路径；历史中的小题文件仍按原 `partId` 目录读取，不提供写接口。
+- 历史里只读：`GET R/questions/{questionId}/answer-files/{name}`、`GET R/questions/{questionId}/answer-ink/{areaId}`，以及带小题归属的 `GET R/questions/{questionId}/parts/{partId}/answer-files/{name}`、`GET R/questions/{questionId}/parts/{partId}/answer-ink/{areaId}`。历史中的小题文件仍按原 `partId` 目录读取，不提供写接口。
 - 磁盘文件夹与接口地址都叫 `answer-files`，与题库素材的 `assets` 区分开。
 
 ## 第 5 段接口：评分来源与 AI（评分对象级方案已确认，具体接口待设计）
