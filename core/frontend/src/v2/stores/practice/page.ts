@@ -18,14 +18,18 @@ function missingAsset(ctx: PracticeSession, q: Question, error: unknown) {
   return true;
 }
 
-export async function pictures(
-  ctx: PracticeSession,
-  q: Question,
-  has: (id: string) => boolean = () => false,
-): Promise<Picture[]> {
-  const { api } = ctx;
+function pictureReferences(q: Question) {
   const references = new Set<string>();
   const visit = (value: unknown) => {
+    if (typeof value === 'string') {
+      // A template stays inert (including its image URLs); never attach it.
+      const template = document.createElement('template');
+      template.innerHTML = value;
+      for (const image of template.content.querySelectorAll('img[src]')) {
+        references.add(image.getAttribute('src') ?? '');
+      }
+      return;
+    }
     if (Array.isArray(value)) {
       value.forEach(visit);
       return;
@@ -43,6 +47,16 @@ export async function pictures(
   if (q.state.locked) {
     visit(q.solution);
   }
+  return references;
+}
+
+export async function pictures(
+  ctx: PracticeSession,
+  q: Question,
+  has: (id: string) => boolean = () => false,
+): Promise<Picture[]> {
+  const { api } = ctx;
+  const references = pictureReferences(q);
   return (
     await Promise.all(
       q.resources

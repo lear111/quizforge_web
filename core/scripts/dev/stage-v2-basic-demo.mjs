@@ -3,36 +3,69 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const repo = fileURLToPath(new URL('../../../', import.meta.url));
-function adapt(value, assets) {
-  if (Array.isArray(value)) {
-    return value.map((child) => adapt(child, assets));
+const escape = (text) =>
+  String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+// Deliberately handles only the nodes in the seven tracked public examples.
+function html(value, assets) {
+  if (value.type === 'text') {
+    let text = escape(value.text).replaceAll('$', '\\$');
+    for (const mark of value.marks ?? []) {
+      if (mark.type !== 'bold') {
+        throw new Error('Unexpected public example mark: ' + mark.type);
+      }
+      text = '<strong>' + text + '</strong>';
+    }
+    return text;
   }
-  if (!value || typeof value !== 'object') {
-    return value;
+  if (value.type === 'inlineMath' || value.type === 'blockMath') {
+    const delimiter = value.type === 'blockMath' ? '$$' : '$';
+    return delimiter + escape(value.attrs.latex) + delimiter;
   }
-  const copy = Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [key, adapt(child, assets)]),
-  );
-  if (copy.type === 'image' && copy.attrs?.assetId) {
-    const relative = 'assets/' + copy.attrs.assetId + '.png';
+  if (value.type === 'image') {
+    const relative = 'assets/' + value.attrs.assetId + '.png';
     assets.add(relative);
-    copy.attrs.src = 'qf-asset:' + relative;
-    delete copy.attrs.assetId;
+    return (
+      `<img src="qf-asset:${relative}" alt="${escape(value.attrs.alt ?? '')}"` +
+      (value.attrs.width ? ` width="${value.attrs.width}"` : '') +
+      '>'
+    );
   }
-  return copy;
+  const tags = {
+    doc: '',
+    paragraph: 'p',
+    table: 'table',
+    tableRow: 'tr',
+    tableHeader: 'th',
+    tableCell: 'td',
+  };
+  const tag = tags[value.type];
+  if (tag === undefined) {
+    throw new Error('Unexpected public example node: ' + value.type);
+  }
+  const children = (value.content ?? []).map((child) => html(child, assets)).join('');
+  const attributes = ['colspan', 'rowspan']
+    .filter((key) => value.attrs?.[key])
+    .map((key) => ` ${key}="${value.attrs[key]}"`)
+    .join('');
+  return tag ? `<${tag}${attributes}>${children}</${tag}>` : children;
 }
+
+const groups = new Map([
+  ['单选题', { type: 'quizforge.single-choice@3', field: 'correctOptionId', output: 'selected' }],
+  [
+    '多选题',
+    { type: 'quizforge.multiple-choice@3', field: 'correctOptionIds', output: 'selected' },
+  ],
+  ['判断题', { type: 'quizforge.true-false@3', field: 'correctAnswer', output: 'value' }],
+]);
 
 export function basicDemo() {
   const source = path.join(repo, 'question-banks/基础题型/基础题型展示');
   const old = JSON.parse(fs.readFileSync(path.join(source, 'bank.json'), 'utf8'));
-  const groups = new Map([
-    ['单选题', { type: 'quizforge.single-choice@2', field: 'correctOptionId', output: 'selected' }],
-    [
-      '多选题',
-      { type: 'quizforge.multiple-choice@2', field: 'correctOptionIds', output: 'selected' },
-    ],
-    ['判断题', { type: 'quizforge.true-false@2', field: 'correctAnswer', output: 'value' }],
-  ]);
   const assets = new Set();
   const outline = [],
     questions = {};
@@ -46,12 +79,19 @@ export function basicDemo() {
       questions[q.id] = {
         type: spec.type,
         question: {
-          stem: adapt(d.stem, assets),
-          ...(d.options ? { options: adapt(d.options, assets) } : {}),
+          stem: html(d.stem, assets),
+          ...(d.options
+            ? {
+                options: d.options.map((option) => ({
+                  ...option,
+                  content: html(option.content, assets),
+                })),
+              }
+            : {}),
         },
         solution: {
           [spec.output]: d[spec.field],
-          explanation: adapt(d.answerAndExplanation, assets),
+          explanation: html(d.answerAndExplanation, assets),
         },
       };
     }

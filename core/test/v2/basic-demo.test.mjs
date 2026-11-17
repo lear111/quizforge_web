@@ -4,6 +4,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { test } from 'node:test';
 import { basicDemo, repo } from '../../scripts/dev/stage-v2-basic-demo.mjs';
+import { JSDOM } from 'jsdom';
 
 test('public V2 showcase preserves all seven original choice/judgement questions, labels, scores, rich text and assets', () => {
   const { bank, assets, source } = basicDemo();
@@ -27,26 +28,39 @@ test('public V2 showcase preserves all seven original choice/judgement questions
     false,
   );
   const original = JSON.parse(fs.readFileSync(path.join(source, 'bank.json'), 'utf8'));
-  const restoreRefs = (value) => {
-    if (Array.isArray(value)) {
-      return value.map(restoreRefs);
+  const originalText = (node) =>
+    node.type === 'text'
+      ? node.text
+      : ['inlineMath', 'blockMath'].includes(node.type)
+        ? (node.type === 'blockMath' ? '$$' : '$') +
+          node.attrs.latex +
+          (node.type === 'blockMath' ? '$$' : '$')
+        : (node.content ?? []).map(originalText).join('');
+  const assertContent = (html, old) => {
+    assert.equal(typeof html, 'string');
+    const window = new JSDOM(html).window;
+    try {
+      const text = window.document.body.textContent;
+      // Math is additionally represented by dollar delimiters in the new HTML.
+      assert.ok(text.includes(originalText(old)), text);
+      assert.ok(!html.includes('[object Object]'));
+    } finally {
+      window.close();
     }
-    if (!value || typeof value !== 'object') {
-      return value;
-    }
-    const copy = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, restoreRefs(v)]));
-    if (copy.type === 'image') {
-      copy.attrs.assetId = copy.attrs.src.slice('qf-asset:assets/'.length, -4);
-      delete copy.attrs.src;
-    }
-    return copy;
   };
   for (const [id, q] of Object.entries(bank.questions)) {
     const old = original.questions.find((q) => q.id === id);
-    assert.deepEqual(restoreRefs(q.question.stem), old.data.stem);
-    assert.deepEqual(restoreRefs(q.solution.explanation), old.data.answerAndExplanation);
+    assert.match(q.type, /@3$/);
+    assertContent(q.question.stem, old.data.stem);
+    assertContent(q.solution.explanation, old.data.answerAndExplanation);
     if (q.question.options) {
-      assert.deepEqual(restoreRefs(q.question.options), old.data.options);
+      assert.deepEqual(
+        q.question.options.map((option) => option.id),
+        old.data.options.map((option) => option.id),
+      );
+      q.question.options.forEach((option, index) =>
+        assertContent(option.content, old.data.options[index].content),
+      );
     }
     assert.deepEqual(
       q.solution.selected ?? q.solution.value,
@@ -70,7 +84,8 @@ test('three V2 graders preserve original all-or-nothing scoring, including empty
     const directory = path.join(repo, 'examples/v2/extensions/基础题型', title);
     const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json'), 'utf8'));
     assert.equal(manifest.apiVersion, 2);
-    assert.equal(manifest.sdkVersions.richtext, '1.1.3');
+    assert.equal(manifest.version, '3.0.0');
+    assert.equal(manifest.sdkVersions.richtext, '2.0.0');
     let registered;
     vm.runInNewContext(fs.readFileSync(path.join(directory, 'grade.js'), 'utf8'), {
       QF: {

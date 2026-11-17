@@ -29,10 +29,8 @@ try {
   const directory = path.join(root, 'question-banks/基础题型/单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(directory, 'bank.json'), 'utf8'));
   bank.title = 'Synthetic A';
-  bank.questions['1'].question.stem.content.push({
-    type: 'image',
-    attrs: { src: 'qf-asset:assets/figure.png', alt: 'synthetic figure' },
-  });
+  bank.questions['1'].question.stem +=
+    '<img src="qf-asset:assets/figure.png" alt="synthetic figure">';
   fs.mkdirSync(path.join(directory, 'assets'), { recursive: true });
   fs.writeFileSync(
     path.join(directory, 'assets/figure.png'),

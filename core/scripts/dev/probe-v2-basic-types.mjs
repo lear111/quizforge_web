@@ -1,5 +1,6 @@
 // Real Chromium acceptance of the tracked public showcase, never user records.
 import { captureBrowserFailure } from './v2-browser-failure.mjs';
+import { checkHtmlRichtext } from './probe-v2-richtext-checks.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -150,6 +151,13 @@ try {
           );
         }
         if (item.id === 'single-sample-image-math') {
+          await checkHtmlRichtext(
+            page,
+            frame(),
+            q.question.stem.match(/qf-asset:[^"]+/)[0],
+            output,
+            name,
+          );
           assert.equal(
             await frame()
               .locator('img')

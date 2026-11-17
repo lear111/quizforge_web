@@ -102,10 +102,8 @@ try {
   copyBrowserFixture(root);
   const bank = JSON.parse(fs.readFileSync(bankFile, 'utf8'));
   bank.title = 'Synthetic A';
-  bank.questions['1'].question.stem.content.push({
-    type: 'image',
-    attrs: { src: 'qf-asset:assets/figure.png', alt: 'synthetic figure' },
-  });
+  bank.questions['1'].question.stem +=
+    '<img src="qf-asset:assets/figure.png" alt="synthetic figure">';
   fs.mkdirSync(path.join(directory, 'assets'), { recursive: true });
   fs.writeFileSync(
     path.join(directory, 'assets', 'figure.png'),
