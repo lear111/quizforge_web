@@ -1,6 +1,6 @@
 # L：受限 HTML 富文本（D54）
 
-**状态：设计提案，待负责人确认；尚未开工。** 本文只确定实现选型与影响评估，不授权 Codex 开始编码。正式行为仍以 [D54](../V2_ARCHITECTURE.md)、[数据结构说明书 1.1](../V2_DATA_STRUCTURES.md) 为准。
+**状态：设计已由负责人确认；尚未开工。** 本文记录已批准的实现选型与影响边界，不代表 Codex 已开始编码。正式行为仍以 [D54](../V2_ARCHITECTURE.md)、[数据结构说明书 1.1](../V2_DATA_STRUCTURES.md) 为准。
 
 ## 目标与范围
 
@@ -30,7 +30,7 @@ DOMPurify 的项目说明与版本：[npm](https://www.npmjs.com/package/dompuri
 
 ## 版本兼容与示例迁移
 
-新增不可变的 `quizforge.richtext@2.0.0`，专门接收 HTML 字符串。新版本确认后，负责人再安排 Codex 对现有 V2 题库内容及随附拓展做一次性迁移；不开发独立迁移工具。该次迁移只处理题库内容与随附拓展，不处理任何作答数据。迁移完成并启用新格式后，删除旧的 V2 富文本 SDK 版本及其旧版本映射，不保留旧 JSON 格式的运行时兼容。
+新增不可变的 `quizforge.richtext@2.0.0`，专门接收 HTML 字符串。负责人之后另行安排 Codex 对现有 V2 题库内容及随附拓展做一次性迁移；不开发独立迁移工具。该次迁移只处理题库内容与随附拓展，不处理任何作答数据。迁移完成并启用新格式后，V2 题型统一改用 `2.0.0`，不再支持旧 JSON 富文本 SDK 版本或旧格式运行时兼容。注意：`core/shared/richtext/1.0.0` 与 `1.1.3` 也被 V1 宿主的 `RichTextService` 使用；L 阶段不删除这些共享文件，物理删除放在第 7 阶段 V1 旧链清理，待 V1 不再引用后执行。旧 SDK 不为 V2 历史回放保留。
 
 V2 拓展规范规定：`question` / `solution` 数据格式变化必须升级拓展主版本。因此三个示例拓展从 `2.0.0` 升至 `3.0.0`，题库 `type` 从 `@2` 升至 `@3`，并将 `sdkVersions.richtext` 指向 `2.0.0`。拓展内 `QFRichText.render(element, value)` 的调用形式不变，只把 value 换成 HTML 字符串。
 
