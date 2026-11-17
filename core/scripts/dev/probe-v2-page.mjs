@@ -31,14 +31,14 @@ const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2ioAAAAASUVORK5CYII=',
   'base64',
 );
-const image = (src) => ({ type: 'image', attrs: { src, alt: '合成图片' } });
+const image = (src) => `<img src="${src}" alt="合成图片">`;
 
 try {
   copyBrowserFixture(root);
   const originalDirectory = path.join(root, 'question-banks/基础题型/单选题展示');
   const bank = JSON.parse(fs.readFileSync(path.join(originalDirectory, 'bank.json'), 'utf8'));
-  bank.questions['1'].question.stem.content.push(image('qf-asset:assets/question.png'));
-  bank.questions['1'].solution.explanation.content.push(image('qf-asset:assets/solution.png'));
+  bank.questions['1'].question.stem += image('qf-asset:assets/question.png');
+  bank.questions['1'].solution.explanation += image('qf-asset:assets/solution.png');
   bank.questions['3'].type = 'quizforge.synthetic-text@2';
   const ext = path.join(root, 'extensions/基础题型/单选题'),
     manifest = JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8'));
@@ -47,7 +47,12 @@ try {
   const typing = path.join(root, 'extensions/synthetic/text');
   write(
     path.join(typing, 'manifest.json'),
-    JSON.stringify({ ...manifest, id: 'quizforge.synthetic-text', name: '合成输入' }),
+    JSON.stringify({
+      ...manifest,
+      version: '2.0.0',
+      id: 'quizforge.synthetic-text',
+      name: '合成输入',
+    }),
   );
   write(
     path.join(typing, 'practice.html'),

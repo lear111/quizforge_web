@@ -1,0 +1,74 @@
+.qfrt-document {
+  box-sizing: border-box;
+  max-width: 100%;
+  font:
+    15px/1.8 Arial,
+    'Microsoft YaHei',
+    sans-serif;
+  overflow-wrap: anywhere;
+  color: inherit;
+}
+.qfrt-document > :first-child {
+  margin-top: 0;
+}
+.qfrt-document > :last-child {
+  margin-bottom: 0;
+}
+.qfrt-document p {
+  margin: 0.65em 0;
+}
+.qfrt-document h1,
+.qfrt-document h2,
+.qfrt-document h3,
+.qfrt-document h4 {
+  line-height: 1.45;
+}
+.qfrt-document blockquote {
+  border-left: 3px solid #c6b4e5;
+  margin: 1em 0;
+  padding: 4px 14px;
+}
+.qfrt-document pre {
+  white-space: pre-wrap;
+  overflow: auto;
+  background: #f4f1f8;
+  padding: 12px;
+}
+.qfrt-document code {
+  font-family: Consolas, monospace;
+}
+.qfrt-document a {
+  color: #7751b3;
+}
+.qfrt-document table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 14px 0;
+}
+.qfrt-document td,
+.qfrt-document th {
+  border: 1px solid #cfc5db;
+  padding: 6px 10px;
+  vertical-align: top;
+}
+.qfrt-document img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+.qfrt-image-missing {
+  display: inline-block;
+  min-height: 32px;
+  padding: 8px;
+  border: 1px dashed #b67c7c;
+}
+.qfrt-math-block {
+  display: block;
+  overflow-x: auto;
+  text-align: center;
+  margin: 1em 0;
+}
+.qfrt-math math {
+  max-width: 100%;
+}

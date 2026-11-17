@@ -46,7 +46,11 @@ export default [
   },
   {
     basePath: root,
-    files: ['core/frontend/src/v2/**/*.{js,ts,vue}', 'examples/v2/**/*.js'],
+    files: [
+      'core/frontend/src/v2/**/*.{js,ts,vue}',
+      'examples/v2/**/*.js',
+      'core/shared/richtext/2.0.0/src/*.js',
+    ],
     languageOptions: { globals: globals.browser },
   },
   {

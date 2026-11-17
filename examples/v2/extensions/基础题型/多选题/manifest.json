@@ -1,6 +1,17 @@
 {
-  "id": "quizforge.multiple-choice", "version": "2.0.0", "name": "多选题",
+  "id": "quizforge.multiple-choice",
+  "version": "3.0.0",
+  "name": "多选题",
   "apiVersion": 2,
-  "entries": { "practice": { "html": "practice.html", "js": "practice.js", "css": "practice.css" }, "grade": "grade.js" },
-  "sdkVersions": { "richtext": "1.1.3" }
+  "entries": {
+    "practice": {
+      "html": "practice.html",
+      "js": "practice.js",
+      "css": "practice.css"
+    },
+    "grade": "grade.js"
+  },
+  "sdkVersions": {
+    "richtext": "2.0.0"
+  }
 }

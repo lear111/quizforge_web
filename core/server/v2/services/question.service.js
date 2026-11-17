@@ -11,7 +11,8 @@
 /** @typedef {import('../../../shared/v2/api.js').InkResponse} InkResponse */
 /** @typedef {import('../types/data.js').PracticeLibrary} PracticeLibrary */
 import { cloneJson, hash, projectJson } from '../../host/platform/json.js';
-import { object, problem } from '../utils/errors.js';
+import { problem } from '../utils/errors.js';
+import { resourceReferences } from '../utils/asset-references.js';
 import { questionRecord } from '../repositories/bank.repository.js';
 import { relativePath } from '../utils/io.js';
 import { relativeFile } from '../repositories/resource.repository.js';
@@ -66,33 +67,22 @@ export function visibleAssets(
 ) {
   const /** @type {Map<string, {reference: string, file: string, relative: string}>} */ assets =
       new Map();
-  /**
-   * @param {unknown} value
-   */
-  const visit = (value) => {
-    if (typeof value === 'string' && value.startsWith('qf-asset:')) {
-      const relative = value.slice(9),
-        file = relativePath(snapshot.directory, relative),
-        assetId = hash(Buffer.from(id + '\0' + value));
-      if (relative.toLowerCase() === 'bank.json') {
-        throw problem('ASSET_PATH_INVALID', '题库数据文件不能作为提交前可见的资源。', {
-          field: 'question',
-        });
-      }
-      assets.set(assetId, { reference: value, file, relative });
-    } else if (Array.isArray(value)) {
-      for (const child of value) {
-        visit(child);
-      }
-    } else if (object(value)) {
-      for (const child of Object.values(value)) {
-        visit(child);
-      }
-    }
-  };
-  visit(record.question);
+  const references = resourceReferences(record.question);
   if (includeSolution) {
-    visit(record.solution);
+    for (const reference of resourceReferences(record.solution)) {
+      references.add(reference);
+    }
+  }
+  for (const value of references) {
+    const relative = value.slice(9),
+      file = relativePath(snapshot.directory, relative),
+      assetId = hash(Buffer.from(id + '\0' + value));
+    if (relative.toLowerCase() === 'bank.json') {
+      throw problem('ASSET_PATH_INVALID', '题库数据文件不能作为提交前可见的资源。', {
+        field: 'question',
+      });
+    }
+    assets.set(assetId, { reference: value, file, relative });
   }
   return assets;
 }

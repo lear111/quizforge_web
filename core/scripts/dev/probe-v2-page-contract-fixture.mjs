@@ -5,7 +5,7 @@ import { copyBrowserFixture } from '../../test/fixtures/v2-browser.mjs';
 function partsExtension(extension, manifest) {
   fs.writeFileSync(
     path.join(extension, 'manifest.json'),
-    JSON.stringify({ ...manifest, id: 'synthetic.parts', name: '合成小题' }),
+    JSON.stringify({ ...manifest, version: '2.0.0', id: 'synthetic.parts', name: '合成小题' }),
   );
   fs.writeFileSync(
     path.join(extension, 'practice.css'),
