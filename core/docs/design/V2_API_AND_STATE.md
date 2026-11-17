@@ -152,7 +152,7 @@ J 已实现并合并此接口。返回类型为 `RestartResponse = OverviewRespo
 - 历史里只读：`GET R/questions/{questionId}/answer-files/{name}` 与 `GET R/questions/{questionId}/answer-ink/{areaId}`。
 - 磁盘文件夹与接口地址都叫 `answer-files`，与题库素材的 `assets` 区分开。
 
-## 第 5 段接口：评分来源与 AI（已定稿，未实现）
+## 第 5 段接口：评分来源与 AI（评分对象级方案已确认，具体接口待设计）
 
 设计依据：D60–D62。
 
