@@ -1,7 +1,7 @@
 # L：HTML 富文本 SDK 2.0.0（D54、D66）
 
-状态：实现完成；[PR #195](https://github.com/lear111/quizforge_web/pull/195) → `v2`，等待审查，不自行合并。
-依据：[总体设计](../V2_ARCHITECTURE.md)、[数据结构 1.1](../V2_DATA_STRUCTURES.md#11-富文本内容d54待实现)、[题型协议](../../reference/V2_EXTENSIONS.md)、[已批准选型](V2-L-RICHTEXT.md)。
+状态：已审查并合并；[PR #195](https://github.com/lear111/quizforge_web/pull/195) → `v2`，合并提交 `30b5997`。负责人尚未完成真实设备试用验收。
+依据：[总体设计](../V2_ARCHITECTURE.md)、[数据结构 1.1](../V2_DATA_STRUCTURES.md#11-富文本内容d54已实现)、[题型协议](../../reference/V2_EXTENSIONS.md)、[已批准选型](V2-L-RICHTEXT.md)。
 
 ## 改了什么
 
