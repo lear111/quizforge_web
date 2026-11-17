@@ -1,6 +1,6 @@
 # L：受限 HTML 富文本（D54）
 
-**状态：设计已由负责人确认；尚未开工。** 本文记录已批准的实现选型与影响边界，不代表 Codex 已开始编码。正式行为仍以 [D54](../V2_ARCHITECTURE.md)、[数据结构说明书 1.1](../V2_DATA_STRUCTURES.md) 为准。
+**状态：设计已确认；实现 PR #195 已合并。** 本文记录已批准的实现选型与影响边界；实现细节和验证结果见 [实施记录](V2-L-RICHTEXT-IMPLEMENTATION.md)。正式行为仍以 [D54](../V2_ARCHITECTURE.md)、[数据结构说明书 1.1](../V2_DATA_STRUCTURES.md) 为准。
 
 ## 目标与范围
 
